@@ -1,0 +1,147 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung" }
+
+  czlab.kirby.lexer)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(require "./require")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- KIRBY "____kirby")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- addToken [tree token context]
+  (do-with [ret ""]
+    (when token
+      (if (= ":else" token) (set! token "true"))
+      (if (= "nil" token) (set! token "null"))
+      (if (and (or (.startsWith token ":")
+                   (.startsWith token "'"))
+               (testid (.substring token 1)))
+        (set! token (str "\"" (.substring token 1) "\"")))
+      (conj!! tree (tnode context.lineno
+                          (- context.tknCol 1)
+                          context.filename token token)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- lexer [prevToken context]
+  (var ____BREAK! nil
+       formType nil
+       token ""
+       ch nil
+       escStr? false
+       isStr? false
+       comment? false)
+
+  (do-with [tree []]
+    (->> (reduce (fn [acc k]
+                   (set! acc k (get context k)) acc)
+                 {}
+                 [:filename :lineno])
+         (set! tree KIRBY))
+
+    (cond
+      (= "[" prevToken)
+      (set! state :array true)
+      (= "{" prevToken)
+      (set! state :object true))
+
+    (set! ____BREAK! false)
+    (while (and (not ____BREAK!)
+                (< context.pos (alen context.code)))
+      (set! ch (.charAt context.code context.pos))
+      (inc!! context.colno)
+      (inc!! context.pos)
+      (when (= ch "\n")
+        (inc!! context.lineno)
+        (set! context.colno 1)
+        (if comment? (toggle! comment?)))
+      (cond
+        comment?
+        nil
+        escStr?
+        (do
+          (toggle! escStr?)
+          (inc! token ch))
+        (= ch "\"")
+        (do
+          (toggle! inStr?)
+          (inc! token ch))
+        inStr?
+        (do
+          (if (= ch "\n") (set! ch "\\n"))
+          (if (= ch "\\") (set! escStr? true))
+          (inc! token ch))
+        (= ch "'")
+        ;;more work
+        (inc! token ch)
+        (or (= ch "[")
+            (= ch "]"))
+        (do
+          (set! token (addToken tree token context))
+          (set! context.tknCol context.colno)
+          (if (= ch "[")
+            (do
+              (set! formType  :array)
+              (conj!! tree (lexer ch context)))
+            (do
+              (set! formType nil)
+              (set! ____BREAK! true))))
+        (or (= ch "{")
+            (= ch "}"))
+        (do
+          (set! token (addToken tree token context))
+          (set! context.tknCol context.colno)
+          (if (= ch "{")
+            (do
+              (set! formType  :object)
+              (conj!! tree (lexer ch context)))
+            (do
+              (set! formType nil)
+              (set! ____BREAK! true))))
+        (= ch ";")
+        (set! comment? true)
+        (or (= ch "(")
+            (= ch ")"))
+        (do
+          (set! token (addToken tree token context))
+          (set! context.tknCol context.colno)
+          (if (= ch "(")
+            (do (set! formType :list)
+                (conj!! tree (lexer nil context)))
+            (do (set! formType nil)
+                (set! ____BREAK! true))))
+        (REGEX.wspace.test ch)
+        (do
+          (if (= ch "\n") (dec!! lineno))
+          (set! token (addToken tree token context))
+          (if (= ch "\n") (inc!! lineno))
+          (set! context.tknCol context.colno))
+        :else
+        (inc!! token ch)))
+    ;;final check!
+    (if isStr? (syntax! 'e3 tree))
+    (cond
+      (= formType :array)
+      (syntax! 'e5 tree)
+      (= formType :object)
+      (syntax! 'e7 tree)
+      (= formType :list)
+      (syntax! 'e8 tree))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
