@@ -1,27 +1,55 @@
-;; A very simple REPL written in LispyScript
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
 
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.kirby.repl)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (require "./require")
-(def readline (require "readline")
-     ls (require "../lib/ls")
-     prefix "lispy> ")
 
-(set! exports.runrepl
-  (#
-    (var rl (readline.createInterface process.stdin process.stdout))
-    (rl.on 'line'
-      (fn (line)
-        (try
-          (var l (ls.transpile line))
-          (console.log (this.eval l))
-          (catch err
-            (console.log err)))
-        (rl.setPrompt prefix prefix.length)
-        (rl.prompt)))
-    (rl.on 'close'
-      (#
-        (console.log "Bye!")
-        (process.exit 0)))
-    (console.log (str prefix 'LispyScript REPL v' ls.version))
-    (rl.setPrompt prefix prefix.length)
-    (rl.prompt)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- *readline* (require "readline")
+      *process* process
+      ls (require "../lib/ls")
+      prefix "kirby> ")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! exports
+      runrepl
+      (# (var cli
+              (.createInterface *readline*
+                                (.-stdin *process*)
+                                (.-stdout *process*)))
+         (.on cli
+              "line"
+              (fn [line]
+                (try
+                  (var l (ls.transpile line))
+                  (console.log (this.eval l))
+                  (catch err
+                    (console.log err)))
+                (.setPrompt cli prefix (alen prefix))
+                (.prompt cli)))
+         (.on cli
+              "close"
+              (# (console.log "Bye!")
+                 (.exit *process* 0)))
+
+         (console.log (str prefix "Kirby REPL v1.0.0"))
+         (.setPrompt cli prefix (alen prefix))
+         (.prompt cli)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
 

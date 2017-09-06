@@ -1,0 +1,166 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.kirby.main)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(require "./require")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- *gopt* (require "node-getopt")
+      *watcher* (require "watch")
+      *path* (require "path")
+      *fs* (require "fs")
+      *process* process
+      error (fn [e]
+              (console.error (str e))
+              (.exit *process* 1))
+      validFlag? (regex "-h\\b|-r\\b|-v\\b|-b\\b|-s\\b|-t\\b"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- opt
+  (-> (.create *gopt*
+               [["h" "help" "display this help"]
+                ["v" "version" "show version"]
+                ["r" "run" "run .kirby files"]
+                ["w" "watch" "auto-compile changed files"]
+                ["b" "browser-bundle" "bundle for browser"]
+                ["m" "map" "generate source maps"]
+                ["t" "tree" "show AST"]
+                ["i" "include-dir=ARG+" "add directory to include search path"]])
+      (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
+                     "<outfile> default to <infile> with \".js\" extension\n\n"
+                     "Also compile stdin to stdout\n"
+                     "eg. $ echo "(console.log \"hello\")" | kirby\n\n"
+                     "[[OPTIONS]]\n\n"))
+      (.bindHelp)
+      (.parseSystem)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;when no args do stdin -> stdout compile or run repl and return null to
+;;halt operations.
+(defn- handleNoArgs []
+  (var pout (.-stdout *process*)
+       source ""
+       pin (.-stdin *process*))
+  (.resume pin)
+  (.setEncoding pin "utf8")
+  (.on pin
+       "data"
+       (fn [chunk]
+         (+= source (.toString chunk))))
+  (.on pin
+       "end"
+       (# (try
+            (.write pout (ls.transpile source (.-cwd *process*)))
+            (catch e (error e)))))
+  (.on pout "error" error)
+  (.on pin "error" error)
+  (setTimeout
+    (# (when (zero? (.-bytesRead inp))
+         (.removeAllListeners inp "data")
+         (.runrepl repl))) 20))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- compileFiles []
+  (var fin
+       (if (1st opt.argv)
+         (1st opt.argv)
+         (error "No Input file"))
+       fout (2nd opt.argv))
+  (when-not fout
+    (set! fout
+          (.replace fin (regex "\\.kirby$") ".js"))
+    (if (= fout fin)
+      (error "Input file must have extension \".kirby\"")))
+  (try
+    (var wantMap? (get opt.options "map")
+         dbgAST? (get opt.options "tree")
+         source nil
+         dirs (get opt.options "include-dir"))
+    (if-not dbgAST?
+      (console.log
+        (str "kirby v1.0.0" ": compiling: " fin " -> " fout)))
+    (set! source (.readFileSync *fs* fin "utf8"))
+    (if dbgAST?
+      (ls.dbgAST source fin dirs)
+      (.writeFileSync
+        *fs*
+        fout
+        (if wantMap?
+          (ls.transpileWithSrcMap source fin dirs)
+          (ls.transpile source fin dirs))
+        "utf8"))
+    (catch e (error e) )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn -main []
+
+  (cond
+    (and (empty? opt.argv)
+         (empty? (keys opt.options)))
+    (handleNoArgs)
+    (get opt.options "version")
+    (console.log (str "Version: " ls.version))
+    (get opt.options "browser-bundle")
+    (let [bundle
+          (require.resolve "kirby/lib/browser-bundle.js")]
+      ((.pipe (.createReadStream *fs* bundle))
+       (.createWriteStream *fs* "browser-bundle.js")))
+    (get opt.options "run")
+    (let [a1 (1st opt.argv)
+          infile a1]
+      (if-not a1 (error "No input file"))
+      (if-not (or (.endsWith a1 ".kirby")
+                  (.endsWith a1 ".js"))
+        (error "Input file must end with \".kirby\" or \".js\""))
+      (require infile))
+    (get opt.options "watch")
+    (let [cwd (.-cwd *process*)]
+      (console.log "Watching" cwd "for file changes...")
+      (.watchTree *watcher*
+                  cwd
+                  {filter (fn [f stat]
+                            (or (.-isDirectory stat)
+                                (not= (f.indexOf ".kirby") -1)))
+                   ignoreDotFiles true
+                   ignoreDirectoryPattern (regex "node_modules")}
+                  (fn [f curr prev]
+                    (cond
+                      (and curr
+                           (not= curr.nlink 0))
+                      (-> (require "child_process")
+                          (.spawn "kirby"
+                                  [ (.substring f
+                                                (inc (alen cwd))) ]
+                                  {stdio "inherit"}))
+                      (and (object? f)
+                           (nil? prev) (nil? curr))
+                      (each-key
+                        (fn [stat initialf]
+                          (when-not (= initialf cwd)
+                            (-> (require "child_process")
+                                (.spawn "kirby"
+                                        [ (.substring initialf (inc (alen cwd)))]
+                                        {stdio "inherit"})))) f)))))
+    :else
+    (compileFiles)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
+
