@@ -13,7 +13,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(require "./core")
+(require "./lexer")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -36,20 +36,6 @@
       TILDA "~"
       indent -tabspace
       TILDA-VARGS (str TILDA VARGS))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(def- REGEX
-  { macroGet (regex "^#slice@(\\d+)")
-    noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-    id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-    id2 (regex "^[*][?\\-*!0-9a-zA-Z_$]+$")
-    func (regex "^function\\b")
-    query (regexs "\\?" "g")
-    bang (regexs "!" "g")
-    dash (regexs "-" "g")
-    star (regexs "\\*" "g")
-    wspace (regex "\\s") })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -82,11 +68,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- testid? [name]
-  (or (REGEX.id.test name) (REGEX.id2.test name)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 (defn- normalizeId [name]
   (var pfx "")
   (if (and (string? name)
@@ -115,11 +96,6 @@
               (if msg (str " : " msg))
               (if line (str "\nLine no " line))
               (if file (str "\nFile " file))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(def- attr-file "_filename")
-(def- attr-line "_lineno")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -215,9 +191,9 @@
 ;;
 (defn- evalList2 [expr]
 
-  (var s nil ename "")
   (evalConCells expr)
-  (set! ename (nth expr 0))
+  (var s nil
+       ename (car expr))
   (if-not ename
     (syntax! :e1 expr))
   (if (REGEX.fn.test ename)
@@ -231,14 +207,14 @@
 ;;
 (defn- evalList [expr]
 
-  (var cmd "" tmp nil mc nil)
+  (var cmd "" tmp nil mc nil
+       info (or (get expr KIRBY) {}))
 
   (cond
-    (true? (.-_object expr)) (set! cmd "{")
-    (true? (.-_array expr)) (set! cmd "[")
-    (and (not-empty expr)
-         (node? (nth expr 0)))
-    (do (set! cmd (.-name (1st expr)))
+    (= :object info.eTYPE) (set! cmd "{")
+    (= :array info.eTYPE) (set! cmd "[")
+    (node? (car expr))
+    (do (set! cmd (.-name (car expr)))
         (set! mc (get MACROS-MAP cmd))))
 
   (cond
@@ -247,13 +223,13 @@
     (cond
       (.startsWith cmd ".-")
       (do-with [ret (tnode)]
-        (.add ret (eval?? (nth expr 1)))
+        (.add ret (eval?? (cadr expr)))
         (.prepend ret "(")
         (.add ret [")[\"" (.slice cmd 2) "\"]"]))
-      (= (.charAt cmd 0) '.')
+      (= (.charAt cmd 0) ".")
       (do-with [ret (tnode)]
-        (.add ret (eval?? (nth expr 1)))
-        (.add ret [(1st expr) "("])
+        (.add ret (eval?? (cadr expr)))
+        (.add ret [(car expr) "("])
         (for ((i 2) (< i (alen expr)) (i (inc i)))
           (if (not= i 2) (.add ret ","))
           (.add ret (eval?? (nth expr i))))
@@ -268,29 +244,37 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- evalConCells [cells]
-  (each cells
-        (fn [cell i cc]
-          (if (list? cell) (set! cc i (evalList cell))))))
+  (each (fn [cell i cc]
+          (if (list? cell) (set! cc i (evalList cell)))) cells))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- expandMacro [code data]
-  (var ret [] ename "" s1name "" tmp nil)
-  (set! ret "_filename" (get data "_filename"))
-  (set! ret "_line" (get data "_line"))
+  (var ret []
+       ename ""
+       tmp nil
+       s1name ""
+       ci (or (get code KIRBY) {})
+       di (or (get data KIRBY) {}))
+
+  (set! ret
+        KIRBY
+        (Object.assign di))
+
   (when (and (list? code)
              (> (alen code) 1))
-   (set! s1name (.-name (nth code 1)))
-   (set! frag (get frags (str TILDA s1name))))
+    (set! s1name (.-name (cadr code)))
+    (set! frag (get frags (str TILDA s1name))))
+
   (if (and (list? code)
            (not-empty code))
-   (set! ename (.-name (1st code))))
+   (set! ename (.-name (car code))))
+
   ;;deal with array and object literals
-  (cond
-    (true? (.-_object code))
-    (set! ret "_object" true)
-    (true? (.-_array code))
-    (set! ret "_array" true))
+  (if (or (= :object ci.eTYPE)
+          (= :array ci.eTYPE))
+    (set! ret :eTYPE ci.eTYPE))
+
   ;;the magic
   (cond
     (= ename "#<<")
@@ -301,7 +285,7 @@
     (= ename "#head")
     (if-not (list? frag)
       (syntax! :e13 data cmd)
-      (if (not-empty frag) (1st frag)))
+      (if (not-empty frag) (car frag)))
     ;;
     (= ename "#tail")
     (if-not (list? frag)
@@ -324,7 +308,7 @@
     (do
       (if-not (list? frag) (syntax! :e13 data cmd))
       (set! tmp (REGEX.macroGet.exec ename))
-      (1st (.splice frag (dec (nth tmp 1)) 1)))
+      (car (.splice frag (dec (cadr tmp)) 1)))
     ;;
     (= ename "#if")
     (do
@@ -332,8 +316,7 @@
       (cond
         (not-empty frag) (expand (nth code 2))
         (and (> (alen code) 3)
-             (nth code 3)) (expand (nth code 3))
-        :else undefined))
+             (nth code 3)) (expand (nth code 3))))
     ;;
     :else
     (let [cell nil]
@@ -353,14 +336,14 @@
             (when (.includes tn "@")
               (set! atSign? true)
               (set! tmp
-                    (tnode (.-line token)
-                           (.-column token)
-                           (.-source token)
+                    (tnode token.line
+                           token.column
+                           token.source
                            (.replace tn "@" "")
                            (.replace tn "@" ""))))
-            (if-some [repl (get frags (.-name tmp))]
+            (if-some [repl (get frags tmp.name)]
               (do (if (or atSign?
-                          (= (.-name tmp) TILDA-VARGS))
+                          (= tmp.name TILDA-VARGS))
                     (for ((j 0) (< j (alen repl)) (j (inc j)))
                       (conj!! ret (nth repl j)))
                     (conj!! ret repl)))
@@ -370,15 +353,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- evalMacro [mc data]
-  (var args (get mc "args")
-       cmd (get mc "name")
-       code (get mc "code")
+  (var args (get mc :args)
+       cmd (get mc :name)
+       code (get mc :code)
        vargs false
        tpos 0
        i 0
        frags {})
 
-  ;;map all args to actual data, say &args -> rest of the data
+  ;;map all args to actual data, say &rest -> rest of the data
   ;;tpos is always one ahead to skip out the macro cmd
   (for ((i 0 tpos (inc i))
         (< i (alen args)) (i (inc i) tpos (inc i)))
@@ -392,7 +375,7 @@
 
   ;;check if enough args were supplied to the macro
   (if (and (not vargs)
-           (< (+ i 1) (alen data))) (syntax! :e16 data cmd))
+           (< (inc i) (alen data))) (syntax! :e16 data cmd))
 
   (expandMacro code data))
 
@@ -402,11 +385,11 @@
   (if (< (alen expr) 3) (syntax! :e0 expr))
   (evalConCells expr)
   ;; dont use === as it is a source node
-  (if (eq? (1st expr) "!=") (set! expr 0  "!=="))
-  (if (eq? (1st expr) "=") (set! expr 0 "==="))
+  (if (eq? (car expr) "!=") (aset expr 0  "!=="))
+  (if (eq? (car expr) "=") (aset expr 0 "==="))
   (do-with [ret (tnode)]
     (for ((i 0 op (.shift expr))
-          (< i (- (alen expr) 1)) (i (inc i)))
+          (< i (dec (alen expr))) (i (inc i)))
       (.add ret (tnodeChunk [(nth expr i) " "
                                           op
                                           " "
@@ -417,9 +400,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(each ["!=" "==" "=" ">" ">=" "<" "<="]
-      (fn [k]
-          (set! SPECIAL-OPS k sf-compOp)))
+(each (fn [k]
+        (set! SPECIAL-OPS k sf-compOp))
+      ["!=" "==" "=" ">" ">=" "<" "<="])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -436,8 +419,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(each ["+" "-" "*" "/" "%"]
-      (fn [k] (set! SPECIAL-OPS k sf-arithOp)))
+(each (fn [k]
+        (set! SPECIAL-OPS k sf-arithOp)) ["+" "-" "*" "/" "%"])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -445,17 +428,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(each ["||" "&&" "^" "|" "&" ">>>" ">>" "<<"]
-      (fn [k] (set! SPECIAL-OPS k sf-logicalOp)))
+(each (fn [k]
+        (set! SPECIAL-OPS k sf-logicalOp))
+      ["||" "&&" "^" "|" "&" ">>>" ">>" "<<"])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-repeat [expr]
-  (if (not= (alen expr) 3) (syntax! :e0 expr))
+  (assertArgs expr 3 :e0)
   (evalConCells expr)
   (do-with [ret (tnode)]
     (for ((i 0
-           end (parseInt (.-name (nth expr 1))))
+           end (parseInt (.-name (cadr expr))))
           (< i end)
           (i (inc i)))
       (if (not= i 0) (.add ret ","))
@@ -470,8 +454,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-do [expr]
-  (var end (eindex expr)
-       e nil p (pad indent))
+  (var p (pad indent)
+       e nil
+       end (eindex expr))
   (do-with [ret (tnode)]
     (for ((i 1) (< i end) (i (inc i)))
       (set! e (nth expr i))
@@ -498,12 +483,12 @@
        e nil
        e1 (eval?? (nth expr 1)))
   (do-with [ret (tnode)]
-    (.add ret [p2 "let ___x = " e1 ";\n"])
+    (.add ret [p2 "let ____x = " e1 ";\n"])
     (for ((i 2) (< i (alen expr)) (i (inc i)))
       (set! e (nth expr i))
-      (.splice e 1 0 "___x")
+      (.splice e 1 0 "____x")
       (.add ret [p3 (evalList e) ";\n"]))
-    (.add ret [p2 "return ___x;\n"])
+    (.add ret [p2 "return ____x;\n"])
     (.prepend ret (str p "(function() {\n"))
     (.add ret (str p "})()"))))
 
@@ -521,7 +506,7 @@
   (var len 0 start 0 step 1 end 0)
   (evalConCells expr)
   (set! len (alen expr))
-  (set! end (parseInt (.-name (nth expr 1))))
+  (set! end (parseInt (.-name (cadr expr))))
   (do-with [ret (tnode)]
     (when (> len 2)
       (set! start (parseInt (.-name (nth expr 1))))
@@ -546,19 +531,19 @@
           (= 0 (mod (alen expr) 2))) (syntax! :e0 expr))
 
   (if (> (alen expr) 3)
-    (inc! indent tabspace))
+    (+= indent tabspace))
 
   (evalConCells expr)
   (do-with [ret (tnode)]
     (for ((i 1) (< i (alen expr)) (i (+ i 2)))
       (if (> i 1)
         (.add ret (str ",\n" (pad indent))))
-      (if-not (testid (nth expr i)) (syntax! :e9 expr))
+      (if-not (testid? (nth expr i)) (syntax! :e9 expr))
       (.add ret [(nth expr i) " = " (nth expr (inc i))]))
     (.prepend ret " ")
     (.prepend ret cmd)
     (if (> (alen expr) 3)
-      (dec! indent tabspace))))
+      (-= indent tabspace))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -583,7 +568,7 @@
 (defn- sf-throw [expr]
   (assertArgs expr 2 :e0)
   (do-with [ret (tnode)]
-    (.add ret (eval?? (nth expr 1)))
+    (.add ret (eval?? (cadr expr)))
     (.prepend ret "throw ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -607,7 +592,7 @@
 ;;
 (defn- sf-x-opop [expr op]
   (if (not= (alen expr) 2) (syntax! :e0 expr))
-  (tnodeChunk [op (eval?? (nth expr 1))]))
+  (tnodeChunk [op (eval?? (cadr expr))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -617,8 +602,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-x-eq [expr op]
-  (if (not= (alen expr) 3) (syntax! :e0 expr))
-  (tnodeChunk [(nth expr 1)
+  (assertArgs expr 3 :e0)
+  (tnodeChunk [(cadr expr)
                (str " " op "= ")
                (eval?? (nth expr 2))]))
 
@@ -633,26 +618,27 @@
   (if (or (< (alen expr) 3)
           (> (alen expr) 4)) (syntax! :e0 expr))
   (when (= (alen expr) 4)
-    (if (list? (nth expr 1))
-      (set! expr 1 (evalList (nth expr 1))))
+    (if (list? (cadr expr))
+      (aset expr 1 (evalList (cadr expr))))
     (if (list? (nth expr 2))
-      (set! expr 2 (evalList (nth expr 2))))
-    (set! expr 1 (str (nth expr 1) "[" (nth expr 2) "]"))
-    (set! expr 2 (nth expr 3)))
-  (tnodeChunk [(nth expr 1)
+      (aset expr 2 (evalList (nth expr 2))))
+    (aset expr 1 (str (cadr expr) "[" (nth expr 2) "]"))
+    (aset expr 2 (nth expr 3)))
+  (tnodeChunk [(cadr expr)
                " = "
                (eval?? (nth expr 2))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(set! SPECIAL-OPS "aset" sf-set)
 (set! SPECIAL-OPS "set!" sf-set)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-anonFunc [expr]
   (if (< (alen expr) 2) (syntax! :e0 expr))
-  (if-not (list? (nth expr 1)) (syntax! :e0 expr))
-  (var fArgs (nth expr 1)
+  (if-not (list? (cadr expr)) (syntax! :e0 expr))
+  (var fArgs (cadr expr)
        fBody (.slice expr 2))
   (do-with [ret (tnodeChunk fArgs)]
     (.join ret ",")
@@ -672,10 +658,10 @@
   (var fName nil
        fArgs nil fBody nil)
   (do-with [ret nil]
-    (if (and (not (list? (nth expr 1)))
+    (if (and (not (list? (cadr expr)))
              (list? (nth expr 2)))
       (do
-        (set! fName (normalizeId (.-name (nth expr 1))))
+        (set! fName (normalizeId (.-name (cadr expr))))
         (set! fArgs (nth expr 2))
         (set! fBody (.slice expr 3)))
       (syntax! :e0 expr))
@@ -703,17 +689,17 @@
   ;;look for finally
   (set! f (last expr))
   (if (and (list? f)
-           (= (.-name (1st f)) "finally"))
+           (= (.-name (car f)) "finally"))
     (do (set! f (.pop expr))
         (set! sz (alen expr)))
     (set! f nil))
   ;;look for catch
   (set! c (if (> sz 1) (nth expr (dec sz)) nil))
   (if (and (list? c)
-           (= (.-name (1st c)) "catch"))
+           (= (.-name (car c)) "catch"))
     (do
       (if (or (< (alen c) 2)
-              (not (node? (nth c 1)))) (syntax! :e0 expr))
+              (not (node? (cadr c)))) (syntax! :e0 expr))
       (set! c (.pop expr)))
     (set! c nil))
   ;;try needs either a catch or finally or both
@@ -725,7 +711,7 @@
                    (parseTree (.slice expr 1))
                    (str "\n" ind "} ") ])]
     (when c
-      (set! t (nth c 1))
+      (set! t (cadr c))
       (.splice c 0 2 (tnodeChunk "do" "do"))
       (.add ret [(str "catch (" t ") {\n")
                  "return "
@@ -746,17 +732,17 @@
 (defn- sf-if [expr]
   (if (or (< (alen expr) 3)
           (> (alen expr) 4)) (syntax! :e0 expr))
-  (inc! indent tabspace)
+  (+= indent tabspace)
   (evalConCells expr)
   (try
     (tnodeChunk ["("
-                 (nth expr 1)
+                 (cadr expr)
                  (str " ?\n" (pad indent))
                  (nth expr 2)
                  (str " :\n" (pad indent))
                  (or (nth expr 3) "undefined") ")"])
     (finally
-      (dec! indent tabspace))))
+      (-= indent tabspace))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -767,7 +753,7 @@
 (defn- sf-get [expr]
   (assertArgs expr 3 :e0)
   (evalConCells expr)
-  (tnodeChunk [(nth expr 1) "[" (nth expr 2) "]"]))
+  (tnodeChunk [(cadr expr) "[" (nth expr 2) "]"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -792,15 +778,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-array [expr]
-  (var p (pad indent)
+  (var info (or (get expr KIRBY) {})
+       p (pad indent)
        epilog (str "\n" p "]"))
   (do-with [ret (tnode)]
     (if (empty? expr)
       (.add ret "[]")
       (try
-        (if-not (true? (.-_array expr))
+        (if (not= :array info.eTYPE)
           (.splice expr 0 1))
-        (inc! indent tabspace)
+        (+= indent tabspace)
         (evalConCells expr)
         (set! p (pad indent))
         (.add ret (str "[\n" p))
@@ -810,7 +797,7 @@
           (.add ret (nth expr i)))
         (.add ret epilog)
         (finally
-          (dec! indent tabspace))))))
+          (-= indent tabspace))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -820,15 +807,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-object [expr]
-  (var p (pad indent)
+  (var info (or (get expr KIRBY) {})
+       p (pad indent)
        epilog (str "\n" p "}"))
   (do-with [ret (tnode)]
     (if (empty? expr)
       (.add ret "{}")
       (try
-        (if-not (true? (.-_object expr))
+        (if (not= :object info.eTYPE)
           (.splice expr 0 1))
-        (inc! indent tabspace)
+        (+= indent tabspace)
         (evalConCells expr)
         (set! p (pad indent))
         (.add ret (str "{\n" p))
@@ -838,7 +826,7 @@
           (.add ret [(nth expr i) ": " (nth expr (inc i))]))
         (.add ret epilog)
         (finally
-          (dec! indent tabspace))))))
+          (-= indent tabspace))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -853,8 +841,7 @@
         (if (not= (.indexOf icache fname) -1)
           ""
           (do (.push icache fname)
-              (processTree (toASTree (.readFileSync fs fname)
-                                     fname))))))))
+              (processTree (toASTree (.readFileSync *fs* fname) fname))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -863,28 +850,28 @@
   (assertArgs expr 2 :e0)
 
   (var found false
-       fname (.-name (nth expr 1)))
+       fname (.-name (cadr expr))
+       info (or (get expr KIRBY) {}))
 
   (if (string? fname)
     (set! fname (.replace fname
-                          (new RegExp "[\"']", "g") "")))
+                          (regexs "[\"]" "g") "")))
 
-  (dec! indent tabspace)
+  (-= indent tabspace)
 
-  (each (.concat includePaths
-                 [ (.dirname path (.-_file expr)) ])
-        (fn [pfx]
-          (try
+  (each (fn [pfx]
+          (try!
             (when-not found
-              (set! fname (.realpathSync fs (str pfx "/" fname)))
-              (set! found true))
-            (catch err nil))))
+              (set! fname (.realpathSync *fs* (str pfx "/" fname)))
+              (set! found true))))
+        (conj includePaths
+              (.dirname *path* info.filename)))
 
   (if-not found (syntax! :e11 expr))
   (try
     (includeFile fname)
     (finally
-      (inc! indent tabspace))))
+      (+= indent tabspace))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -912,17 +899,19 @@
 
   (if (< (alen expr) 2) (syntax! :e0 expr))
 
-  (var c1 nil c2 nil c3 nil
-       c (nth expr 1)
+  (var c1 nil
+       c2 nil
+       c3 nil
+       c (cadr expr)
        ind (pad indent))
 
   (do-with [ret (tnodeChunk "for (")]
     (if (or (not (list? c))
             (not= (alen c) 3)) (syntax! :e0 expr))
-    (set! c1 (1st c))
-    (set! c2 (nth c 1))
+    (set! c1 (car c))
+    (set! c2 (cadr c))
     (set! c3 (nth c 2))
-    (inc! indent tabspace)
+    (+= indent tabspace)
     (for ((i 0) (< i (alen c1)) (i (+ i 2)))
       (if (= i 0) (.add ret "var "))
       (if (not= i 0) (.add ret ","))
@@ -942,7 +931,7 @@
       (.splice expr 0 2 (tnodeChunk "do" "do"))
       (.add ret [ind (pad tabspace) (evalList expr) ";"]))
     (.add ret (str "\n" ind "}\n"))
-    (dec! indent tabspace)))
+    (-= indent tabspace)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -953,8 +942,8 @@
 (defn- sf-jscode [expr]
   (assertArgs expr 2 :e0)
   (set! noSemi? true)
-  (.replaceRight (nth expr 1) (new RegExp "\"" "g") "")
-  (nth expr 1))
+  (.replaceRight (cadr expr) (regexs "\"" "g") "")
+  (cadr expr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -966,13 +955,13 @@
   (assertArgs expr  4 :e0)
   (var a2 (nth expr 2)
        a3 (nth expr 3)
-       cmd (.-name (nth expr 1)))
+       cmd (.-name (cadr expr)))
   (do-with [ret ""]
     (for ((i 0) (< i (alen a2)) (i (inc i)))
       (if (and (= (.-name (nth a2 i)) VARGS)
-               (not= (+ i 1) (alen a2)))
+               (not= (inc i) (alen a2)))
         (syntax! :e15 expr cmd)))
-    (set! MACROS-MAP cmd {args a2 code a3 name cmd})))
+    (set! MACROS-MAP cmd { args a2 code a3 name cmd })))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -983,7 +972,7 @@
 (defn- sf-not [expr]
   (assertArgs expr 2 :e0)
   (evalConCells expr)
-  (str "(!" (nth expr 1) ")"))
+  (str "(!" (cadr expr) ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1004,7 +993,7 @@
     (do
       (console.log "<node>")
       (console.log obj)
-      (dbg (.-children obj) "subs")
+      (dbg obj.children "subs")
       (console.log "</node>"))
     :else
     (console.log obj)))
@@ -1026,14 +1015,14 @@
   (.prepend outNode banner)
 
   (if withSrcMap?
-    (let [outFile (str (.basename path fname ".lisp") ".js")
+    (let [outFile (str (.basename *path* fname ".kirby") ".js")
           srcMap  (str outFile ".map")
           output (.toStringWithSourceMap outNode
                                          { file outFile })]
-      (.writeFileSync fs srcMap (.-map output))
-      (str (.-code output)
+      (.writeFileSync fs srcMap output.map)
+      (str output.code
            "\n//# sourceMappingURL="
-           (.relative path (.dirname path fname) srcMap))
+           (.relative *path* (.dirname *path* fname) srcMap))
     (.toString outNode))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

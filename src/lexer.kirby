@@ -13,11 +13,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(require "./require")
+(require "./core")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(def- REGEX
+  { macroGet (regex "^#slice@(\\d+)")
+    noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
+    id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
+    id2 (regex "^[*][?\\-*!0-9a-zA-Z_$]+$")
+    func (regex "^function\\b")
+    query (regexs "\\?" "g")
+    bang (regexs "!" "g")
+    dash (regexs "-" "g")
+    star (regexs "\\*" "g")
+    wspace (regex "\\s") })
 (def- KIRBY "____kirby")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- testid? [name]
+  (or (REGEX.id.test name) (REGEX.id2.test name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -28,7 +44,7 @@
       (if (= "nil" token) (set! token "null"))
       (if (and (or (.startsWith token ":")
                    (.startsWith token "'"))
-               (testid (.substring token 1)))
+               (testid? (.substring token 1)))
         (set! token (str "\"" (.substring token 1) "\"")))
       (conj!! tree (tnode context.lineno
                           (- context.tknCol 1)
@@ -125,12 +141,12 @@
                 (set! ____BREAK! true))))
         (REGEX.wspace.test ch)
         (do
-          (if (= ch "\n") (dec!! lineno))
+          (if (= ch "\n") (-- lineno))
           (set! token (addToken tree token context))
-          (if (= ch "\n") (inc!! lineno))
+          (if (= ch "\n") (++ lineno))
           (set! context.tknCol context.colno))
         :else
-        (inc!! token ch)))
+        (+= token ch)))
     ;;final check!
     (if isStr? (syntax! 'e3 tree))
     (cond

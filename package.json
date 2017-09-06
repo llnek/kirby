@@ -34,7 +34,7 @@
   },
   "scripts": {
     "test": "kirby test/test.kirby test/test.js && node test/test.js",
-    "prepublish": "kirby src/lexer.kirby lib/lexer.js && kirby src/compiler.kirby lib/compilerr.js && kirby src/core.kirby lib/core.js && kirby src/repl.kirby lib/repl.js && kirby src/require.kirby lib/require.js && browserify -t brfs lib/browser.js > lib/browser-bundle.js && kirby test/test.kirby test/test.js"
+    "prepublish": "kirby src/lexer.kirby lib/lexer.js && kirby src/compiler.kirby lib/compiler.js && kirby src/core.kirby lib/core.js && kirby src/repl.kirby lib/repl.js && kirby src/require.kirby lib/require.js && browserify -t brfs lib/browser.js > lib/browser-bundle.js && kirby test/test.kirby test/test.js"
   },
   "preferGlobal": true,
   "dependencies": {

@@ -13,7 +13,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(require "./require")
+(require "./repl")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -42,7 +42,7 @@
       (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
                      "<outfile> default to <infile> with \".js\" extension\n\n"
                      "Also compile stdin to stdout\n"
-                     "eg. $ echo "(console.log \"hello\")" | kirby\n\n"
+                     "eg. $ echo '(console.log \"hello\")' | kirby\n\n"
                      "[[OPTIONS]]\n\n"))
       (.bindHelp)
       (.parseSystem)))
