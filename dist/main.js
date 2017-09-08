@@ -118,30 +118,37 @@ function normalizeId(name) {
       [pfx,name].join("")));
 }
 function tnodeString() {
+  let me = this;
   return   (function() {
-  let s = "";
+  var s = "";
   return   (function() {
-  this.walk(function (chunk,hint) {
+  me.walk(function (chunk,hint) {
+
+    console.log("dude: ccccc  = " + chunk + ", hint = " + hint.name);
     (((hint.name === chunk) && (typeof(chunk) === "string")) ?
       chunk = normalizeId(chunk) :
       undefined);
-    return s += chunk;
+    s += chunk;
   });
   return s;
   })();
   })();
 }
 function tnode(ln,col,src,chunk,name) {
+  let args_QUERY = ((arguments)["length"] > 0);
+  console.log("kenl chunk = " + chunk);
   return   (function() {
   let n = null;
   return   (function() {
-  (((arguments)["length"] > 0) ?
-    n = (name ?
+  n= (args_QUERY ?
+    (name ?
       new TreeNode(ln,col,src,chunk,name) :
       new TreeNode(ln,col,src,chunk)) :
-    n = new TreeNode());
+    new TreeNode());
+    console.log("kenl nn = " + n.children[0]);
   n[KIRBY] = {};
-  n[toString] = tnodeString;
+  n["toString"] = tnodeString;
+    console.log("kenl n = " + n.toString());
   return n;
   })();
   })();
@@ -174,6 +181,7 @@ function addToken(tree,token,context) {
 function lexer(prevToken,context) {
   let ____BREAK_BANG = null,
     formType = null,
+    state = null,
     token = "",
     ch = null,
     escStr_QUERY = false,
@@ -182,13 +190,14 @@ function lexer(prevToken,context) {
   return   (function() {
   let tree = [];
   return   (function() {
-  tree[KIRBY] = [
+  state = [
     "filename",
     "lineno"
   ].reduce(function (acc,k) {
     acc[k] = context[k];
     return acc;
   },{});
+  tree[KIRBY] = state;
   (("[" === prevToken) ?
     state["array"] = true :
     (("{" === prevToken) ?
@@ -295,6 +304,7 @@ while ((!____BREAK_BANG) && (context.pos < (context.codeStr)["length"])) {
   })();
 }
 })();
+console.log("kenl lexer tree = " + tree);
   (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
@@ -309,8 +319,8 @@ while ((!____BREAK_BANG) && (context.pos < (context.codeStr)["length"])) {
   })();
   })();
 }
-var MODULE_VERSION = "1.0.0",
-  MODULE_BANNER = "Kirby Auto Generated: Test Only",
+var MODULE_BANNER = "/* Kirby Generated: Test only */\n",
+  MODULE_VERSION = "1.0.0",
   includePaths = [],
   noSemi_QUERY = false,
   tabspace = 2,
@@ -384,6 +394,7 @@ function toASTree(code,fname) {
   ((state.pos < (state.codeStr)["length"]) ?
     error_BANG("e10") :
     undefined);
+  console.log("kenl = " + ret);
   return ret;
   })();
   })();
@@ -1591,10 +1602,9 @@ function compileCode(codeStr,fname,withSrcMap_QUERY,incPaths) {
         file: outFile
       });
     fs.writeFileSync(srcMap,output.map);
-    [output.code,"\n//# sourceMappingURL=",_STARpath_STAR.relative(_STARpath_STAR.dirname(fname),srcMap)].join("");
-    return outNode.toString();
+    return [output.code,"\n//# sourceMappingURL=",_STARpath_STAR.relative(_STARpath_STAR.dirname(fname),srcMap)].join("");
     })() :
-    undefined);
+    outNode.toString());
 }
 var _STARreadline_STAR = require("readline"),
   _STARprocess_STAR = process,
@@ -1605,6 +1615,7 @@ function runrepl() {
     (function() {
     try {
       let l = transpile(line);
+      console.log("kenl: "+ l);
       return console.log(this.eval(l));
 
     } catch (err) {

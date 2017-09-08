@@ -17,7 +17,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- MODULE-BANNER "Kirby Generated: Test only"
+(def- MODULE-BANNER "/* Kirby Generated: Test only */\n"
       MODULE-VERSION "1.0.0"
       includePaths []
       noSemi? false
@@ -977,8 +977,8 @@
       (.writeFileSync fs srcMap output.map)
       (str output.code
            "\n//# sourceMappingURL="
-           (.relative *path* (.dirname *path* fname) srcMap))
-    (.toString outNode))))
+           (.relative *path* (.dirname *path* fname) srcMap)))
+    (.toString outNode)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

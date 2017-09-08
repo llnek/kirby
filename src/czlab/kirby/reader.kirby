@@ -66,8 +66,9 @@
 ;;use this function to generate code, we need to escape out funny
 ;;chars in names
 (defn- tnodeString []
+  (var me this)
   (do-with [s ""]
-    (.walk this
+    (.walk me
            (fn [chunk hint]
              (if (and (= hint.name chunk)
                       (string? chunk))
@@ -77,15 +78,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- tnode [ln col src chunk name]
+  (var args? (js-args?))
   (do-with [n nil]
-    (if (js-args?)
+    (if args?
       (set! n
             (if name
               (new TreeNode ln col src chunk name)
               (new TreeNode ln col src chunk)))
       (set! n (new TreeNode)))
     (set! n KIRBY {})
-    (set! n toString tnodeString)))
+    (set! n :toString tnodeString)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -111,6 +113,7 @@
 (defn- lexer [prevToken context]
   (var ____BREAK! nil
        formType nil
+       state nil
        token ""
        ch nil
        escStr? false
@@ -122,8 +125,8 @@
                    (set! acc k (get context k)) acc)
                  {}
                  [:filename :lineno])
-         (set! tree KIRBY))
-
+         (set! state ))
+    (set! tree KIRBY state)
     (cond
       (= "[" prevToken)
       (set! state :array true)
