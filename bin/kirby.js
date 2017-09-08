@@ -1,4 +1,4 @@
 #!/usr/bin/env node
 
-require('../lib/kirby');
+require("../dist/main");
 

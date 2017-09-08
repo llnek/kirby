@@ -9,11 +9,16 @@
 (ns ^{:doc ""
       :author "Kenneth Leung" }
 
-  czlab.kirby.lexer)
+  czlab.kirby.reader)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(require "./core")
+(include "./core.kirby")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- TreeNode (.-SourceNode (require "source-map")))
+(def- *fs* nil *path* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -32,8 +37,58 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(when (undef? window)
+  (set! *path* (require "path"))
+  (set! *fs* (require "fs")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn- testid? [name]
   (or (REGEX.id.test name) (REGEX.id2.test name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- normalizeId [name]
+  (var pfx "")
+  (if (and (string? name)
+           (= "-" (.charAt name 0)))
+    (set! pfx "-")
+    (set! name (.slice name 1)))
+  (if (testid? name)
+    (str pfx (-> (.replace name REGEX.query "_QUERY")
+                 (.replace REGEX.bang "_BANG")
+                 (.replace REGEX.dash "_")
+                 (.replace REGEX.star "_STAR")))
+    (if (= pfx "") name (str pfx name))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;use this function to generate code, we need to escape out funny
+;;chars in names
+(defn- tnodeString []
+  (do-with [s ""]
+    (.walk this
+           (fn [chunk hint]
+             (if (and (= hint.name chunk)
+                      (string? chunk))
+               (set! chunk (normalizeId chunk)))
+             (+= s chunk)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- tnode [ln col src chunk name]
+  (do-with [n nil]
+    (if (js-args?)
+      (set! n
+            (if name
+              (new TreeNode ln col src chunk name)
+              (new TreeNode ln col src chunk)))
+      (set! n (new TreeNode)))
+    (set! n KIRBY {})
+    (set! n toString tnodeString)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- tnodeChunk [chunk name] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
