@@ -11,12 +11,13 @@ function make_array(len,obj) {
   return   (function() {
   let ret = [];
   return   (function() {
-  for (var i = 0; (i < len); i = (i + 1)) {
+  (function () {
+for (var i = 0; (i < len); i = (i + 1)) {
         (function() {
     return ret.push(obj);
     })();
   }
-;
+})();
   return ret;
   })();
   })();
@@ -87,7 +88,7 @@ var REGEX = {
   macroGet: new RegExp("^#slice@(\\d+)"),
   noret: new RegExp("^def\\b|^var\\b|^set!\\b|^throw\\b"),
   id: new RegExp("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$"),
-  id2: new RegExp("^[*][?\\-*!0-9a-zA-Z_$]+$"),
+  id2: new RegExp("^[*\\-][?\\-*!0-9a-zA-Z_$]+$"),
   func: new RegExp("^function\\b"),
   query: new RegExp("\\?","g"),
   bang: new RegExp("!","g"),
@@ -111,7 +112,7 @@ function normalizeId(name) {
     pfx = "-" :
     name = name.slice(1));
   return (testid_QUERY(name) ?
-    [pfx,name.replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR")].join("") :
+    [pfx,name].join("").replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR") :
     ((pfx === "") ?
       name :
       [pfx,name].join("")));
@@ -176,27 +177,28 @@ function lexer(prevToken,context) {
     token = "",
     ch = null,
     escStr_QUERY = false,
-    isStr_QUERY = false,
+    inStr_QUERY = false,
     comment_QUERY = false;
   return   (function() {
   let tree = [];
   return   (function() {
-  ->>([
+  tree[KIRBY] = [
     "filename",
     "lineno"
   ].reduce(function (acc,k) {
     acc[k] = context[k];
     return acc;
-  },{}),tree = KIRBY);
+  },{});
   (("[" === prevToken) ?
     state["array"] = true :
     (("{" === prevToken) ?
       state["object"] = true :
       undefined));
   ____BREAK_BANG = false;
-  while ((!____BREAK_BANG) && (context.pos < (context.code)["length"])) {
+  (function () {
+while ((!____BREAK_BANG) && (context.pos < (context.codeStr)["length"])) {
   (function() {
-  ch = context.code.charAt(context.pos);
+  ch = context.codeStr.charAt(context.pos);
   ++context.colno;
   ++context.pos;
   ((ch === "\n") ?
@@ -292,8 +294,8 @@ function lexer(prevToken,context) {
                         undefined)))))))))));
   })();
 }
-;
-  (isStr_QUERY ?
+})();
+  (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
   ((formType === "array") ?

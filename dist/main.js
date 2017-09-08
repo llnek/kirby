@@ -11,12 +11,13 @@ function make_array(len,obj) {
   return   (function() {
   let ret = [];
   return   (function() {
-  for (var i = 0; (i < len); i = (i + 1)) {
+  (function () {
+for (var i = 0; (i < len); i = (i + 1)) {
         (function() {
     return ret.push(obj);
     })();
   }
-;
+})();
   return ret;
   })();
   })();
@@ -87,7 +88,7 @@ var REGEX = {
   macroGet: new RegExp("^#slice@(\\d+)"),
   noret: new RegExp("^def\\b|^var\\b|^set!\\b|^throw\\b"),
   id: new RegExp("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$"),
-  id2: new RegExp("^[*][?\\-*!0-9a-zA-Z_$]+$"),
+  id2: new RegExp("^[*\\-][?\\-*!0-9a-zA-Z_$]+$"),
   func: new RegExp("^function\\b"),
   query: new RegExp("\\?","g"),
   bang: new RegExp("!","g"),
@@ -111,7 +112,7 @@ function normalizeId(name) {
     pfx = "-" :
     name = name.slice(1));
   return (testid_QUERY(name) ?
-    [pfx,name.replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR")].join("") :
+    [pfx,name].join("").replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR") :
     ((pfx === "") ?
       name :
       [pfx,name].join("")));
@@ -176,27 +177,28 @@ function lexer(prevToken,context) {
     token = "",
     ch = null,
     escStr_QUERY = false,
-    isStr_QUERY = false,
+    inStr_QUERY = false,
     comment_QUERY = false;
   return   (function() {
   let tree = [];
   return   (function() {
-  ->>([
+  tree[KIRBY] = [
     "filename",
     "lineno"
   ].reduce(function (acc,k) {
     acc[k] = context[k];
     return acc;
-  },{}),tree = KIRBY);
+  },{});
   (("[" === prevToken) ?
     state["array"] = true :
     (("{" === prevToken) ?
       state["object"] = true :
       undefined));
   ____BREAK_BANG = false;
-  while ((!____BREAK_BANG) && (context.pos < (context.code)["length"])) {
+  (function () {
+while ((!____BREAK_BANG) && (context.pos < (context.codeStr)["length"])) {
   (function() {
-  ch = context.code.charAt(context.pos);
+  ch = context.codeStr.charAt(context.pos);
   ++context.colno;
   ++context.pos;
   ((ch === "\n") ?
@@ -279,11 +281,11 @@ function lexer(prevToken,context) {
                     (REGEX.wspace.test(ch) ?
                                             (function() {
                       ((ch === "\n") ?
-                        --lineno :
+                        --context.lineno :
                         undefined);
                       token = addToken(tree,token,context);
                       ((ch === "\n") ?
-                        ++lineno :
+                        ++context.lineno :
                         undefined);
                       return context.tknCol = context.colno;
                       })() :
@@ -292,8 +294,8 @@ function lexer(prevToken,context) {
                         undefined)))))))))));
   })();
 }
-;
-  (isStr_QUERY ?
+})();
+  (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
   ((formType === "array") ?
@@ -308,12 +310,13 @@ function lexer(prevToken,context) {
   })();
 }
 var MODULE_VERSION = "1.0.0",
+  MODULE_BANNER = "Kirby Auto Generated: Test Only",
   includePaths = [],
   noSemi_QUERY = false,
   tabspace = 2,
   VARGS = "&rest",
   TILDA = "~",
-  indent = -tabspace,
+  indent = (-tabspace),
   TILDA_VARGS = [TILDA,VARGS].join("");
 var SPECIAL_OPS = {};
 var MACROS_MAP = {};
@@ -376,7 +379,7 @@ function toASTree(code,fname) {
     tknCol: 1
   };
   return   (function() {
-  let ret = lexer(state);
+  let ret = lexer(null,state);
   return   (function() {
   ((state.pos < (state.codeStr)["length"]) ?
     error_BANG("e10") :
@@ -400,7 +403,7 @@ function parseTree(root) {
       r = "";
     ((Object.prototype.toString.call(expr) === "[object Array]") ?
             (function() {
-      let e = car(expr);
+      let e = expr[0];
       (node_QUERY(e) ?
         name = e.name :
         undefined);
@@ -438,11 +441,11 @@ function parseTree(root) {
 function evalList2(expr) {
   evalConCells(expr);
   let s = null,
-    ename = car(expr);
+    ename = expr[0];
   ((!ename) ?
     syntax_BANG("e1",expr) :
     undefined);
-  (REGEX.fn.test(ename) ?
+  (REGEX.func.test(ename) ?
     ename = tnodeChunk([
       "(",
       ename,
@@ -465,20 +468,20 @@ function evalList(expr) {
     cmd = "{" :
     (("array" === info.eTYPE) ?
       cmd = "[" :
-      (node_QUERY(car(expr)) ?
+      (node_QUERY(expr[0]) ?
                 (function() {
-        cmd = (car(expr))["name"];
+        cmd = (expr[0])["name"];
         return mc = MACROS_MAP[cmd];
         })() :
         undefined)));
-  return (undefined.some(mc) ?
+  return ((!((typeof(mc) === "undefined") || (Object.prototype.toString.call(mc) === "[object Null]"))) ?
     eval_QUERY_QUERY(evalMacro(mc,expr)) :
     ((typeof(cmd) === "string") ?
       (cmd.startsWith(".-") ?
                 (function() {
         let ret = tnode();
         return         (function() {
-        ret.add(eval_QUERY_QUERY(cadr(expr)));
+        ret.add(eval_QUERY_QUERY(expr[1]));
         ret.prepend("(");
         ret.add([
           ")[\"",
@@ -492,12 +495,13 @@ function evalList(expr) {
                     (function() {
           let ret = tnode();
           return           (function() {
-          ret.add(eval_QUERY_QUERY(cadr(expr)));
+          ret.add(eval_QUERY_QUERY(expr[1]));
           ret.add([
-            car(expr),
+            expr[0],
             "("
           ]);
-          for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
+          (function () {
+for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
                         (function() {
             ((i !== 2) ?
               ret.add(",") :
@@ -505,7 +509,7 @@ function evalList(expr) {
             return ret.add(eval_QUERY_QUERY(expr[i]));
             })();
           }
-;
+})();
           ret.add(")");
           return ret;
           })();
@@ -536,14 +540,14 @@ function expandMacro(code,data) {
   ret[KIRBY] = Object.assign(di);
   (((Object.prototype.toString.call(code) === "[object Array]") && ((code)["length"] > 1)) ?
         (function() {
-    s1name = (cadr(code))["name"];
+    s1name = (code[1])["name"];
     return frag = frags[[TILDA,s1name].join("")];
     })() :
     undefined);
   (((Object.prototype.toString.call(code) === "[object Array]") && ((code && ((code)["length"] > 0)) ?
       code :
       null)) ?
-    ename = (car(code))["name"] :
+    ename = (code[0])["name"] :
     undefined);
   ((("object" === ci.eTYPE) || ("array" === ci.eTYPE)) ?
     ret["eTYPE"] = ci.eTYPE :
@@ -558,7 +562,7 @@ function expandMacro(code,data) {
         (((frag && ((frag)["length"] > 0)) ?
             frag :
             null) ?
-          car(frag) :
+          frag[0] :
           undefined)) :
       ((ename === "#tail") ?
         ((!(Object.prototype.toString.call(frag) === "[object Array]")) ?
@@ -575,12 +579,13 @@ function expandMacro(code,data) {
                     (function() {
           let r = [];
           return           (function() {
-          for (var i = 0; (i < (frag)["length"]); i = (i + 2)) {
+          (function () {
+for (var i = 0; (i < (frag)["length"]); i = (i + 2)) {
                         (function() {
             return conj_BANG_BANG(r,frag[i]);
             })();
           }
-;
+})();
           (ename.endsWith("*") ?
             r["___split"] = true :
             undefined);
@@ -591,12 +596,13 @@ function expandMacro(code,data) {
                         (function() {
             let r = [];
             return             (function() {
-            for (var i = 1; (i < (frag)["length"]); i = (i + 2)) {
+            (function () {
+for (var i = 1; (i < (frag)["length"]); i = (i + 2)) {
                             (function() {
               return conj_BANG_BANG(r,frag[i]);
               })();
             }
-;
+})();
             (ename.endsWith("*") ?
               r["___split"] = true :
               undefined);
@@ -609,7 +615,7 @@ function expandMacro(code,data) {
                 syntax_BANG("e13",data,cmd) :
                 undefined);
               tmp = REGEX.macroGet.exec(ename);
-              return car(frag.splice((cadr(tmp) - 1),1));
+              return frag.splice((tmp[1] - 1),1)[0];
               })() :
               ((ename === "#if") ?
                                 (function() {
@@ -627,19 +633,21 @@ function expandMacro(code,data) {
                 (true ?
                                     (function() {
                   let cell = null;
-                  for (var i = 0; (i < (code)["length"]); i = (i + 1)) {
+                  (function () {
+for (var i = 0; (i < (code)["length"]); i = (i + 1)) {
                                         (function() {
                     cell = code[i];
                     return ((Object.prototype.toString.call(cell) === "[object Array]") ?
                                             (function() {
                       let c = expandMacro(cell);
                       return (((Object.prototype.toString.call(c) === "[object Array]") && (true === c["___split"])) ?
-                        for (var k = 0; (k < (c)["length"]); k = (k + 1)) {
+                        (function () {
+for (var k = 0; (k < (c)["length"]); k = (k + 1)) {
                                                     (function() {
                           return conj_BANG_BANG(ret,c[k]);
                           })();
                         }
- :
+})() :
                         conj_BANG_BANG(ret,c));
                       })() :
                                             (function() {
@@ -654,15 +662,16 @@ function expandMacro(code,data) {
                         undefined);
                       return                       (function() {
                       let repl = frags[tmp.name];
-                      return (undefined.some(repl) ?
+                      return ((!((typeof(repl) === "undefined") || (Object.prototype.toString.call(repl) === "[object Null]"))) ?
                                                 (function() {
                         return ((atSign_QUERY || (tmp.name === TILDA_VARGS)) ?
-                          for (var j = 0; (j < (repl)["length"]); j = (j + 1)) {
+                          (function () {
+for (var j = 0; (j < (repl)["length"]); j = (j + 1)) {
                                                         (function() {
                             return conj_BANG_BANG(ret,repl[j]);
                             })();
                           }
- :
+})() :
                           conj_BANG_BANG(ret,repl));
                         })() :
                         conj_BANG_BANG(ret,cell));
@@ -670,7 +679,7 @@ function expandMacro(code,data) {
                       })());
                     })();
                   }
-;
+})();
                   return ret;
                   })() :
                   undefined))))))));
@@ -683,7 +692,8 @@ function evalMacro(mc,data) {
     tpos = 0,
     i = 0,
     frags = {};
-  for (var i = 0,tpos = (i + 1); (i < (args)["length"]); i = (i + 1),tpos = (i + 1)) {
+  (function () {
+for (var i = 0,tpos = (i + 1); (i < (args)["length"]); i = (i + 1),tpos = (i + 1)) {
         (function() {
     return (((args[i])["name"] === VARGS) ?
             (function() {
@@ -695,7 +705,7 @@ function evalMacro(mc,data) {
         data[tpos]));
     })();
   }
-;
+})();
   (((!vargs) && ((i + 1) < (data)["length"])) ?
     syntax_BANG("e16",data,cmd) :
     undefined);
@@ -706,16 +716,17 @@ function sf_compOp(expr) {
     syntax_BANG("e0",expr) :
     undefined);
   evalConCells(expr);
-  ((car(expr) == "!=") ?
+  ((expr[0] == "!=") ?
     aset(expr,0,"!==") :
     undefined);
-  ((car(expr) == "=") ?
+  ((expr[0] == "=") ?
     aset(expr,0,"===") :
     undefined);
   return   (function() {
   let ret = tnode();
   return   (function() {
-  for (var i = 0,op = expr.shift(); (i < ((expr)["length"] - 1)); i = (i + 1)) {
+  (function () {
+for (var i = 0,op = expr.shift(); (i < ((expr)["length"] - 1)); i = (i + 1)) {
         (function() {
     return ret.add(tnodeChunk([
       expr[i],
@@ -726,7 +737,7 @@ function sf_compOp(expr) {
     ]));
     })();
   }
-;
+})();
   ret.join(" && ");
   ret.prepend("(");
   ret.add(")");
@@ -746,21 +757,29 @@ function sf_compOp(expr) {
   return SPECIAL_OPS[k] = sf_compOp;
 });
 function sf_arithOp(expr) {
-  (((expr)["length"] < 3) ?
+  (((expr)["length"] < 2) ?
     syntax_BANG("e0",expr) :
     undefined);
   evalConCells(expr);
-  let op = tnode();
+  let op = tnode(),
+    e1 = expr.shift(),
+    cmd = (e1)["name"];
   return   (function() {
   let ret = tnode();
   return   (function() {
-  op.add([
-    " ",
-    expr.shift(),
-    " "
-  ]);
+  ((1 === (expr)["length"]) ?
+    (("-" === cmd) ?
+      ret.add("-") :
+      undefined) :
+    op.add([
+      " ",
+      e1,
+      " "
+    ]));
   ret.add(expr);
-  ret.join(op);
+  (((expr)["length"] > 1) ?
+    ret.join(op) :
+    undefined);
   ret.prepend("(");
   ret.add(")");
   return ret;
@@ -797,7 +816,8 @@ function sf_repeat(expr) {
   return   (function() {
   let ret = tnode();
   return   (function() {
-  for (var i = 0,end = parseInt((cadr(expr))["name"]); (i < end); i = (i + 1)) {
+  (function () {
+for (var i = 0,end = parseInt((expr[1])["name"]); (i < end); i = (i + 1)) {
         (function() {
     ((i !== 0) ?
       ret.add(",") :
@@ -805,7 +825,7 @@ function sf_repeat(expr) {
     return ret.add(expr[2]);
     })();
   }
-;
+})();
   ret.prepend("[");
   ret.add("]");
   return ret;
@@ -820,7 +840,8 @@ function sf_do(expr) {
   return   (function() {
   let ret = tnode();
   return   (function() {
-  for (var i = 1; (i < end); i = (i + 1)) {
+  (function () {
+for (var i = 1; (i < end); i = (i + 1)) {
         (function() {
     e = expr[i];
     return ret.add([
@@ -830,7 +851,7 @@ function sf_do(expr) {
     ]);
     })();
   }
-;
+})();
   ((end > 0) ?
         (function() {
     e = eval_QUERY_QUERY(    (function() {
@@ -870,7 +891,8 @@ function sf_doto(expr) {
     e1,
     ";\n"
   ]);
-  for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
+  (function () {
+for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
         (function() {
     e = expr[i];
     e.splice(1,0,"____x");
@@ -881,7 +903,7 @@ function sf_doto(expr) {
     ]);
     })();
   }
-;
+})();
   ret.add([
     p2,
     "return ____x;\n"
@@ -892,7 +914,7 @@ function sf_doto(expr) {
   })();
   })();
 }
-SPECIAL_OPS["doto"] = s_doto;
+SPECIAL_OPS["doto"] = sf_doto;
 function sf_range(expr) {
   ((((expr)["length"] < 2) || ((expr)["length"] > 4)) ?
     syntax_BANG("e0",expr) :
@@ -903,7 +925,7 @@ function sf_range(expr) {
     end = 0;
   evalConCells(expr);
   len = (expr)["length"];
-  end = parseInt((cadr(expr))["name"]);
+  end = parseInt((expr[1])["name"]);
   return   (function() {
   let ret = tnode();
   return   (function() {
@@ -916,7 +938,8 @@ function sf_range(expr) {
   ((len > 3) ?
     step = parseInt((expr[3])["name"]) :
     undefined);
-  for (var i = start; (i < end); i = (i + step)) {
+  (function () {
+for (var i = start; (i < end); i = (i + step)) {
         (function() {
     ((i !== start) ?
       ret.add(",") :
@@ -924,7 +947,7 @@ function sf_range(expr) {
     return ret.add(["",i].join(""));
     })();
   }
-;
+})();
   ret.prepend("[");
   ret.add("]");
   return ret;
@@ -943,7 +966,8 @@ function sf_var(expr,cmd) {
   return   (function() {
   let ret = tnode();
   return   (function() {
-  for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
+  (function () {
+for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
         (function() {
     ((i > 1) ?
       ret.add([",\n",pad(indent)].join("")) :
@@ -958,7 +982,7 @@ function sf_var(expr,cmd) {
     ]);
     })();
   }
-;
+})();
   ret.prepend(" ");
   ret.prepend(cmd);
   (((expr)["length"] > 3) ?
@@ -994,7 +1018,7 @@ function sf_throw(expr) {
   return   (function() {
   let ret = tnode();
   return   (function() {
-  ret.add(eval_QUERY_QUERY(cadr(expr)));
+  ret.add(eval_QUERY_QUERY(expr[1]));
   ret.prepend("throw ");
   return ret;
   })();
@@ -1004,13 +1028,21 @@ SPECIAL_OPS["throw"] = sf_throw;
 function sf_while(expr) {
   let f1 = expr[1];
   expr.splice(0,2,tnodeChunk("do","do"));
-  return tnodeChunk([
+  return   (function() {
+  let ret = null;
+  return   (function() {
+  ret[tnodeChunk] = [
     "while ",
     eval_QUERY_QUERY(f1),
     " {\n",
     evalList(expr),
     ";\n}\n"
-  ]);
+  ];
+  ret.prepend("(function () {\n");
+  ret.add("})()");
+  return ret;
+  })();
+  })();
 }
 SPECIAL_OPS["while"] = sf_while;
 function sf_x_opop(expr,op) {
@@ -1019,7 +1051,7 @@ function sf_x_opop(expr,op) {
     undefined);
   return tnodeChunk([
     op,
-    eval_QUERY_QUERY(cadr(expr))
+    eval_QUERY_QUERY(expr[1])
   ]);
 }
 SPECIAL_OPS["dec!!"] = function (x) {
@@ -1031,7 +1063,7 @@ SPECIAL_OPS["inc!!"] = function (x) {
 function sf_x_eq(expr,op) {
   assertArgs(expr,3,"e0");
   return tnodeChunk([
-    cadr(expr),
+    expr[1],
     [" ",op,"= "].join(""),
     eval_QUERY_QUERY(expr[2])
   ]);
@@ -1048,18 +1080,18 @@ function sf_set(expr) {
     undefined);
   (((expr)["length"] === 4) ?
         (function() {
-    ((Object.prototype.toString.call(cadr(expr)) === "[object Array]") ?
-      aset(expr,1,evalList(cadr(expr))) :
+    ((Object.prototype.toString.call(expr[1]) === "[object Array]") ?
+      aset(expr,1,evalList(expr[1])) :
       undefined);
     ((Object.prototype.toString.call(expr[2]) === "[object Array]") ?
       aset(expr,2,evalList(expr[2])) :
       undefined);
-    aset(expr,1,[cadr(expr),"[",expr[2],"]"].join(""));
+    aset(expr,1,[expr[1],"[",expr[2],"]"].join(""));
     return aset(expr,2,expr[3]);
     })() :
     undefined);
   return tnodeChunk([
-    cadr(expr),
+    expr[1],
     " = ",
     eval_QUERY_QUERY(expr[2])
   ]);
@@ -1070,10 +1102,10 @@ function sf_anonFunc(expr) {
   (((expr)["length"] < 2) ?
     syntax_BANG("e0",expr) :
     undefined);
-  ((!(Object.prototype.toString.call(cadr(expr)) === "[object Array]")) ?
+  ((!(Object.prototype.toString.call(expr[1]) === "[object Array]")) ?
     syntax_BANG("e0",expr) :
     undefined);
-  let fArgs = cadr(expr),
+  let fArgs = expr[1],
     fBody = expr.slice(2);
   return   (function() {
   let ret = tnodeChunk(fArgs);
@@ -1101,9 +1133,9 @@ function sf_func(expr,public_QUERY) {
   return   (function() {
   let ret = null;
   return   (function() {
-  (((!(Object.prototype.toString.call(cadr(expr)) === "[object Array]")) && (Object.prototype.toString.call(expr[2]) === "[object Array]")) ?
+  (((!(Object.prototype.toString.call(expr[1]) === "[object Array]")) && (Object.prototype.toString.call(expr[2]) === "[object Array]")) ?
         (function() {
-    fName = normalizeId((cadr(expr))["name"]);
+    fName = normalizeId((expr[1])["name"]);
     fArgs = expr[2];
     return fBody = expr.slice(3);
     })() :
@@ -1138,7 +1170,7 @@ function sf_try(expr) {
   let a = expr;
   return a[((a)["length"] - 1)];
   })();
-  (((Object.prototype.toString.call(f) === "[object Array]") && ((car(f))["name"] === "finally")) ?
+  (((Object.prototype.toString.call(f) === "[object Array]") && ((f[0])["name"] === "finally")) ?
         (function() {
     f = expr.pop();
     return sz = (expr)["length"];
@@ -1147,9 +1179,9 @@ function sf_try(expr) {
   c = ((sz > 1) ?
     expr[(sz - 1)] :
     null);
-  (((Object.prototype.toString.call(c) === "[object Array]") && ((car(c))["name"] === "catch")) ?
+  (((Object.prototype.toString.call(c) === "[object Array]") && ((c[0])["name"] === "catch")) ?
         (function() {
-    ((((c)["length"] < 2) || (!node_QUERY(cadr(c)))) ?
+    ((((c)["length"] < 2) || (!node_QUERY(c[1]))) ?
       syntax_BANG("e0",expr) :
       undefined);
     return c = expr.pop();
@@ -1167,7 +1199,7 @@ function sf_try(expr) {
   return   (function() {
   (c ?
         (function() {
-    t = cadr(c);
+    t = c[1];
     c.splice(0,2,tnodeChunk("do","do"));
     return ret.add([
       ["catch (",t,") {\n"].join(""),
@@ -1203,7 +1235,7 @@ function sf_if(expr) {
   try {
     return tnodeChunk([
       "(",
-      cadr(expr),
+      expr[1],
       [" ?\n",pad(indent)].join(""),
       expr[2],
       [" :\n",pad(indent)].join(""),
@@ -1223,7 +1255,7 @@ function sf_get(expr) {
   assertArgs(expr,3,"e0");
   evalConCells(expr);
   return tnodeChunk([
-    cadr(expr),
+    expr[1],
     "[",
     expr[2],
     "]"
@@ -1268,7 +1300,8 @@ function sf_array(expr) {
       evalConCells(expr);
       p = pad(indent);
       ret.add(["[\n",p].join(""));
-      for (var i = 0; (i < (expr)["length"]); i = (i + 1)) {
+      (function () {
+for (var i = 0; (i < (expr)["length"]); i = (i + 1)) {
                 (function() {
         ((i > 0) ?
           ret.add([",\n",p].join("")) :
@@ -1276,7 +1309,7 @@ function sf_array(expr) {
         return ret.add(expr[i]);
         })();
       }
-;
+})();
       return ret.add(epilog);
 
     } finally {
@@ -1311,7 +1344,8 @@ function sf_object(expr) {
       evalConCells(expr);
       p = pad(indent);
       ret.add(["{\n",p].join(""));
-      for (var i = 0; (i < (expr)["length"]); i = (i + 2)) {
+      (function () {
+for (var i = 0; (i < (expr)["length"]); i = (i + 2)) {
                 (function() {
         ((i > 0) ?
           ret.add([",\n",p].join("")) :
@@ -1323,7 +1357,7 @@ function sf_object(expr) {
         ]);
         })();
       }
-;
+})();
       return ret.add(epilog);
 
     } finally {
@@ -1352,7 +1386,7 @@ var includeFile = (function () {
 function sf_include(expr) {
   assertArgs(expr,2,"e0");
   let found = false,
-    fname = (cadr(expr))["name"],
+    fname = (expr[1])["name"],
     info = (expr[KIRBY] || {});
   ((typeof(fname) === "string") ?
     fname = fname.replace(new RegExp("[\"]","g"),"") :
@@ -1407,7 +1441,7 @@ function sf_floop(expr) {
   let c1 = null,
     c2 = null,
     c3 = null,
-    c = cadr(expr),
+    c = expr[1],
     ind = pad(indent);
   return   (function() {
   let ret = tnodeChunk("for (");
@@ -1415,11 +1449,12 @@ function sf_floop(expr) {
   (((!(Object.prototype.toString.call(c) === "[object Array]")) || ((c)["length"] !== 3)) ?
     syntax_BANG("e0",expr) :
     undefined);
-  c1 = car(c);
-  c2 = cadr(c);
+  c1 = c[0];
+  c2 = c[1];
   c3 = c[2];
   indent += tabspace;
-  for (var i = 0; (i < (c1)["length"]); i = (i + 2)) {
+  (function () {
+for (var i = 0; (i < (c1)["length"]); i = (i + 2)) {
         (function() {
     ((i === 0) ?
       ret.add("var ") :
@@ -1434,11 +1469,12 @@ function sf_floop(expr) {
     ]);
     })();
   }
-;
+})();
   ret.add("; ");
   ret.add(evalList(c2));
   ret.add("; ");
-  for (var i = 0; (i < (c3)["length"]); i = (i + 2)) {
+  (function () {
+for (var i = 0; (i < (c3)["length"]); i = (i + 2)) {
         (function() {
     ((i !== 0) ?
       ret.add(",") :
@@ -1450,7 +1486,7 @@ function sf_floop(expr) {
     ]);
     })();
   }
-;
+})();
   ret.add(") {\n");
   (((expr)["length"] > 2) ?
         (function() {
@@ -1464,6 +1500,8 @@ function sf_floop(expr) {
     })() :
     undefined);
   ret.add(["\n",ind,"}\n"].join(""));
+  ret.prepend("(function () {\n");
+  ret.add("})()");
   indent -= tabspace;
   return ret;
   })();
@@ -1473,26 +1511,27 @@ SPECIAL_OPS["for"] = sf_floop;
 function sf_jscode(expr) {
   assertArgs(expr,2,"e0");
   noSemi_QUERY = true;
-  cadr(expr).replaceRight(new RegExp("\"","g"),"");
-  return cadr(expr);
+  expr[1].replaceRight(new RegExp("\"","g"),"");
+  return expr[1];
 }
 SPECIAL_OPS["js#"] = sf_jscode;
 function sf_macro(expr) {
   assertArgs(expr,4,"e0");
   let a2 = expr[2],
     a3 = expr[3],
-    cmd = (cadr(expr))["name"];
+    cmd = (expr[1])["name"];
   return   (function() {
   let ret = "";
   return   (function() {
-  for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
+  (function () {
+for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
         (function() {
     return ((((a2[i])["name"] === VARGS) && ((i + 1) !== (a2)["length"])) ?
       syntax_BANG("e15",expr,cmd) :
       undefined);
     })();
   }
-;
+})();
   MACROS_MAP[cmd] = {
     args: a2,
     code: a3,
@@ -1506,7 +1545,7 @@ SPECIAL_OPS["defmacro"] = sf_macro;
 function sf_not(expr) {
   assertArgs(expr,2,"e0");
   evalConCells(expr);
-  return ["(!",cadr(expr),")"].join("");
+  return ["(!",expr[1],")"].join("");
 }
 SPECIAL_OPS["!"] = sf_not;
 function dbg(obj,hint) {
@@ -1514,12 +1553,13 @@ function dbg(obj,hint) {
         (function() {
     hint = (hint || "block");
     console.log(["<",hint,">"].join(""));
-    for (var i = 0; (i < (obj)["length"]); i = (i + 1)) {
+    (function () {
+for (var i = 0; (i < (obj)["length"]); i = (i + 1)) {
             (function() {
       return dbg(obj[i]);
       })();
     }
-;
+})();
     return console.log(["</",hint,">"].join(""));
     })() :
     (node_QUERY(obj) ?
@@ -1540,9 +1580,9 @@ function compileCode(codeStr,fname,withSrcMap_QUERY,incPaths) {
   ((Object.prototype.toString.call(incPaths) === "[object Array]") ?
     includePaths = incPaths :
     undefined);
-  indent = -tabspace;
+  indent = (-tabspace);
   let outNode = parseTree(toASTree(codeStr,fname));
-  outNode.prepend(banner);
+  outNode.prepend(MODULE_BANNER);
   return (withSrcMap_QUERY ?
         (function() {
     let outFile = [_STARpath_STAR.basename(fname,".kirby"),".js"].join(""),
@@ -1559,12 +1599,12 @@ function compileCode(codeStr,fname,withSrcMap_QUERY,incPaths) {
 var _STARreadline_STAR = require("readline"),
   _STARprocess_STAR = process,
   prefix = "kirby> ";
-exports[runrepl] = function () {
+function runrepl() {
   let cli = _STARreadline_STAR.createInterface((_STARprocess_STAR)["stdin"],(_STARprocess_STAR)["stdout"]);
   cli.on("line",function (line) {
     (function() {
     try {
-      let l = ls.transpile(line);
+      let l = transpile(line);
       return console.log(this.eval(l));
 
     } catch (err) {
@@ -1583,7 +1623,7 @@ return     (function() {
   console.log([prefix,"Kirby REPL v1.0.0"].join(""));
   cli.setPrompt(prefix,(prefix)["length"]);
   return cli.prompt();
-};
+}
 var _STARgopt_STAR = require("node-getopt"),
   _STARwatcher_STAR = require("watch"),
   _STARpath_STAR = require("path"),
@@ -1648,7 +1688,7 @@ function handleNoArgs() {
   pin.on("end",function () {
     return (function() {
     try {
-      return pout.write(ls.transpile(source,(_STARprocess_STAR)["cwd"]));
+      return pout.write(transpile(source,_STARprocess_STAR.cwd()));
 
     } catch (e) {
 return     (function() {
@@ -1660,10 +1700,10 @@ return     (function() {
   pout.on("error",error);
   pin.on("error",error);
   return setTimeout(function () {
-    return ((0 === (inp)["bytesRead"]) ?
+    return ((0 === (pin)["bytesRead"]) ?
             (function() {
-      inp.removeAllListeners("data");
-      return repl.runrepl();
+      pin.removeAllListeners("data");
+      return runrepl();
       })() :
       undefined);
   },20);
@@ -1692,10 +1732,10 @@ function compileFiles() {
       undefined);
     source = _STARfs_STAR.readFileSync(fin,"utf8");
     return (dbgAST_QUERY ?
-      ls.dbgAST(source,fin,dirs) :
+      dbgAST(source,fin,dirs) :
       _STARfs_STAR.writeFileSync(fout,(wantMap_QUERY ?
-        ls.transpileWithSrcMap(source,fin,dirs) :
-        ls.transpile(source,fin,dirs)),"utf8"));
+        transpileWithSrcMap(source,fin,dirs) :
+        transpile(source,fin,dirs)),"utf8"));
 
   } catch (e) {
 return   (function() {
@@ -1704,7 +1744,7 @@ return   (function() {
   }
   })();
 }
-function -main() {
+function _main() {
   return (((opt.argv ?
       (0 === (opt.argv)["length"]) :
       false) && (Object.keys(opt.options) ?
@@ -1712,7 +1752,7 @@ function -main() {
       false)) ?
     handleNoArgs() :
     (opt.options["version"] ?
-      console.log(["Version: ",ls.version].join("")) :
+      console.log(["Version: ",MODULE_VERSION].join("")) :
       (opt.options["browser-bundle"] ?
                 (function() {
         let bundle = require.resolve("kirby/lib/browser-bundle.js");
@@ -1766,16 +1806,20 @@ function -main() {
               compileFiles() :
               undefined))))));
 }
-exports["transpileWithSrcMap"] = function (code,file,incDirs) {
+function transpileWithSrcMap(code,file,incDirs) {
   return compileCode(code,file,true,incDirs);
-};
-exports["transpile"] = function (code,file,incDirs) {
+}
+function transpile(code,file,incDirs) {
   return compileCode(code,file,false,incDirs);
-};
+}
+function parseWithSourceMap(codeStr,fname) {
+  let outNode = processTree(toASTree(codeStr,fname));
+  outNode.prepend(MODULE_BANNER);
+  return outNode.toStringWithSourceMap();
+}
+exports["transpileWithSrcMap"] = transpileWithSrcMap;
+exports["parseWithSourceMap"] = parseWithSourceMap;
+exports["transpile"] = transpile;
 exports["version"] = MODULE_VERSION;
 exports["dbgAST"] = dbgAST;
-exports["parseWithSourceMap"] = function (codeStr,fname) {
-  let outNode = processTree(toASTree(codeStr,fname));
-  outNode.prepend(banner);
-  return outNode.toStringWithSourceMap();
-};
+_main();

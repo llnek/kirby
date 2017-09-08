@@ -23,30 +23,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(set! exports
-      runrepl
-      (# (var cli
-              (.createInterface *readline*
-                                (.-stdin *process*)
-                                (.-stdout *process*)))
-         (.on cli
-              "line"
-              (fn [line]
-                (try
-                  (var l (ls.transpile line))
-                  (console.log (this.eval l))
-                  (catch err
-                    (console.log err)))
-                (.setPrompt cli prefix (alen prefix))
-                (.prompt cli)))
-         (.on cli
-              "close"
-              (# (console.log "Bye!")
-                 (.exit *process* 0)))
-
-         (console.log (str prefix "Kirby REPL v1.0.0"))
+(defn- runrepl []
+  (var cli
+       (.createInterface *readline*
+                         (.-stdin *process*)
+                         (.-stdout *process*)))
+  (.on cli
+       "line"
+       (fn [line]
+         (try
+           (var l (transpile line))
+           (console.log (this.eval l))
+           (catch err
+             (console.log err)))
          (.setPrompt cli prefix (alen prefix))
          (.prompt cli)))
+  (.on cli
+       "close"
+       (# (console.log "Bye!")
+          (.exit *process* 0)))
+
+  (console.log (str prefix "Kirby REPL v1.0.0"))
+  (.setPrompt cli prefix (alen prefix))
+  (.prompt cli))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

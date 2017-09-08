@@ -11,12 +11,13 @@ function make_array(len,obj) {
   return   (function() {
   let ret = [];
   return   (function() {
-  for (var i = 0; (i < len); i = (i + 1)) {
+  (function () {
+for (var i = 0; (i < len); i = (i + 1)) {
         (function() {
     return ret.push(obj);
     })();
   }
-;
+})();
   return ret;
   })();
   })();

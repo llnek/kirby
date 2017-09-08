@@ -26,7 +26,7 @@
   { macroGet (regex "^#slice@(\\d+)")
     noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
     id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-    id2 (regex "^[*][?\\-*!0-9a-zA-Z_$]+$")
+    id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
     func (regex "^function\\b")
     query (regexs "\\?" "g")
     bang (regexs "!" "g")
@@ -55,10 +55,11 @@
     (set! pfx "-")
     (set! name (.slice name 1)))
   (if (testid? name)
-    (str pfx (-> (.replace name REGEX.query "_QUERY")
-                 (.replace REGEX.bang "_BANG")
-                 (.replace REGEX.dash "_")
-                 (.replace REGEX.star "_STAR")))
+    (-> (str pfx name)
+        (.replace REGEX.query "_QUERY")
+        (.replace REGEX.bang "_BANG")
+        (.replace REGEX.dash "_")
+        (.replace REGEX.star "_STAR"))
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -113,7 +114,7 @@
        token ""
        ch nil
        escStr? false
-       isStr? false
+       inStr? false
        comment? false)
 
   (do-with [tree []]
@@ -131,8 +132,8 @@
 
     (set! ____BREAK! false)
     (while (and (not ____BREAK!)
-                (< context.pos (alen context.code)))
-      (set! ch (.charAt context.code context.pos))
+                (< context.pos (alen context.codeStr)))
+      (set! ch (.charAt context.codeStr context.pos))
       (inc!! context.colno)
       (inc!! context.pos)
       (when (= ch "\n")
@@ -196,14 +197,14 @@
                 (set! ____BREAK! true))))
         (REGEX.wspace.test ch)
         (do
-          (if (= ch "\n") (-- lineno))
+          (if (= ch "\n") (-- context.lineno))
           (set! token (addToken tree token context))
-          (if (= ch "\n") (++ lineno))
+          (if (= ch "\n") (++ context.lineno))
           (set! context.tknCol context.colno))
         :else
         (+= token ch)))
     ;;final check!
-    (if isStr? (syntax! 'e3 tree))
+    (if inStr? (syntax! 'e3 tree))
     (cond
       (= formType :array)
       (syntax! 'e5 tree)
