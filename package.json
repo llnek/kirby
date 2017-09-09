@@ -1,5 +1,11 @@
 {
-  "keywords": [ "javascript", "language", "kirby", "compiler", "lisp" ],
+  "keywords": [
+    "javascript",
+    "language",
+    "kirby",
+    "compiler",
+    "lisp"
+  ],
   "description": "",
   "name": "kirby",
   "author": "",
@@ -14,9 +20,9 @@
     "node": ">=0.4.0"
   },
   "directories": {
-    "lib": "./lib"
+    "lib": "./dist"
   },
-  "main": "./lib/ls",
+  "main": "./dist/compiler.js",
   "bin": {
     "kirby": "./bin/kirby.js"
   },
@@ -39,8 +45,7 @@
   "preferGlobal": true,
   "dependencies": {
     "node-getopt": "^0.2.3",
-    "source-map": "^0.5.6",
+    "source-map": "^0.5.7",
     "watch": "^1.0.2"
   }
 }
-

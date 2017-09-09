@@ -13,8 +13,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- *kirby* (require "kirby")
-      *path* (require "path")
+(def- *path* (require "path")
       *fs* (require "fs"))
 (def- *process* process)
 
@@ -22,17 +21,14 @@
 ;;
 (set! require.extensions ".kirby"
   (fn [module fname]
-    (let [code (.readFileSync *fs* fname "utf8")]
-      (module._compile
-        (.transpile *kirby*
-                    code
-                    (.relative *path*
-                               (.cwd *process*) fname))
-        fname))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(require "./macros.kirby")
+    (var kb (require "kirby")
+         code (.readFileSync *fs* fname "utf8"))
+    (module._compile
+      (.transpile kb
+                  code
+                  (.relative *path*
+                             (.cwd *process*) fname))
+        fname)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

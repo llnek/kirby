@@ -13,11 +13,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(include "./compiler.kirby")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 (def- *readline* (require "readline")
+      *kirby* (require "kirby")
       *process* process
       prefix "kirby> ")
 
@@ -32,7 +29,7 @@
        "line"
        (fn [line]
          (try
-           (var l (transpile line))
+           (var l (.transpile *kirby* line))
            (console.log (this.eval l))
            (catch err
              (console.log err)))

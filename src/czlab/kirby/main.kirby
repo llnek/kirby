@@ -63,7 +63,7 @@
   (.on pin
        "end"
        (# (try
-            (.write pout (transpile source (.cwd *process*)))
+            (.write pout (.transpile *kirby* source (.cwd *process*)))
             (catch e (error e)))))
   (.on pout "error" error)
   (.on pin "error" error)
@@ -95,13 +95,13 @@
         (str "kirby v1.0.0" ": compiling: " fin " -> " fout)))
     (set! source (.readFileSync *fs* fin "utf8"))
     (if dbgAST?
-      (dbgAST source fin dirs)
+      (.dbgAST *kirby* source fin dirs)
       (.writeFileSync
         *fs*
         fout
         (if wantMap?
-          (transpileWithSrcMap source fin dirs)
-          (transpile source fin dirs))
+          (.transpileWithSrcMap *kirby* source fin dirs)
+          (.transpile *kirby* source fin dirs))
         "utf8"))
     (catch e (error e) )))
 
@@ -158,31 +158,6 @@
                                         {stdio "inherit"})))) f)))))
     :else
     (compileFiles)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defn- transpileWithSrcMap [code file incDirs]
-  (compileCode code file true incDirs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defn- transpile [code file incDirs]
-  (compileCode code file false incDirs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defn- parseWithSourceMap [codeStr fname]
-  (var outNode (processTree (toASTree codeStr fname)))
-  (.prepend outNode MODULE-BANNER)
-  (.toStringWithSourceMap outNode))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(set! exports "transpileWithSrcMap" transpileWithSrcMap)
-(set! exports "parseWithSourceMap" parseWithSourceMap)
-(set! exports "transpile" transpile)
-(set! exports "version" MODULE-VERSION)
-(set! exports "dbgAST" dbgAST)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

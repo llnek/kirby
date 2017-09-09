@@ -50,7 +50,7 @@
 ;;
 (defn- normalizeId [name]
   (var pfx "")
-  (if (and (string? name)
+  (when (and (string? name)
            (= "-" (.charAt name 0)))
     (set! pfx "-")
     (set! name (.slice name 1)))
@@ -121,11 +121,11 @@
        comment? false)
 
   (do-with [tree []]
-    (->> (reduce (fn [acc k]
-                   (set! acc k (get context k)) acc)
-                 {}
-                 [:filename :lineno])
-         (set! state ))
+    (set! state
+          (reduce (fn [acc k]
+                    (set! acc k (get context k)) acc)
+                  {}
+                  [:filename :lineno]))
     (set! tree KIRBY state)
     (cond
       (= "[" prevToken)

@@ -19,6 +19,7 @@
 ;;
 (def- MODULE-BANNER "/* Kirby Generated: Test only */\n"
       MODULE-VERSION "1.0.0"
+      loadedMacros? false
       includePaths []
       noSemi? false
       tabspace 2
@@ -196,7 +197,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- expandMacro [code data]
+(defn- expandMacro [code data frags]
   (var ret []
        ename ""
        tmp nil
@@ -222,6 +223,7 @@
           (= :array ci.eTYPE))
     (set! ret :eTYPE ci.eTYPE))
 
+  (set! ename (or ename ""))
   ;;the magic
   (cond
     (= ename "#<<")
@@ -261,16 +263,16 @@
     (do
       (if-not (list? frag) (syntax! :e13 data cmd))
       (cond
-        (not-empty frag) (expand (nth code 2))
+        (not-empty frag) (expandMacro (nth code 2) data frags)
         (and (> (alen code) 3)
-             (nth code 3)) (expand (nth code 3))))
+             (nth code 3)) (expandMacro (nth code 3) data frags)))
     ;;
     :else
     (let [cell nil]
       (for ((i 0) (< i (alen code)) (i (inc i)))
         (set! cell (nth code i))
         (if (list? cell)
-          (let [c (expandMacro cell)]
+          (let [c (expandMacro cell data frags)]
             (if (and (list? c)
                      (true? (get c "___split")))
               (for ((k 0) (< k (alen c)) (k (inc k)))
@@ -283,9 +285,9 @@
             (when (.includes tn "@")
               (set! atSign? true)
               (set! tmp
-                    (tnode token.line
-                           token.column
-                           token.source
+                    (tnode cell.line
+                           cell.column
+                           cell.source
                            (.replace tn "@" "")
                            (.replace tn "@" ""))))
             (if-some [repl (get frags tmp.name)]
@@ -324,7 +326,7 @@
   (if (and (not vargs)
            (< (inc i) (alen data))) (syntax! :e16 data cmd))
 
-  (expandMacro code data))
+  (expandMacro code data frags))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -962,6 +964,10 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap? incPaths]
 
+  (when-not loadedMacros?
+    (set! loadedMacros? true)
+    (require "./macros.kirby"))
+
   (if (array? incPaths)
     (set! includePaths incPaths))
   (set! indent (- tabspace))
@@ -981,6 +987,32 @@
     (.toString outNode)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
+;;
+(defn- transpileWithSrcMap [code file incDirs]
+  (compileCode code file true incDirs))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- transpile [code file incDirs]
+  (compileCode code file false incDirs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseWithSourceMap [codeStr fname]
+  (var outNode (processTree (toASTree codeStr fname)))
+  (.prepend outNode MODULE-BANNER)
+  (.toStringWithSourceMap outNode))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(do-with [exports {}]
+  (set! exports "transpileWithSrcMap" transpileWithSrcMap)
+  (set! exports "parseWithSourceMap" parseWithSourceMap)
+  (set! exports "transpile" transpile)
+  (set! exports "version" MODULE-VERSION)
+  (set! exports "dbgAST" dbgAST)
+  (set! module.exports exports))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
