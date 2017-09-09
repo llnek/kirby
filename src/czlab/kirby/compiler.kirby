@@ -131,7 +131,7 @@
             (when tmp
               (.add ret [(str pstr r)
                          tmp
-                         (if-not noSemi? ";") "\n"])
+                         (if-not noSemi? ";" "") "\n"])
               (set! noSemi? false))) root)
     (-= indent tabspace)))
 
@@ -312,7 +312,7 @@
 
   ;;map all args to actual data, say &rest -> rest of the data
   ;;tpos is always one ahead to skip out the macro cmd
-  (for ((i 0 tpos (inc i))
+  (for ((tpos (inc i))
         (< i (alen args)) (i (inc i) tpos (inc i)))
     (if (= (.-name (nth args i)) VARGS)
       (do (set! vargs true)
@@ -570,18 +570,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-set [expr]
-  (if (or (< (alen expr) 3)
-          (> (alen expr) 4)) (syntax! :e0 expr))
-  (when (= (alen expr) 4)
-    (if (list? (cadr expr))
-      (aset expr 1 (evalList (cadr expr))))
-    (if (list? (nth expr 2))
-      (aset expr 2 (evalList (nth expr 2))))
-    (aset expr 1 (str (cadr expr) "[" (nth expr 2) "]"))
-    (aset expr 2 (nth expr 3)))
-  (tnodeChunk [(cadr expr)
-               " = "
-               (eval?? (nth expr 2))]))
+  (if-not (or (= (alen expr) 3)
+              (= (alen expr) 4)) (syntax! :e0 expr))
+  (do-with [ret (tnode)]
+    (if (= (alen expr) 4)
+      (do
+        (.add ret (eval?? (cadr expr)))
+        (.add ret "[")
+        (.add ret (eval?? (nth expr 2)))
+        (.add ret "]"))
+      (.add ret (cadr expr)))
+    (.add ret [" = " (eval?? (last expr))])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -796,7 +795,7 @@
         (if (not= (.indexOf icache fname) -1)
           ""
           (do (.push icache fname)
-              (processTree (toASTree (.readFileSync *fs* fname) fname))))))))
+              (parseTree (toASTree (.readFileSync *fs* fname) fname))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -999,7 +998,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- parseWithSourceMap [codeStr fname]
-  (var outNode (processTree (toASTree codeStr fname)))
+  (var outNode (parseTree (toASTree codeStr fname)))
   (.prepend outNode MODULE-BANNER)
   (.toStringWithSourceMap outNode))
 

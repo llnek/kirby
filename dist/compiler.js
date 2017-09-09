@@ -143,6 +143,29 @@ function tnodeString() {
   })();
   })();
 }
+
+var isSourceNode = "$$$isSourceNode$$$";
+function SourceNode_add(aChunk) {
+  let me=this;
+  try {
+    if (Array.isArray(aChunk)) {
+      aChunk.forEach(function (chunk) { me.add(chunk); }, me);
+    }
+    else if (aChunk[isSourceNode] || typeof aChunk === "string") {
+      if (aChunk) { me.children.push(aChunk); }
+    }
+    else {
+      throw new TypeError(
+        "Expected a SourceNode, string, or an array of SourceNodes and strings. Got " + aChunk
+      );
+    }
+  } catch (e) {
+    console.log("pppppppp = " + e.stack);
+    throw e;
+  }
+  return me;
+};
+
 function tnode(ln,col,src,chunk,name) {
   let args_QUERY = ((arguments)["length"] > 0);
   return   (function() {
@@ -155,6 +178,7 @@ function tnode(ln,col,src,chunk,name) {
     n = new TreeNode());
   n[KIRBY] = {};
   n["toString"] = tnodeString;
+  n.add= SourceNode_add;
   return n;
   })();
   })();
@@ -442,7 +466,7 @@ function parseTree(root) {
         tmp,
         ((!noSemi_QUERY) ?
           ";" :
-          undefined),
+          ""),
         "\n"
       ]);
       return noSemi_QUERY = false;
@@ -568,7 +592,7 @@ function expandMacro(code,data,frags) {
   ((("object" === ci.eTYPE) || ("array" === ci.eTYPE)) ?
     ret["eTYPE"] = ci.eTYPE :
     undefined);
-  ename = ename || "";
+  ename = (ename || "");
   return ((ename === "#<<") ?
     ((!(Object.prototype.toString.call(frag) === "[object Array]")) ?
       syntax_BANG("e13",data,cmd) :
@@ -710,7 +734,7 @@ function evalMacro(mc,data) {
     i = 0,
     frags = {};
   (function () {
-for (var i = 0,tpos = (i + 1); (i < (args)["length"]); i = (i + 1),tpos = (i + 1)) {
+for (var tpos = (i + 1); (i < (args)["length"]); i = (i + 1),tpos = (i + 1)) {
         (function() {
     return (((args[i])["name"] === VARGS) ?
             (function() {
@@ -734,10 +758,10 @@ function sf_compOp(expr) {
     undefined);
   evalConCells(expr);
   ((expr[0] == "!=") ?
-    aset(expr,0,"!==") :
+    expr[0] = "!==" :
     undefined);
   ((expr[0] == "=") ?
-    aset(expr,0,"===") :
+    expr[0] = "===" :
     undefined);
   return   (function() {
   let ret = tnode();
@@ -992,14 +1016,12 @@ for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
     ((!testid_QUERY(expr[i])) ?
       syntax_BANG("e9",expr) :
       undefined);
-    return ret.add([
-      expr[i],
-      " = ",
-      expr[(i + 1)]
-    ]);
+
+    ret.add([ expr[i], " = ", expr[i + 1] ]);
     })();
   }
 })();
+
   ret.prepend(" ");
   ret.prepend(cmd);
   (((expr)["length"] > 3) ?
@@ -1092,26 +1114,30 @@ SPECIAL_OPS["inc!"] = function (x) {
   return sf_x_eq(x,"+");
 };
 function sf_set(expr) {
-  ((((expr)["length"] < 3) || ((expr)["length"] > 4)) ?
+  ((!(((expr)["length"] === 3) || ((expr)["length"] === 4))) ?
     syntax_BANG("e0",expr) :
     undefined);
+  return   (function() {
+  let ret = tnode();
+  return   (function() {
   (((expr)["length"] === 4) ?
         (function() {
-    ((Object.prototype.toString.call(expr[1]) === "[object Array]") ?
-      aset(expr,1,evalList(expr[1])) :
-      undefined);
-    ((Object.prototype.toString.call(expr[2]) === "[object Array]") ?
-      aset(expr,2,evalList(expr[2])) :
-      undefined);
-    aset(expr,1,[expr[1],"[",expr[2],"]"].join(""));
-    return aset(expr,2,expr[3]);
+    ret.add(eval_QUERY_QUERY(expr[1]));
+    ret.add("[");
+    ret.add(eval_QUERY_QUERY(expr[2]));
+    return ret.add("]");
     })() :
-    undefined);
-  return tnodeChunk([
-    expr[1],
+    ret.add(expr[1]));
+  ret.add([
     " = ",
-    eval_QUERY_QUERY(expr[2])
+    eval_QUERY_QUERY(    (function() {
+    let a = expr;
+    return a[((a)["length"] - 1)];
+    })())
   ]);
+  return ret;
+  })();
+  })();
 }
 SPECIAL_OPS["aset"] = sf_set;
 SPECIAL_OPS["set!"] = sf_set;
@@ -1157,6 +1183,7 @@ function sf_func(expr,public_QUERY) {
     return fBody = expr.slice(3);
     })() :
     syntax_BANG("e0",expr));
+
   ret = tnodeChunk(fArgs);
   ret.join(",");
   ret.prepend(["function ",fName,"("].join(""));
@@ -1396,7 +1423,7 @@ var includeFile = (function () {
       "" :
             (function() {
       icache.push(fname);
-      return processTree(toASTree(_STARfs_STAR.readFileSync(fname),fname));
+      return parseTree(toASTree(_STARfs_STAR.readFileSync(fname),fname));
       })());
   };
 })();
@@ -1625,7 +1652,7 @@ function transpile(code,file,incDirs) {
   return compileCode(code,file,false,incDirs);
 }
 function parseWithSourceMap(codeStr,fname) {
-  let outNode = processTree(toASTree(codeStr,fname));
+  let outNode = parseTree(toASTree(codeStr,fname));
   outNode.prepend(MODULE_BANNER);
   return outNode.toStringWithSourceMap();
 }
