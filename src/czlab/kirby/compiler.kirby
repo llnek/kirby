@@ -159,8 +159,8 @@
        info (or (get expr KIRBY) {}))
 
   (cond
-    (= :object info.eTYPE) (set! cmd "{")
-    (= :array info.eTYPE) (set! cmd "[")
+    (= :object (.-eTYPE info)) (set! cmd "{")
+    (= :array (.-eTYPE info)) (set! cmd "[")
     (node? (car expr))
     (do (set! cmd (.-name (car expr)))
         (set! mc (get MACROS-MAP cmd))))
@@ -198,16 +198,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- expandMacro [code data frags]
-  (var ret []
+  (var state nil
+       ret []
        ename ""
        tmp nil
        s1name ""
        ci (or (get code KIRBY) {})
        di (or (get data KIRBY) {}))
 
-  (set! ret
-        KIRBY
-        (Object.assign di))
+  (set! state (Object.assign di))
+  (set! ret KIRBY state)
 
   (when (and (list? code)
              (> (alen code) 1))
@@ -219,9 +219,9 @@
    (set! ename (.-name (car code))))
 
   ;;deal with array and object literals
-  (if (or (= :object ci.eTYPE)
-          (= :array ci.eTYPE))
-    (set! ret :eTYPE ci.eTYPE))
+  (if (or (= :object (.-eTYPE ci))
+          (= :array (.-eTYPE ci)))
+    (set! state :eTYPE ci.eTYPE))
 
   (set! ename (or ename ""))
   ;;the magic
@@ -533,9 +533,9 @@
   (var f1 (nth expr 1))
   (.splice expr 0 2 (tnodeChunk "do" "do"))
   (do-with [ret nil]
-    (set! ret tnodeChunk ["while "
+    (set! ret (tnodeChunk ["while "
                           (eval?? f1)
-                          " {\n" (evalList expr) ";\n}\n"])
+                          " {\n" (evalList expr) ";\n}\n"]))
     (.prepend ret "(function () {\n")
     (.add ret "})()")))
 
@@ -739,7 +739,7 @@
     (if (empty? expr)
       (.add ret "[]")
       (try
-        (if (not= :array info.eTYPE)
+        (if (not= :array (.-eTYPE info))
           (.splice expr 0 1))
         (+= indent tabspace)
         (evalConCells expr)
@@ -768,7 +768,7 @@
     (if (empty? expr)
       (.add ret "{}")
       (try
-        (if (not= :object info.eTYPE)
+        (if (not= :object (.-eTYPE info))
           (.splice expr 0 1))
         (+= indent tabspace)
         (evalConCells expr)
@@ -917,6 +917,8 @@
       (if (and (= (.-name (nth a2 i)) VARGS)
                (not= (inc i) (alen a2)))
         (syntax! :e15 expr cmd)))
+    (set! a2 KIRBY {eTYPE nil})
+    (set! a3 KIRBY {eTYPE nil})
     (set! MACROS-MAP cmd { args a2 code a3 name cmd })))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -987,13 +989,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- transpileXXX [code file smap? incDirs]
+  (try
+    (compileCode code file smap? incDirs)
+    (catch e
+      (js# "console.log(e.stack);")
+      (throw e)
+      nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn- transpileWithSrcMap [code file incDirs]
-  (compileCode code file true incDirs))
+  (transpileXXX code file true incDirs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- transpile [code file incDirs]
-  (compileCode code file false incDirs))
+  (transpileXXX code file false incDirs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

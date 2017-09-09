@@ -31,9 +31,9 @@ for (var i = 0; (i < len); i = (i + 1)) {
   })();
 }
 function each_key(func,obj) {
-  return function (k) {
+  return Object.keys(obj).forEach(function (k) {
     return func(obj[k],k,obj);
-  }.forEach(Object.keys(obj));
+  });
 }
 function last(coll) {
   return coll[((coll)["length"] - 1)];
@@ -143,29 +143,6 @@ function tnodeString() {
   })();
   })();
 }
-
-var isSourceNode = "$$$isSourceNode$$$";
-function SourceNode_add(aChunk) {
-  let me=this;
-  try {
-    if (Array.isArray(aChunk)) {
-      aChunk.forEach(function (chunk) { me.add(chunk); }, me);
-    }
-    else if (aChunk[isSourceNode] || typeof aChunk === "string") {
-      if (aChunk) { me.children.push(aChunk); }
-    }
-    else {
-      throw new TypeError(
-        "Expected a SourceNode, string, or an array of SourceNodes and strings. Got " + aChunk
-      );
-    }
-  } catch (e) {
-    console.log("pppppppp = " + e.stack);
-    throw e;
-  }
-  return me;
-};
-
 function tnode(ln,col,src,chunk,name) {
   let args_QUERY = ((arguments)["length"] > 0);
   return   (function() {
@@ -176,9 +153,10 @@ function tnode(ln,col,src,chunk,name) {
       new TreeNode(ln,col,src,chunk,name) :
       new TreeNode(ln,col,src,chunk)) :
     n = new TreeNode());
-  n[KIRBY] = {};
+  n[KIRBY] = {
+    eTYPE: null
+  };
   n["toString"] = tnodeString;
-  n.add= SourceNode_add;
   return n;
   })();
   })();
@@ -229,9 +207,9 @@ function lexer(prevToken,context) {
   },{});
   tree[KIRBY] = state;
   (("[" === prevToken) ?
-    state["array"] = true :
+    state["eTYPE"] = "array" :
     (("{" === prevToken) ?
-      state["object"] = true :
+      state["eTYPE"] = "object" :
       undefined));
   ____BREAK_BANG = false;
   (function () {
@@ -504,9 +482,9 @@ function evalList(expr) {
     tmp = null,
     mc = null,
     info = (expr[KIRBY] || {});
-  (("object" === info.eTYPE) ?
+  (("object" === (info)["eTYPE"]) ?
     cmd = "{" :
-    (("array" === info.eTYPE) ?
+    (("array" === (info)["eTYPE"]) ?
       cmd = "[" :
       (node_QUERY(expr[0]) ?
                 (function() {
@@ -571,13 +549,15 @@ function evalConCells(cells) {
   });
 }
 function expandMacro(code,data,frags) {
-  let ret = [],
+  let state = null,
+    ret = [],
     ename = "",
     tmp = null,
     s1name = "",
     ci = (code[KIRBY] || {}),
     di = (data[KIRBY] || {});
-  ret[KIRBY] = Object.assign(di);
+  state = Object.assign(di);
+  ret[KIRBY] = state;
   (((Object.prototype.toString.call(code) === "[object Array]") && ((code)["length"] > 1)) ?
         (function() {
     s1name = (code[1])["name"];
@@ -589,8 +569,8 @@ function expandMacro(code,data,frags) {
       null)) ?
     ename = (code[0])["name"] :
     undefined);
-  ((("object" === ci.eTYPE) || ("array" === ci.eTYPE)) ?
-    ret["eTYPE"] = ci.eTYPE :
+  ((("object" === (ci)["eTYPE"]) || ("array" === (ci)["eTYPE"])) ?
+    state["eTYPE"] = ci.eTYPE :
     undefined);
   ename = (ename || "");
   return ((ename === "#<<") ?
@@ -1016,12 +996,14 @@ for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
     ((!testid_QUERY(expr[i])) ?
       syntax_BANG("e9",expr) :
       undefined);
-
-    ret.add([ expr[i], " = ", expr[i + 1] ]);
+    return ret.add([
+      expr[i],
+      " = ",
+      expr[(i + 1)]
+    ]);
     })();
   }
 })();
-
   ret.prepend(" ");
   ret.prepend(cmd);
   (((expr)["length"] > 3) ?
@@ -1070,13 +1052,13 @@ function sf_while(expr) {
   return   (function() {
   let ret = null;
   return   (function() {
-  ret[tnodeChunk] = [
+  ret = tnodeChunk([
     "while ",
     eval_QUERY_QUERY(f1),
     " {\n",
     evalList(expr),
     ";\n}\n"
-  ];
+  ]);
   ret.prepend("(function () {\n");
   ret.add("})()");
   return ret;
@@ -1183,7 +1165,6 @@ function sf_func(expr,public_QUERY) {
     return fBody = expr.slice(3);
     })() :
     syntax_BANG("e0",expr));
-
   ret = tnodeChunk(fArgs);
   ret.join(",");
   ret.prepend(["function ",fName,"("].join(""));
@@ -1337,7 +1318,7 @@ function sf_array(expr) {
     ret.add("[]") :
     (function() {
     try {
-      (("array" !== info.eTYPE) ?
+      (("array" !== (info)["eTYPE"]) ?
         expr.splice(0,1) :
         undefined);
       indent += tabspace;
@@ -1381,7 +1362,7 @@ function sf_object(expr) {
     ret.add("{}") :
     (function() {
     try {
-      (("object" !== info.eTYPE) ?
+      (("object" !== (info)["eTYPE"]) ?
         expr.splice(0,1) :
         undefined);
       indent += tabspace;
@@ -1576,6 +1557,12 @@ for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
     })();
   }
 })();
+  a2[KIRBY] = {
+    eTYPE: null
+  };
+  a3[KIRBY] = {
+    eTYPE: null
+  };
   MACROS_MAP[cmd] = {
     args: a2,
     code: a3,
@@ -1645,11 +1632,25 @@ function compileCode(codeStr,fname,withSrcMap_QUERY,incPaths) {
     })() :
     outNode.toString());
 }
+function transpileXXX(code,file,smap_QUERY,incDirs) {
+  return (function() {
+  try {
+    return compileCode(code,file,smap_QUERY,incDirs);
+
+  } catch (e) {
+return   (function() {
+  console.log(e.stack);;
+  throw e;;
+  return null;
+  })();
+  }
+  })()
+}
 function transpileWithSrcMap(code,file,incDirs) {
-  return compileCode(code,file,true,incDirs);
+  return transpileXXX(code,file,true,incDirs);
 }
 function transpile(code,file,incDirs) {
-  return compileCode(code,file,false,incDirs);
+  return transpileXXX(code,file,false,incDirs);
 }
 function parseWithSourceMap(codeStr,fname) {
   let outNode = parseTree(toASTree(codeStr,fname));

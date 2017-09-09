@@ -86,7 +86,7 @@
               (new TreeNode ln col src chunk name)
               (new TreeNode ln col src chunk)))
       (set! n (new TreeNode)))
-    (set! n KIRBY {})
+    (set! n KIRBY { eTYPE nil })
     (set! n :toString tnodeString)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -129,9 +129,9 @@
     (set! tree KIRBY state)
     (cond
       (= "[" prevToken)
-      (set! state :array true)
+      (set! state :eTYPE :array)
       (= "{" prevToken)
-      (set! state :object true))
+      (set! state :eTYPE :object))
 
     (set! ____BREAK! false)
     (while (and (not ____BREAK!)
