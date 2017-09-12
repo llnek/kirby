@@ -74,10 +74,10 @@
 ;;
 (defn- compileFiles []
   (var fin
-       (if (1st opt.argv)
-         (1st opt.argv)
+       (if (car opt.argv)
+         (car opt.argv)
          (error "No Input file"))
-       fout (2nd opt.argv))
+       fout (cadr opt.argv))
   (when-not fout
     (set! fout
           (.replace fin (regex "\\.kirby$") ".js"))
@@ -119,7 +119,7 @@
       ((.pipe (.createReadStream *fs* bundle))
        (.createWriteStream *fs* "browser-bundle.js")))
     (get opt.options "run")
-    (let [a1 (1st opt.argv)
+    (let [a1 (car opt.argv)
           infile a1]
       (if-not a1 (error "No input file"))
       (if-not (or (.endsWith a1 ".kirby")

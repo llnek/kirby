@@ -125,6 +125,8 @@ var REGEX = {
   "int": new RegExp("^[-+]?[0-9]+$"),
   "hex": new RegExp("^[-+]?0x"),
   "macroGet": new RegExp("^#slice@(\\d+)"),
+  "dquoteHat": new RegExp("^\""),
+  "dquoteEnd": new RegExp("\"$"),
   "func": new RegExp("^function\\b"),
   "query": new RegExp("\\?","g"),
   "bang": new RegExp("!","g"),
@@ -365,13 +367,19 @@ while ((!____BREAK_BANG) && (ctx.pos < (ctx.codeStr)["length"])) {
   (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
-  ((formType === tkn_array) ?
-    syntax_BANG("e5",tree) :
-    ((formType === tkn_object) ?
-      syntax_BANG("e7",tree) :
-      ((formType === tkn_list) ?
-        syntax_BANG("e8",tree) :
-        undefined)));
+  (function(____self) {
+switch (formType) {
+case tkn_array:
+syntax_BANG("e5",tree);
+break;
+case tkn_object:
+syntax_BANG("e7",tree);
+break;
+case tkn_list:
+syntax_BANG("e8",tree);
+break;
+}
+})(this);
   return tree;
   })(this);
   })(this);
@@ -1240,22 +1248,28 @@ function sf_anonFunc(expr) {
 }
 SPECIAL_OPS["fn"] = sf_anonFunc;
 function sf_func(expr,public_QUERY) {
-  (((expr)["length"] < 2) ?
+  (((expr)["length"] < 3) ?
     syntax_BANG("e0",expr) :
     undefined);
-  let fname = null,
-    args = null,
-    body = null;
+  let fname = normalizeId(get_QUERY_QUERY(nth(expr,1),"name","")),
+    doc = null,
+    args = 2,
+    body = 3;
+  ((tkn_string === nth(expr,2)["eTYPE"]) ?
+        (function(____self) {
+    doc = 2;
+    args = 3;
+    return body = 4;
+    })(this) :
+    undefined);
+  (doc ?
+    doc = nth(expr,doc) :
+    undefined);
+  args = nth(expr,args);
+  body = expr.slice(body);
   return   (function(____self) {
   let ret = null;
   return   (function(____self) {
-  (((!(Object.prototype.toString.call(nth(expr,1)) === "[object Array]")) && (Object.prototype.toString.call(nth(expr,2)) === "[object Array]")) ?
-        (function(____self) {
-    fname = normalizeId(get_QUERY_QUERY(nth(expr,1),"name",""));
-    args = nth(expr,2);
-    return body = expr.slice(3);
-    })(this) :
-    syntax_BANG("e0",expr));
   ret = tnodeEx(args);
   ret.join(",");
   ret.prepend(["function ",fname,"("].join(""));
@@ -1265,6 +1279,13 @@ function sf_func(expr,public_QUERY) {
     pad(indent),
     "}"
   ]);
+  (doc ?
+        (function(____self) {
+    return ret.prepend(get_QUERY_QUERY(doc,"name","").replace(REGEX.dquoteHat,"").replace(REGEX.dquoteEnd,"").split("\\n").map(function (x) {
+      return ["//",x,"\n"].join("");
+    }));
+    })(this) :
+    undefined);
   noSemi_QUERY = true;
   return ret;
   })(this);
@@ -1645,10 +1666,20 @@ function sf_jscode(expr) {
 }
 SPECIAL_OPS["js#"] = sf_jscode;
 function sf_macro(expr) {
-  assertArgs(expr,4,"e0");
+  (((expr)["length"] < 4) ?
+    syntax_BANG("e0",expr) :
+    undefined);
   let a3 = nth(expr,3),
     a2 = nth(expr,2),
+    doc = null,
     cmd = get_QUERY_QUERY(nth(expr,1),"name","");
+  ((tkn_string === a2["eTYPE"]) ?
+        (function(____self) {
+    doc = nth(expr,2);
+    a2 = nth(expr,3);
+    return a3 = nth(expr,4);
+    })(this) :
+    undefined);
   return   (function(____self) {
   let ret = "";
   return   (function(____self) {
@@ -1662,9 +1693,10 @@ for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
   }
 })(this);
   MACROS_MAP[cmd] = {
-    args: a2,
-    code: a3,
-    name: cmd
+    "doc": doc,
+    "args": a2,
+    "code": a3,
+    "name": cmd
   };
   return ret;
   })(this);

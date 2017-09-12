@@ -636,23 +636,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-func [expr public?]
-  (if (< (alen expr) 2) (syntax! :e0 expr))
-  (var fname nil
-       args nil body nil)
+  (if (< (alen expr) 3) (syntax! :e0 expr))
+  (var fname (normalizeId
+               (name?? (cadr expr)))
+       doc nil args 2 body 3)
+  (when (= tkn-string
+           (get (caddr expr) :eTYPE))
+    (set! doc 2)
+    (set! args 3)
+    (set! body 4))
+  (if doc (set! doc (nth expr doc)))
+  (set! args (nth expr args))
+  (set! body (.slice expr body))
   (do-with [ret nil]
-    (if (and (not (list? (cadr expr)))
-             (list? (caddr expr)))
-      (do (set! fname (normalizeId
-                        (name?? (cadr expr))))
-          (set! args (caddr expr))
-          (set! body (.slice expr 3)))
-      (syntax! :e0 expr))
     (set! ret (tnodeEx args))
     (.join ret ",")
     (.prepend ret (str "function " fname "("))
     (.add ret [") {\n"
                (parseTree body)
                (pad indent) "}"])
+    (when doc
+      (->>
+        (map (fn [x] (str "//" x "\n"))
+                 (-> (name?? doc)
+                     (.replace REGEX.dquoteHat "")
+                     (.replace REGEX.dquoteEnd "")
+                     (.split "\\n")))
+        (.prepend ret )))
     (set! noSemi? true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -947,18 +957,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-macro [expr]
-  (assertArgs expr  4 :e0)
+  (if (< (alen expr) 4) (syntax! :e0 expr))
   (var a3 (cadddr expr)
        a2 (caddr expr)
+       doc nil
        cmd (name?? (cadr expr)))
+  (when (= tkn-string (get a2 :eTYPE))
+    (set! doc (nth expr 2))
+    (set! a2 (nth expr 3))
+    (set! a3 (nth expr 4)))
   (do-with [ret ""]
     (for ((i 0) (< i (alen a2)) (i (inc i)))
       (if (and (= (name?? (nth a2 i)) VARGS)
                (not= (inc i) (alen a2)))
         (syntax! :e15 expr cmd)))
-    ;;(set! a2 KIRBY {eTYPE nil})
-    ;;(set! a3 KIRBY {eTYPE nil})
-    (set! MACROS-MAP cmd { args a2 code a3 name cmd })))
+    (set! MACROS-MAP
+          cmd
+          { :doc doc :args a2 :code a3 :name cmd })))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

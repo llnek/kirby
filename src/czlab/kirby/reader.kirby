@@ -29,6 +29,8 @@
     :int (regex "^[-+]?[0-9]+$")
     :hex (regex "^[-+]?0x")
     :macroGet (regex "^#slice@(\\d+)")
+    :dquoteHat (regex "^\"")
+    :dquoteEnd (regex "\"$")
     :func (regex "^function\\b")
     :query (regexs "\\?" "g")
     :bang (regexs "!" "g")
@@ -231,13 +233,10 @@
         (+= token ch)))
     ;;final check!
     (if inStr? (syntax! 'e3 tree))
-    (cond
-      (= formType tkn-array)
-      (syntax! 'e5 tree)
-      (= formType tkn-object)
-      (syntax! 'e7 tree)
-      (= formType tkn-list)
-      (syntax! 'e8 tree))))
+    (case formType
+      tkn-array (syntax! 'e5 tree)
+      tkn-object (syntax! 'e7 tree)
+      tkn-list (syntax! 'e8 tree))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
