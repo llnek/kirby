@@ -9,7 +9,9 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.repl)
+  czlab.kirby.repl
+
+  (include "./core.kirby"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

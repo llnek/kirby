@@ -323,12 +323,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro second [coll] (nth ~coll 1))
+(defmacro third [coll] (nth ~coll 2))
+(defmacro fourth [coll] (nth ~coll 3))
 (defmacro first [coll] (nth ~coll 0))
+
 (defmacro 1st [coll] (first ~coll))
 (defmacro 2nd [coll] (second ~coll))
+(defmacro 3rd [coll] (third ~coll))
+
 (defmacro car [coll] (first ~coll))
 (defmacro cadr [coll] (second ~coll))
-
+(defmacro caddr [coll] (third ~coll))
+(defmacro cadddr [coll] (nth ~coll 3))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

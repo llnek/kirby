@@ -7,39 +7,62 @@
 ;; You must not remove this notice, or any other, from this software.
 
 (ns ^{:doc ""
-      :author "Kenneth Leung" }
+      :author "Kenneth Leung"}
 
-  czlab.kirby.reader)
+  czlab.kirby.reader
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(include "./core.kirby")
+  (include "./core.kirby"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def- TreeNode (.-SourceNode (require "source-map")))
-(def- *fs* nil *path* nil)
+(def- *path* (require "path"))
+(def- *fs* (require "fs"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def- REGEX
-  { macroGet (regex "^#slice@(\\d+)")
-    noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-    id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-    id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
-    func (regex "^function\\b")
-    query (regexs "\\?" "g")
-    bang (regexs "!" "g")
-    dash (regexs "-" "g")
-    star (regexs "\\*" "g")
-    wspace (regex "\\s") })
-(def- KIRBY "____kirby")
+  { :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
+    :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
+    :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
+    :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
+    :int (regex "^[-+]?[0-9]+$")
+    :hex (regex "^[-+]?0x")
+    :macroGet (regex "^#slice@(\\d+)")
+    :func (regex "^function\\b")
+    :query (regexs "\\?" "g")
+    :bang (regexs "!" "g")
+    :dash (regexs "-" "g")
+    :star (regexs "\\*" "g")
+    :wspace (regex "\\s") })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(when (undef? window)
-  (set! *path* (require "path"))
-  (set! *fs* (require "fs")))
+(def- tkn-string "STRING")
+(def- tkn-number "NUMBER")
+(def- tkn-symbol "SYMBOL")
+(def- tkn-ident "IDENT")
+(def- tkn-atom "ATOM")
+(def- tkn-hat "HAT")
+(def- tkn-quote "QUOTE")
+(def- tkn-back-tick "BACKTICK")
+(def- tkn-list "LIST")
+(def- tkn-tree "TREE")
+(def- tkn-array "ARRAY")
+(def- tkn-object "OBJECT")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defmacro name?? [obj] (get?? ~obj :name ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- nodeTag [obj src line col type]
+  (when obj
+    (set! obj :source src)
+    (set! obj :column col)
+    (set! obj :line line)
+    (set! obj :eTYPE type)) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -51,7 +74,7 @@
 (defn- normalizeId [name]
   (var pfx "")
   (when (and (string? name)
-           (= "-" (.charAt name 0)))
+             (= "-" (.charAt name 0)))
     (set! pfx "-")
     (set! name (.slice name 1)))
   (if (testid? name)
@@ -77,43 +100,59 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- tnode [ln col src chunk name]
+(defn- tnode [source line col chunk name type]
   (var args? (js-args?))
   (do-with [n nil]
     (if args?
       (set! n
             (if name
-              (new TreeNode ln col src chunk name)
-              (new TreeNode ln col src chunk)))
+              (new TreeNode line col source chunk name)
+              (new TreeNode line col source chunk)))
       (set! n (new TreeNode)))
-    (set! n KIRBY { eTYPE nil })
+    (set! n :eTYPE type)
     (set! n :toString tnodeString)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- tnodeChunk [chunk name] (tnode nil nil nil chunk name))
+(defn- tnodeEx [chunk name type]
+  (tnode nil nil nil chunk name type))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- addToken [tree token context]
+(defn- addToken [tree token ctx]
+  (var n nil t tkn-symbol)
   (do-with [ret ""]
     (when token
       (if (= ":else" token) (set! token "true"))
       (if (= "nil" token) (set! token "null"))
-      (if (and (or (.startsWith token ":")
-                   (.startsWith token "'"))
-               (testid? (.substring token 1)))
-        (set! token (str "\"" (.substring token 1) "\"")))
-      (conj!! tree (tnode context.lineno
-                          (- context.tknCol 1)
-                          context.filename token token)))))
+      (cond
+        (and (.startsWith token "\"")
+             (.endsWith token "\""))
+        (set! t tkn-string)
+        (or (REGEX.float.test token)
+            (REGEX.int.test token)
+            (REGEX.hex.test token))
+        (set! t tkn-number)
+        (= "^" token)
+        (set! t tkn-hat)
+        (= "`" token)
+        (set! t tkn-back-tick)
+        (.startsWith token ":")
+        (set! token (str "\"" (.slice token 1) "\""))
+        (.startsWith token "'")
+        (set! token (str "\"" (.slice token 1) "\""))
+        :else
+        (set! t tkn-ident))
+      (set! n (tnode ctx.file
+                     ctx.line
+                     (dec ctx.tcol) token token t))
+      (conj!! tree n))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- lexer [prevToken context]
+(defn- lexer [prevToken ctx]
   (var ____BREAK! nil
        formType nil
-       state nil
        token ""
        ch nil
        escStr? false
@@ -121,99 +160,83 @@
        comment? false)
 
   (do-with [tree []]
-    (set! state
-          (reduce (fn [acc k]
-                    (set! acc k (get context k)) acc)
-                  {}
-                  [:filename :lineno]))
-    (set! tree KIRBY state)
-    (cond
-      (= "[" prevToken)
-      (set! state :eTYPE :array)
-      (= "{" prevToken)
-      (set! state :eTYPE :object))
-
+    (nodeTag tree
+             (get ctx :source)
+             (get ctx :line)
+             0
+             (cond
+               (= "{" prevToken) tkn-object
+               (= "[" prevToken) tkn-array
+               :else tkn-list))
     (set! ____BREAK! false)
     (while (and (not ____BREAK!)
-                (< context.pos (alen context.codeStr)))
-      (set! ch (.charAt context.codeStr context.pos))
-      (inc!! context.colno)
-      (inc!! context.pos)
+                (< ctx.pos (alen ctx.codeStr)))
+      (set! ch (.charAt ctx.codeStr ctx.pos))
+      (++ ctx.colno)
+      (++ ctx.pos)
       (when (= ch "\n")
-        (inc!! context.lineno)
-        (set! context.colno 1)
+        (++ ctx.lineno)
+        (set! ctx.colno 1)
         (if comment? (toggle! comment?)))
       (cond
         comment?
         nil
         escStr?
-        (do
-          (toggle! escStr?)
-          (inc! token ch))
+        (do (toggle! escStr?)
+            (+= token ch))
         (= ch "\"")
-        (do
-          (toggle! inStr?)
-          (inc! token ch))
+        (do (toggle! inStr?)
+            (inc! token ch))
         inStr?
-        (do
-          (if (= ch "\n") (set! ch "\\n"))
-          (if (= ch "\\") (set! escStr? true))
-          (inc! token ch))
+        (do (if (= ch "\n") (set! ch "\\n"))
+            (if (= ch "\\") (set! escStr? true))
+            (+= token ch))
         (= ch "'")
-        ;;more work
-        (inc! token ch)
+        (+= token ch)
         (or (= ch "[")
             (= ch "]"))
-        (do
-          (set! token (addToken tree token context))
-          (set! context.tknCol context.colno)
-          (if (= ch "[")
-            (do
-              (set! formType  :array)
-              (conj!! tree (lexer ch context)))
-            (do
-              (set! formType nil)
-              (set! ____BREAK! true))))
+        (do (set! token (addToken tree token ctx))
+            (set! ctx.tcol ctx.colno)
+            (if (= ch "[")
+              (do (set! formType tkn-array)
+                  (conj!! tree (lexer ch ctx)))
+              (do (set! formType nil)
+                  (set! ____BREAK! true))))
         (or (= ch "{")
             (= ch "}"))
-        (do
-          (set! token (addToken tree token context))
-          (set! context.tknCol context.colno)
-          (if (= ch "{")
-            (do
-              (set! formType  :object)
-              (conj!! tree (lexer ch context)))
-            (do
-              (set! formType nil)
-              (set! ____BREAK! true))))
+        (do (set! token (addToken tree token ctx))
+            (set! ctx.tcol ctx.colno)
+            (if (= ch "{")
+              (do (set! formType tkn-object)
+                  (conj!! tree (lexer ch ctx)))
+              (do (set! formType nil)
+                  (set! ____BREAK! true))))
         (= ch ";")
         (set! comment? true)
         (or (= ch "(")
             (= ch ")"))
-        (do
-          (set! token (addToken tree token context))
-          (set! context.tknCol context.colno)
-          (if (= ch "(")
-            (do (set! formType :list)
-                (conj!! tree (lexer nil context)))
-            (do (set! formType nil)
-                (set! ____BREAK! true))))
+        (do (set! token (addToken tree token ctx))
+            (set! ctx.tcol ctx.colno)
+            (if (= ch "(")
+              (do (set! formType tkn-list)
+                  (conj!! tree (lexer nil ctx)))
+              (do (set! formType nil)
+                  (set! ____BREAK! true))))
         (REGEX.wspace.test ch)
-        (do
-          (if (= ch "\n") (-- context.lineno))
-          (set! token (addToken tree token context))
-          (if (= ch "\n") (++ context.lineno))
-          (set! context.tknCol context.colno))
+        (do (if (= ch "\n") (-- ctx.lineno))
+            (set! token (addToken tree token ctx))
+            (if (= ch "\n") (++ ctx.lineno))
+            (set! ctx.tcol ctx.colno))
         :else
         (+= token ch)))
     ;;final check!
     (if inStr? (syntax! 'e3 tree))
     (cond
-      (= formType :array)
+      (= formType tkn-array)
       (syntax! 'e5 tree)
-      (= formType :object)
+      (= formType tkn-object)
       (syntax! 'e7 tree)
-      (= formType :list)
+      (= formType tkn-list)
       (syntax! 'e8 tree))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
