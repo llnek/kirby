@@ -63,6 +63,12 @@ function nth(coll,pos) {
     coll[pos] :
     undefined);
 }
+function even_QUERY(n) {
+  return ((n % 2) === 0);
+}
+function odd_QUERY(n) {
+  return (!even_QUERY(n));
+}
 function pos_QUERY(arg) {
   return ((typeof(arg) === "number") && (arg > 0));
 }

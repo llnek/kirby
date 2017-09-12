@@ -436,6 +436,42 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- sf-case [expr]
+  (if (< (alen expr) 4) (syntax! :e0 expr))
+  (var tst (cadr expr)
+       e nil t nil c nil dft nil)
+  (if (odd? (alen expr))
+    (set! dft (.pop expr)))
+  (do-with [ret (tnode)]
+    (for ((i 2)
+          (< i (alen expr))(i (+ i 2)))
+      (set! c (nth expr (inc i)))
+      (set! e (nth expr i))
+      (set! t (.-eTYPE e))
+      (cond
+        (= tkn-list t)
+        (for ((j 0)
+              (< j (alen e))(j (inc j)))
+          (.add ret ["case " (nth e j) ":\n"])
+          (if (= j (eindex e))
+            (.add ret [(eval?? c) ";\nbreak;\n"])))
+        :else
+        (do (.add ret ["case " e ":\n"])
+            (.add ret [(eval?? c) ";\nbreak;\n"]))))
+    (when dft
+      (.add ret "default:\n")
+      (.add ret [(eval?? dft) ";\nbreak;\n"]))
+    (.prepend ret ["switch (" (eval?? tst) ") {\n"])
+    (.add ret "}\n")
+    (.prepend ret "(function(____self) {\n")
+    (.add ret "})(this)")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! SPECIAL-OPS "case" sf-case)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn- sf-range [expr]
 
   (if (or (< (alen expr) 2 )

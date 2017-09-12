@@ -63,6 +63,12 @@ function nth(coll,pos) {
     coll[pos] :
     undefined);
 }
+function even_QUERY(n) {
+  return ((n % 2) === 0);
+}
+function odd_QUERY(n) {
+  return (!even_QUERY(n));
+}
 function pos_QUERY(arg) {
   return ((typeof(arg) === "number") && (arg > 0));
 }
@@ -944,6 +950,83 @@ for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
   })(this);
 }
 SPECIAL_OPS["doto"] = sf_doto;
+function sf_case(expr) {
+  (((expr)["length"] < 4) ?
+    syntax_BANG("e0",expr) :
+    undefined);
+  let tst = nth(expr,1),
+    e = null,
+    t = null,
+    c = null,
+    dft = null;
+  (odd_QUERY((expr)["length"]) ?
+    dft = expr.pop() :
+    undefined);
+  return   (function(____self) {
+  let ret = tnode();
+  return   (function(____self) {
+  (function (____self) {
+for (var i = 2; (i < (expr)["length"]); i = (i + 2)) {
+        (function(____self) {
+    c = nth(expr,(i + 1));
+    e = nth(expr,i);
+    t = (e)["eTYPE"];
+    return ((tkn_list === t) ?
+      (function (____self) {
+for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
+                (function(____self) {
+        ret.add([
+          "case ",
+          nth(e,j),
+          ":\n"
+        ]);
+        return ((j === ((e)["length"] - 1)) ?
+          ret.add([
+            eval_QUERY_QUERY(c),
+            ";\nbreak;\n"
+          ]) :
+          undefined);
+        })(this);
+      }
+})(this) :
+      (true ?
+                (function(____self) {
+        ret.add([
+          "case ",
+          e,
+          ":\n"
+        ]);
+        return ret.add([
+          eval_QUERY_QUERY(c),
+          ";\nbreak;\n"
+        ]);
+        })(this) :
+        undefined));
+    })(this);
+  }
+})(this);
+  (dft ?
+        (function(____self) {
+    ret.add("default:\n");
+    return ret.add([
+      eval_QUERY_QUERY(dft),
+      ";\nbreak;\n"
+    ]);
+    })(this) :
+    undefined);
+  ret.prepend([
+    "switch (",
+    eval_QUERY_QUERY(tst),
+    ") {\n"
+  ]);
+  ret.add("}\n");
+  ret.prepend("(function(____self) {\n");
+  ret.add("})(this)");
+  return ret;
+  })(this);
+  })(this);
+}
+SPECIAL_OPS["case"] = sf_case;
 function sf_range(expr) {
   ((((expr)["length"] < 2) || ((expr)["length"] > 4)) ?
     syntax_BANG("e0",expr) :
