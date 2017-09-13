@@ -27,6 +27,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;module exports
 (def- *externs* nil)
+(def- *nspaces* nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -532,7 +533,8 @@
         (.add ret (str ",\n" (pad indent))))
       (if-not (testid? (nth expr i)) (syntax! :e9 expr))
       (set! vname (nth expr i))
-      (if public?
+      (if (and public?
+               (= 1 (alen *nspaces*)))
         (set! *externs* vname vname))
       (.add ret [vname " = " (nth expr (inc i))]))
     (.prepend ret " ")
@@ -682,7 +684,8 @@
                      (.replace REGEX.dquoteEnd "")
                      (.split "\\n")))
         (.prepend ret )))
-    (when public?
+    (if (and public?
+             (= 1 (alen *nspaces*)))
       (set! *externs* fname fname))
     (set! noSemi? true)))
 
@@ -862,7 +865,8 @@
 
   (assertArgs expr 2 :e0)
 
-  (var dir (.dirname *path* (.-source expr))
+  (var dir (.dirname *path*
+                     (.-source expr))
        found false
        fname (name?? (cadr expr)))
 
@@ -871,13 +875,16 @@
                           (regexs "[\"]" "g") "")))
 
   (try
-    (set! fname (.realpathSync *fs* (str dir "/" fname)))
+    (set! fname
+          (.realpathSync *fs*
+                         (str dir "/" fname)))
     (catch e
       (syntax! :e11 expr)))
   (try
     (-= indent tabspace)
     (includeFile fname)
     (finally
+      (.pop *nspaces*)
       (+= indent tabspace))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -894,7 +901,8 @@
       (var e (nth expr i)
            t (.-eTYPE e))
       (cond
-        (= tkn-ident t) (console.log (str "ns = " e))
+        (= tkn-ident t)
+        (.push *nspaces* e)
         (= tkn-list t)
         (if (= "include" (name?? (car e)))
           (set! ret (sf-include e)))))))
@@ -1042,6 +1050,7 @@
 
   (set! indent (- tabspace))
   (set! *externs* {})
+  (set! *nspaces* [])
 
   (var outNode (parseTree (toASTree codeStr fname))
        extra (spitExterns))

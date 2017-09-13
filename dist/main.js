@@ -326,22 +326,6 @@ _main();
 
 
 module.exports = {
-  some_QUERY: some_QUERY,
-  zero_QUERY: zero_QUERY,
-  make_array: make_array,
-  each_key: each_key,
-  last: last,
-  nth: nth,
-  even_QUERY: even_QUERY,
-  odd_QUERY: odd_QUERY,
-  pos_QUERY: pos_QUERY,
-  neg_QUERY: neg_QUERY,
-  constantly: constantly,
-  identity: identity,
-  conj_BANG: conj_BANG,
-  conj_BANG_BANG: conj_BANG_BANG,
-  not_empty: not_empty,
-  empty_QUERY: empty_QUERY,
-  seq: seq,
-  _main: _main};
+  _main: _main
+};
 
