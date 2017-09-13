@@ -11,13 +11,14 @@
 
   czlab.kirby.repl
 
-  (include "./core.kirby"))
+  (include "./core.kirby")
+
+  (require ["readline" :as *readline*]
+           ["kirby" :as *kirby*]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- *readline* (require "readline")
-      *kirby* (require "kirby")
-      *process* process
+(def- *process* process
       prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

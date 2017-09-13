@@ -11,13 +11,15 @@
 
   czlab.kirby.reader
 
-  (include "./core.kirby"))
+  (include "./core.kirby")
+
+  (require ["source-map" :as *smap*]
+           ["path" :as *path*]
+           ["fs" :as *fs*]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- TreeNode (.-SourceNode (require "source-map")))
-(def- *path* (require "path"))
-(def- *fs* (require "fs"))
+(def- TreeNode (.-SourceNode  *smap*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -46,6 +48,7 @@
 (def- tkn-ident "IDENT")
 (def- tkn-atom "ATOM")
 (def- tkn-hat "HAT")
+(def- tkn-ns "NS")
 (def- tkn-quote "QUOTE")
 (def- tkn-back-tick "BACKTICK")
 (def- tkn-list "LIST")

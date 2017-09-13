@@ -134,9 +134,9 @@
              r ""
              tmp (if (list? expr)
                    (evalList expr) expr))
-        (when (and tmp
-                   (= tkn-tree (.-eTYPE tmp)))
-          (.add ret tmp)
+        (when (and (array? tmp)
+                   (= tkn-ns (.-eTYPE tmp)))
+          (each (fn [x] (.add ret x)) tmp)
           (set! tmp nil))
         (if (and (= i endx)
                  (not= 0 indent)
@@ -888,24 +888,46 @@
       (+= indent tabspace))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(set! SPECIAL-OPS "include" sf-include)
+;(set! SPECIAL-OPS "include" sf-include)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;(require ["path" :as *path*] ["fs" :as *fs*]))
+(defn- sf-require [expr]
+  (var path nil v nil e nil)
+  (do-with [ret (tnode)]
+    (for ((i 1)
+          (< i (alen expr)) (i (inc i)))
+      (set! e (nth expr i))
+      (if-not (or (array? e)
+                  (= 3 (alen e))) (syntax! :e0 expr))
+      (set! path (car e))
+      (set! v (caddr e))
+      (.add ret ["var "
+                 (normalizeId v)
+                 "= require(" path ");\n"]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;(set! SPECIAL-OPS "require" sf-require)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- sf-ns [expr]
   (if (< (alen expr) 2) (syntax! :e0 expr))
-  (do-with [ret (tnode)]
+  (do-with [ret []]
+    (set! ret :eTYPE tkn-ns)
     (for ((i 1)
           (< i (alen expr)) (i (inc i)))
       (var e (nth expr i)
-           t (.-eTYPE e))
+           t (.-eTYPE e)
+           nm (name?? (car e)))
       (cond
-        (= tkn-ident t)
-        (.push *nspaces* e)
-        (= tkn-list t)
-        (if (= "include" (name?? (car e)))
-          (set! ret (sf-include e)))))))
+        (= tkn-ident t) (.push *nspaces* e)
+        (and (= tkn-list t)
+             (= "include" nm))
+        (.push ret (sf-include e))
+        (and (= tkn-list t)
+             (= "require" nm))
+        (.push ret (sf-require e))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

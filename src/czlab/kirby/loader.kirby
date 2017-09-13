@@ -9,12 +9,13 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.loader)
+  czlab.kirby.loader
+
+  (require ["path" :as *path*]
+           ["fs" :as *fs*]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- *path* (require "path")
-      *fs* (require "fs"))
 (def- *process* process)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
