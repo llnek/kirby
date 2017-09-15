@@ -11,11 +11,13 @@ require.extensions[".kirby"] = function (module,fname) {
 function some_QUERY(obj) {
   return (!((typeof(obj) === "undefined") || (Object.prototype.toString.call(obj) === "[object Null]")));
 }
+
 function zero_QUERY(obj) {
   return ((typeof(obj) === "number") ?
     (0 == obj) :
     false);
 }
+
 function get_QUERY_QUERY(obj,fld,dft) {
   let x = (obj ?
     obj[fld] :
@@ -24,6 +26,7 @@ function get_QUERY_QUERY(obj,fld,dft) {
     dft :
     x);
 }
+
 function contains_QUERY(coll,itm) {
   return (((Object.prototype.toString.call(coll) === "[object Array]") || (typeof(coll) === "string")) ?
     coll.includes(itm) :
@@ -33,9 +36,11 @@ function contains_QUERY(coll,itm) {
         false :
         undefined)));
 }
+
 function excludes_QUERY(coll,itm) {
   return (!contains_QUERY(coll,itm));
 }
+
 function make_array(len,obj) {
   return   (function() {
   let ret = [];
@@ -51,11 +56,13 @@ for (var i = 0; (i < len); i = (i + 1)) {
   }).call(this);
   }).call(this);
 }
+
 function each_key(func,obj) {
   return Object.keys(obj).forEach(function (k) {
     return func(obj[k],k,obj);
   });
 }
+
 function zipmap(keys,vals) {
   let vs = (vals || []);
   return   (function() {
@@ -75,56 +82,69 @@ for (var i = 0; (i < (keys)["length"]); i = (i + 1)) {
   }).call(this);
   }).call(this);
 }
+
 function last(coll) {
   return (coll ?
     coll[((coll)["length"] - 1)] :
     undefined);
 }
+
 function nth(coll,pos) {
   return (coll ?
     coll[pos] :
     undefined);
 }
+
 function even_QUERY(n) {
   return ((n % 2) === 0);
 }
+
 function odd_QUERY(n) {
   return (!even_QUERY(n));
 }
+
 function pos_QUERY(arg) {
   return ((typeof(arg) === "number") && (arg > 0));
 }
+
 function neg_QUERY(arg) {
   return ((typeof(arg) === "number") && (arg < 0));
 }
+
 function constantly(x) {
   return function () {
     return x;
   };
 }
+
 function identity(x) {
   return x;
 }
+
 function conj_BANG(c,a) {
   c.push(a);
   return c;
 }
+
 function conj_BANG_BANG(c,a) {
   (a ?
     c.push(a) :
     undefined);
   return c;
 }
+
 function not_empty(x) {
   return ((x && ((x)["length"] > 0)) ?
     x :
     null);
 }
+
 function empty_QUERY(x) {
   return (x ?
     (0 == (x)["length"]) :
     true);
 }
+
 function seq(x) {
   return ((typeof(x) === "string") ?
     Array.from(x) :
@@ -136,6 +156,7 @@ function seq(x) {
           [] :
           undefined))));
 }
+
 var _STARreadline_STAR= require("readline");
 var _STARkirby_STAR= require("kirby");
 var _STARprocess_STAR = process,
@@ -165,6 +186,7 @@ return     (function() {
   cli.setPrompt(prefix,(prefix)["length"]);
   return cli.prompt();
 }
+
 var _STARgopt_STAR= require("node-getopt");
 var _STARwatcher_STAR= require("watch");
 var _STARpath_STAR= require("path");
@@ -249,6 +271,7 @@ return     (function() {
       undefined);
   },20);
 }
+
 function compileFiles() {
   let fin = (nth(opt.argv,0) ?
       nth(opt.argv,0) :
@@ -285,6 +308,7 @@ return   (function() {
   }
   }).call(this);
 }
+
 function _main() {
   return ((empty_QUERY(opt.argv) && empty_QUERY(Object.keys(opt.options))) ?
     handleNoArgs() :
@@ -343,6 +367,7 @@ function _main() {
               compileFiles() :
               undefined))))));
 }
+
 _main();
 
 
