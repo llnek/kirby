@@ -33,25 +33,47 @@ function contains_QUERY(coll,itm) {
         false :
         undefined)));
 }
+function excludes_QUERY(coll,itm) {
+  return (!contains_QUERY(coll,itm));
+}
 function make_array(len,obj) {
-  return   (function(____self) {
+  return   (function() {
   let ret = [];
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 0; (i < len); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     return ret.push(obj);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function each_key(func,obj) {
   return Object.keys(obj).forEach(function (k) {
     return func(obj[k],k,obj);
   });
+}
+function zipmap(keys,vals) {
+  let vs = (vals || []);
+  return   (function() {
+  let ret = {};
+  return   (function() {
+  (function () {
+for (var i = 0; (i < (keys)["length"]); i = (i + 1)) {
+        (function() {
+    vv = nth(vs,i);
+    return ret[nth(keys,i)] = ((typeof(vv) === "undefined") ?
+      null :
+      vv);
+    }).call(this);
+  }
+}).call(this);
+  return ret;
+  }).call(this);
+  }).call(this);
 }
 function last(coll) {
   return (coll ?
@@ -121,17 +143,17 @@ var _STARprocess_STAR = process,
 function runrepl() {
   let cli = _STARreadline_STAR.createInterface((_STARprocess_STAR)["stdin"],(_STARprocess_STAR)["stdout"]);
   cli.on("line",function (line) {
-    (function(____self) {
+    (function() {
     try {
       let l = _STARkirby_STAR.transpile(line);
       return console.log(this.eval(l));
 
     } catch (err) {
-return     (function(____self) {
+return     (function() {
     return console.log(err);
-    })(this);
+    }).call(this);
     }
-    })(this);
+    }).call(this);
     cli.setPrompt(prefix,(prefix)["length"]);
     return cli.prompt();
   });
@@ -205,25 +227,25 @@ function handleNoArgs() {
     return source += chunk.toString();
   });
   pin.on("end",function () {
-    return (function(____self) {
+    return (function() {
     try {
       return pout.write(_STARkirby_STAR.transpile(source,_STARprocess_STAR.cwd()));
 
     } catch (e) {
-return     (function(____self) {
+return     (function() {
     return error(e);
-    })(this);
+    }).call(this);
     }
-    })(this);
+    }).call(this);
   });
   pout.on("error",error);
   pin.on("error",error);
   return setTimeout(function () {
     return (zero_QUERY((pin)["bytesRead"]) ?
-            (function(____self) {
+            (function() {
       pin.removeAllListeners("data");
       return runrepl();
-      })(this) :
+      }).call(this) :
       undefined);
   },20);
 }
@@ -233,14 +255,14 @@ function compileFiles() {
       error("No Input file")),
     fout = nth(opt.argv,1);
   ((!fout) ?
-        (function(____self) {
+        (function() {
     fout = fin.replace(new RegExp("\\.kirby$"),".js");
     return ((fout === fin) ?
       error("Input file must have extension \".kirby\"") :
       undefined);
-    })(this) :
+    }).call(this) :
     undefined);
-  return (function(____self) {
+  return (function() {
   try {
     let wantMap_QUERY = opt.options["map"],
       dbgAST_QUERY = opt.options["tree"],
@@ -257,11 +279,11 @@ function compileFiles() {
         _STARkirby_STAR.transpile(source,fin,dirs)),"utf8"));
 
   } catch (e) {
-return   (function(____self) {
+return   (function() {
   return error(e);
-  })(this);
+  }).call(this);
   }
-  })(this);
+  }).call(this);
 }
 function _main() {
   return ((empty_QUERY(opt.argv) && empty_QUERY(Object.keys(opt.options))) ?
@@ -269,12 +291,12 @@ function _main() {
     (opt.options["version"] ?
       console.log(["Version: ",MODULE_VERSION].join("")) :
       (opt.options["browser-bundle"] ?
-                (function(____self) {
+                (function() {
         let bundle = require.resolve("kirby/lib/browser-bundle.js");
         return _STARfs_STAR.createReadStream(bundle).pipe()(_STARfs_STAR.createWriteStream("browser-bundle.js"));
-        })(this) :
+        }).call(this) :
         (opt.options["run"] ?
-                    (function(____self) {
+                    (function() {
           let a1 = nth(opt.argv,0),
             infile = a1;
           ((!a1) ?
@@ -284,9 +306,9 @@ function _main() {
             error("Input file must end with \".kirby\" or \".js\"") :
             undefined);
           return require(infile);
-          })(this) :
+          }).call(this) :
           (opt.options["watch"] ?
-                        (function(____self) {
+                        (function() {
             let cwd = (_STARprocess_STAR)["cwd"];
             console.log("Watching",cwd,"for file changes...");
             return _STARwatcher_STAR.watchTree(cwd,{
@@ -305,18 +327,18 @@ function _main() {
                 (((Object.prototype.toString.call(f) === "[object Object]") && (Object.prototype.toString.call(prev) === "[object Null]") && (Object.prototype.toString.call(curr) === "[object Null]")) ?
                   each_key(function (stat,initialf) {
                     return ((!(initialf === cwd)) ?
-                                            (function(____self) {
+                                            (function() {
                       return require("child_process").spawn("kirby",[
                         initialf.substring(((cwd)["length"] + 1))
                       ],{
                         stdio: "inherit"
                       });
-                      })(this) :
+                      }).call(this) :
                       undefined);
                   },f) :
                   undefined));
             });
-            })(this) :
+            }).call(this) :
             (true ?
               compileFiles() :
               undefined))))));

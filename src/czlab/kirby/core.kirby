@@ -25,13 +25,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- get?? [obj fld dft]
+(defn get?? [obj fld dft]
   (var x (if obj (get obj fld)))
   (if (undef? x) dft x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- contains? [coll itm]
+(defn contains? [coll itm]
   (cond
     (or (array? coll)
         (string? coll))
@@ -39,6 +39,11 @@
     (object? coll)
     (.includes (keys coll) itm)
     :else false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn excludes? [coll itm]
+  (not (contains? coll itm)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -54,6 +59,18 @@
   (each (fn [k]
           (func (get obj k) k obj))
         (Object.keys obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn zipmap [keys vals]
+  (var vs (or vals []))
+  (do-with [ret {}]
+    (for ((i 0)
+          (< i (alen keys)) (i (inc i)))
+      (set! vv (nth vs i))
+      (set! ret
+            (nth keys i)
+            (if (undef? vv) nil vv)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

@@ -33,25 +33,47 @@ function contains_QUERY(coll,itm) {
         false :
         undefined)));
 }
+function excludes_QUERY(coll,itm) {
+  return (!contains_QUERY(coll,itm));
+}
 function make_array(len,obj) {
-  return   (function(____self) {
+  return   (function() {
   let ret = [];
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 0; (i < len); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     return ret.push(obj);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function each_key(func,obj) {
   return Object.keys(obj).forEach(function (k) {
     return func(obj[k],k,obj);
   });
+}
+function zipmap(keys,vals) {
+  let vs = (vals || []);
+  return   (function() {
+  let ret = {};
+  return   (function() {
+  (function () {
+for (var i = 0; (i < (keys)["length"]); i = (i + 1)) {
+        (function() {
+    vv = nth(vs,i);
+    return ret[nth(keys,i)] = ((typeof(vv) === "undefined") ?
+      null :
+      vv);
+    }).call(this);
+  }
+}).call(this);
+  return ret;
+  }).call(this);
+  }).call(this);
 }
 function last(coll) {
   return (coll ?
@@ -135,6 +157,97 @@ var REGEX = {
   "star": new RegExp("\\*","g"),
   "wspace": new RegExp("\\s")
 };
+var _STARreserved_STAR = {
+  "compare": [
+    "!=",
+    "==",
+    "=",
+    ">",
+    ">=",
+    "<",
+    "<="
+  ],
+  "arith": [
+    "+",
+    "-",
+    "*",
+    "/",
+    "%"
+  ],
+  "logic": [
+    "||",
+    "&&"
+  ],
+  "bitwise": [
+    "^",
+    "&",
+    "|",
+    "<<",
+    ">>",
+    ">>>"
+  ],
+  "unary": [
+    "~",
+    "!",
+    "++",
+    "--"
+  ],
+  "assign": [
+    "+=",
+    "-=",
+    "*=",
+    "/=",
+    "%=",
+    "<<=",
+    ">>=",
+    ">>>=",
+    "&=",
+    "|=",
+    "^="
+  ],
+  "builtin": [
+    "quote",
+    "syntax-quote",
+    "quasi-quote",
+    "unquote",
+    "unquote-splice",
+    "repeat-n",
+    "do",
+    "doto",
+    "case",
+    "range",
+    "def-",
+    "def",
+    "var",
+    "new",
+    "throw",
+    "while",
+    "aset",
+    "set!",
+    "fn",
+    "defn-",
+    "defn",
+    "try",
+    "if",
+    "get",
+    "aget",
+    "str",
+    "list",
+    "[",
+    "vec",
+    "{",
+    "hash-map",
+    "ns",
+    "comment",
+    "for",
+    "cons",
+    "js#",
+    "defmacro"
+  ]
+};
+var _STARreserved_keys_STAR = zipmap(Object.values(_STARreserved_STAR).reduce(function (acc,x) {
+  return acc.concat(x);
+},[]),[]);
 var tkn_string = "STRING";
 var tkn_number = "NUMBER";
 var tkn_symbol = "SYMBOL";
@@ -150,12 +263,12 @@ var tkn_array = "ARRAY";
 var tkn_object = "OBJECT";
 function nodeTag(obj,src,line,col,type) {
   (obj ?
-        (function(____self) {
+        (function() {
     obj["source"] = src;
     obj["column"] = col;
     obj["line"] = line;
     return obj["eTYPE"] = type;
-    })(this) :
+    }).call(this) :
     undefined);
   return obj;
 }
@@ -165,10 +278,10 @@ function testid_QUERY(name) {
 function normalizeId(name) {
   let pfx = "";
   (((typeof(name) === "string") && ("-" === name.charAt(0))) ?
-        (function(____self) {
+        (function() {
     pfx = "-";
     return name = name.slice(1);
-    })(this) :
+    }).call(this) :
     undefined);
   return (testid_QUERY(name) ?
     [pfx,name].join("").replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR") :
@@ -178,9 +291,9 @@ function normalizeId(name) {
 }
 function tnodeString() {
   let me = this;
-  return   (function(____self) {
+  return   (function() {
   let s = "";
-  return   (function(____self) {
+  return   (function() {
   me.walk(function (chunk,hint) {
     (((hint.name === chunk) && (typeof(chunk) === "string")) ?
       chunk = normalizeId(chunk) :
@@ -188,24 +301,23 @@ function tnodeString() {
     return s += chunk;
   });
   return s;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function tnode(source,line,col,chunk,name,type) {
   let args_QUERY = ((arguments)["length"] > 0);
-  return   (function(____self) {
+  return   (function() {
   let n = null;
-  return   (function(____self) {
+  return   (function() {
   (args_QUERY ?
     n = (name ?
       new TreeNode(line,col,source,chunk,name) :
       new TreeNode(line,col,source,chunk)) :
     n = new TreeNode());
   n["eTYPE"] = type;
-  n["toString"] = tnodeString;
   return n;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function tnodeEx(chunk,name,type) {
   return tnode(null,null,null,chunk,name,type);
@@ -213,11 +325,11 @@ function tnodeEx(chunk,name,type) {
 function addToken(tree,token,ctx) {
   let n = null,
     t = tkn_symbol;
-  return   (function(____self) {
+  return   (function() {
   let ret = "";
-  return   (function(____self) {
+  return   (function() {
   (token ?
-        (function(____self) {
+        (function() {
     ((":else" === token) ?
       token = "true" :
       undefined);
@@ -239,13 +351,20 @@ function addToken(tree,token,ctx) {
                 (true ?
                   t = tkn_ident :
                   undefined)))))));
+    ((tkn_ident === t) ?
+            (function() {
+      return ((!(empty_QUERY(tree) && contains_QUERY(_STARreserved_keys_STAR,token))) ?
+        token = normalizeId(token) :
+        undefined);
+      }).call(this) :
+      undefined);
     n = tnode(ctx.file,ctx.line,(ctx.tcol - 1),token,token,t);
     return conj_BANG_BANG(tree,n);
-    })(this) :
+    }).call(this) :
     undefined);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function lexer(prevToken,ctx) {
   let ____BREAK_BANG = null,
@@ -255,9 +374,9 @@ function lexer(prevToken,ctx) {
     escStr_QUERY = false,
     inStr_QUERY = false,
     comment_QUERY = false;
-  return   (function(____self) {
+  return   (function() {
   let tree = [];
-  return   (function(____self) {
+  return   (function() {
   nodeTag(tree,ctx["source"],ctx["line"],0,(("{" === prevToken) ?
     tkn_object :
     (("[" === prevToken) ?
@@ -266,35 +385,35 @@ function lexer(prevToken,ctx) {
         tkn_list :
         undefined))));
   ____BREAK_BANG = false;
-  (function (____self) {
+  (function () {
 while ((!____BREAK_BANG) && (ctx.pos < (ctx.codeStr)["length"])) {
-  (function(____self) {
+  (function() {
   ch = ctx.codeStr.charAt(ctx.pos);
   ++ctx.colno;
   ++ctx.pos;
   ((ch === "\n") ?
-        (function(____self) {
+        (function() {
     ++ctx.lineno;
     ctx.colno = 1;
     return (comment_QUERY ?
       comment_QUERY = (!comment_QUERY) :
       undefined);
-    })(this) :
+    }).call(this) :
     undefined);
   return (comment_QUERY ?
     null :
     (escStr_QUERY ?
-            (function(____self) {
+            (function() {
       escStr_QUERY = (!escStr_QUERY);
       return token += ch;
-      })(this) :
+      }).call(this) :
       ((ch === "\"") ?
-                (function(____self) {
+                (function() {
         inStr_QUERY = (!inStr_QUERY);
         return token += ch;
-        })(this) :
+        }).call(this) :
         (inStr_QUERY ?
-                    (function(____self) {
+                    (function() {
           ((ch === "\n") ?
             ch = "\\n" :
             undefined);
@@ -302,55 +421,55 @@ while ((!____BREAK_BANG) && (ctx.pos < (ctx.codeStr)["length"])) {
             escStr_QUERY = true :
             undefined);
           return token += ch;
-          })(this) :
+          }).call(this) :
           ((ch === "'") ?
             token += ch :
             (((ch === "[") || (ch === "]")) ?
-                            (function(____self) {
+                            (function() {
               token = addToken(tree,token,ctx);
               ctx.tcol = ctx.colno;
               return ((ch === "[") ?
-                                (function(____self) {
+                                (function() {
                 formType = tkn_array;
                 return conj_BANG_BANG(tree,lexer(ch,ctx));
-                })(this) :
-                                (function(____self) {
+                }).call(this) :
+                                (function() {
                 formType = null;
                 return ____BREAK_BANG = true;
-                })(this));
-              })(this) :
+                }).call(this));
+              }).call(this) :
               (((ch === "{") || (ch === "}")) ?
-                                (function(____self) {
+                                (function() {
                 token = addToken(tree,token,ctx);
                 ctx.tcol = ctx.colno;
                 return ((ch === "{") ?
-                                    (function(____self) {
+                                    (function() {
                   formType = tkn_object;
                   return conj_BANG_BANG(tree,lexer(ch,ctx));
-                  })(this) :
-                                    (function(____self) {
+                  }).call(this) :
+                                    (function() {
                   formType = null;
                   return ____BREAK_BANG = true;
-                  })(this));
-                })(this) :
+                  }).call(this));
+                }).call(this) :
                 ((ch === ";") ?
                   comment_QUERY = true :
                   (((ch === "(") || (ch === ")")) ?
-                                        (function(____self) {
+                                        (function() {
                     token = addToken(tree,token,ctx);
                     ctx.tcol = ctx.colno;
                     return ((ch === "(") ?
-                                            (function(____self) {
+                                            (function() {
                       formType = tkn_list;
-                      return conj_BANG_BANG(tree,lexer(null,ctx));
-                      })(this) :
-                                            (function(____self) {
+                      return conj_BANG_BANG(tree,lexer(ch,ctx));
+                      }).call(this) :
+                                            (function() {
                       formType = null;
                       return ____BREAK_BANG = true;
-                      })(this));
-                    })(this) :
+                      }).call(this));
+                    }).call(this) :
                     (REGEX.wspace.test(ch) ?
-                                            (function(____self) {
+                                            (function() {
                       ((ch === "\n") ?
                         --ctx.lineno :
                         undefined);
@@ -359,17 +478,17 @@ while ((!____BREAK_BANG) && (ctx.pos < (ctx.codeStr)["length"])) {
                         ++ctx.lineno :
                         undefined);
                       return ctx.tcol = ctx.colno;
-                      })(this) :
+                      }).call(this) :
                       (true ?
                         token += ch :
                         undefined)))))))))));
-  })(this);
+  }).call(this);
 }
-})(this);
+}).call(this);
   (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
-  (function(____self) {
+  (function() {
 switch (formType) {
 case tkn_array:
 syntax_BANG("e5",tree);
@@ -381,10 +500,10 @@ case tkn_list:
 syntax_BANG("e8",tree);
 break;
 }
-})(this);
+}).call(this);
   return tree;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 var MODULE_VERSION = "1.0.0",
   loadedMacros_QUERY = false,
@@ -462,15 +581,15 @@ function toASTree(code,fname) {
     "pos": 1,
     "tcol": 1
   };
-  return   (function(____self) {
+  return   (function() {
   let ret = lexer(null,state);
-  return   (function(____self) {
+  return   (function() {
   ((state.pos < (state.codeStr)["length"]) ?
     error_BANG("e10") :
     undefined);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function parseTree(root) {
   let pstr = "",
@@ -478,9 +597,9 @@ function parseTree(root) {
     treeSize = (root)["length"];
   indent += tabspace;
   pstr = pad(indent);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   nodeTag(ret,root["source"],root["line"],root["column"],tkn_tree);
   root.forEach(function (expr,i) {
     let name = get_QUERY_QUERY(nth(expr,0),"name",""),
@@ -489,18 +608,18 @@ function parseTree(root) {
         evalList(expr) :
         expr);
     (((Object.prototype.toString.call(tmp) === "[object Array]") && (tkn_ns === (tmp)["eTYPE"])) ?
-            (function(____self) {
+            (function() {
       tmp.forEach(function (x) {
         return ret.add(x);
       });
       return tmp = null;
-      })(this) :
+      }).call(this) :
       undefined);
     (((i === endx) && (0 !== indent) && (!REGEX.noret.test(name))) ?
       r = "return " :
       undefined);
     return (tmp ?
-            (function(____self) {
+            (function() {
       ret.add([
         [pstr,r].join(""),
         tmp,
@@ -510,13 +629,13 @@ function parseTree(root) {
         "\n"
       ]);
       return noSemi_QUERY = false;
-      })(this) :
+      }).call(this) :
       undefined);
   });
   indent -= tabspace;
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function evalList(expr) {
   let cmd = "",
@@ -527,17 +646,17 @@ function evalList(expr) {
     ((tkn_array === (expr)["eTYPE"]) ?
       cmd = "[" :
       (true ?
-                (function(____self) {
+                (function() {
         cmd = get_QUERY_QUERY(nth(expr,0),"name","");
         return mc = MACROS_MAP[cmd];
-        })(this) :
+        }).call(this) :
         undefined)));
   return (some_QUERY(mc) ?
     eval_QUERY_QUERY(evalMacro(mc,expr)) :
     (cmd.startsWith(".-") ?
-            (function(____self) {
+            (function() {
       let ret = tnode();
-      return       (function(____self) {
+      return       (function() {
       ret.add(eval_QUERY_QUERY(nth(expr,1)));
       ret.prepend("(");
       ret.add([
@@ -546,35 +665,35 @@ function evalList(expr) {
         "\"]"
       ]);
       return ret;
-      })(this);
-      })(this) :
+      }).call(this);
+      }).call(this) :
       ((cmd.charAt(0) === ".") ?
-                (function(____self) {
+                (function() {
         let ret = tnode();
-        return         (function(____self) {
+        return         (function() {
         ret.add(eval_QUERY_QUERY(nth(expr,1)));
         ret.add([
           nth(expr,0),
           "("
         ]);
-        (function (____self) {
+        (function () {
 for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
-                    (function(____self) {
+                    (function() {
           ((i !== 2) ?
             ret.add(",") :
             undefined);
           return ret.add(eval_QUERY_QUERY(nth(expr,i)));
-          })(this);
+          }).call(this);
         }
-})(this);
+}).call(this);
         ret.add(")");
         return ret;
-        })(this);
-        })(this) :
+        }).call(this);
+        }).call(this) :
         (SPECIAL_OPS.hasOwnProperty(cmd) ?
           SPECIAL_OPS[cmd](expr) :
           (true ?
-                        (function(____self) {
+                        (function() {
             evalAtoms(expr);
             cmd = nth(expr,0);
             ((!cmd) ?
@@ -593,7 +712,7 @@ for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
               tnodeEx(expr.slice(1)).join(","),
               ")"
             ]);
-            })(this) :
+            }).call(this) :
             undefined)))));
 }
 function evalAtoms(cells) {
@@ -626,49 +745,49 @@ function expandMacro(cmd,code,data,frags) {
             last(frag) :
             undefined)) :
         (ename.startsWith("#evens") ?
-                    (function(____self) {
+                    (function() {
           let r = [];
-          return           (function(____self) {
-          (function (____self) {
+          return           (function() {
+          (function () {
 for (var i = 0; (i < (frag)["length"]); i = (i + 2)) {
-                        (function(____self) {
+                        (function() {
             return conj_BANG_BANG(r,nth(frag,i));
-            })(this);
+            }).call(this);
           }
-})(this);
+}).call(this);
           (ename.endsWith("*") ?
             r["____split"] = true :
             undefined);
           return r;
-          })(this);
-          })(this) :
+          }).call(this);
+          }).call(this) :
           (ename.startsWith("#odds") ?
-                        (function(____self) {
+                        (function() {
             let r = [];
-            return             (function(____self) {
-            (function (____self) {
+            return             (function() {
+            (function () {
 for (var i = 1; (i < (frag)["length"]); i = (i + 2)) {
-                            (function(____self) {
+                            (function() {
               return conj_BANG_BANG(r,nth(frag,i));
-              })(this);
+              }).call(this);
             }
-})(this);
+}).call(this);
             (ename.endsWith("*") ?
               r["____split"] = true :
               undefined);
             return r;
-            })(this);
-            })(this) :
+            }).call(this);
+            }).call(this) :
             (ename.startsWith("#slice@") ?
-                            (function(____self) {
+                            (function() {
               ((!(Object.prototype.toString.call(frag) === "[object Array]")) ?
                 syntax_BANG("e13",data,cmd) :
                 undefined);
               tmp = REGEX.macroGet.exec(ename);
               return nth(frag.splice((nth(tmp,1) - 1),1),0);
-              })(this) :
+              }).call(this) :
               ((ename === "#if") ?
-                                (function(____self) {
+                                (function() {
                 ((!(Object.prototype.toString.call(frag) === "[object Array]")) ?
                   syntax_BANG("e13",data,cmd) :
                   undefined);
@@ -677,61 +796,61 @@ for (var i = 1; (i < (frag)["length"]); i = (i + 2)) {
                   ((((code)["length"] > 3) && nth(code,3)) ?
                     expandMacro(cmd,nth(code,3),data,frags) :
                     undefined));
-                })(this) :
+                }).call(this) :
                 (true ?
-                                    (function(____self) {
+                                    (function() {
                   let cell = null;
-                  (function (____self) {
+                  (function () {
 for (var i = 0; (i < (code)["length"]); i = (i + 1)) {
-                                        (function(____self) {
+                                        (function() {
                     cell = nth(code,i);
                     return ((Object.prototype.toString.call(cell) === "[object Array]") ?
-                                            (function(____self) {
+                                            (function() {
                       let c = expandMacro(cmd,cell,data,frags);
                       return (((Object.prototype.toString.call(c) === "[object Array]") && (true === c["____split"])) ?
-                        (function (____self) {
+                        (function () {
 for (var k = 0; (k < (c)["length"]); k = (k + 1)) {
-                                                    (function(____self) {
+                                                    (function() {
                           return conj_BANG_BANG(ret,nth(c,k));
-                          })(this);
+                          }).call(this);
                         }
-})(this) :
+}).call(this) :
                         conj_BANG_BANG(ret,c));
-                      })(this) :
-                                            (function(____self) {
+                      }).call(this) :
+                                            (function() {
                       let atSign_QUERY = false,
                         rs = null,
                         tn = get_QUERY_QUERY(cell,"name","");
                       tmp = cell;
                       (tn.includes("@") ?
-                                                (function(____self) {
+                                                (function() {
                         rs = tn.replace("@","");
                         atSign_QUERY = true;
                         return tmp = tnode(cell.source,cell.line,cell.column,rs,rs);
-                        })(this) :
+                        }).call(this) :
                         undefined);
-                      return                       (function(____self) {
+                      return                       (function() {
                       let r = frags[get_QUERY_QUERY(tmp,"name","")];
                       return (some_QUERY(r) ?
-                                                (function(____self) {
+                                                (function() {
                         return ((atSign_QUERY || (get_QUERY_QUERY(tmp,"name","") === TILDA_VARGS)) ?
-                          (function (____self) {
+                          (function () {
 for (var j = 0; (j < (r)["length"]); j = (j + 1)) {
-                                                        (function(____self) {
+                                                        (function() {
                             return conj_BANG_BANG(ret,nth(r,j));
-                            })(this);
+                            }).call(this);
                           }
-})(this) :
+}).call(this) :
                           conj_BANG_BANG(ret,r));
-                        })(this) :
+                        }).call(this) :
                         conj_BANG_BANG(ret,cell));
-                      })(this);
-                      })(this));
-                    })(this);
+                      }).call(this);
+                      }).call(this));
+                    }).call(this);
                   }
-})(this);
+}).call(this);
                   return ret;
-                  })(this) :
+                  }).call(this) :
                   undefined))))))));
 }
 function evalMacro(mc,data) {
@@ -742,20 +861,20 @@ function evalMacro(mc,data) {
     tpos = 0,
     i = 0,
     frags = {};
-  (function (____self) {
+  (function () {
 for (var tpos = (i + 1); (i < (args)["length"]); i = (i + 1),tpos = (i + 1)) {
-        (function(____self) {
+        (function() {
     return ((get_QUERY_QUERY(nth(args,i),"name","") === VARGS) ?
-            (function(____self) {
+            (function() {
       vargs = true;
       return frags[TILDA_VARGS] = data.slice(tpos);
-      })(this) :
+      }).call(this) :
       frags[[TILDA,get_QUERY_QUERY(nth(args,i),"name","")].join("")] = ((tpos >= (data)["length"]) ?
         tnodeEx("undefined") :
         nth(data,tpos)));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   (((!vargs) && ((i + 1) < (data)["length"])) ?
     syntax_BANG("e16",data,cmd) :
     undefined);
@@ -766,7 +885,7 @@ function sf_compOp(expr) {
     syntax_BANG("e0",expr) :
     undefined);
   evalAtoms(expr);
-    (function(____self) {
+    (function() {
   let cmd = get_QUERY_QUERY(nth(expr,0),"name","");
   ((cmd === "!=") ?
     expr[0] = "!==" :
@@ -774,13 +893,13 @@ function sf_compOp(expr) {
   return ((cmd === "=") ?
     expr[0] = "===" :
     undefined);
-  })(this);
-  return   (function(____self) {
+  }).call(this);
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 0,op = expr.shift(); (i < ((expr)["length"] - 1)); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     return ret.add(tnodeEx([
       nth(expr,i),
       " ",
@@ -788,15 +907,15 @@ for (var i = 0,op = expr.shift(); (i < ((expr)["length"] - 1)); i = (i + 1)) {
       " ",
       nth(expr,(i + 1))
     ]));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.join(" && ");
   ret.prepend("(");
   ret.add(")");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 [
   "!=",
@@ -817,9 +936,9 @@ function sf_arithOp(expr) {
   let op = tnode(),
     e1 = expr.shift(),
     cmd = get_QUERY_QUERY(e1,"name","");
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ((1 === (expr)["length"]) ?
     (("-" === cmd) ?
       ret.add("-") :
@@ -836,8 +955,8 @@ function sf_arithOp(expr) {
   ret.prepend("(");
   ret.add(")");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 [
   "+",
@@ -866,47 +985,47 @@ function sf_logicalOp(expr) {
 function sf_repeat(expr) {
   assertArgs(expr,3,"e0");
   evalAtoms(expr);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 0,end = parseInt(get_QUERY_QUERY(nth(expr,1),"name","")); (i < end); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     ((i !== 0) ?
       ret.add(",") :
       undefined);
     return ret.add(nth(expr,2));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.prepend("[");
   ret.add("]");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["repeat-n"] = sf_repeat;
 function sf_do(expr) {
   let p = pad(indent),
     e = null,
     end = ((expr)["length"] - 1);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 1; (i < end); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     e = nth(expr,i);
     return ret.add([
       p,
       evalList(e),
       ";\n"
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ((end > 0) ?
-        (function(____self) {
+        (function() {
     e = eval_QUERY_QUERY(last(expr));
     ret.add([
       p,
@@ -914,13 +1033,13 @@ for (var i = 1; (i < end); i = (i + 1)) {
       e,
       ";\n"
     ]);
-    ret.prepend([p,"(function(____self) {\n"].join(""));
-    return ret.add([p,"})(this)"].join(""));
-    })(this) :
+    ret.prepend([p,"(function() {\n"].join(""));
+    return ret.add([p,"}).call(this)"].join(""));
+    }).call(this) :
     undefined);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["do"] = sf_do;
 function sf_doto(expr) {
@@ -932,18 +1051,18 @@ function sf_doto(expr) {
     p3 = pad((indent + (2 * tabspace))),
     e = null,
     e1 = eval_QUERY_QUERY(nth(expr,1));
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ret.add([
     p2,
     "let ____x = ",
     e1,
     ";\n"
   ]);
-  (function (____self) {
+  (function () {
 for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     e = nth(expr,i);
     e.splice(1,0,"____x");
     return ret.add([
@@ -951,18 +1070,18 @@ for (var i = 2; (i < (expr)["length"]); i = (i + 1)) {
       evalList(e),
       ";\n"
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.add([
     p2,
     "return ____x;\n"
   ]);
-  ret.prepend([p,"(function(____self) {\n"].join(""));
-  ret.add([p,"})(this)"].join(""));
+  ret.prepend([p,"(function() {\n"].join(""));
+  ret.add([p,"}).call(this)"].join(""));
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["doto"] = sf_doto;
 function sf_case(expr) {
@@ -977,19 +1096,19 @@ function sf_case(expr) {
   (odd_QUERY((expr)["length"]) ?
     dft = expr.pop() :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 2; (i < (expr)["length"]); i = (i + 2)) {
-        (function(____self) {
+        (function() {
     c = nth(expr,(i + 1));
     e = nth(expr,i);
     t = (e)["eTYPE"];
     return ((tkn_list === t) ?
-      (function (____self) {
+      (function () {
 for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
-                (function(____self) {
+                (function() {
         ret.add([
           "case ",
           nth(e,j),
@@ -1001,11 +1120,11 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
             ";\nbreak;\n"
           ]) :
           undefined);
-        })(this);
+        }).call(this);
       }
-})(this) :
+}).call(this) :
       (true ?
-                (function(____self) {
+                (function() {
         ret.add([
           "case ",
           e,
@@ -1015,19 +1134,19 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
           eval_QUERY_QUERY(c),
           ";\nbreak;\n"
         ]);
-        })(this) :
+        }).call(this) :
         undefined));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   (dft ?
-        (function(____self) {
+        (function() {
     ret.add("default:\n");
     return ret.add([
       eval_QUERY_QUERY(dft),
       ";\nbreak;\n"
     ]);
-    })(this) :
+    }).call(this) :
     undefined);
   ret.prepend([
     "switch (",
@@ -1035,11 +1154,11 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
     ") {\n"
   ]);
   ret.add("}\n");
-  ret.prepend("(function(____self) {\n");
-  ret.add("})(this)");
+  ret.prepend("(function() {\n");
+  ret.add("}).call(this)");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["case"] = sf_case;
 function sf_range(expr) {
@@ -1053,33 +1172,33 @@ function sf_range(expr) {
   evalAtoms(expr);
   len = (expr)["length"];
   end = parseInt(get_QUERY_QUERY(nth(expr,1),"name",""));
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ((len > 2) ?
-        (function(____self) {
+        (function() {
     start = parseInt(get_QUERY_QUERY(nth(expr,1),"name",""));
     return end = parseInt(get_QUERY_QUERY(nth(expr,2),"name",""));
-    })(this) :
+    }).call(this) :
     undefined);
   ((len > 3) ?
     step = parseInt(get_QUERY_QUERY(nth(expr,3),"name","")) :
     undefined);
-  (function (____self) {
+  (function () {
 for (var i = start; (i < end); i = (i + step)) {
-        (function(____self) {
+        (function() {
     ((i !== start) ?
       ret.add(",") :
       undefined);
     return ret.add(["",i].join(""));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.prepend("[");
   ret.add("]");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["range"] = sf_range;
 function sf_var(expr,cmd) {
@@ -1095,12 +1214,12 @@ function sf_var(expr,cmd) {
     cmd = "var" :
     undefined);
   evalAtoms(expr);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
-        (function(____self) {
+        (function() {
     ((i > 1) ?
       ret.add([",\n",pad(indent)].join("")) :
       undefined);
@@ -1116,17 +1235,17 @@ for (var i = 1; (i < (expr)["length"]); i = (i + 2)) {
       " = ",
       nth(expr,(i + 1))
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.prepend(" ");
   ret.prepend(cmd);
   (((expr)["length"] > 3) ?
     indent -= tabspace :
     undefined);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["def-"] = function (x) {
   return sf_var(x,"local");
@@ -1141,26 +1260,26 @@ function sf_new(expr) {
   (((expr)["length"] < 2) ?
     syntax_BANG("e0",expr) :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ret.add(evalList(expr.slice(1)));
   ret.prepend("new ");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["new"] = sf_new;
 function sf_throw(expr) {
   assertArgs(expr,2,"e0");
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ret.add(eval_QUERY_QUERY(nth(expr,1)));
   ret.prepend("throw ");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["throw"] = sf_throw;
 function sf_while(expr) {
@@ -1169,9 +1288,9 @@ function sf_while(expr) {
     undefined);
   let tst = nth(expr,1);
   expr.splice(0,2,tnodeEx("do","do"));
-  return   (function(____self) {
+  return   (function() {
   let ret = null;
-  return   (function(____self) {
+  return   (function() {
   ret = tnodeEx([
     "while ",
     eval_QUERY_QUERY(tst),
@@ -1179,64 +1298,66 @@ function sf_while(expr) {
     evalList(expr),
     ";\n}\n"
   ]);
-  ret.prepend(["(function (____self) {\n"].join(""));
-  ret.add("})(this)");
+  ret.prepend(["(function () {\n"].join(""));
+  ret.add("}).call(this)");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["while"] = sf_while;
-function sf_x_opop(expr,op) {
+function sf_x_opop(expr) {
   (((expr)["length"] !== 2) ?
     syntax_BANG("e0",expr) :
     undefined);
   return tnodeEx([
-    op,
+    nth(expr,0),
     eval_QUERY_QUERY(nth(expr,1))
   ]);
 }
-SPECIAL_OPS["dec!!"] = function (x) {
-  return sf_x_opop(x,"--");
-};
-SPECIAL_OPS["inc!!"] = function (x) {
-  return sf_x_opop(x,"++");
-};
-function sf_x_eq(expr,op) {
+[
+  "++",
+  "--"
+].forEach(function (k) {
+  return SPECIAL_OPS[k] = sf_x_opop;
+});
+function sf_x_eq(expr) {
   assertArgs(expr,3,"e0");
   return tnodeEx([
     nth(expr,1),
-    [" ",op,"= "].join(""),
+    " ",
+    nth(expr,0),
+    " ",
     eval_QUERY_QUERY(nth(expr,2))
   ]);
 }
-SPECIAL_OPS["dec!"] = function (x) {
-  return sf_x_eq(x,"-");
-};
-SPECIAL_OPS["inc!"] = function (x) {
-  return sf_x_eq(x,"+");
-};
+[
+  "+=",
+  "-="
+].forEach(function (k) {
+  return SPECIAL_OPS[k] = sf_x_eq;
+});
 function sf_set(expr) {
   ((!(((expr)["length"] === 3) || ((expr)["length"] === 4))) ?
     syntax_BANG("e0",expr) :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   (((expr)["length"] === 4) ?
-        (function(____self) {
+        (function() {
     ret.add(eval_QUERY_QUERY(nth(expr,1)));
     ret.add("[");
     ret.add(eval_QUERY_QUERY(nth(expr,2)));
     return ret.add("]");
-    })(this) :
+    }).call(this) :
     ret.add(nth(expr,1)));
   ret.add([
     " = ",
     eval_QUERY_QUERY(last(expr))
   ]);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["aset"] = sf_set;
 SPECIAL_OPS["set!"] = sf_set;
@@ -1249,9 +1370,9 @@ function sf_anonFunc(expr) {
     undefined);
   let args = nth(expr,1),
     body = expr.slice(2);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnodeEx(args);
-  return   (function(____self) {
+  return   (function() {
   ret.join(",");
   ret.prepend("function (");
   ret.add([
@@ -1261,8 +1382,8 @@ function sf_anonFunc(expr) {
     "}"
   ]);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["fn"] = sf_anonFunc;
 function sf_func(expr,public_QUERY) {
@@ -1274,20 +1395,20 @@ function sf_func(expr,public_QUERY) {
     args = 2,
     body = 3;
   ((tkn_string === nth(expr,2)["eTYPE"]) ?
-        (function(____self) {
+        (function() {
     doc = 2;
     args = 3;
     return body = 4;
-    })(this) :
+    }).call(this) :
     undefined);
   (doc ?
     doc = nth(expr,doc) :
     undefined);
   args = nth(expr,args);
   body = expr.slice(body);
-  return   (function(____self) {
+  return   (function() {
   let ret = null;
-  return   (function(____self) {
+  return   (function() {
   ret = tnodeEx(args);
   ret.join(",");
   ret.prepend(["function ",fname,"("].join(""));
@@ -1298,19 +1419,19 @@ function sf_func(expr,public_QUERY) {
     "}"
   ]);
   (doc ?
-        (function(____self) {
+        (function() {
     return ret.prepend(get_QUERY_QUERY(doc,"name","").replace(REGEX.dquoteHat,"").replace(REGEX.dquoteEnd,"").split("\\n").map(function (x) {
       return ["//",x,"\n"].join("");
     }));
-    })(this) :
+    }).call(this) :
     undefined);
   ((public_QUERY && (1 === (_STARnspaces_STAR)["length"])) ?
     _STARexterns_STAR[fname] = fname :
     undefined);
   noSemi_QUERY = true;
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["defn-"] = function (x) {
   return sf_func(x,false);
@@ -1326,34 +1447,34 @@ function sf_try(expr) {
     ind = pad(indent);
   f = last(expr);
   (((Object.prototype.toString.call(f) === "[object Array]") && (get_QUERY_QUERY(nth(f,0),"name","") === "finally")) ?
-        (function(____self) {
+        (function() {
     f = expr.pop();
     return sz = (expr)["length"];
-    })(this) :
+    }).call(this) :
     f = null);
   c = ((sz > 1) ?
     nth(expr,(sz - 1)) :
     null);
   (((Object.prototype.toString.call(c) === "[object Array]") && (get_QUERY_QUERY(nth(c,0),"name","") === "catch")) ?
-        (function(____self) {
+        (function() {
     ((((c)["length"] < 2) || (!node_QUERY(nth(c,1)))) ?
       syntax_BANG("e0",expr) :
       undefined);
     return c = expr.pop();
-    })(this) :
+    }).call(this) :
     c = null);
   (((Object.prototype.toString.call(f) === "[object Null]") && (Object.prototype.toString.call(c) === "[object Null]")) ?
     syntax_BANG("e0",expr) :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnodeEx([
-    ["(function(____self) {\n",ind,"try {\n"].join(""),
+    ["(function() {\n",ind,"try {\n"].join(""),
     parseTree(expr.slice(1)),
     ["\n",ind,"} "].join("")
   ]);
-  return   (function(____self) {
+  return   (function() {
   (c ?
-        (function(____self) {
+        (function() {
     t = nth(c,1);
     c.splice(0,2,tnodeEx("do","do"));
     return ret.add([
@@ -1362,22 +1483,22 @@ function sf_try(expr) {
       evalList(c),
       [";\n",ind,"}\n"].join("")
     ]);
-    })(this) :
+    }).call(this) :
     undefined);
   (f ?
-        (function(____self) {
+        (function() {
     f.splice(0,1,tnodeEx("do","do"));
     return ret.add([
       "finally {\n",
       evalList(f),
       [";\n",ind,"}\n"].join("")
     ]);
-    })(this) :
+    }).call(this) :
     undefined);
-  ret.add([ind,"})(this)"].join(""));
+  ret.add([ind,"}).call(this)"].join(""));
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["try"] = sf_try;
 function sf_if(expr) {
@@ -1386,7 +1507,7 @@ function sf_if(expr) {
     undefined);
   indent += tabspace;
   evalAtoms(expr);
-  return (function(____self) {
+  return (function() {
   try {
     return tnodeEx([
       "(",
@@ -1399,11 +1520,11 @@ function sf_if(expr) {
     ]);
 
   } finally {
-  (function(____self) {
+  (function() {
   return indent -= tabspace;
-  })(this);
+  }).call(this);
   }
-  })(this);
+  }).call(this);
 }
 SPECIAL_OPS["if"] = sf_if;
 function sf_get(expr) {
@@ -1423,27 +1544,27 @@ function sf_str(expr) {
     syntax_BANG("e0",expr) :
     undefined);
   evalAtoms(expr);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   ret.add(expr.slice(1));
   ret.join(",");
   ret.prepend("[");
   ret.add("].join(\"\")");
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["str"] = sf_str;
 function sf_array(expr) {
   let p = pad(indent),
     epilog = ["\n",p,"]"].join("");
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   (empty_QUERY(expr) ?
     ret.add("[]") :
-    (function(____self) {
+    (function() {
     try {
       ((tkn_array !== (expr)["eTYPE"]) ?
         expr.splice(0,1) :
@@ -1452,39 +1573,39 @@ function sf_array(expr) {
       evalAtoms(expr);
       p = pad(indent);
       ret.add(["[\n",p].join(""));
-      (function (____self) {
+      (function () {
 for (var i = 0; (i < (expr)["length"]); i = (i + 1)) {
-                (function(____self) {
+                (function() {
         ((i > 0) ?
           ret.add([",\n",p].join("")) :
           undefined);
         return ret.add(nth(expr,i));
-        })(this);
+        }).call(this);
       }
-})(this);
+}).call(this);
       return ret.add(epilog);
 
     } finally {
-    (function(____self) {
+    (function() {
     return indent -= tabspace;
-    })(this);
+    }).call(this);
     }
-    })(this));
+    }).call(this));
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["["] = sf_array;
 SPECIAL_OPS["vec"] = SPECIAL_OPS["["];
 function sf_object(expr) {
   let p = pad(indent),
     epilog = ["\n",p,"}"].join("");
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
+  return   (function() {
   (empty_QUERY(expr) ?
     ret.add("{}") :
-    (function(____self) {
+    (function() {
     try {
       ((tkn_object !== (expr)["eTYPE"]) ?
         expr.splice(0,1) :
@@ -1493,9 +1614,9 @@ function sf_object(expr) {
       evalAtoms(expr);
       p = pad(indent);
       ret.add(["{\n",p].join(""));
-      (function (____self) {
+      (function () {
 for (var i = 0; (i < (expr)["length"]); i = (i + 2)) {
-                (function(____self) {
+                (function() {
         ((i > 0) ?
           ret.add([",\n",p].join("")) :
           undefined);
@@ -1504,20 +1625,20 @@ for (var i = 0; (i < (expr)["length"]); i = (i + 2)) {
           ": ",
           nth(expr,(i + 1))
         ]);
-        })(this);
+        }).call(this);
       }
-})(this);
+}).call(this);
       return ret.add(epilog);
 
     } finally {
-    (function(____self) {
+    (function() {
     return indent -= tabspace;
-    })(this);
+    }).call(this);
     }
-    })(this));
+    }).call(this));
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["{"] = sf_object;
 SPECIAL_OPS["hash-map"] = SPECIAL_OPS["{"];
@@ -1526,10 +1647,10 @@ var includeFile = (function () {
   return function (fname) {
     return (contains_QUERY(icache,fname) ?
       "" :
-            (function(____self) {
+            (function() {
       icache.push(fname);
       return parseTree(toASTree(_STARfs_STAR.readFileSync(fname),fname));
-      })(this));
+      }).call(this));
   };
 })();
 function sf_include(expr) {
@@ -1540,39 +1661,39 @@ function sf_include(expr) {
   ((typeof(fname) === "string") ?
     fname = fname.replace(new RegExp("[\"]","g"),"") :
     undefined);
-  (function(____self) {
+  (function() {
   try {
     return fname = _STARfs_STAR.realpathSync([dir,"/",fname].join(""));
 
   } catch (e) {
-return   (function(____self) {
+return   (function() {
   return syntax_BANG("e11",expr);
-  })(this);
+  }).call(this);
   }
-  })(this);
-  return (function(____self) {
+  }).call(this);
+  return (function() {
   try {
     indent -= tabspace;
     return includeFile(fname);
 
   } finally {
-  (function(____self) {
+  (function() {
   _STARnspaces_STAR.pop();
   return indent += tabspace;
-  })(this);
+  }).call(this);
   }
-  })(this);
+  }).call(this);
 }
 function sf_require(expr) {
   let path = null,
     v = null,
     e = null;
-  return   (function(____self) {
+  return   (function() {
   let ret = tnode();
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 1; (i < (expr)["length"]); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     e = nth(expr,i);
     ((!((Object.prototype.toString.call(e) === "[object Array]") || (3 === (e)["length"]))) ?
       syntax_BANG("e0",expr) :
@@ -1586,24 +1707,24 @@ for (var i = 1; (i < (expr)["length"]); i = (i + 1)) {
       path,
       ");\n"
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 function sf_ns(expr) {
   (((expr)["length"] < 2) ?
     syntax_BANG("e0",expr) :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = [];
-  return   (function(____self) {
+  return   (function() {
   ret["eTYPE"] = tkn_ns;
-  (function (____self) {
+  (function () {
 for (var i = 1; (i < (expr)["length"]); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     let e = nth(expr,i),
       t = (e)["eTYPE"],
       nm = get_QUERY_QUERY(nth(e,0),"name","");
@@ -1614,12 +1735,12 @@ for (var i = 1; (i < (expr)["length"]); i = (i + 1)) {
         (((tkn_list === t) && ("require" === nm)) ?
           ret.push(sf_require(e)) :
           undefined)));
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["ns"] = sf_ns;
 function sf_comment(expr) {
@@ -1635,9 +1756,9 @@ function sf_floop(expr) {
     c3 = null,
     c = nth(expr,1),
     ind = pad(indent);
-  return   (function(____self) {
+  return   (function() {
   let ret = tnodeEx("for (");
-  return   (function(____self) {
+  return   (function() {
   (((!(Object.prototype.toString.call(c) === "[object Array]")) || ((c)["length"] !== 3)) ?
     syntax_BANG("e0",expr) :
     undefined);
@@ -1645,9 +1766,9 @@ function sf_floop(expr) {
   c2 = nth(c,1);
   c3 = nth(c,2);
   indent += tabspace;
-  (function (____self) {
+  (function () {
 for (var i = 0; (i < (c1)["length"]); i = (i + 2)) {
-        (function(____self) {
+        (function() {
     (zero_QUERY(i) ?
       ret.add("var ") :
       undefined);
@@ -1659,15 +1780,15 @@ for (var i = 0; (i < (c1)["length"]); i = (i + 2)) {
       " = ",
       eval_QUERY_QUERY(nth(c1,(i + 1)))
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.add("; ");
   ret.add(evalList(c2));
   ret.add("; ");
-  (function (____self) {
+  (function () {
 for (var i = 0; (i < (c3)["length"]); i = (i + 2)) {
-        (function(____self) {
+        (function() {
     ((i > 0) ?
       ret.add(",") :
       undefined);
@@ -1676,12 +1797,12 @@ for (var i = 0; (i < (c3)["length"]); i = (i + 2)) {
       " = ",
       eval_QUERY_QUERY(nth(c3,(i + 1)))
     ]);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   ret.add(") {\n");
   (((expr)["length"] > 2) ?
-        (function(____self) {
+        (function() {
     expr.splice(0,2,tnodeEx("do","do"));
     return ret.add([
       ind,
@@ -1689,15 +1810,15 @@ for (var i = 0; (i < (c3)["length"]); i = (i + 2)) {
       evalList(expr),
       ";"
     ]);
-    })(this) :
+    }).call(this) :
     undefined);
   ret.add(["\n",ind,"}\n"].join(""));
-  ret.prepend("(function (____self) {\n");
-  ret.add("})(this)");
+  ret.prepend("(function () {\n");
+  ret.add("}).call(this)");
   indent -= tabspace;
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["for"] = sf_floop;
 function sf_jscode(expr) {
@@ -1716,24 +1837,24 @@ function sf_macro(expr) {
     doc = null,
     cmd = get_QUERY_QUERY(nth(expr,1),"name","");
   ((tkn_string === a2["eTYPE"]) ?
-        (function(____self) {
+        (function() {
     doc = nth(expr,2);
     a2 = nth(expr,3);
     return a3 = nth(expr,4);
-    })(this) :
+    }).call(this) :
     undefined);
-  return   (function(____self) {
+  return   (function() {
   let ret = "";
-  return   (function(____self) {
-  (function (____self) {
+  return   (function() {
+  (function () {
 for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
-        (function(____self) {
+        (function() {
     return (((get_QUERY_QUERY(nth(a2,i),"name","") === VARGS) && ((i + 1) !== (a2)["length"])) ?
       syntax_BANG("e15",expr,cmd) :
       undefined);
-    })(this);
+    }).call(this);
   }
-})(this);
+}).call(this);
   MACROS_MAP[cmd] = {
     "doc": doc,
     "args": a2,
@@ -1741,8 +1862,8 @@ for (var i = 0; (i < (a2)["length"]); i = (i + 1)) {
     "name": cmd
   };
   return ret;
-  })(this);
-  })(this);
+  }).call(this);
+  }).call(this);
 }
 SPECIAL_OPS["defmacro"] = sf_macro;
 function sf_not(expr) {
@@ -1753,25 +1874,25 @@ function sf_not(expr) {
 SPECIAL_OPS["!"] = sf_not;
 function dbg(obj,hint) {
   return ((Object.prototype.toString.call(obj) === "[object Array]") ?
-        (function(____self) {
+        (function() {
     hint = (hint || "block");
     console.log(["<",hint,">"].join(""));
-    (function (____self) {
+    (function () {
 for (var i = 0; (i < (obj)["length"]); i = (i + 1)) {
-            (function(____self) {
+            (function() {
       return dbg(nth(obj,i));
-      })(this);
+      }).call(this);
     }
-})(this);
+}).call(this);
     return console.log(["</",hint,">"].join(""));
-    })(this) :
+    }).call(this) :
     (node_QUERY(obj) ?
-            (function(____self) {
+            (function() {
       console.log("<node>");
       console.log(obj);
       dbg(obj.children,"subs");
       return console.log("</node>");
-      })(this) :
+      }).call(this) :
       (true ?
         console.log(obj) :
         undefined)));
@@ -1785,10 +1906,10 @@ function spitExterns() {
 }
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
   ((!loadedMacros_QUERY) ?
-        (function(____self) {
+        (function() {
     loadedMacros_QUERY = true;
     return require("./macros.kirby");
-    })(this) :
+    }).call(this) :
     undefined);
   indent = (-tabspace);
   _STARexterns_STAR = {};
@@ -1797,7 +1918,7 @@ function compileCode(codeStr,fname,withSrcMap_QUERY) {
     extra = spitExterns();
   outNode.prepend(banner());
   return (withSrcMap_QUERY ?
-        (function(____self) {
+        (function() {
     let outFile = [_STARpath_STAR.basename(fname,".kirby"),".js"].join(""),
       srcMap = [outFile,".map"].join(""),
       output = outNode.toStringWithSourceMap({
@@ -1805,22 +1926,22 @@ function compileCode(codeStr,fname,withSrcMap_QUERY) {
       });
     fs.writeFileSync(srcMap,output.map);
     return [output.code,extra,"\n//# sourceMappingURL=",_STARpath_STAR.relative(_STARpath_STAR.dirname(fname),srcMap)].join("");
-    })(this) :
+    }).call(this) :
     [outNode,extra].join(""));
 }
 function transpileXXX(code,file,smap_QUERY) {
-  return (function(____self) {
+  return (function() {
   try {
     return compileCode(code,file,smap_QUERY);
 
   } catch (e) {
-return   (function(____self) {
+return   (function() {
   console.log(e.stack);;
   throw e;
   return null;
-  })(this);
+  }).call(this);
   }
-  })(this)
+  }).call(this)
 }
 function dbgAST(codeStr,fname) {
   return dbg(toASTree(codeStr,fname),"tree");

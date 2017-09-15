@@ -42,6 +42,40 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(def- *reserved*
+  {"compare" ["!=" "==" "=" ">" ">=" "<" "<="]
+   "arith" ["+" "-" "*" "/" "%"]
+   "logic" ["||" "&&"]
+   "bitwise" ["^" "&" "|" "<<" ">>" ">>>"]
+   "unary" ["~" "!" "++" "--"]
+   "assign" ["+=" "-=" "*="
+             "/=" "%=" "<<="
+             ">>=" ">>>=" "&=" "|=" "^="]
+   "builtin" ["quote" "syntax-quote" "quasi-quote"
+              "unquote" "unquote-splice"
+              "repeat-n" "do" "doto" "case"
+              "range" "def-" "def" "var"
+              "new" "throw" "while"
+              "aset" "set!" "fn"
+              "defn-" "defn"
+              "try" "if" "get" "aget" "str"
+              "list" "[" "vec" "{" "hash-map"
+              "ns" "comment" "for" "cons"
+              "js#" "defmacro"]})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def- *reserved-keys*
+  (-> (reduce (fn [acc x]
+                (.concat acc x))
+              []
+              (values *reserved*))
+      (zipmap [])))
+
+;(console.log (str "sssss = " (keys *reserved-keys*)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (def- tkn-string "STRING")
 (def- tkn-number "NUMBER")
 (def- tkn-symbol "SYMBOL")
@@ -114,8 +148,8 @@
               (new TreeNode line col source chunk name)
               (new TreeNode line col source chunk)))
       (set! n (new TreeNode)))
-    (set! n :eTYPE type)
-    (set! n :toString tnodeString)))
+    (set! n :eTYPE type)))
+    ;;(set! n :toString tnodeString)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -148,6 +182,10 @@
         (set! token (str "\"" (.slice token 1) "\""))
         :else
         (set! t tkn-ident))
+      (when (= tkn-ident t)
+        (if-not (and (empty? tree)
+                     (contains? *reserved-keys* token))
+          (set! token (normalizeId token))))
       (set! n (tnode ctx.file
                      ctx.line
                      (dec ctx.tcol) token token t))
@@ -191,7 +229,7 @@
             (+= token ch))
         (= ch "\"")
         (do (toggle! inStr?)
-            (inc! token ch))
+            (+= token ch))
         inStr?
         (do (if (= ch "\n") (set! ch "\\n"))
             (if (= ch "\\") (set! escStr? true))
@@ -224,7 +262,7 @@
             (set! ctx.tcol ctx.colno)
             (if (= ch "(")
               (do (set! formType tkn-list)
-                  (conj!! tree (lexer nil ctx)))
+                  (conj!! tree (lexer ch ctx)))
               (do (set! formType nil)
                   (set! ____BREAK! true))))
         (REGEX.wspace.test ch)
