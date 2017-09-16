@@ -12,6 +12,10 @@ function some_QUERY(obj) {
   return (!((typeof(obj) === "undefined") || (Object.prototype.toString.call(obj) === "[object Null]")));
 }
 
+function nichts_QUERY(obj) {
+  return (!some_QUERY(obj));
+}
+
 function zero_QUERY(obj) {
   return ((typeof(obj) === "number") ?
     (0 == obj) :

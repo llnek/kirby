@@ -12,6 +12,10 @@ function some_QUERY(obj) {
   return (!((typeof(obj) === "undefined") || (Object.prototype.toString.call(obj) === "[object Null]")));
 }
 
+function nichts_QUERY(obj) {
+  return (!some_QUERY(obj));
+}
+
 function zero_QUERY(obj) {
   return ((typeof(obj) === "number") ?
     (0 == obj) :
@@ -160,6 +164,37 @@ function seq(x) {
 var _STARsmap_STAR= require("source-map");
 var _STARpath_STAR= require("path");
 var _STARfs_STAR= require("fs");
+function collectToken(ret,token) {
+  ((";" !== token) ?
+    ret.push(token) :
+    undefined);
+  return ret;
+}
+
+function tokenize(source) {
+  let re = new RegExp("[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)","g");
+  return (function () {
+    let recur = null,
+      ____xs = null,
+      ____f = function (ret,match) {
+        return ((nichts_QUERY(match) || empty_QUERY(nth(match,1))) ?
+          ret :
+          recur(collectToken(ret,nth(match,1)),re.exec(source)));
+      },
+      ____ret = ____f;
+    recur = function () {
+      ____xs = arguments;
+      return ((!(typeof(____ret) === "undefined")) ?
+                (function() {
+        for (____ret=undefined; ____ret===undefined; ____ret=____f.apply(this,____xs));;
+        return ____ret;
+        }).call(this) :
+        undefined)
+    };
+    return recur([],re.exec(source));
+  })();
+}
+
 var TreeNode = (_STARsmap_STAR)["SourceNode"];
 var REGEX = {
   "noret": new RegExp("^def\\b|^var\\b|^set!\\b|^throw\\b"),
@@ -2025,6 +2060,9 @@ function spitExterns() {
 }
 
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
+  tokenize(codeStr).forEach(function (s) {
+    return console.log([s].join(""));
+  });
   ((!loadedMacros_QUERY) ?
         (function() {
     loadedMacros_QUERY = true;

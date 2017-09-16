@@ -1017,6 +1017,11 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
+  (each (fn [s]
+          (console.log (str s)))
+        (tokenize codeStr))
+
+
   (when-not loadedMacros?
     (set! loadedMacros? true)
     (require "./macros.kirby"))

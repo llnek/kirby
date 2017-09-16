@@ -16,7 +16,20 @@
   (require ["source-map" :as *smap*]
            ["path" :as *path*]
            ["fs" :as *fs*]))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- collectToken [ret token]
+  (if (not= ";" token) (.push ret token)) ret)
+(defn- tokenize [source]
+  ;;/[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g
+  (var re (regexs "[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)" "g"))
+  (loop [ret []
+         match (.exec re source)]
+    (if (or (nichts? match)
+            (empty? (nth match 1)))
+      ret
+      (recur (collectToken ret (nth match 1))
+             (.exec re source)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def- TreeNode (.-SourceNode  *smap*))
@@ -297,5 +310,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
