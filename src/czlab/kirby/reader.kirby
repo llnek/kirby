@@ -19,41 +19,31 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(js# "function Keyword(k) {this.value=k; return this;}")
-(js# "Keyword.prototype.toString = function() { return this.value; }")
-(js# "function Symbol(s) {this.value=s; return this;}")
-(js# "Symbol.prototype.toString = function() { return this.value; }")
-(js# "function Atom(v) {this.value=v; return this;}")
-(js# "Atom.prototype.toString = function() { return this.value; }")
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defmacro throwE "" [msg] (throw (new Error ~msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def- TreeNode (.-SourceNode  *smap*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;/[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g
+;;
 (def- REGEX
-  {:matchAll (regexs "[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)" "g")
-   :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-   :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-   :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
-   :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
-   ;;/^-?[0-9][0-9.]*$/
-   :int (regex "^[-+]?[0-9]+$")
-   ;;/^-?[0-9]+$/
-   :hex (regex "^[-+]?0x")
-   :macroGet (regex "^#slice@(\\d+)")
-   :dquoteHat (regex "^\"")
-   :dquoteEnd (regex "\"$")
-   :func (regex "^function\\b")
-   :query (regexs "\\?" "g")
-   :bang (regexs "!" "g")
-   :dash (regexs "-" "g")
-   :star (regexs "\\*" "g")
-   :wspace (regex "\\s") })
+  { :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
+    :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
+    :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
+    :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
+    ;;/^-?[0-9][0-9.]*$/
+    :int (regex "^[-+]?[0-9]+$")
+    ;;/^-?[0-9]+$/
+    :hex (regex "^[-+]?0x")
+    :macroGet (regex "^#slice@(\\d+)")
+    :dquoteHat (regex "^\"")
+    :dquoteEnd (regex "\"$")
+    :func (regex "^function\\b")
+    :query (regexs "\\?" "g")
+    :bang (regexs "!" "g")
+    :dash (regexs "-" "g")
+    :star (regexs "\\*" "g")
+    :wspace (regex "\\s") })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -87,6 +77,8 @@
               []
               (values *reserved*))
       (zipmap [])))
+
+;(console.log (str "sssss = " (keys *reserved-keys*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -209,7 +201,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- lexer [ctx]
+(defn- lexer [prevToken ctx]
   (var ____BREAK! nil
        formType nil
        token ""
@@ -219,14 +211,25 @@
        inStr? false
        comment? false)
 
+  (set! prevToken (or prevToken ""))
   (do-with [tree []]
+    (nodeTag tree
+             (get ctx :source)
+             (get ctx :line)
+             0
+             (cond
+               (.endsWith prevToken "{") tkn-object
+               (= "[" prevToken) tkn-array
+               :else tkn-list))
+    (if (.startsWith prevToken "^")
+      (set! tree :isMeta true))
     (set! ____BREAK! false)
     (while (and (not ____BREAK!)
                 (< ctx.pos (alen ctx.codeStr)))
       (set! ch (.charAt ctx.codeStr ctx.pos))
       (++ ctx.colno)
       (++ ctx.pos)
-      (set! nx (.charAt ctx.codeStr ctx.pos))
+      (set! nxch (.charAt ctx.codeStr ctx.pos))
       (when (= ch "\n")
         (++ ctx.lineno)
         (set! ctx.colno 1)
@@ -244,20 +247,8 @@
         (do (if (= ch "\n") (set! ch "\\n"))
             (if (= ch "\\") (set! escStr? true))
             (+= token ch))
-        (or (= ch "'")
-            (= ch "`")
-            (= ch "@")
-            (= ch "^"))
-        (if (empty? token)
-          (set! token (addToken tree ch ctx))
-          (+= token ch))
-        (= ch "~")
-        (if (empty? token)
-          (if (= nxch "@")
-            (do (++ ctx.pos)
-                (set! token (addToken tree "~@" ctx)))
-            (set! token (addToken tree ch ctx)))
-          (+= token ch))
+        (= ch "'")
+        (+= token ch)
         (or (= ch "[")
             (= ch "]"))
         (do (set! token (addToken tree token ctx))

@@ -571,7 +571,7 @@
   (assertArgs expr 2 :e0)
   (do-with [ret (tnode)]
     (.add ret ["throw " (eval?? (cadr expr)) ";"])
-    (.prepend ret ("(function (){ "))
+    (.prepend ret "(function (){ ")
     (.add ret " }).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
