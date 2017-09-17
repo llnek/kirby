@@ -570,8 +570,9 @@
 (defn- sf-throw ^{:res-keys ["throw"]} [expr]
   (assertArgs expr 2 :e0)
   (do-with [ret (tnode)]
-    (.add ret (eval?? (cadr expr)))
-    (.prepend ret "throw ")))
+    (.add ret ["throw " (eval?? (cadr expr)) ";"])
+    (.prepend ret ("(function (){ "))
+    (.add ret " }).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1017,10 +1018,7 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
-  (each (fn [s]
-          (console.log (str s)))
-        (tokenize codeStr))
-
+  ;(each (fn [s] (console.log  s)) (parseSource codeStr fname))
 
   (when-not loadedMacros?
     (set! loadedMacros? true)

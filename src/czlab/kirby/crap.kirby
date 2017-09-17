@@ -28,32 +28,192 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro throwE "" [msg] (throw (new Error ~msg)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- collectToken "" [ret token]
+  (if (not= ";" token) (.push ret token)) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- tokenize "" [source fname]
+  ;;/[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g
+  (var re (regexs "[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)" "g"))
+  (loop [ret []
+         match (.exec re source)]
+    (if (or (nichts? match)
+            (empty? (nth match 1)))
+      ret
+      (recur (collectToken ret (nth match 1))
+             (.exec re source)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- nextToken [tokens]
+  (do-with [t (nth tokens
+                   tokens.pos)] (++ tokens.pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- peekToken [tokens] (nth tokens tokens.pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- toSymbol [s] (new Symbol s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- toKeyword [k] (new Keyword k))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseAtom "" [tokens]
+  (var token (nextToken tokens)
+       t0 (nth token 0))
+  (cond
+    (REGEX.float.test token)
+    (parseFloat token)
+    (or (REGEX.hex.test token)
+        (REGEX.int.test token))
+    (parseInt token)
+    (= "\"" t0)
+    (-> (.slice token 1 (eindex token))
+        (.replace (regexs "\\\\\"" "g") "\"")
+        (.replace (regexs "\\\\n" "g") "\n")
+        (.replace (regexs "\\\\\\\\" "g") "\\"))
+    (= ":" t0)
+    (toKeyword (.slice token 1))
+    (= "nil" token)
+    null
+    (= "true" token)
+    true
+    (= "false" token)
+    false
+    :else
+    (toSymbol token)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseBlock(tokens head tail)
+
+  (if (not= (nextToken tokens) head)
+    (throwE (str "expected '" head "'")))
+
+  (var ret
+       (loop [ast []
+              token (peekToken tokens)]
+         (if (or (nichts? token)
+                 (= tail token))
+           (if token
+             ast
+             (throwE (str "expected '" tail "', got EOF")))
+           (recur (addAst ast (parseForm tokens))
+                  (peekToken tokens)))))
+  (nextToken tokens)
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseList [tokens]
+  (do-with [v (parseBlock tokens "(" ")")]
+           (set! v "eTYPE" tkn-list)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseVec [tokens]
+  (do-with [v (parseBlock tokens "[" "]")]
+           (set! v "eTYPE" tkn-vector)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseMap [tokens]
+  (var v (parseBlock tokens "{"  "}"))
+  (if (odd? (alen v))
+    (throw (new Error "expected even count in map")))
+  (do-with [ret {}]
+    (for ((i 0) (< i (alen v)) (i (+ i 2)))
+      (set! ret (nth v i) (nth v (inc i))))
+    (set! ret "eTYPE" tkn-map)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- skipAndParse [tokens func]
+  (nextToken tokens)
+  (func tokens))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseForm [tokens]
+  (var tmp nil
+       token (peekToken tokens))
+  (case token
+    ";" undefined
+    "'" (skipAndParse tokens (# [(toSymbol "quote")
+                                 (parseForm tokens)]))
+    "`" (skipAndParse tokens (# [(toSymbol "quasi-quote")
+                                 (parseForm tokens)]))
+    "~" (skipAndParse tokens (# [(toSymbol "unquote")
+                                 (parseForm tokens)]))
+    "~@" (skipAndParse tokens (# [(toSymbol "splice-unquote")
+                                  (parseForm tokens)]))
+    "^" (skipAndParse tokens
+                      (# (set! tmp (parseForm tokens))
+                         [(toSymbol "with-meta")
+                          (parseForm tokens) tmp]))
+    "@" (skipAndParse tokens (# [(toSymbol "deref")
+                                 (parseForm tokens)]))
+
+    ")" (throwE "unexpected \")\"")
+    "(" (parseList tokens)
+
+    "]" (throwE "unexpected \"]\"")
+    "[" (parseVec tokens)
+
+    "}" (throwE "unexpected \"}\"")
+    "{" (parseMap tokens)
+
+    (parseAtom tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- addAst "" [ast f]
+  (if-not (undef? f) (.push ast f)) ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parseSource "" [source fname]
+  (var tokens (tokenize source fname)
+       tlen (alen tokens))
+  (loop [ast []
+         f (parseForm tokens)]
+    (if (>= tokens.pos tlen)
+      ast
+      (recur (addAst ast f)
+             (parseForm tokens)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def- TreeNode (.-SourceNode  *smap*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;/[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g
+;;
 (def- REGEX
-  {:matchAll (regexs "[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)" "g")
-   :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-   :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-   :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
-   :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
-   ;;/^-?[0-9][0-9.]*$/
-   :int (regex "^[-+]?[0-9]+$")
-   ;;/^-?[0-9]+$/
-   :hex (regex "^[-+]?0x")
-   :macroGet (regex "^#slice@(\\d+)")
-   :dquoteHat (regex "^\"")
-   :dquoteEnd (regex "\"$")
-   :func (regex "^function\\b")
-   :query (regexs "\\?" "g")
-   :bang (regexs "!" "g")
-   :dash (regexs "-" "g")
-   :star (regexs "\\*" "g")
-   :wspace (regex "\\s") })
+  { :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
+    :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
+    :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
+    :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
+    ;;/^-?[0-9][0-9.]*$/
+    :int (regex "^[-+]?[0-9]+$")
+    ;;/^-?[0-9]+$/
+    :hex (regex "^[-+]?0x")
+    :macroGet (regex "^#slice@(\\d+)")
+    :dquoteHat (regex "^\"")
+    :dquoteEnd (regex "\"$")
+    :func (regex "^function\\b")
+    :query (regexs "\\?" "g")
+    :bang (regexs "!" "g")
+    :dash (regexs "-" "g")
+    :star (regexs "\\*" "g")
+    :wspace (regex "\\s") })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -87,6 +247,8 @@
               []
               (values *reserved*))
       (zipmap [])))
+
+;(console.log (str "sssss = " (keys *reserved-keys*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -209,7 +371,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- lexer [ctx]
+(defn- lexer [prevToken ctx]
   (var ____BREAK! nil
        formType nil
        token ""
@@ -219,14 +381,25 @@
        inStr? false
        comment? false)
 
+  (set! prevToken (or prevToken ""))
   (do-with [tree []]
+    (nodeTag tree
+             (get ctx :source)
+             (get ctx :line)
+             0
+             (cond
+               (.endsWith prevToken "{") tkn-object
+               (= "[" prevToken) tkn-array
+               :else tkn-list))
+    (if (.startsWith prevToken "^")
+      (set! tree :isMeta true))
     (set! ____BREAK! false)
     (while (and (not ____BREAK!)
                 (< ctx.pos (alen ctx.codeStr)))
       (set! ch (.charAt ctx.codeStr ctx.pos))
       (++ ctx.colno)
       (++ ctx.pos)
-      (set! nx (.charAt ctx.codeStr ctx.pos))
+      (set! nxch (.charAt ctx.codeStr ctx.pos))
       (when (= ch "\n")
         (++ ctx.lineno)
         (set! ctx.colno 1)
@@ -244,20 +417,8 @@
         (do (if (= ch "\n") (set! ch "\\n"))
             (if (= ch "\\") (set! escStr? true))
             (+= token ch))
-        (or (= ch "'")
-            (= ch "`")
-            (= ch "@")
-            (= ch "^"))
-        (if (empty? token)
-          (set! token (addToken tree ch ctx))
-          (+= token ch))
-        (= ch "~")
-        (if (empty? token)
-          (if (= nxch "@")
-            (do (++ ctx.pos)
-                (set! token (addToken tree "~@" ctx)))
-            (set! token (addToken tree ch ctx)))
-          (+= token ch))
+        (= ch "'")
+        (+= token ch)
         (or (= ch "[")
             (= ch "]"))
         (do (set! token (addToken tree token ctx))
