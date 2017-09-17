@@ -565,6 +565,411 @@ break;
   }).call(this);
 }
 
+var _STARsmap_STAR= require("source-map");
+var _STARpath_STAR= require("path");
+var _STARfs_STAR= require("fs");
+function Keyword(k) {this.value=k; return this;}
+Keyword.prototype.toString = function() { return this.value; }
+function Symbol(s) {this.value=s; return this;}
+Symbol.prototype.toString = function() { return this.value; }
+function Atom(v) {this.value=v; return this;}
+Atom.prototype.toString = function() { return this.value; }
+function throwE(token,msg) {
+  (function (){ throw new Error((token ?
+    [msg,"\nnear line ",token.line,"\nin file ",token.source].join("") :
+    [msg,"\nnear EOF "].join(""))); }).call(this);
+}
+
+var SNode = (_STARsmap_STAR)["SourceNode"];
+function nextToken(tokens) {
+  return   (function() {
+  let t = nth(tokens,tokens.pos);
+  return   (function() {
+  ++tokens.pos;
+  return t;
+  }).call(this);
+  }).call(this);
+}
+
+function peekToken(tokens) {
+  return nth(tokens,tokens.pos);
+}
+
+function toSymbol(s) {
+  return new Symbol(s);
+}
+
+function toKeyword(k) {
+  return new Keyword(k);
+}
+
+//
+function parseAtom(tokens) {
+  let token = nextToken(tokens),
+    tn = (token)["name"],
+    t0 = tn.charAt(0);
+  return (REGEX.float.test(tn) ?
+    parseFloat(tn) :
+    ((REGEX.hex.test(tn) || REGEX.int.test(tn)) ?
+      parseInt(tn) :
+      (("\"" === t0) ?
+        tn :
+        ((":" === t0) ?
+          toKeyword(tn.slice(1)) :
+          (("nil" === tn) ?
+            null :
+            (("true" === tn) ?
+              true :
+              (("false" === tn) ?
+                false :
+                (true ?
+                  toSymbol(tn) :
+                  undefined))))))));
+}
+
+function parseBlock(tokens,head,tail) {
+  let token = nextToken(tokens),
+    tn = (token ?
+      (token)["name"] :
+      undefined);
+  ((tn !== head) ?
+    throwE(token,["expected '",head,"'"].join("")) :
+    undefined);
+  let ret = (function () {
+    let recur = null,
+      ____xs = null,
+      ____f = function (ast,token) {
+        return ((nichts_QUERY(token) || (tail === (token)["name"])) ?
+          (token ?
+            ast :
+            throwE(token,["expected '",tail,"', got EOF"].join(""))) :
+          recur(addAst(ast,parseMore(tokens)),peekToken(tokens)));
+      },
+      ____ret = ____f;
+    recur = function () {
+      ____xs = arguments;
+      return ((!(typeof(____ret) === "undefined")) ?
+                (function() {
+        for (____ret=undefined; ____ret===undefined; ____ret=____f.apply(this,____xs));;
+        return ____ret;
+        }).call(this) :
+        undefined)
+    };
+    return recur([],peekToken(tokens));
+  })();
+  nextToken(tokens);
+  return ret;
+}
+
+function parseList(tokens) {
+  return   (function() {
+  let v = parseBlock(tokens,"(",")");
+  return   (function() {
+  v["eTYPE"] = tkn_list;
+  return v;
+  }).call(this);
+  }).call(this);
+}
+
+function parseVec(tokens) {
+  return   (function() {
+  let v = parseBlock(tokens,"[","]");
+  return   (function() {
+  v["eTYPE"] = tkn_vector;
+  return v;
+  }).call(this);
+  }).call(this);
+}
+
+function parseMap(tokens) {
+  let v = parseBlock(tokens,"{","}");
+  (odd_QUERY((v)["length"]) ?
+    (function (){ throw new Error("expected even count in map"); }).call(this) :
+    undefined);
+  return   (function() {
+  let ret = {};
+  return   (function() {
+  (function () {
+for (var i = 0; (i < (v)["length"]); i = (i + 2)) {
+        (function() {
+    return ret[nth(v,i)] = nth(v,(i + 1));
+    }).call(this);
+  }
+}).call(this);
+  ret["eTYPE"] = tkn_map;
+  return ret;
+  }).call(this);
+  }).call(this);
+}
+
+function skipAndParse(tokens,func) {
+  nextToken(tokens);
+  return func(tokens);
+}
+
+function parseMore(tokens) {
+  let tmp = null,
+    token = peekToken(tokens),
+    tn = (token ?
+      (token)["name"] :
+      "");
+  return (function() {
+switch (tn) {
+case ";":
+undefined;
+break;
+case "'":
+skipAndParse(tokens,function () {
+    return [
+      toSymbol("quote"),
+      parseMore(tokens)
+    ];
+  });
+break;
+case "`":
+skipAndParse(tokens,function () {
+    return [
+      toSymbol("quasi-quote"),
+      parseMore(tokens)
+    ];
+  });
+break;
+case "~":
+skipAndParse(tokens,function () {
+    return [
+      toSymbol("unquote"),
+      parseMore(tokens)
+    ];
+  });
+break;
+case "~@":
+skipAndParse(tokens,function () {
+    return [
+      toSymbol("splice-unquote"),
+      parseMore(tokens)
+    ];
+  });
+break;
+case "^":
+skipAndParse(tokens,function () {
+    tmp = parseMore(tokens);
+    return [
+      toSymbol("with-meta"),
+      parseMore(tokens),
+      tmp
+    ];
+  });
+break;
+case "@":
+skipAndParse(tokens,function () {
+    return [
+      toSymbol("deref"),
+      parseMore(tokens)
+    ];
+  });
+break;
+case ")":
+throwE(token,"unexpected ')'");
+break;
+case "(":
+parseList(tokens);
+break;
+case "]":
+throwE(token,"unexpected ']'");
+break;
+case "[":
+parseVec(tokens);
+break;
+case "}":
+throwE(token,"unexpected '}'");
+break;
+case "{":
+parseMap(tokens);
+break;
+default:
+(tn ?
+    parseAtom(tokens) :
+    undefined);
+break;
+}
+}).call(this);
+}
+
+//
+function addAst(ast,f) {
+  if (f) {
+    console.log(["addASt: ",f.name].join(""));
+  }
+  ((!(typeof(f) === "undefined")) ?
+    ast.push(f) :
+    undefined);
+  return ast;
+}
+
+//
+function parseSource(source,fname) {
+  let tokens = tokenize(source,fname),
+    tlen = (tokens)["length"];
+  tokens["pos"] = 0;
+  return (function () {
+    let recur = null,
+      ____xs = null,
+      ____f = function (ast,f) {
+        return ((tokens.pos >= tlen) ?
+          ast :
+          recur(addAst(ast,f),parseMore(tokens)));
+      },
+      ____ret = ____f;
+    recur = function () {
+      ____xs = arguments;
+      return ((!(typeof(____ret) === "undefined")) ?
+                (function() {
+        for (____ret=undefined; ____ret===undefined; ____ret=____f.apply(this,____xs));;
+        return ____ret;
+        }).call(this) :
+        undefined)
+    };
+    return recur([],parseMore(tokens));
+  })();
+}
+
+function snode(source,line,col,chunk,name,type) {
+  let args_QUERY = ((arguments)["length"] > 0);
+  return   (function() {
+  let n = null;
+  return   (function() {
+  (args_QUERY ?
+    n = (name ?
+      new SNode(line,col,source,chunk,name) :
+      new SNode(line,col,source,chunk)) :
+    n = new SNode());
+  n["isMeta"] = false;
+  n["eTYPE"] = type;
+  return n;
+  }).call(this);
+  }).call(this);
+}
+
+//
+function tokenize(source,fname) {
+  let len = (source)["length"],
+    token = "",
+    line = 1,
+    tcol = 0,
+    col = 0,
+    pos = 0,
+    ch = null,
+    nx = null,
+    esc_QUERY = false,
+    str_QUERY = false,
+    comment_QUERY = false;
+  return   (function() {
+  let tree = [];
+  return   (function() {
+  let toke_BANG = function (ln,col,s) {
+    (s ?
+      tree.push(snode(fname,ln,col,null,s)) :
+      undefined);
+    return "";
+  };
+  (function () {
+while (pos < len) {
+  (function() {
+  ch = source.charAt(pos);
+  ++col;
+  ++pos;
+  nx = source.charAt(pos);
+  ((ch === "\n") ?
+        (function() {
+    col = 0;
+    ++line;
+    return (comment_QUERY ?
+      comment_QUERY = (!comment_QUERY) :
+      undefined);
+    }).call(this) :
+    undefined);
+  return (comment_QUERY ?
+    null :
+    (esc_QUERY ?
+            (function() {
+      esc_QUERY = (!esc_QUERY);
+      return token += ch;
+      }).call(this) :
+      ((ch === "\"") ?
+        ((!str_QUERY) ?
+                    (function() {
+          tcol = col;
+          str_QUERY = (!str_QUERY);
+          return token += ch;
+          }).call(this) :
+                    (function() {
+          str_QUERY = (!str_QUERY);
+          token += ch;
+          return token = toke_BANG(line,tcol,token);
+          }).call(this)) :
+        (str_QUERY ?
+                    (function() {
+          ((ch === "\n") ?
+            ch = "\\n" :
+            undefined);
+          ((ch === "\\") ?
+            esc_QUERY = true :
+            undefined);
+          return token += ch;
+          }).call(this) :
+          (((ch === "'") || (ch === "`") || (ch === "@") || (ch === "^")) ?
+            (empty_QUERY(token) ?
+                            (function() {
+              tcol = col;
+              return toke_BANG(line,tcol,ch);
+              }).call(this) :
+              token += ch) :
+            ((ch === "~") ?
+              (empty_QUERY(token) ?
+                                (function() {
+                tcol = col;
+                return ((nx === "@") ?
+                                    (function() {
+                  ++pos;
+                  return toke_BANG(line,tcol,"~@");
+                  }).call(this) :
+                  toke_BANG(line,tcol,ch));
+                }).call(this) :
+                token += ch) :
+              (((ch === "[") || (ch === "]") || (ch === "{") || (ch === "}") || (ch === "(") || (ch === ")")) ?
+                                (function() {
+                token = toke_BANG(line,tcol,token);
+                tcol = col;
+                return toke_BANG(line,tcol,ch);
+                }).call(this) :
+                ((ch === ";") ?
+                                    (function() {
+                  token = toke_BANG(line,tcol,token);
+                  tcol = col;
+                  return comment_QUERY = true;
+                  }).call(this) :
+                  (REGEX.wspace.test(ch) ?
+                    token = toke_BANG(((ch === "\n") ?
+                      (line - 1) :
+                      line),tcol,token) :
+                    (true ?
+                                            (function() {
+                      (empty_QUERY(token) ?
+                                                (function() {
+                        return tcol = col;
+                        }).call(this) :
+                        undefined);
+                      return token += ch;
+                      }).call(this) :
+                      undefined))))))))));
+  }).call(this);
+}
+}).call(this);
+  return tree;
+  }).call(this);
+  }).call(this);
+}
+
 var MODULE_VERSION = "1.0.0",
   loadedMacros_QUERY = false,
   noSemi_QUERY = false,
@@ -2036,6 +2441,7 @@ function spitExterns() {
 }
 
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
+  parseSource(codeStr,fname);
   ((!loadedMacros_QUERY) ?
         (function() {
     loadedMacros_QUERY = true;

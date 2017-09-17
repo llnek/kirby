@@ -11,7 +11,9 @@
 
   czlab.kirby.compiler
 
-  (include "./reader.kirby"))
+  (include "./reader.kirby")
+  (include "./play.kirby")
+  )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1018,7 +1020,8 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
-  ;(each (fn [s] (console.log  s)) (parseSource codeStr fname))
+  ;(each (fn [s] (console.log  s)) (tokenize codeStr fname))
+  (parseSource codeStr fname)
 
   (when-not loadedMacros?
     (set! loadedMacros? true)

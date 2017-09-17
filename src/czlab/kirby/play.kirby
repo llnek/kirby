@@ -9,9 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.reader
-
-  (include "./core.kirby")
+  czlab.kirby.play
 
   (require ["source-map" :as *smap*]
            ["path" :as *path*]
@@ -27,154 +25,95 @@
 (js# "Atom.prototype.toString = function() { return this.value; }")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defmacro throwE "" [msg] (throw (new Error ~msg)))
+(defn- throwE [token msg]
+  (throw (new Error
+              (if token
+                (str msg
+                     "\nnear line " token.line
+                     "\nin file " token.source)
+                (str msg "\nnear EOF ")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- TreeNode (.-SourceNode  *smap*))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;/[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g
-(def- REGEX
-  {:matchAll (regexs "[\\s,]*(~@|[\\[\\]\\{}()'`~^@]|\"(?:\\\\.|[^\\\\\"])*\"|;.*|[^\\s\\[\\]\\{}('\"`,;)]*)" "g")
-   :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-   :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-   :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
-   :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
-   ;;/^-?[0-9][0-9.]*$/
-   :int (regex "^[-+]?[0-9]+$")
-   ;;/^-?[0-9]+$/
-   :hex (regex "^[-+]?0x")
-   :macroGet (regex "^#slice@(\\d+)")
-   :dquoteHat (regex "^\"")
-   :dquoteEnd (regex "\"$")
-   :func (regex "^function\\b")
-   :query (regexs "\\?" "g")
-   :bang (regexs "!" "g")
-   :dash (regexs "-" "g")
-   :star (regexs "\\*" "g")
-   :wspace (regex "\\s") })
+(def- SNode (.-SourceNode  *smap*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- *reserved*
-  {"compare" ["!=" "==" "=" ">" ">=" "<" "<="]
-   "arith" ["+" "-" "*" "/" "%"]
-   "logic" ["||" "&&"]
-   "bitwise" ["^" "&" "|" "<<" ">>" ">>>"]
-   "incdec" ["++" "--"]
-   "unary" ["~" "!"]
-   "assign" ["+=" "-=" "*="
-             "/=" "%=" "<<="
-             ">>=" ">>>=" "&=" "|=" "^="]
-   "builtin" ["quote" "syntax-quote" "quasi-quote"
-              "unquote" "unquote-splice"
-              "repeat-n" "do" "doto" "case"
-              "range" "def-" "def" "var"
-              "new" "throw" "while"
-              "aset" "set!" "fn"
-              "defn-" "defn"
-              "try" "if" "get" "aget" "str"
-              "list" "[" "vec" "{" "hash-map"
-              "ns" "comment" "for" "cons"
-              "js#" "defmacro"]})
+(defn- nextToken [tokens]
+  (do-with [t (nth tokens
+                   tokens.pos)] (++ tokens.pos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- *reserved-keys*
-  (-> (reduce (fn [acc x]
-                (.concat acc x))
-              []
-              (values *reserved*))
-      (zipmap [])))
+(defn- peekToken [tokens] (nth tokens tokens.pos))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(def- tkn-string "STRING")
-(def- tkn-number "NUMBER")
-(def- tkn-symbol "SYMBOL")
-(def- tkn-ident "IDENT")
-(def- tkn-atom "ATOM")
-(def- tkn-hat "HAT")
-(def- tkn-meta "HAT-META")
-(def- tkn-ns "NS")
-(def- tkn-quote "QUOTE")
-(def- tkn-back-tick "BACKTICK")
-(def- tkn-list "LIST")
-(def- tkn-tree "TREE")
-(def- tkn-map "MAP")
-(def- tkn-vector "VECTOR")
-(def- tkn-array "ARRAY")
-(def- tkn-object "OBJECT")
+(defn- toSymbol [s] (new Symbol s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defmacro name?? [obj] (get?? ~obj :name ""))
+(defn- toKeyword [k] (new Keyword k))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- nodeTag [obj src line col type]
-  (when obj
-    (set! obj :source src)
-    (set! obj :column col)
-    (set! obj :line line)
-    (set! obj :isMeta false)
-    (set! obj :eTYPE type)) obj)
+(defn- parseAtom "" [tokens]
+  (var token (nextToken tokens)
+       tn (.-name token)
+       t0 (.charAt tn 0))
+  (cond
+    (REGEX.float.test tn)
+    (parseFloat tn)
+    (or (REGEX.hex.test tn)
+        (REGEX.int.test tn))
+    (parseInt tn)
+    (= "\"" t0)
+    tn
+    (= ":" t0)
+    (toKeyword (.slice tn 1))
+    (= "nil" tn)
+    null
+    (= "true" tn)
+    true
+    (= "false" tn)
+    false
+    :else
+    (toSymbol tn)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- testid? [name]
-  (or (REGEX.id.test name) (REGEX.id2.test name)))
+(defn- parseBlock(tokens head tail)
+
+  (var token (nextToken tokens)
+       tn (if token (.-name token)))
+
+  (if (not= tn head)
+    (throwE token (str "expected '" head "'")))
+
+  (var ret
+       (loop [ast []
+              token (peekToken tokens)]
+         (if (or (nichts? token)
+                 (= tail (.-name token)))
+           (if token
+             ast
+             (throwE token (str "expected '" tail "', got EOF")))
+           (recur (addAst ast (parseMore tokens))
+                  (peekToken tokens)))))
+  (nextToken tokens)
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- normalizeId [name]
-  (var pfx "")
-  (when (and (string? name)
-             (= "-" (.charAt name 0)))
-    (set! pfx "-")
-    (set! name (.slice name 1)))
-  (if (testid? name)
-    (-> (str pfx name)
-        (.replace REGEX.query "_QUERY")
-        (.replace REGEX.bang "_BANG")
-        (.replace REGEX.dash "_")
-        (.replace REGEX.star "_STAR"))
-    (if (= pfx "") name (str pfx name))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;use this function to generate code, we need to escape out funny
-;;chars in names
-(defn- tnodeString []
-  (var me this)
-  (do-with [s ""]
-    (.walk me
-           (fn [chunk hint]
-             (if (and (= hint.name chunk)
-                      (string? chunk))
-               (set! chunk (normalizeId chunk)))
-             (+= s chunk)))))
+(defn- parseList [tokens]
+  (do-with [v (parseBlock tokens "(" ")")]
+           (set! v "eTYPE" tkn-list)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- tnode [source line col chunk name type]
-  (var args? (js-args?))
-  (do-with [n nil]
-    (if args?
-      (set! n
-            (if name
-              (new TreeNode line col source chunk name)
-              (new TreeNode line col source chunk)))
-      (set! n (new TreeNode)))
-    (set! n :isMeta false)
-    (set! n :eTYPE type)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defn- tnodeEx [chunk name type]
-  (tnode nil nil nil chunk name type))
-
-
+(defn- parseVec [tokens]
+  (do-with [v (parseBlock tokens "[" "]")]
+           (set! v "eTYPE" tkn-vector)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -195,57 +134,71 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- parseForm [tokens]
+(defn- parseMore [tokens]
   (var tmp nil
-       token (peekToken tokens))
-  (cond
-    (undef? token) undefined
-    (nil? token) undefined
-    :else
-    (case (.-name token)
-      ";" undefined
-      "'" (skipAndParse tokens (# [(toSymbol "quote")
-                                   (parseForm tokens)]))
-      "`" (skipAndParse tokens (# [(toSymbol "quasi-quote")
-                                   (parseForm tokens)]))
-      "~" (skipAndParse tokens (# [(toSymbol "unquote")
-                                   (parseForm tokens)]))
-      "~@" (skipAndParse tokens (# [(toSymbol "splice-unquote")
-                                    (parseForm tokens)]))
-      "^" (skipAndParse tokens
-                        (# (set! tmp (parseForm tokens))
-                           [(toSymbol "with-meta")
-                            (parseForm tokens) tmp]))
-      "@" (skipAndParse tokens (# [(toSymbol "deref")
-                                   (parseForm tokens)]))
+       token (peekToken tokens)
+       tn (if token (.-name token) ""))
 
-      ")" (throwE "unexpected \")\"")
-      "(" (parseList tokens)
+  (case tn
+    ";" undefined
+    "'" (skipAndParse tokens (# [(toSymbol "quote")
+                                 (parseMore tokens)]))
+    "`" (skipAndParse tokens (# [(toSymbol "quasi-quote")
+                                 (parseMore tokens)]))
+    "~" (skipAndParse tokens (# [(toSymbol "unquote")
+                                 (parseMore tokens)]))
+    "~@" (skipAndParse tokens (# [(toSymbol "splice-unquote")
+                                  (parseMore tokens)]))
+    "^" (skipAndParse tokens
+                      (# (set! tmp (parseMore tokens))
+                         [(toSymbol "with-meta")
+                          (parseMore tokens) tmp]))
+    "@" (skipAndParse tokens (# [(toSymbol "deref")
+                                 (parseMore tokens)]))
 
-      "]" (throwE "unexpected \"]\"")
-      "[" (parseVec tokens)
+    ")" (throwE token "unexpected ')'")
+    "(" (parseList tokens)
 
-      "}" (throwE "unexpected \"}\"")
-      "{" (parseMap tokens)
+    "]" (throwE token "unexpected ']'")
+    "[" (parseVec tokens)
 
-      (parseAtom tokens))))
+    "}" (throwE token "unexpected '}'")
+    "{" (parseMap tokens)
+
+    (if tn (parseAtom tokens))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- addAst "" [ast f]
+  (when f (console.log (str "addASt: " (.-name f))))
   (if-not (undef? f) (.push ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- lexer "" [source fname]
+(defn- parseSource "" [source fname]
   (var tokens (tokenize source fname)
        tlen (alen tokens))
+  (set! tokens "pos" 0)
   (loop [ast []
-         f (parseForm tokens)]
+         f (parseMore tokens)]
     (if (>= tokens.pos tlen)
       ast
       (recur (addAst ast f)
-             (parseForm tokens)))))
+             (parseMore tokens)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- snode [source line col chunk name type]
+  (var args? (js-args?))
+  (do-with [n nil]
+    (if args?
+      (set! n
+            (if name
+              (new SNode line col source chunk name)
+              (new SNode line col source chunk)))
+      (set! n (new SNode)))
+    (set! n :isMeta false)
+    (set! n :eTYPE type)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -264,8 +217,9 @@
 
   (do-with [tree []]
     (var toke! (fn [ln col s]
-                 (.push tree
-                        (tnode fname ln col nil s)) ""))
+                 (if s
+                   (.push tree
+                          (snode fname ln col nil s))) ""))
     (while (< pos len)
       (set! ch (.charAt source pos))
       (++ col)
