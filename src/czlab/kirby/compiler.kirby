@@ -476,17 +476,17 @@
               (< j (alen e))(j (inc j)))
           (.add ret ["case " (nth e j) ":\n"])
           (if (= j (eindex e))
-            (.add ret [(eval?? c) ";\nbreak;\n"])))
+            (.add ret ["____x= " (eval?? c) ";\nbreak;\n"])))
         :else
         (do (.add ret ["case " e ":\n"])
-            (.add ret [(eval?? c) ";\nbreak;\n"]))))
+            (.add ret ["____x= " (eval?? c) ";\nbreak;\n"]))))
     (when dft
       (.add ret "default:\n")
-      (.add ret [(eval?? dft) ";\nbreak;\n"]))
+      (.add ret ["____x= " (eval?? dft) ";\nbreak;\n"]))
     (.prepend ret ["switch (" (eval?? tst) ") {\n"])
     (.add ret "}\n")
-    (.prepend ret "(function() {\n")
-    (.add ret "}).call(this)")))
+    (.prepend ret "(function() { let ____x;\n")
+    (.add ret "return ____x;}).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1020,8 +1020,7 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
-  ;(each (fn [s] (console.log  s)) (tokenize codeStr fname))
-  (parseSource codeStr fname)
+  (dumpTree (parseSource codeStr fname))
 
   (when-not loadedMacros?
     (set! loadedMacros? true)

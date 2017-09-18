@@ -9,11 +9,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.play
-
-  (require ["source-map" :as *smap*]
-           ["path" :as *path*]
-           ["fs" :as *fs*]))
+  czlab.kirby.play)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -32,10 +28,6 @@
                      "\nnear line " token.line
                      "\nin file " token.source)
                 (str msg "\nnear EOF ")))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(def- SNode (.-SourceNode  *smap*))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -59,24 +51,35 @@
 ;;
 (defn- parseAtom "" [tokens]
   (var token (nextToken tokens)
-       tn (.-name token)
-       t0 (.charAt tn 0))
+       tn (or (if token (.-name token)) ""))
   (cond
+    (empty? tn)
+    undefined
+    ;--
     (REGEX.float.test tn)
     (parseFloat tn)
+    ;--
     (or (REGEX.hex.test tn)
         (REGEX.int.test tn))
     (parseInt tn)
-    (= "\"" t0)
+    ;--
+    (and (.startsWith tn  "\"")
+         (.endsWith tn "\""))
     tn
-    (= ":" t0)
+    ;--
+    (.startsWith tn ":")
     (toKeyword (.slice tn 1))
-    (= "nil" tn)
+    ;--
+    (or (= "nil" tn)
+        (= "null" tn))
     null
+    ;--
     (= "true" tn)
     true
+    ;--
     (= "false" tn)
     false
+    ;--
     :else
     (toSymbol tn)))
 
@@ -90,18 +93,18 @@
   (if (not= tn head)
     (throwE token (str "expected '" head "'")))
 
-  (var ret
-       (loop [ast []
-              token (peekToken tokens)]
-         (if (or (nichts? token)
-                 (= tail (.-name token)))
-           (if token
-             ast
-             (throwE token (str "expected '" tail "', got EOF")))
-           (recur (addAst ast (parseMore tokens))
-                  (peekToken tokens)))))
-  (nextToken tokens)
-  ret)
+  (do-with [ret
+            (loop [ast []
+                   token (peekToken tokens)]
+              (if (or (nichts? token)
+                      (= tail (.-name token)))
+                (if token
+                  ast
+                  (throwE token (str "expected '" tail "', got EOF")))
+                (recur (addAst ast
+                               (parseMore tokens))
+                       (peekToken tokens))))]
+    (nextToken tokens)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -136,41 +139,45 @@
 ;;
 (defn- parseMore [tokens]
   (var tmp nil
-       token (peekToken tokens)
-       tn (if token (.-name token) ""))
-
-  (case tn
-    ";" undefined
-    "'" (skipAndParse tokens (# [(toSymbol "quote")
-                                 (parseMore tokens)]))
-    "`" (skipAndParse tokens (# [(toSymbol "quasi-quote")
-                                 (parseMore tokens)]))
-    "~" (skipAndParse tokens (# [(toSymbol "unquote")
-                                 (parseMore tokens)]))
-    "~@" (skipAndParse tokens (# [(toSymbol "splice-unquote")
-                                  (parseMore tokens)]))
-    "^" (skipAndParse tokens
-                      (# (set! tmp (parseMore tokens))
-                         [(toSymbol "with-meta")
-                          (parseMore tokens) tmp]))
-    "@" (skipAndParse tokens (# [(toSymbol "deref")
-                                 (parseMore tokens)]))
-
-    ")" (throwE token "unexpected ')'")
-    "(" (parseList tokens)
-
-    "]" (throwE token "unexpected ']'")
-    "[" (parseVec tokens)
-
-    "}" (throwE token "unexpected '}'")
-    "{" (parseMap tokens)
-
-    (if tn (parseAtom tokens))))
+       token (peekToken tokens))
+  (when (some? token)
+    (case (.-name token)
+      "'" (skipAndParse tokens (# [(toSymbol "quote")
+                                   (parseMore tokens)]))
+      ;--
+      "`" (skipAndParse tokens (# [(toSymbol "quasi-quote")
+                                   (parseMore tokens)]))
+      ;--
+      "~" (skipAndParse tokens (# [(toSymbol "unquote")
+                                   (parseMore tokens)]))
+      ;--
+      "~@" (skipAndParse tokens (# [(toSymbol "splice-unquote")
+                                    (parseMore tokens)]))
+      ;--
+      "^" (skipAndParse tokens
+                        (# (set! tmp (parseMore tokens))
+                           [(toSymbol "with-meta")
+                            (parseMore tokens) tmp]))
+      ;--
+      "@" (skipAndParse tokens (# [(toSymbol "deref")
+                                   (parseMore tokens)]))
+      ;--
+      ")" (throwE token "unexpected ')'")
+      "(" (parseList tokens)
+      ;--
+      "]" (throwE token "unexpected ']'")
+      "[" (parseVec tokens)
+      ;--
+      "}" (throwE token "unexpected '}'")
+      "{" (parseMap tokens)
+      ;--
+      (";" ",") (do->undef (nextToken tokens))
+      ;--
+      (parseAtom tokens))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- addAst "" [ast f]
-  (when f (console.log (str "addASt: " (.-name f))))
   (if-not (undef? f) (.push ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -179,26 +186,12 @@
   (var tokens (tokenize source fname)
        tlen (alen tokens))
   (set! tokens "pos" 0)
-  (loop [ast []
-         f (parseMore tokens)]
-    (if (>= tokens.pos tlen)
-      ast
-      (recur (addAst ast f)
-             (parseMore tokens)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-(defn- snode [source line col chunk name type]
-  (var args? (js-args?))
-  (do-with [n nil]
-    (if args?
-      (set! n
-            (if name
-              (new SNode line col source chunk name)
-              (new SNode line col source chunk)))
-      (set! n (new SNode)))
-    (set! n :isMeta false)
-    (set! n :eTYPE type)))
+  (do-with [ast []]
+    (loop [f (parseMore tokens)]
+      (addAst ast f)
+      (if-not (< tokens.pos tlen)
+        ast
+        (recur (parseMore tokens))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -219,7 +212,7 @@
     (var toke! (fn [ln col s]
                  (if s
                    (.push tree
-                          (snode fname ln col nil s))) ""))
+                          (tnode fname ln col s s))) ""))
     (while (< pos len)
       (set! ch (.charAt source pos))
       (++ col)
@@ -256,13 +249,15 @@
             (= ch "`")
             (= ch "@")
             (= ch "^"))
-        (if (empty? token)
+        (if (and (empty? token)
+                 (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (toke! line tcol ch))
           (+= token ch))
         ;--
         (= ch "~")
-        (if (empty? token)
+        (if (and (empty? token)
+                 (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (if (= nx "@")
                 (do (++ pos)
@@ -284,14 +279,39 @@
         (do (set! token (toke! line tcol token))
             (set! tcol col)
             (set! comment? true))
-        ;--
-        (REGEX.wspace.test ch)
+        ;-- comma treated as whitespace
+        (or (= ch ",")
+            (REGEX.wspace.test ch))
         (set! token
               (toke! (if (= ch "\n")
                           (dec line) line) tcol token))
         :else
         (do (when (empty? token) (set! tcol col))
             (+= token ch))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- dumpTree [tree]
+  (var obj nil
+       indent (or (nth arguments 1) 0)
+       pad (.repeat " " indent))
+  (for ((i 0)
+        (< i (alen tree)) (i (inc i)))
+    (set! obj (nth tree i))
+    (cond
+      (list? obj)
+      (do (console.log (str pad "<block>"))
+          (dumpTree obj (+ indent 2))
+          (console.log (str pad "</block>")))
+      :else
+      (let [s (+ "" obj)]
+        (console.log
+          (str pad
+               "<atom>"
+               (-> (.replace s (regexs "&" "g") "&amp;")
+                   (.replace (regexs "<" "g") "&lt;")
+                   (.replace (regexs ">" "g") "&gt;"))
+               "</atom>"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

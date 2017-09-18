@@ -547,27 +547,24 @@ while ((!____BREAK_BANG) && (ctx.pos < (ctx.codeStr)["length"])) {
   (inStr_QUERY ?
     syntax_BANG("e3",tree) :
     undefined);
-  (function() {
+  (function() { let ____x;
 switch (formType) {
 case tkn_array:
-syntax_BANG("e5",tree);
+____x= syntax_BANG("e5",tree);
 break;
 case tkn_object:
-syntax_BANG("e7",tree);
+____x= syntax_BANG("e7",tree);
 break;
 case tkn_list:
-syntax_BANG("e8",tree);
+____x= syntax_BANG("e8",tree);
 break;
 }
-}).call(this);
+return ____x;}).call(this);
   return tree;
   }).call(this);
   }).call(this);
 }
 
-var _STARsmap_STAR= require("source-map");
-var _STARpath_STAR= require("path");
-var _STARfs_STAR= require("fs");
 function Keyword(k) {this.value=k; return this;}
 Keyword.prototype.toString = function() { return this.value; }
 function Symbol(s) {this.value=s; return this;}
@@ -580,7 +577,6 @@ function throwE(token,msg) {
     [msg,"\nnear EOF "].join(""))); }).call(this);
 }
 
-var SNode = (_STARsmap_STAR)["SourceNode"];
 function nextToken(tokens) {
   return   (function() {
   let t = nth(tokens,tokens.pos);
@@ -606,25 +602,28 @@ function toKeyword(k) {
 //
 function parseAtom(tokens) {
   let token = nextToken(tokens),
-    tn = (token)["name"],
-    t0 = tn.charAt(0);
-  return (REGEX.float.test(tn) ?
-    parseFloat(tn) :
-    ((REGEX.hex.test(tn) || REGEX.int.test(tn)) ?
-      parseInt(tn) :
-      (("\"" === t0) ?
-        tn :
-        ((":" === t0) ?
-          toKeyword(tn.slice(1)) :
-          (("nil" === tn) ?
-            null :
-            (("true" === tn) ?
-              true :
-              (("false" === tn) ?
-                false :
-                (true ?
-                  toSymbol(tn) :
-                  undefined))))))));
+    tn = ((token ?
+      (token)["name"] :
+      undefined) || "");
+  return (empty_QUERY(tn) ?
+    undefined :
+    (REGEX.float.test(tn) ?
+      parseFloat(tn) :
+      ((REGEX.hex.test(tn) || REGEX.int.test(tn)) ?
+        parseInt(tn) :
+        ((tn.startsWith("\"") && tn.endsWith("\"")) ?
+          tn :
+          (tn.startsWith(":") ?
+            toKeyword(tn.slice(1)) :
+            ((("nil" === tn) || ("null" === tn)) ?
+              null :
+              (("true" === tn) ?
+                true :
+                (("false" === tn) ?
+                  false :
+                  (true ?
+                    toSymbol(tn) :
+                    undefined)))))))));
 }
 
 function parseBlock(tokens,head,tail) {
@@ -635,6 +634,7 @@ function parseBlock(tokens,head,tail) {
   ((tn !== head) ?
     throwE(token,["expected '",head,"'"].join("")) :
     undefined);
+  return   (function() {
   let ret = (function () {
     let recur = null,
       ____xs = null,
@@ -657,8 +657,11 @@ function parseBlock(tokens,head,tail) {
     };
     return recur([],peekToken(tokens));
   })();
+  return   (function() {
   nextToken(tokens);
   return ret;
+  }).call(this);
+  }).call(this);
 }
 
 function parseList(tokens) {
@@ -709,97 +712,97 @@ function skipAndParse(tokens,func) {
 
 function parseMore(tokens) {
   let tmp = null,
-    token = peekToken(tokens),
-    tn = (token ?
-      (token)["name"] :
-      "");
-  return (function() {
-switch (tn) {
-case ";":
-undefined;
-break;
+    token = peekToken(tokens);
+  return (some_QUERY(token) ?
+        (function() {
+    return (function() { let ____x;
+switch ((token)["name"]) {
 case "'":
-skipAndParse(tokens,function () {
-    return [
-      toSymbol("quote"),
-      parseMore(tokens)
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      return [
+        toSymbol("quote"),
+        parseMore(tokens)
+      ];
+    });
 break;
 case "`":
-skipAndParse(tokens,function () {
-    return [
-      toSymbol("quasi-quote"),
-      parseMore(tokens)
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      return [
+        toSymbol("quasi-quote"),
+        parseMore(tokens)
+      ];
+    });
 break;
 case "~":
-skipAndParse(tokens,function () {
-    return [
-      toSymbol("unquote"),
-      parseMore(tokens)
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      return [
+        toSymbol("unquote"),
+        parseMore(tokens)
+      ];
+    });
 break;
 case "~@":
-skipAndParse(tokens,function () {
-    return [
-      toSymbol("splice-unquote"),
-      parseMore(tokens)
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      return [
+        toSymbol("splice-unquote"),
+        parseMore(tokens)
+      ];
+    });
 break;
 case "^":
-skipAndParse(tokens,function () {
-    tmp = parseMore(tokens);
-    return [
-      toSymbol("with-meta"),
-      parseMore(tokens),
-      tmp
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      tmp = parseMore(tokens);
+      return [
+        toSymbol("with-meta"),
+        parseMore(tokens),
+        tmp
+      ];
+    });
 break;
 case "@":
-skipAndParse(tokens,function () {
-    return [
-      toSymbol("deref"),
-      parseMore(tokens)
-    ];
-  });
+____x= skipAndParse(tokens,function () {
+      return [
+        toSymbol("deref"),
+        parseMore(tokens)
+      ];
+    });
 break;
 case ")":
-throwE(token,"unexpected ')'");
+____x= throwE(token,"unexpected ')'");
 break;
 case "(":
-parseList(tokens);
+____x= parseList(tokens);
 break;
 case "]":
-throwE(token,"unexpected ']'");
+____x= throwE(token,"unexpected ']'");
 break;
 case "[":
-parseVec(tokens);
+____x= parseVec(tokens);
 break;
 case "}":
-throwE(token,"unexpected '}'");
+____x= throwE(token,"unexpected '}'");
 break;
 case "{":
-parseMap(tokens);
+____x= parseMap(tokens);
+break;
+case ";":
+case ",":
+____x=     (function() {
+    nextToken(tokens);
+    return undefined;
+    }).call(this);
 break;
 default:
-(tn ?
-    parseAtom(tokens) :
-    undefined);
+____x= parseAtom(tokens);
 break;
 }
-}).call(this);
+return ____x;}).call(this);
+    }).call(this) :
+    undefined);
 }
 
 //
 function addAst(ast,f) {
-  if (f) {
-    console.log(["addASt: ",f.name].join(""));
-  }
   ((!(typeof(f) === "undefined")) ?
     ast.push(f) :
     undefined);
@@ -811,13 +814,17 @@ function parseSource(source,fname) {
   let tokens = tokenize(source,fname),
     tlen = (tokens)["length"];
   tokens["pos"] = 0;
-  return (function () {
+  return   (function() {
+  let ast = [];
+  return   (function() {
+  (function () {
     let recur = null,
       ____xs = null,
-      ____f = function (ast,f) {
-        return ((tokens.pos >= tlen) ?
+      ____f = function (f) {
+        addAst(ast,f);
+        return ((!(tokens.pos < tlen)) ?
           ast :
-          recur(addAst(ast,f),parseMore(tokens)));
+          recur(parseMore(tokens)));
       },
       ____ret = ____f;
     recur = function () {
@@ -829,23 +836,9 @@ function parseSource(source,fname) {
         }).call(this) :
         undefined)
     };
-    return recur([],parseMore(tokens));
+    return recur(parseMore(tokens));
   })();
-}
-
-function snode(source,line,col,chunk,name,type) {
-  let args_QUERY = ((arguments)["length"] > 0);
-  return   (function() {
-  let n = null;
-  return   (function() {
-  (args_QUERY ?
-    n = (name ?
-      new SNode(line,col,source,chunk,name) :
-      new SNode(line,col,source,chunk)) :
-    n = new SNode());
-  n["isMeta"] = false;
-  n["eTYPE"] = type;
-  return n;
+  return ast;
   }).call(this);
   }).call(this);
 }
@@ -868,7 +861,7 @@ function tokenize(source,fname) {
   return   (function() {
   let toke_BANG = function (ln,col,s) {
     (s ?
-      tree.push(snode(fname,ln,col,null,s)) :
+      tree.push(tnode(fname,ln,col,s,s)) :
       undefined);
     return "";
   };
@@ -918,14 +911,14 @@ while (pos < len) {
           return token += ch;
           }).call(this) :
           (((ch === "'") || (ch === "`") || (ch === "@") || (ch === "^")) ?
-            (empty_QUERY(token) ?
+            ((empty_QUERY(token) && (!REGEX.wspace.test(nx))) ?
                             (function() {
               tcol = col;
               return toke_BANG(line,tcol,ch);
               }).call(this) :
               token += ch) :
             ((ch === "~") ?
-              (empty_QUERY(token) ?
+              ((empty_QUERY(token) && (!REGEX.wspace.test(nx))) ?
                                 (function() {
                 tcol = col;
                 return ((nx === "@") ?
@@ -948,7 +941,7 @@ while (pos < len) {
                   tcol = col;
                   return comment_QUERY = true;
                   }).call(this) :
-                  (REGEX.wspace.test(ch) ?
+                  (((ch === ",") || REGEX.wspace.test(ch)) ?
                     token = toke_BANG(((ch === "\n") ?
                       (line - 1) :
                       line),tcol,token) :
@@ -968,6 +961,33 @@ while (pos < len) {
   return tree;
   }).call(this);
   }).call(this);
+}
+
+function dumpTree(tree) {
+  let obj = null,
+    indent = (nth(arguments,1) || 0),
+    pad = " ".repeat(indent);
+  return (function () {
+for (var i = 0; (i < (tree)["length"]); i = (i + 1)) {
+        (function() {
+    obj = nth(tree,i);
+    return ((Object.prototype.toString.call(obj) === "[object Array]") ?
+            (function() {
+      console.log([pad,"<block>"].join(""));
+      dumpTree(obj,(indent + 2));
+      return console.log([pad,"</block>"].join(""));
+      }).call(this) :
+      (true ?
+                (function() {
+        let s = ("" + obj);
+        console.log([pad,"<atom>"].join(""));
+        console.log(s.replace(new RegExp("&","g"),"&amp;").replace(new RegExp("<","g"),"&lt;").replace(new RegExp(">","g"),"&gt;"));
+        return console.log([pad,"</atom>"].join(""));
+        }).call(this) :
+        undefined));
+    }).call(this);
+  }
+}).call(this);
 }
 
 var MODULE_VERSION = "1.0.0",
@@ -1606,6 +1626,7 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
         ]);
         return ((j === ((e)["length"] - 1)) ?
           ret.add([
+            "____x= ",
             eval_QUERY_QUERY(c),
             ";\nbreak;\n"
           ]) :
@@ -1621,6 +1642,7 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
           ":\n"
         ]);
         return ret.add([
+          "____x= ",
           eval_QUERY_QUERY(c),
           ";\nbreak;\n"
         ]);
@@ -1633,6 +1655,7 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
         (function() {
     ret.add("default:\n");
     return ret.add([
+      "____x= ",
       eval_QUERY_QUERY(dft),
       ";\nbreak;\n"
     ]);
@@ -1644,8 +1667,8 @@ for (var j = 0; (j < (e)["length"]); j = (j + 1)) {
     ") {\n"
   ]);
   ret.add("}\n");
-  ret.prepend("(function() {\n");
-  ret.add("}).call(this)");
+  ret.prepend("(function() { let ____x;\n");
+  ret.add("return ____x;}).call(this)");
   return ret;
   }).call(this);
   }).call(this);
@@ -1892,13 +1915,13 @@ function sf_func(expr,public_QUERY) {
     attrs = null,
     args = 2,
     body = 3;
-  (function() {
+  (function() { let ____x;
 switch (e2) {
 case tkn_array:
-null;
+____x= null;
 break;
 case tkn_string:
-  (function() {
+____x=   (function() {
   doc = 2;
   args = 3;
   return ((tkn_object === e3) ?
@@ -1910,13 +1933,13 @@ case tkn_string:
   }).call(this);
 break;
 case tkn_object:
-  (function() {
+____x=   (function() {
   attrs = 2;
   return args = 3;
   }).call(this);
 break;
 }
-}).call(this);
+return ____x;}).call(this);
   body = (args + 1);
   (doc ?
     doc = nth(expr,doc) :
@@ -2441,7 +2464,7 @@ function spitExterns() {
 }
 
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
-  parseSource(codeStr,fname);
+  dumpTree(parseSource(codeStr,fname));
   ((!loadedMacros_QUERY) ?
         (function() {
     loadedMacros_QUERY = true;

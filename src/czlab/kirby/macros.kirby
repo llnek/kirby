@@ -324,9 +324,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defmacro bit-and [&rest] (& ~&rest))
-(defmacro bit-or [&rest] (| ~&rest))
-(defmacro bit-xor [&rest] (^ ~&rest))
+;(defmacro bit-and [&rest] (& ~&rest))
+;(defmacro bit-or [&rest] (| ~&rest))
+;(defmacro bit-xor [&rest] (^ ~&rest))
 
 (defmacro bit-shift-right-zero [&rest] (>>> ~&rest))
 (defmacro bit-shift-right [&rest] (>> ~&rest))
