@@ -46,8 +46,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defmacro vector? [obj] (array? ~obj))
-(defmacro list? [obj] (array? ~obj))
 (defmacro array? [obj]
   (= (whatis? ~obj) "[object Array]"))
 

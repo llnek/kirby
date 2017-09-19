@@ -315,4 +315,45 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defn- drop [c n] (.slice c n))
+(defn- take [c n] (.slice c 0 n))
+(defmacro cdr [c] (drop ~c 1))
+
+(defn- evalTree [tree]
+  (loop [e (car tree)
+         xs (.shift tree)]
+    (if (empty? xs)
+      ret
+      (do (evalMore e)
+          (recur (car xs) (.shift xs))))))
+
+(defn- evalMore [obj]
+  (if (and (list? obj)
+           (= tkn-list (.-eTYPE obj)))
+    (evalList obj) (evalAtom obj)))
+
+(defn- evalList [list]
+  (loop [x (car list)
+         xs (.shift list)]
+    (if (empty? xs)
+      ret
+      (do (evalMore e)
+          (recur (car xs) (.shift xs))))))
+
+(comment
+(defn- evalAtom [obj]
+  (cond
+    (inst? Keyword obj)
+    (inst? Symbol obj)
+    (boolean? obj)
+    (number? obj)
+    (string? obj)
+    (null? obj)
+    (vector? obj)
+    (map? obj))))
+
+
+
+
+
 

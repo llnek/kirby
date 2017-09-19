@@ -19,6 +19,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- vector? [obj] (and (array? obj) (= tkn-vector (.-eTYPE obj))))
+(defn- map? [obj] (and (object? obj) (= tkn-map (.-eTYPE obj))))
+(defn- list? [obj] (and (array? obj) (= tkn-list (.-eTYPE obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -62,6 +65,7 @@
               "repeat-n" "do" "doto" "case"
               "range" "def-" "def" "var"
               "new" "throw" "while"
+              "inst?"
               "aset" "set!" "fn"
               "defn-" "defn"
               "try" "if" "get" "aget" "str"

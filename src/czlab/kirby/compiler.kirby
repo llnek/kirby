@@ -98,7 +98,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- eval?? [x]
-  (if (list? x) (evalList x) x))
+  (if (array? x) (evalList x) x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -165,7 +165,7 @@
       (fn [expr i]
         (var name (name?? (car expr))
              r ""
-             tmp (if (list? expr)
+             tmp (if (array? expr)
                    (evalList expr) expr))
         (when (and (array? tmp)
                    (= tkn-ns (.-eTYPE tmp)))
@@ -233,7 +233,7 @@
 (defn- evalAtoms [cells]
   (each
     (fn [cell i cc]
-      (if (list? cell)
+      (if (array? cell)
         (set! cc i (evalList cell)))) cells))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -251,17 +251,17 @@
 
   (cond
     (= ename "#<<")
-    (if-not (list? frag)
+    (if-not (array? frag)
       (syntax! :e13 data cmd)
       (.shift frag))
     ;;
     (= ename "#head")
-    (if-not (list? frag)
+    (if-not (array? frag)
       (syntax! :e13 data cmd)
       (if (not-empty frag) (car frag)))
     ;;
     (= ename "#tail")
-    (if-not (list? frag)
+    (if-not (array? frag)
       (syntax! :e13 data cmd)
       (if (not-empty frag) (last frag)))
     ;;=> 0,2,4...
@@ -280,12 +280,12 @@
         (set! r "____split" true)))
     ;;
     (.startsWith ename "#slice@")
-    (do (if-not (list? frag) (syntax! :e13 data cmd))
+    (do (if-not (array? frag) (syntax! :e13 data cmd))
         (set! tmp (REGEX.macroGet.exec ename))
         (car (.splice frag (dec (cadr tmp)) 1)))
     ;;
     (= ename "#if")
-    (do (if-not (list? frag) (syntax! :e13 data cmd))
+    (do (if-not (array? frag) (syntax! :e13 data cmd))
         (cond
           (not-empty frag)
           (expandMacro cmd (caddr code) data frags)
@@ -297,9 +297,9 @@
     (let [cell nil]
       (for ((i 0) (< i (alen code)) (i (inc i)))
         (set! cell (nth code i))
-        (if (list? cell)
+        (if (array? cell)
           (let [c (expandMacro cmd cell data frags)]
-            (if (and (list? c)
+            (if (and (array? c)
                      (true? (get c "____split")))
               (for ((k 0) (< k (alen c)) (k (inc k)))
                 (conj!! ret (nth c k)))
@@ -561,6 +561,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- sf-inst? ^{:res-keys ["inst?"]} [expr]
+  (if (not= (alen expr) 3) (syntax! :e0 expr))
+  (do-with [ret (tnode)]
+    (.add ret ["("
+               (eval?? (caddr expr))
+               " instanceof "
+               (eval?? (cadr expr)) ")"])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn- sf-new ^{:res-keys ["new"]} [expr]
   (if (< (alen expr) 2) (syntax! :e0 expr))
   (do-with [ret (tnode)]
@@ -635,7 +645,7 @@
 ;;
 (defn- sf-anonFunc ^{:res-keys ["fn"]} [expr]
   (if (< (alen expr) 2) (syntax! :e0 expr))
-  (if-not (list? (cadr expr)) (syntax! :e0 expr))
+  (if-not (array? (cadr expr)) (syntax! :e0 expr))
   (var args (cadr expr)
        body (.slice expr 2))
   (do-with [ret (tnodeEx args)]
@@ -711,14 +721,14 @@
        ind (pad indent))
   ;;look for finally
   (set! f (last expr))
-  (if (and (list? f)
+  (if (and (array? f)
            (= (name?? (car f)) "finally"))
     (do (set! f (.pop expr))
         (set! sz (alen expr)))
     (set! f nil))
   ;;look for catch
   (set! c (if (> sz 1) (nth expr (dec sz)) nil))
-  (if (and (list? c)
+  (if (and (array? c)
            (= (name?? (car c)) "catch"))
     (do (if (or (< (alen c) 2)
                 (not (node? (cadr c)))) (syntax! :e0 expr))
@@ -920,7 +930,7 @@
        ind (pad indent))
 
   (do-with [ret (tnodeEx "for (")]
-    (if (or (not (list? c))
+    (if (or (not (array? c))
             (not= (alen c) 3)) (syntax! :e0 expr))
     (set! c1 (car c))
     (set! c2 (cadr c))
@@ -993,7 +1003,7 @@
 ;;
 (defn- dbg [obj hint]
   (cond
-    (list? obj)
+    (array? obj)
     (do (set! hint (or hint "block"))
         (console.log (str "<" hint ">"))
         (for ((i 0) (< i (alen obj)) (i (inc i)))
@@ -1020,7 +1030,7 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
-  (dumpTree (parseSource codeStr fname))
+  ;;(dumpTree (parseSource codeStr fname))
 
   (when-not loadedMacros?
     (set! loadedMacros? true)

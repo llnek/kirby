@@ -164,6 +164,18 @@ function seq(x) {
 var _STARsmap_STAR= require("source-map");
 var _STARpath_STAR= require("path");
 var _STARfs_STAR= require("fs");
+function vector_QUERY(obj) {
+  return ((Object.prototype.toString.call(obj) === "[object Array]") && (tkn_vector === (obj)["eTYPE"]));
+}
+
+function map_QUERY(obj) {
+  return ((Object.prototype.toString.call(obj) === "[object Object]") && (tkn_map === (obj)["eTYPE"]));
+}
+
+function list_QUERY(obj) {
+  return ((Object.prototype.toString.call(obj) === "[object Array]") && (tkn_list === (obj)["eTYPE"]));
+}
+
 var TreeNode = (_STARsmap_STAR)["SourceNode"];
 var REGEX = {
   "noret": new RegExp("^def\\b|^var\\b|^set!\\b|^throw\\b"),
@@ -249,6 +261,7 @@ var _STARreserved_STAR = {
     "new",
     "throw",
     "while",
+    "inst?",
     "aset",
     "set!",
     "fn",
@@ -980,14 +993,78 @@ for (var i = 0; (i < (tree)["length"]); i = (i + 1)) {
       (true ?
                 (function() {
         let s = ("" + obj);
-        console.log([pad,"<atom>"].join(""));
-        console.log(s.replace(new RegExp("&","g"),"&amp;").replace(new RegExp("<","g"),"&lt;").replace(new RegExp(">","g"),"&gt;"));
-        return console.log([pad,"</atom>"].join(""));
+        return console.log([pad,"<atom>",s.replace(new RegExp("&","g"),"&amp;").replace(new RegExp("<","g"),"&lt;").replace(new RegExp(">","g"),"&gt;"),"</atom>"].join(""));
         }).call(this) :
         undefined));
     }).call(this);
   }
 }).call(this);
+}
+
+function drop(c,n) {
+  return c.slice(n);
+}
+
+function take(c,n) {
+  return c.slice(0,n);
+}
+
+function evalTree(tree) {
+  return (function () {
+    let recur = null,
+      ____xs = null,
+      ____f = function (e,xs) {
+        return (empty_QUERY(xs) ?
+          ret :
+                    (function() {
+          evalMore(e);
+          return recur(nth(xs,0),xs.shift());
+          }).call(this));
+      },
+      ____ret = ____f;
+    recur = function () {
+      ____xs = arguments;
+      return ((!(typeof(____ret) === "undefined")) ?
+                (function() {
+        for (____ret=undefined; ____ret===undefined; ____ret=____f.apply(this,____xs));;
+        return ____ret;
+        }).call(this) :
+        undefined)
+    };
+    return recur(nth(tree,0),tree.shift());
+  })();
+}
+
+function evalMore(obj) {
+  return (((Object.prototype.toString.call(obj) === "[object Array]") && (tkn_list === (obj)["eTYPE"])) ?
+    evalList(obj) :
+    evalAtom(obj));
+}
+
+function evalList(list) {
+  return (function () {
+    let recur = null,
+      ____xs = null,
+      ____f = function (x,xs) {
+        return (empty_QUERY(xs) ?
+          ret :
+                    (function() {
+          evalMore(e);
+          return recur(nth(xs,0),xs.shift());
+          }).call(this));
+      },
+      ____ret = ____f;
+    recur = function () {
+      ____xs = arguments;
+      return ((!(typeof(____ret) === "undefined")) ?
+                (function() {
+        for (____ret=undefined; ____ret===undefined; ____ret=____f.apply(this,____xs));;
+        return ____ret;
+        }).call(this) :
+        undefined)
+    };
+    return recur(nth(list,0),list.shift());
+  })();
 }
 
 var MODULE_VERSION = "1.0.0",
@@ -1773,6 +1850,25 @@ function sf_var_let(expr) {
   return sf_var(expr,"let");
 }
 SPECIAL_OPS["var"] = sf_var_let;
+function sf_inst_QUERY(expr) {
+  (((expr)["length"] !== 3) ?
+    syntax_BANG("e0",expr) :
+    undefined);
+  return   (function() {
+  let ret = tnode();
+  return   (function() {
+  ret.add([
+    "(",
+    eval_QUERY_QUERY(nth(expr,2)),
+    " instanceof ",
+    eval_QUERY_QUERY(nth(expr,1)),
+    ")"
+  ]);
+  return ret;
+  }).call(this);
+  }).call(this);
+}
+SPECIAL_OPS["inst?"] = sf_inst_QUERY;
 function sf_new(expr) {
   (((expr)["length"] < 2) ?
     syntax_BANG("e0",expr) :
@@ -2464,7 +2560,6 @@ function spitExterns() {
 }
 
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
-  dumpTree(parseSource(codeStr,fname));
   ((!loadedMacros_QUERY) ?
         (function() {
     loadedMacros_QUERY = true;
