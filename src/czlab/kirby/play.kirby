@@ -121,12 +121,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- parseMap [tokens]
-  (var v (parseBlock tokens "{"  "}"))
-  (if (odd? (alen v))
-    (throw (new Error "expected even count in map")))
-  (do-with [ret {}]
-    (for ((i 0) (< i (alen v)) (i (+ i 2)))
-      (set! ret (nth v i) (nth v (inc i))))
+  (do-with [v (parseBlock tokens "{"  "}")]
+    (if (odd? (alen v))
+      (throw (new Error "expected even count in map")))
     (set! ret "eTYPE" tkn-map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -352,7 +349,21 @@
     (vector? obj)
     (map? obj))))
 
-
+;(macro xxx [a b] body)
+(defn- macrocompile [expr]
+  (var fname (normalizeId
+               (.toString (cadr expr)))
+       args (map (fn [s]
+                   (normalizeId (.toString s))) (caddr expr))
+       body (.slice expr 3))
+  (do-with [ret nil]
+    (set! ret (tnodeEx args))
+    (.join ret ",")
+    (.prepend ret (str "function " fname "("))
+    (.add ret [") {\n"
+               (evalTree body)
+               (pad indent) "}\n"])
+    (set! noSemi? true)))
 
 
 
