@@ -1,6 +1,191 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- raw-println "" []
+  (apply console.log console arguments))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- _pstr "" [obj pprint?]
+  (var ret nil
+       _r (or pprint? true)
+       f (# (-> (map (fn [e]
+                       (_pstr e _r)) obj)
+                (.join " "))))
+
+  (case (type obj)
+    "list"
+    (str "(" (f) ")")
+    "vector"
+    (str "[" (f) "]")
+    "map"
+    (str "{"
+         (-> (reduce
+               (fn [acc k]
+                 (.push acc
+                        (_pstr k _r)
+                        (_pstr (get obj k) _r))
+                 acc)
+               [] obj)
+             (.join " ")) "}")
+    "string"
+    obj
+    "keyword"
+    (str ":" (.-value obj))
+    "symbol"
+    (str "'" (.-value obj))
+    "null"
+    "nil"
+    "atom"
+    (str "(atom "
+         (_pstr (.-value obj) _r) ")")
+    (.toString obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn slice "" [arr pos]
+  (.call Array.prototype.slice (or arr []) pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn apply [funcref self]
+  (.apply funcref
+          self
+          (slice arguments 2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn pr-str "" []
+  (-> (.call Array.prototype.map
+             arguments (fn [e]
+                         (_pstr e true)))
+      (.join " ")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn str "" []
+  (-> (.call Array.prototype.map
+             arguments, (fn [e]
+                          (_pstr e false)))
+      (.join "")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn prn "" []
+  (apply raw-println
+         {}
+         (.call Array.prototype.map
+                arguments (fn [e]
+                            (_pstr e true)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn println "" []
+  (apply raw-println
+         {}
+         (.call Array.prototype.map
+                arguments (fn [e]
+                            (_pstr e false)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn slurp "" [f]
+  (if (undef? require)
+    (let [req (new XMLHttpRequest)]
+      (.open req "GET" f false)
+      (.send req)
+      (if (= (.-status req) 200)
+        (.-responseText req)
+        (trap! "Failed to slurp file: " f)))
+    (-> (require "fs")
+        (.readFileSync f "utf-8"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn now "" [] (.getTime (new Date)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn assoc "" [src]
+  (apply assoc!
+         nil
+         (.concat [(clone src)]
+                  (slice arguments 1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn dissoc "" [src]
+  (apply dissoc!
+         nil
+         (.concat [(clone src)]
+                  (slice arguments 1))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn cons "" [a xs] (.concat [a] xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn concat [arr]
+  (apply Array.prototype.concat
+         (or arr []) (slice arguments 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn nth "" [arr pos]
+  (if arr (get arr pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn first "" [arr] (nth arr 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn rest "" [arr] (slice arr 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn conj "" [arr]
+  (var args (slice arguments 1))
+  (if (list? arr)
+    (-> (.reverse args)
+        (.concat arr))
+    (do-with [v (.concat arr args)]
+      (set! v "eTYPE" tkn-vector))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn with-meta "" [obj m]
+  (do-with [ret (clone obj)]
+    (set! ret :____meta m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn meta "" [obj]
+  (if (and (not (sequential? obj))
+           (not (map? obj))
+           (not (fn? obj)))
+    (trap! "can't get meta from: " (type obj)))
+  (get obj :____meta))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn reset! "" [a v] (set! a :value v) v)
+(defn deref "" [a] (.-value a))
+(defn swap! "" [a f]
+  (set! a
+        :value
+        (apply f
+               f
+               (.concat [(.-value a)]
+                        (slice arguments 2))))
+  (.-value a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn type "" [obj]
   (cond
     (keyword? obj) "keyword"
