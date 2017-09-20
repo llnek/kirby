@@ -1,0 +1,185 @@
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn type "" [obj]
+  (cond
+    (keyword? obj) "keyword"
+    (symbol? obj) "symbol"
+    (undef? obj) "undefined"
+    (list? obj) "list"
+    (vector? obj) "vector"
+    (map? obj) "map"
+    (nil? obj) "null"
+    (true? obj) "true"
+    (false? obj) "false"
+    (atom? obj) "atom"
+    (number? obj) "number"
+    (fn? obj) "function"
+    (string? obj) "string"
+    :else
+    (trap! "Unknown type '" (whatis? obj) "'")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn sequential? "" [obj] (or (list? obj)(vector? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn eq? "" [a b]
+  (var ta (type a)
+       tb (type b))
+
+  (if-not (or (= ta tb)
+              (and (sequential? a)
+                   (sequential? b)))
+    false
+    (case ta
+      ("keyword" "symbol")
+      (= (.-value a)(.-value b))
+      ;--
+      ("list" "vector")
+      (do-with [ret (= (count a)(count b))]
+        (if ret
+          (each (fn [v i]
+                  (set! ret (and ret
+                                 (eq? v (nth b i))))) a)))
+      ;--
+      "map"
+      (do-with [ret (= (count a)(count b))]
+        (if ret
+          (each-key (fn [v k]
+                      (set! ret (and ret
+                                     (eq? v (get b k))))) a)))
+      ;--
+      (= a b))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn clone [obj]
+  (do-with
+    [ret (cond
+           (array? obj)
+           (doto (.slice obj 0)
+             (set! :eTYPE (get obj :eTYPE)))
+           (fn? obj)
+           (.clone obj)
+           :else
+           (trap! "clone of non-collection: " (whatis? obj)))]
+    (.defineProperty Object
+                     ret
+                     "__meta__" {:enumerable false
+                                 :writable true})))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn lambda [Eval Env ast env params]
+  (doto (# (Eval ast (new Env env params arguments)))
+    (set! :____meta nil)
+    (set! :____ast  ast)
+    (set! :____genenv (fn [args] (new Env env params args)))
+    (set! :____ismacro false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! Function.prototype.clone
+      (# (var that this
+              tmp (# (.apply that this arguments)))
+         (each-key (fn [v k] (set! tmp k v)) this)
+         tmp))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn hashmap []
+  (if (odd? (alen arguments))
+    (trap! "hash map arg-count is not even"))
+  (->> (call Array.prototype.slice arguments 0)
+       (.concat [{}])
+       (apply assoc! nil )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn map? [m]
+  (and (object? m)
+       (not (array? m))
+       (not (nil? m))
+       (not (inst? Symbol))
+       (not (inst? Atom))
+       (not (inst? Keyword))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn assoc! [m]
+  (if (even? (alen arguments))
+    (trap! "assoc arg-count is not even"))
+  (for ((i 1)
+        (< i (alen arguments)) (i (+ i 2)))
+    (set! m
+          (nth arguments i)
+          (nth arguments (inc i))))
+  m)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn dissoc! [m]
+  (for ((i 1)
+        (< i (alen arguments)) (i (inc i)))
+    (delete! m (nth arguments i)))
+  m)
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+(defn Env [parentEnv args values]
+  (var data {}
+       break? false)
+  (each
+    (fn [a i]
+      (cond
+        break? nil
+        (= (.-value a) "&")
+        (do (set! break? true)
+            (set! data
+                  (.-value (nth args (inc i)))
+                  (slice values i)))
+        :else
+        (set! data
+              (.-value a) (nth values i)))) args)
+  (doto this
+    (set! "data" data)
+    (set! "penv" (or parentEnv nil))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! Env.prototype.find
+      (fn [key]
+        (if-not (inst? Symbol key)
+          (trap! "key must be a symbol"))
+        (cond
+          (contains? (.-data this)
+                     (.-value key))
+          this
+          (map? (.-penv this))
+          (.find (.-penv this) key)
+          :else nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! Env.prototype.set
+      (fn [key value]
+        (if-not (inst? Symbol key)
+          (trap! "key must be a symbol"))
+        (set! (.-data this)
+              (.-value key) value)
+        value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(set! Env.prototype.get
+      (fn [key]
+        (if-not (inst? Symbol key)
+          (trap! "key must be a symbol"))
+        (if-some [env (.find this key)]
+          (get (.-data env) (.-value key))
+          (trap! "'" (.-value key) "' not found"))))
+
+
