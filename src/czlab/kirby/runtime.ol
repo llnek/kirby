@@ -1,144 +1,163 @@
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (require (util "util"))
-
-;; types
-
-(define (type obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn type "" [obj]
   (cond
-   ((number? obj) 'number)
-   ((boolean? obj) 'boolean)
-   ((string? obj) 'string)
-   ((null? obj) 'null)
-   ((list? obj) 'list)
-   ((vector? obj) 'vector)
-   ((dict? obj) 'dict)))
-
-(define (number? obj)
-  (== (%raw "typeof obj") "number"))
-
-(define (string? obj)
-  (and (== (%raw "typeof obj") "string")
-       (not (== (%raw "obj[0]") (%raw "\"\\uFDD0\"")))
-       (not (== (%raw "obj[0]") (%raw "\"\\uFDD1\"")))))
-
-(define (symbol? obj)
-  (or (and (== (%raw "typeof obj") "string")
-           (== (%raw "obj[0]") (%raw "\"\\uFDD1\"")))))
-
-(define (key? obj)
-  (and (== (%raw "typeof obj") "string")
-       (== (%raw "obj[0]") (%raw "\"\\uFDD0\""))))
-
-(define (boolean? obj)
+    (number? obj) 'number
+    (boolean? obj) 'boolean
+    (string? obj) 'string
+    (null? obj) 'null
+    (list? obj) 'list
+    (vector? obj) 'vector
+    (dict? obj) 'dict))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn number? "" [obj]
+  (= (%raw "typeof obj") "number"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn string? "" [obj]
+  (and (= (%raw "typeof obj") "string")
+       (not (= (%raw "obj[0]") (%raw "\"\\uFDD0\"")))
+       (not (= (%raw "obj[0]") (%raw "\"\\uFDD1\"")))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn symbol? "" [obj]
+  (%raw "obj instanceof Symbol"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn keyword? "" [obj]
+  (%raw "obj instanceof Keyword"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn boolean? "" [obj]
   (or (eq? obj (%raw "true"))
       (eq? obj (%raw "false"))))
-
-(define (null? obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn null? "" [obj]
   (and (%raw "!!obj")
        (not (eq? obj.length (%raw "undefined")))
        (eq? obj.length 1)
        (eq? (vector-ref obj 0) (%raw "null"))))
-
-(define (list? obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn list? "" [obj]
   (and (%raw "!!obj")
        (not (eq? obj.length (%raw "undefined")))
        (not (eq? obj.list (%raw "undefined")))))
-
-(define (vector? obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn vector? "" [obj]
   (and (not (list? obj))
        (not (null? obj))
        (%raw "!!obj")
        (eq? (%raw "typeof obj") "object")
        (not (eq? obj.length (%raw "undefined")))))
-
-(define (dict? obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn dict? "" [obj]
   (and (not (symbol? obj))
        (%raw "!!obj")
        (eq? (%raw "typeof obj") "object")
        (eq? obj.length (%raw "undefined"))))
-
-(define (function? obj)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn function? "" [obj]
   (eq? (%raw "typeof obj") "function"))
-
-(define (literal? x)
-  (or (key? x)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn literal? "" [x]
+  (or (keyword? x)
       (number? x)
       (string? x)
       (boolean? x)
       (null? x)))
-
-;; strings
-
-(define str
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def str
   (lambda args
     (fold (lambda (el acc)
             (+ acc
                (if (string? el) el (inspect el))))
           ""
           args)))
-
-(define (symbol->key sym)
-  (+ (%raw "\"\\uFDD0\"") (sym.substring 1)))
-
-(define (key->symbol sym)
-  (+ (%raw "\"\\uFDD1\"") (sym.substring 1)))
-
-(define (string->key str)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn symbol->key "" [sym]
+  (new Keyword (.-value sym)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn key->symbol "" [key]
+  (new Symbol (.-value key)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn string->key "" [str]
   (+ (%raw "\"\\uFDD0\"") str))
-
-(define (key->string key)
-  (key.substring 1))
-
-(define (string->symbol str)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn key->string "" [key] (.-value key))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn string->symbol "" [str]
   (+ (%raw "\"\\uFDD1\"") str))
-
-(define (symbol->string sym)
-  (sym.substring 1))
-
-;; lists
-
-;; this is a special value to represent an empty list. this will most
-;; likely change in the future.
-(define _emptylst (%raw "[null]"))
-
-(define list (lambda args args))
-
-(define (cons obj lst)
-  (let ((res (%raw "[obj, lst]")))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn symbol->string "" [sym] (.-value sym))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;;this is a special value to represent an empty list.
+;;this will most likely change in the future.
+(def _emptylst (%raw "[null]"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def list (lambda args args))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn cons "" [obj lst]
+  (let [res (%raw "[obj, lst]")]
     (%raw "res.list = true;")
     res))
-
-(define (car lst)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn car [lst]
   (%raw "lst[0]"))
-
-(define (cdr lst)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn cdr [lst]
   (%raw "lst[1]"))
-
-(define (cadr lst) (car (cdr lst)))
-(define (cddr lst) (cdr (cdr lst)))
-(define (cdar lst) (cdr (car lst)))
-(define (caddr lst) (car (cdr (cdr lst))))
-(define (cdddr lst) (cdr (cdr (cdr lst))))
-(define (cadar lst) (car (cdr (car lst))))
-(define (cddar lst) (cdr (cdr (car lst))))
-(define (caadr lst) (car (car (cdr lst))))
-(define (cdadr lst) (cdr (car (cdr lst))))
-
-(define (list-ref lst i)
-  (let loop ((lst lst)
-             (i i))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn cadr [lst] (car (cdr lst)))
+(defn cddr [lst] (cdr (cdr lst)))
+(defn cdar [lst] (cdr (car lst)))
+(defn caddr [lst] (car (cdr (cdr lst))))
+(defn cdddr [lst] (cdr (cdr (cdr lst))))
+(defn cadar [lst] (car (cdr (car lst))))
+(defn cddar [lst] (cdr (cdr (car lst))))
+(defn caadr [lst] (car (car (cdr lst))))
+(defn cdadr [lst] (cdr (car (cdr lst))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn list-ref [lst i]
+  (loop [lst lst
+         i   i]
     (cond
-     ((null? lst) #f)
-     ((eq? i 0) (car lst))
-     (else (loop (cdr lst) (- i 1))))))
-
-(define (length lst)
+      (null? lst) #f
+      (eq? i 0) (car lst)
+      :else (recur (cdr lst) (- i 1)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn length [lst]
   (fold (lambda (el acc) (+ acc 1))
         0
         lst))
-
-(define (list-append . lsts)
-  (define l* (if (null? lsts) '() lsts))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn list-append [lsts] ;;[. lsts]
+  (defn l* (if (null? lsts) '() lsts))
   (if (null? l*)
       '()
       (if (null? (cdr l*))
@@ -146,14 +165,14 @@
           (_list-append (car l*)
                         (apply list-append (cdr l*))))))
 
-(define (_list-append lst1 lst2)
+(defn (_list-append lst1 lst2)
   (let loop ((lst lst1))
     (if (null? lst)
         lst2
         (cons (car lst)
               (loop (cdr lst))))))
 
-(define (list-find lst val . rst)
+(defn (list-find lst val . rst)
   (let ((access (if (null? rst) (lambda (x) x) (car rst))))
     (let loop ((lst lst))
       (if (null? lst)
@@ -162,27 +181,27 @@
               lst
               (loop (cdr lst)))))))
 
-(define (map func lst)
+(defn (map func lst)
   (if (null? lst)
       '()
       (cons (func (car lst))
             (map func (cdr lst)))))
 
-(define (for-each func lst)
+(defn (for-each func lst)
   (let loop ((lst lst))
     (if (not (null? lst))
         (begin
           (func (car lst))
           (loop (cdr lst))))))
 
-(define (fold func acc lst)
+(defn (fold func acc lst)
   (if (null? lst)
       acc
       (fold func
             (func (car lst) acc)
             (cdr lst))))
 
-(define (reverse lst)
+(defn (reverse lst)
   (if (null? lst)
       '()
       (list-append (reverse (cdr lst))
@@ -190,7 +209,7 @@
 
 ;; this function is called on any function that captures rest
 ;; parameters, so avoid dependencies
-(define (vector->list vec)
+(defn (vector->list vec)
   (let loop ((i 0))
     (if (< i (%raw "vec.length"))
         (cons (vector-ref vec i)
@@ -199,7 +218,7 @@
 
 ;; vectors
 
-(define (make-vector count & val)
+(defn (make-vector count & val)
   (let ((v (%raw "new Array(count)")))
     (if val
         (let loop ((i 0))
@@ -210,16 +229,16 @@
               v))
         v)))
 
-(define (vector)
+(defn (vector)
   (%raw "Array.prototype.slice.call(arguments)"))
 
-(define (vector-ref vec i)
+(defn (vector-ref vec i)
   (%raw "vec[i]"))
 
-(define (vector-put! vec i obj)
+(defn (vector-put! vec i obj)
   (%raw "vec[i] = obj"))
 
-(define (vector-concat . vecs)
+(defn (vector-concat . vecs)
   (let loop ((lst (cdr vecs))
              (res (car vecs)))
     (if (null? lst)
@@ -227,13 +246,13 @@
         (loop (cdr lst)
               (res.concat (car lst))))))
 
-(define (vector-slice vec start & end)
+(defn (vector-slice vec start & end)
   (%raw "vec.slice(start, end || undefined)"))
 
-(define (vector-push! vec obj)
+(defn (vector-push! vec obj)
   (%raw "vec.push(obj)"))
 
-(define (vector-find vec val)
+(defn (vector-find vec val)
   (let loop ((i 0))
     (if (< i (%raw "vec.length"))
         (if (eq? (vector-ref vec i) val)
@@ -241,17 +260,17 @@
             (loop (+ i 1)))
         #f)))
 
-(define (vector-length vec) vec.length)
+(defn (vector-length vec) vec.length)
 
-(define (list->vector lst)
-  (define res (%raw "[]"))
+(defn (list->vector lst)
+  (defn res (%raw "[]"))
   (for-each (lambda (el)
               (res.push el))
             lst)
   res)
 
-(define (vector-map func vec)
-  (define res (%raw "[]"))
+(defn (vector-map func vec)
+  (defn res (%raw "[]"))
   (let loop ((i 0))
     (if (< i vec.length)
         (begin
@@ -259,14 +278,14 @@
           (loop (+ i 1)))))
   res)
 
-(define (vector-for-each func vec)
+(defn (vector-for-each func vec)
   (let loop ((i 0))
     (if (< i vec.length)
         (begin
           (func (vector-ref vec i))
           (loop (+ i 1))))))
 
-(define (vector-fold func acc vec)
+(defn (vector-fold func acc vec)
   (let loop ((i 0)
              (acc acc))
     (if (< i (vector-length vec))
@@ -276,9 +295,9 @@
 
 ;; dicts
 
-(define dict
+(defn dict
   (lambda args
-    (define res (%raw "{}"))
+    (defn res (%raw "{}"))
     (let loop ((lst args))
       (if (not (null? lst))
           (let ((key (car lst))
@@ -287,14 +306,14 @@
             (loop (cddr lst)))))
     res))
 
-(define (dict-put! dct k v)
+(defn (dict-put! dct k v)
   (%raw "dct[k.substring(1)] = v"))
 
-(define (dict-ref dct k)
+(defn (dict-ref dct k)
   (%raw "dct[k.substring(1)]"))
 
-(define (dict-map func dct)
-  (define res {})
+(defn (dict-map func dct)
+  (defn res {})
   (let loop ((lst (keys dct)))
     (if (not (null? lst))
         (let ((k (car lst)))
@@ -303,7 +322,7 @@
           (loop (cdr lst)))))
   res)
 
-(define (dict-merge . dcts)
+(defn (dict-merge . dcts)
   (let ((res {}))
     (for-each
      (lambda (dct)
@@ -312,8 +331,8 @@
      dcts)
     res))
 
-(define (dict->vector dct)
-  (define res [])
+(defn (dict->vector dct)
+  (defn res [])
   (let loop ((lst (keys dct)))
     (if (not (null? lst))
         (begin
@@ -322,22 +341,22 @@
           (loop (cdr lst)))))
   res)
 
-(define (dict->list dct)
+(defn (dict->list dct)
   (vector->list (dict->vector dct)))
 
-(define (keys dct)
+(defn (keys dct)
   (let ((res '()))
     (%raw "for(var k in dct) {
        res = cons(string_dash__gt_key(k), res);
     }")
     res))
 
-(define (vals dct)
+(defn (vals dct)
   (map (lambda (k) (dict-ref dct k))
        (keys dct)))
 
-(define (zip keys vals)
-  (define res {})
+(defn (zip keys vals)
+  (defn res {})
   (let loop ((ks keys)
              (vs vals))
     (if (not (null? ks))
@@ -348,23 +367,23 @@
 
 ;; not
 
-(define (not obj)
+(defn (not obj)
   (and (%raw "typeof obj !== 'number'")
        (%raw "!obj")))
 
 ;; equality
 
-(define (== obj1 obj2)
+(defn (== obj1 obj2)
   (%raw "obj1 === obj2"))
 
-(define (= obj1 obj2)
+(defn (= obj1 obj2)
   (cond
    ((and (list? obj1)
          (list? obj2))
     (let loop ((lst1 obj1)
                (lst2 obj2))
-      (define n1 (null? lst1))
-      (define n2 (null? lst2))
+      (defn n1 (null? lst1))
+      (defn n2 (null? lst2))
 
       (cond
        ((and n1 n2) #t)
@@ -400,21 +419,21 @@
    (else
     (eq? obj1 obj2))))
 
-(define eq? ==)
-(define equal? =)
+(defn eq? ==)
+(defn equal? =)
 
 ;; output
 
-(define (print msg)
+(defn (print msg)
   (util.print msg))
 
-(define (println msg)
+(defn (println msg)
   (util.puts msg))
 
-(define (pp obj)
+(defn (pp obj)
   (println (inspect obj)))
 
-(define (%inspect-non-sequence obj)
+(defn (%inspect-non-sequence obj)
   ;;(console.log "%inspect-non-sequence: " obj)
   (cond
    ((number? obj) (+ "" obj))
@@ -432,7 +451,7 @@
    ((function? obj) "<function>")
    (else (+ "<unknown " obj ">"))))
 
-(define (%recur-protect obj arg func halt . rest)
+(defn (%recur-protect obj arg func halt . rest)
   (let ((parents (if (null? rest) '() (car rest))))
     (if (list-find parents obj)
         halt
@@ -440,7 +459,7 @@
                         (%recur-protect el arg func halt
                                         (cons obj parents)))))))
 
-(define (%space obj)
+(defn (%space obj)
   ;;(console.log "%space: " (util.inspect obj))
   (%recur-protect
    obj
@@ -464,20 +483,20 @@
        (vector-length (%inspect-non-sequence obj)))))
    (vector-length "<circular>")))
 
-(define (inspect obj . rest)
+(defn (inspect obj . rest)
   ;;(console.log "inspect: " obj)
   (let ((no-newlines (if (null? rest) #f (car rest))))
     (%recur-protect
      obj
      1
      (lambda (obj i recur)
-       (define buffer "")
-       (define (get-buffer) buffer)
+       (defn buffer "")
+       (defn (get-buffer) buffer)
 
-       (define (disp s)
+       (defn (disp s)
          (set! buffer (+ buffer s)))
 
-       (define (pad n)
+       (defn (pad n)
          (vector-for-each (lambda (_) (disp " "))
                           (make-vector n)))
 
@@ -507,7 +526,7 @@
                                   (if (and sp (not no-newlines))
                                       (begin (disp "\n")
                                              (pad i))
-                                      (disp " ")))                            
+                                      (disp " ")))
                               (disp (recur el (+ i 1)))
                               (set! first #f))
                             obj)
@@ -539,60 +558,60 @@
 
 ;; misc
 
-(define (apply func args)
+(defn (apply func args)
   ((%raw "func.apply")
    (%raw "null")
    (list->vector args)))
 
-(define (trampoline-result? value)
+(defn (trampoline-result? value)
   (and (vector? value)
        (= (vector-ref value 0) "__tco_call")))
 
-(define (trampoline value)
+(defn (trampoline value)
   (%raw "while(trampoline_dash_result_p_(value)) { value = value[1](); }")
   value)
 
 ;; gensym
 
-(define %gensym-base 0)
+(defn %gensym-base 0)
 
-(define (gensym-fresh)
+(defn (gensym-fresh)
   (set! %gensym-base 10000))
 
-(define (gensym)
+(defn (gensym)
   (set! %gensym-base (+ %gensym-base 1))
   (string->symbol (+ "o" %gensym-base)))
 
 ;; cps
 
-(define %breakpoints-flag #t)
+(defn %breakpoints-flag #t)
 
-(define (breakpoint thunk-msg)
+(defn (breakpoint thunk-msg)
   (set! %next-thunk thunk-msg)
   (debugger-step (vector-ref thunk-msg 1)))
 
-(define debugger-step? #f)
-(define (start-stepping)
+(defn debugger-step? #f)
+(defn (start-stepping)
   (set! debugger-step? #t))
 
-(define (stop-stepping)
+(defn (stop-stepping)
   (set! debugger-step? #f))
 
-(define (debugger-stepping?)
+(defn (debugger-stepping?)
   (not (== %next-thunk #f)))
 
-(define (enable-breakpoints)
+(defn (enable-breakpoints)
   (set! %breakpoints-flag #t))
 
-(define (disable-breakpoints)
+(defn (disable-breakpoints)
   (set! %breakpoints-flag #f))
 
-(define (debugger-continue)
+(defn (debugger-continue)
   (let ((thunk ((vector-ref %next-thunk 2))))
     (set! %next-thunk #f)
     (cps-trampoline thunk)))
 
-;; (define (debugger-step msg)
+;; (defn (debugger-step msg)
 ;;   (println msg)
 ;;   (print "continue? ")
 ;;   (process.stdin.resume))
@@ -603,9 +622,9 @@
 ;;    (process.stdin.pause)
 ;;    (debugger-continue)))
 
-(define %next-thunk #f)
+(defn %next-thunk #f)
 
-(define (cps-trampoline thunk_msg)
+(defn (cps-trampoline thunk_msg)
   (%raw "while(thunk_msg) {
      if(_per_breakpoints_dash_flag && (thunk_msg[0] || debugger_dash_step_p_)) {
        breakpoint(thunk_msg);
@@ -614,8 +633,8 @@
      thunk_msg = thunk_msg[2](); }")
   #f)
 
-(define (cps-jump breakpoint msg to)
+(defn (cps-jump breakpoint msg to)
   [breakpoint msg to])
 
-(define (cps-halt v)
+(defn (cps-halt v)
   `((lambda () ,v #f)))

@@ -3,136 +3,162 @@
          (ast "./ast")
          (js "./backends/js")
          (cps "./cps"))
-
-(define (self-evaluating? exp)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn self-evaluating? [exp]
   (or (number? exp)
       (string? exp)
       (boolean? exp)
       (null? exp)
       (key? exp)))
-
-(define (alternating-map func lst . former?)
-  (let loop ((lst lst)
-             (acc '()))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn alternating-map [func lst . former?]
+  (loop [lst lst
+         acc '()]
     (if (or (null? lst)
             (null? (cdr lst)))
-        acc
-        (loop (cddr lst)
-              (cons (if (not (null? former?))
-                        (func (car lst))
-                        (car lst))
-                    (cons (if (null? former?)
-                              (func (cadr lst))
-                              (cadr lst))
-                          acc))))))
-
-(define (opt arg def)
+      acc
+      (recur (cddr lst)
+             (cons (if (not (null? former?))
+                     (func (car lst))
+                     (car lst))
+                   (cons (if (null? former?)
+                           (func (cadr lst))
+                           (cadr lst))
+                         acc))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn opt [arg def]
   (if (null? arg) def (car arg)))
-
-(define (assert cnd msg)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn assert [cnd msg]
   (if (not cnd)
       (throw msg)))
 
 ;; macros
-
-(define (expand node)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn expand [node]
   (cond
-   ((ast.atom? node) node)
-   ((ast.vector? node) (ast.copy-node
-                        node
-                        (map (lambda (e) (expand e))
-                             (ast.node-data node))))
-   ((ast.dict? node) (ast.copy-node
-                      node
-                      (map (lambda (e) (expand e))
-                           (ast.node-data node))))
-   ((or (== (ast.first* node) 'quote)
-        (== (ast.first* node) 'quasiquote))
-    node)
-   ((== (ast.first* node) 'lambda)
+    (ast.atom? node) node
+    (ast.vector? node)
     (ast.copy-node
-     node
-     (cons (ast.first node)
-           (cons (cadr (ast.node-data node))
-                 (map (lambda (e) (expand e))
-                      (cddr (ast.node-data node)))))))
-   ((macro? (ast.first* node))
-    (let ((res ((macro-function (ast.first* node)) (desourcify node))))
-      (expand (sourcify
+      node
+      (map (fn (e) (expand e))
+           (ast.node-data node)))
+    (ast.dict? node)
+    (ast.copy-node
+      node
+      (map (fn (e) (expand e))
+           (ast.node-data node)))
+    (or (= (ast.first* node) 'quote)
+        (= (ast.first* node) 'quasiquote))
+    node
+    (= (ast.first* node) 'lambda)
+    (ast.copy-node
+      node
+      (cons (ast.first node)
+            (cons (cadr (ast.node-data node))
+                  (map (lambda (e) (expand e))
+                       (cddr (ast.node-data node))))))
+   (macro? (ast.first* node))
+   (let [res ((macro-function (ast.first* node))
+              (desourcify node))]
+     (expand (sourcify
                res
                (ast.node-lineno node)
-               (ast.node-colno node)))))
-   (else (ast.copy-node node
-                        (map expand (ast.node-data node))))))
-
-(define %macros {})
-
-(define (macro-function name)
+               (ast.node-colno node))))
+   :else
+   (ast.copy-node node
+                  (map expand (ast.node-data node)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def %macros {})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn macro-function [name]
   (dict-ref %macros name))
-
-(define (install-macro name f)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn install-macro [name f]
   (dict-put! %macros name f))
-
-(define (macro? name)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn macro? [name]
   (and (symbol? name)
        (dict-ref %macros (symbol->key name))
        #t))
-
-(define macro-generator #f)
-
-(define (make-macro pattern body)
-  (let ((x (gensym)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def macro-generator #f)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn make-macro [pattern body]
+  (let [x (gensym)]
     ;; compile the macro into native code and use the host's native
     ;; eval to eval it into a function. we don't use outlet's eval
     ;; because that would create a circular dependency.
-    (let ((s `(lambda (,x)
+    (let [s `(lambda [,x]
                 (apply (lambda ,pattern ,@body)
-                       (cdr ,x))))
-          (p (compile-program s (macro-generator.make-fresh))))
+                       (cdr ,x)))
+          p (compile-program
+              s (macro-generator.make-fresh))]
       ((%raw "eval") p))))
-
-(define (sourcify exp lineno colno)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn sourcify [exp lineno colno]
   (cond
-   ((or (self-evaluating? exp)
+    (or (self-evaluating? exp)
         (symbol? exp))
-    (ast.make-node 'ATOM exp lineno colno))
-   ((vector? exp)
+    (ast.make-node 'ATOM exp lineno colno)
+    (vector? exp)
     (ast.make-node 'VECTOR
-                   (map (lambda (e) (sourcify e lineno colno))
+                   (map (fn [e]
+                          (sourcify e lineno colno))
                         (vector->list exp))
-                   lineno colno))
-   ((dict? exp)
+                   lineno colno)
+    (dict? exp)
     (ast.make-node 'DICT
-                   (map (lambda (e) (sourcify e lineno colno))
+                   (map (fn [e]
+                          (sourcify e lineno colno))
                         (dict->list exp))
-                   lineno colno))
-   (else
-    (ast.make-node 'LIST (map (lambda (e) (sourcify e lineno colno))
-                              exp)
-                   lineno colno))))
+                   lineno colno)
+    :else
+    (ast.make-node
+      'LIST
+      (map (fn [e] (sourcify e lineno colno)) exp)
+      lineno colno)))
 
-(define (desourcify node)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn desourcify [node]
   (cond
-   ((ast.atom? node) (ast.node-data node))
-   ((ast.vector? node) (list->vector (map desourcify (ast.node-data node))))
-   ((ast.dict? node) (apply dict (map desourcify (ast.node-data node))))
-   ((ast.list? node) (map desourcify (ast.node-data node)))
-   (else
-    (throw (str "unknown node type: " node)))))
+    (ast.atom? node) (ast.node-data node)
+    (ast.vector? node)
+    (list->vector (map desourcify (ast.node-data node)))
+    (ast.dict? node)
+    (apply dict (map desourcify (ast.node-data node)))
+    (ast.list? node)
+    (map desourcify (ast.node-data node))
+    :else
+     (throw (str "unknown node type: " node))))
 
 ;; system macros
 
 (install-macro
  'define-macro
- (lambda (form)
-   (let ((sig (cadr form)))
-     (let ((name (car sig))
-           (pattern (cdr sig))
-           (body (cddr form)))
+ (lambda [form]
+   (let [sig (cadr form)]
+     (let [name (car sig)
+           pattern (cdr sig)
+           body (cddr form)]
        ;; install it during expand-time
        (install-macro name (make-macro pattern body))
        #f))))
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (install-macro
  'cond
  (lambda (form)
@@ -196,7 +222,7 @@
                                     code
                                     (keys vars)))
                           acc)))))))
-   
+
    (define (tco exprs exit)
      (define (if? expr)
        (and (list? expr)
@@ -205,11 +231,11 @@
      (define (let? expr)
        (and (list? expr)
             (== (car expr) 'let)))
-     
+
      (define (begin? expr)
        (and (list? expr)
             (== (car expr) 'begin)))
-     
+
      (define (tco? expr)
        (and (list? expr)
             (== (car expr) exit)))
@@ -221,7 +247,7 @@
            `(if ,(cadr expr)
                 ,(transform (caddr expr))
                 ,(transform (car (cdddr expr))))))
-     
+
      (let ((rexprs (reverse exprs)))
        (let ((bottom (car rexprs)))
          (cond
@@ -232,7 +258,7 @@
                                 (cond
                                  ((begin? expr) (tco expr exit))
                                  ((let? expr) (tco expr exit))
-                                 (else 
+                                 (else
                                   (car (tco (list expr) exit))))))
                   (cdr rexprs))))
           ((let? bottom)
@@ -256,7 +282,7 @@
                 ;; test the name of the loop call and make sure its the
                 ;; same one
                 (= (car body) name)))))
-     
+
      (if (list? expr)
          (or (_tco? expr)
              (fold (lambda (el acc)
@@ -265,7 +291,7 @@
                    #f
                    expr))
          #f))
-   
+
    (let ((name (if (symbol? (cadr form))
                    (cadr form)
                    (gensym)))
@@ -399,7 +425,7 @@
             (symbol? lst))
         (apply-w/unquote func-name (ast.make-list* (list lst)))
         (apply-w/unquote func-name (ast.make-list* lst))))
-  
+
   (let loop ((nodes lst)
              (slices '())
              (acc '()))
@@ -584,7 +610,7 @@
     ;;                            ,((cps.cps src) cps-halt))))))))
     ;;     ;;(pp (desourcify src))
     ;;     (compile src generator)))
-    
+
     (generator.get-code)))
 
 (set! module.exports {:read (lambda (e) (desourcify (reader.read e)))

@@ -55,12 +55,12 @@
 (defn is-atom? "" [node]
   (or (is-type? node 'ATOM)
       (and (is-type? node 'LIST)
-           (nil? (node-data node)))))
+           (null? (node-data node)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn is-list? "" [node]
   (and (is-type? node 'LIST)
-       (not (nil? (node-data node)))))
+       (not (null? (node-data node)))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn is-vector? "" [node] (is-type? node 'VECTOR))
@@ -71,7 +71,7 @@
 ;;
 (defn is-empty-list? "" [node]
   (and (is-type? node 'LIST)
-       (nil? (node-data node))))
+       (null? (node-data node))))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn make-atom "" [type parent]
