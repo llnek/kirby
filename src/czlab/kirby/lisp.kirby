@@ -34,7 +34,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- invoke-macro? "" [ast env]
+(defn- macro? "" [ast env]
   (and (list? ast)
        (symbol? (car ast))
        (.find env (car ast))
@@ -45,7 +45,7 @@
 (defn macroexpand "" [ast env]
   (loop [env env
          ast ast]
-    (if-not (invokeMacro? ast env)
+    (if-not (macro? ast env)
       ast
       (let [m (.get env (car ast))]
         (recur env
@@ -54,152 +54,172 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- evalAst "" [ast env]
-    if (types._symbol_Q(ast)) {
-        return env.get(ast);
-    } else if (types._list_Q(ast)) {
-        return ast.map(function(a) { return EVAL(a, env); });
-    } else if (types._vector_Q(ast)) {
-        var v = ast.map(function(a) { return EVAL(a, env); });
-        v.__isvector__ = true;
-        return v;
-    } else if (types._hash_map_Q(ast)) {
-        var new_hm = {};
-        for (k in ast) {
-            new_hm[EVAL(k, env)] = EVAL(ast[k], env);
-        }
-        return new_hm;
-    } else {
-        return ast;
-    }
-}
+  (cond
+    (symbol? ast)
+    (.get env ast)
+    ;--
+    (list? ast)
+    (map (fn [a] (EVAL a env)) ast)
+    ;--
+    (vector? ast)
+    (doto (map (fn [a]
+                 (EVAL a env)) ast)
+      (set! :eTYPE tkn-vector))
+    ;--
+    (map? ast)
+    (reduce
+      (fn [acc k]
+        (set! acc
+              (EVAL k env)
+              (EVAL (get ast k) env))
+        acc)
+      {}
+      (keys ast))
+    :else ast))
 
-function _EVAL(ast, env) {
-    while (true) {
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- _EVAL [ast env]
+  (var ret nil loop? true)
+  (while loop?
+    (if (list? ast)
+      (set! ast (macroexpand ast env)))
+    (set! loop? false)
+    (set!
+      ret
+      (cond
+        (not (list? ast))
+        (evalAst ast env)
+        (empty? ast)
+        ast
+        (case (.-value (nth ast 0))
+          "def!"
+          (.set env
+                (nth ast 1)
+                (EVAL (nth ast 2) env))
+          "let*"
+          (let [letenv (new Env env)
+                a1 (nth ast 1)]
+            (for ((i 0)(< i (alen a1))(i (+ i 2)))
+              (.set letenv
+                    (nth a1 i)
+                    (EVAL (nth a1 (inc i)) letenv)))
+            (set! ast (nth ast 2))
+            (set! env letenv)
+            (set! loop? true))
+          "quote" (nth ast 1)
+          "quasiquote"
+          (do (set! ast (quasi-quote (nth ast 1)))
+              (set! loop? true))
+          "defmacro!"
+          (let [func (EVAL (nth ast 2) env)]
+            (set! func :macro true)
+            (.set env (nth ast 1) func))
+          "macroexpand"
+          (macroexpand (nth ast 1) env)
+          "try*"
+          (let [a2 (nth ast 2)]
+            (try
+              (EVAL (nth ast 1) env)
+              (catch ex
+                (if (and a2
+                         (eq? "catch*" (car a2)))
+                  (EVAL (nth a2 2)
+                        (new Env env [(nth a2 1)] [ex]))
+                  (throw ex)))))
+          "do"
+          (do (evalAst (slice ast 1 -1) env)
+              (set! ast (nth ast (dec (alen ast))))
+              (set! loop? true))
+          "if"
+          (let [cond (EVAL (nth ast 1) env)
+                a2 (nth ast 2)
+                a3 (nth ast 3)]
+            (if (or (nil? cond)
+                    (false? cond))
+              (set! ast
+                    (if (undef? a3) null a3))
+              (set! ast a2))
+            (set! loop? true))
+          "fn*"
+          (_function EVAL Env (nth ast 2) env (nth ast 1))
+          ;--
+          (let [el (evalAst ast env)
+                f (nth el 0)]
+            (if (get f "____ast")
+              (do (set! ast (get f "____ast"))
+                  (set! env (.____genenv f (slice el 1)))
+                  (set! loop? true))
+              (.apply f f (slice el 1))))))))
+  ret)
 
-    //printer.println("EVAL:", printer._pr_str(ast, true));
-    if (!types._list_Q(ast)) {
-        return eval_ast(ast, env);
-    }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- EVAL [ast env]
+  (var ret (_EVAL ast env))
+  (if (undef? ret) null ret))
 
-    // apply list
-    ast = macroexpand(ast, env);
-    if (!types._list_Q(ast)) {
-        return eval_ast(ast, env);
-    }
-    if (ast.length === 0) {
-        return ast;
-    }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- PRINT [expr]
+    (pstr expr true))
 
-    var a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
-    switch (a0.value) {
-    case "def!":
-        var res = EVAL(a2, env);
-        return env.set(a1, res);
-    case "let*":
-        var let_env = new Env(env);
-        for (var i=0; i < a1.length; i+=2) {
-            let_env.set(a1[i], EVAL(a1[i+1], let_env));
-        }
-        ast = a2;
-        env = let_env;
-        break;
-    case "quote":
-        return a1;
-    case "quasiquote":
-        ast = quasiquote(a1);
-        break;
-    case 'defmacro!':
-        var func = EVAL(a2, env);
-        func._ismacro_ = true;
-        return env.set(a1, func);
-    case 'macroexpand':
-        return macroexpand(a1, env);
-    case "try*":
-        try {
-            return EVAL(a1, env);
-        } catch (exc) {
-            if (a2 && a2[0].value === "catch*") {
-                if (exc instanceof Error) { exc = exc.message; }
-                return EVAL(a2[2], new Env(env, [a2[1]], [exc]));
-            } else {
-                throw exc;
-            }
-        }
-    case "do":
-        eval_ast(ast.slice(1, -1), env);
-        ast = ast[ast.length-1];
-        break;
-    case "if":
-        var cond = EVAL(a1, env);
-        if (cond === null || cond === false) {
-            ast = (typeof a3 !== "undefined") ? a3 : null;
-        } else {
-            ast = a2;
-        }
-        break;
-    case "fn*":
-        return types._function(EVAL, Env, a2, env, a1);
-    default:
-        var el = eval_ast(ast, env), f = el[0];
-        if (f.__ast__) {
-            ast = f.__ast__;
-            env = f.__gen_env__(el.slice(1));
-        } else {
-            return f.apply(f, el.slice(1));
-        }
-    }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(def repl_env (new Env))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn rep [str]
+  (PRINT (EVAL (READ str) repl_env)))
 
-    }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(each-key (fn [v k]
+            (.set repl_env (symbol k) v)) core.exports)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(.set repl_env (symbol "*ARGV*") [])
+(.set repl_env
+      (symbol "eval")
+      (fn [ast] (EVAL ast repl_env)))
 
-function EVAL(ast, env) {
-    var result = _EVAL(ast, env);
-    return (typeof result !== "undefined") ? result : null;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(rep "(def! *host-language* \"javascript\")")
+(rep "(def! not (fn* (a) (if a false true)))")
+(rep "(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))")
+(rep "(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))")
+(rep "(def! *gensym-counter* (atom 0))")
+(rep "(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))")
+(rep "(defmacro! or (fn* (& xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))")
 
-// print
-function PRINT(exp) {
-    return printer._pr_str(exp, true);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(when (and (isdef? process)
+           (> (alen process.argv) 2))
+  (.set repl_env (symbol "*ARGV*")
+        (slice process.argv 3))
+  (rep "(load-file '" (nth process.argv 2) "')")
+  (.exit process 0))
 
-// repl
-var repl_env = new Env();
-var rep = function(str) { return PRINT(EVAL(READ(str), repl_env)); };
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(when (and (isdef? require)
+           (= module require.main))
+  (rep "(println (str \"Mal [\" *host-language* \"]\"))")
+  (var line nil stop? false)
+  (while (not stop?)
+    (set! line (.readline readline "user> "))
+    (if (nil? line)
+      (set! stop? true)
+      (try
+        (println (rep line))
+        (catch ex
+          (when-not (inst? BlankError)
+            (if (.-stack ex)
+              (println (.-stack ex))
+              (println ex))))))))
 
-// core.js: defined using javascript
-for (var n in core.ns) { repl_env.set(types._symbol(n), core.ns[n]); }
-repl_env.set(types._symbol('eval'), function(ast) {
-    return EVAL(ast, repl_env); });
-repl_env.set(types._symbol('*ARGV*'), []);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
-// core.mal: defined using the language itself
-rep("(def! *host-language* \"javascript\")")
-rep("(def! not (fn* (a) (if a false true)))");
-rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))");
-rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))");
-rep("(def! *gensym-counter* (atom 0))");
-rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
-rep("(defmacro! or (fn* (& xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
-
-if (typeof process !== 'undefined' && process.argv.length > 2) {
-    repl_env.set(types._symbol('*ARGV*'), process.argv.slice(3));
-    rep('(load-file "' + process.argv[2] + '")');
-    process.exit(0);
-}
-
-// repl loop
-if (typeof require !== 'undefined' && require.main === module) {
-    // Synchronous node.js commandline mode
-    rep("(println (str \"Mal [\" *host-language* \"]\"))");
-    while (true) {
-        var line = readline.readline("user> ");
-        if (line === null) { break; }
-        try {
-            if (line) { printer.println(rep(line)); }
-        } catch (exc) {
-            if (exc instanceof reader.BlankException) { continue; }
-            if (exc.stack) { printer.println(exc.stack); }
-            else           { printer.println(exc); }
-        }
-    }
-}
