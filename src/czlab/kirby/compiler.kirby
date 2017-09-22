@@ -1093,3 +1093,94 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 
+(defn- compile [root]
+
+  (var pstr ""
+       endx (eindex root)
+       treeSize (alen root))
+
+  (+= indent tabspace)
+  (set! pstr (pad indent))
+
+  (do-with [ret (tnode)]
+    (nodeTag ret
+             (get root "source")
+             (get root "line")
+             (get root "column")
+             tkn-tree)
+    (each
+      (fn [expr i]
+        (var name (car expr)
+             r ""
+             tmp (if (array? expr)
+                   (compileList expr) expr))
+        (when (and (array? tmp)
+                   (= tkn-ns (.-eTYPE tmp)))
+          (each (fn [x] (.add ret x)) tmp)
+          (set! tmp nil))
+        (if (and (= i endx)
+                 (not= 0 indent)
+                 (not (re-test? REGEX.noret name)))
+          (set! r "return "))
+        (when tmp
+          (.add ret [(str pstr r)
+                     tmp
+                     (if-not noSemi? ";" "") "\n"])
+          (set! noSemi? false))) root)
+    (-= indent tabspace)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- re-test? [regex obj]
+  (.test regex
+         (if (symbol? obj) (.-value obj) obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- compileList [expr]
+
+  (var cmd "" tmp nil mc nil)
+
+  (cond
+    (= tkn-object (.-eTYPE expr)) (set! cmd "{")
+    (= tkn-array (.-eTYPE expr)) (set! cmd "[")
+    :else
+    (do (set! cmd (name?? (car expr)))
+        (set! mc (get MACROS-MAP cmd))))
+
+  (cond
+    (some? mc)
+    (eval?? (evalMacro mc expr))
+
+    (.startsWith cmd ".-")
+    (do-with [ret (tnode)]
+      (.add ret (eval?? (cadr expr)))
+      (.prepend ret "(")
+      (.add ret [")[\"" (.slice cmd 2) "\"]"]))
+
+    (= (.charAt cmd 0) ".")
+    (do-with [ret (tnode)]
+      (.add ret (eval?? (cadr expr)))
+      (.add ret [(car expr) "("])
+      (for ((i 2) (< i (alen expr)) (i (inc i)))
+        (if (not= i 2) (.add ret ","))
+        (.add ret (eval?? (nth expr i))))
+      (.add ret ")"))
+
+    (.hasOwnProperty SPECIAL-OPS cmd)
+    ((get SPECIAL-OPS cmd) expr)
+
+    :else
+    (do (evalAtoms expr)
+        (set! cmd (car expr))
+        (if-not cmd (syntax! :e1 expr))
+        (if (REGEX.func.test cmd)
+          (set! cmd (tnodeEx ["(" cmd ")"])))
+        (tnodeEx [cmd "("
+                  (-> (.slice expr 1)
+                      (tnodeEx )
+                      (.join  ",")) ")"]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+

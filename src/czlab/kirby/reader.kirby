@@ -24,7 +24,9 @@
 (defn- Atom [v] (set! this "value" v) this)
 (set! Keyword.prototype.toString (fn [] (.-value this)))
 (set! Symbol.prototype.toString (fn [] (.-value this)))
-(set! Atom.prototype.toString (fn [] (.-value this)))
+(set! Atom.prototype.toString
+      (fn []
+        (str (or (.-value this) "null"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
