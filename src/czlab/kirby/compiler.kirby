@@ -1142,36 +1142,36 @@
   (var cmd "" tmp nil mc nil)
 
   (cond
-    (= tkn-object (.-eTYPE expr)) (set! cmd "{")
-    (= tkn-array (.-eTYPE expr)) (set! cmd "[")
+    (= tkn-vector (.-eTYPE expr)) (set! cmd "[")
+    (= tkn-map (.-eTYPE expr)) (set! cmd "{")
     :else
-    (do (set! cmd (name?? (car expr)))
+    (do (set! cmd (desymbol (car expr)))
         (set! mc (get MACROS-MAP cmd))))
 
   (cond
     (some? mc)
-    (eval?? (evalMacro mc expr))
-
+    (compile?? (applyMacro mc expr))
+    ;--
     (.startsWith cmd ".-")
     (do-with [ret (tnode)]
-      (.add ret (eval?? (cadr expr)))
+      (.add ret (compile?? (cadr expr)))
       (.prepend ret "(")
       (.add ret [")[\"" (.slice cmd 2) "\"]"]))
-
+    ;--
     (= (.charAt cmd 0) ".")
     (do-with [ret (tnode)]
-      (.add ret (eval?? (cadr expr)))
+      (.add ret (compile?? (cadr expr)))
       (.add ret [(car expr) "("])
       (for ((i 2) (< i (alen expr)) (i (inc i)))
         (if (not= i 2) (.add ret ","))
-        (.add ret (eval?? (nth expr i))))
+        (.add ret (compile?? (nth expr i))))
       (.add ret ")"))
 
     (.hasOwnProperty SPECIAL-OPS cmd)
     ((get SPECIAL-OPS cmd) expr)
 
     :else
-    (do (evalAtoms expr)
+    (do (compileAtoms expr)
         (set! cmd (car expr))
         (if-not cmd (syntax! :e1 expr))
         (if (REGEX.func.test cmd)
@@ -1180,6 +1180,24 @@
                   (-> (.slice expr 1)
                       (tnodeEx )
                       (.join  ",")) ")"]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- compile?? [x]
+  (if (array? x) (compileList x) x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- compileAtoms [cells]
+  (each
+    (fn [cell i cc]
+      (if (array? cell)
+        (set! cc i (compileList cell)))) cells))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- dekeyword [s] (.-value k))
+(defn- desymbol [s] (.-value s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
