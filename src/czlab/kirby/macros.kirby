@@ -316,6 +316,7 @@
 (defmacro first [coll] (nth ~coll 0))
 
 (defmacro car "index 0" [coll] (first ~coll))
+(defmacro cdr [c] (drop ~c 1))
 (defmacro cadr "index 1" [coll] (second ~coll))
 (defmacro caddr "index 2" [coll] (third ~coll))
 (defmacro cadddr "index 3" [coll] (fourth ~coll))

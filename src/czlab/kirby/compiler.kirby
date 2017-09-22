@@ -11,9 +11,7 @@
 
   czlab.kirby.compiler
 
-  (include "./reader.kirby")
-  (include "./play.kirby")
-  )
+  (include "./reader.kirby"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -1030,7 +1028,7 @@
 ;;
 (defn- compileCode [codeStr fname withSrcMap?]
 
-  ;;(dumpTree (parseSource codeStr fname))
+  (dumpTree (parser codeStr fname))
 
   (when-not loadedMacros?
     (set! loadedMacros? true)

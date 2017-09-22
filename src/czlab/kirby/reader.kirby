@@ -19,6 +19,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- Keyword [s] (set! this "value" s) this)
+(defn- Symbol [s] (set! this "value" s) this)
+(defn- Atom [v] (set! this "value" v) this)
+(set! Keyword.prototype.toString (fn [] (.-value this)))
+(set! Symbol.prototype.toString (fn [] (.-value this)))
+(set! Atom.prototype.toString (fn [] (.-value this)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
 (defn- vector? [obj] (and (array? obj) (= tkn-vector (.-eTYPE obj))))
 (defn- map? [obj] (and (object? obj) (= tkn-map (.-eTYPE obj))))
 (defn- list? [obj] (and (array? obj) (= tkn-list (.-eTYPE obj))))
@@ -61,11 +70,11 @@
              "/=" "%=" "<<="
              ">>=" ">>>=" "&=" "|=" "^="]
    "builtin" ["quote" "syntax-quote" "quasi-quote"
-              "unquote" "unquote-splice"
+              "backtick" "unquote" "unquote-splice"
               "repeat-n" "do" "doto" "case"
               "range" "def-" "def" "var"
-              "new" "throw" "while"
-              "inst?"
+              "new" "throw" "while" "lambda"
+              "inst?" "delete!"
               "aset" "set!" "fn"
               "defn-" "defn"
               "try" "if" "get" "aget" "str"
@@ -308,4 +317,365 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- throwE [token msg]
+  (throw (new Error
+              (if token
+                (str msg
+                     "\nnear line " token.line
+                     "\nin file " token.source)
+                (str msg "\nnear EOF ")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- nextToken [tokens]
+  (do-with [t (nth tokens
+                   tokens.pos)] (++ tokens.pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- peekToken [tokens] (nth tokens tokens.pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- atom [v] (new Atom v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- symbol [s] (new Symbol s))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- keyword [k] (new Keyword k))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- copyTokenData [token node]
+  (when node
+    (set! node "source" (get token "source"))
+    (set! node "line" (get token "line"))
+    (set! node "column" (get token "column")))
+  node)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readAtom "" [tokens]
+  (var token (nextToken tokens)
+       tn (or (if token (.-name token)) ""))
+  (->> (cond
+         (empty? tn) undefined
+         (REGEX.float.test tn) (atom (parseFloat tn))
+         (or (REGEX.hex.test tn)
+             (REGEX.int.test tn)) (atom (parseInt tn))
+         (and (.startsWith tn  "\"")
+              (.endsWith tn "\"")) (atom tn)
+         (.startsWith tn ":") (keyword (.slice tn 1))
+         (or (= "nil" tn)
+             (= "null" tn)) (atom null)
+         (= "true" tn) (atom true)
+         (= "false" tn) (atom false)
+         :else (symbol tn))
+       (copyTokenData token )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readBlock [tokens head tail]
+
+  (var token (nextToken tokens)
+       tn (if token (.-name token)))
+
+  (if (not= tn head)
+    (throwE token (str "expected '" head "'")))
+
+  (do-with
+    [ret
+     (loop [ast []
+            cur (peekToken tokens)]
+       (if (or (nichts? cur)
+               (= tail (.-name cur)))
+         (if cur
+           (copyTokenData token ast)
+           (throwE cur (str "expected '" tail "', got EOF")))
+         (recur (addAst ast
+                        (readTokens tokens))
+                (peekToken tokens))))]
+    (nextToken tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readList [cur tokens]
+  (do-with [v (readBlock tokens "(" ")")]
+           (set! v "eTYPE" tkn-list)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readVector [cur tokens]
+  (do-with [v (readBlock tokens "[" "]")]
+           (set! v "eTYPE" tkn-vector)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readObject [cur tokens]
+  (do-with [v (readBlock tokens "{"  "}")]
+    (if (odd? (count v))
+      (throwE cur "expected even count in map"))
+    (set! v "eTYPE" tkn-map)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- skipAndParse [tokens func]
+  (var cur (nextToken tokens))
+  (copyTokenData cur (func tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- readTokens [tokens]
+  (var tmp nil
+       token (peekToken tokens))
+  (when (some? token)
+    (case (.-name token)
+      "'" (skipAndParse tokens
+                        (# [(symbol "quote")
+                            (readTokens tokens)]))
+      ;--
+      "`" (skipAndParse tokens
+                        (# [(symbol "backtick")
+                            (readTokens tokens)]))
+      ;--
+      "~" (skipAndParse tokens
+                        (# [(symbol "unquote")
+                            (readTokens tokens)]))
+      ;--
+      "~@" (skipAndParse tokens
+                         (# [(symbol "splice-unquote")
+                             (readTokens tokens)]))
+      ;--
+      "^" (skipAndParse tokens
+                        (# (set! tmp (readTokens tokens))
+                           [(symbol "with-meta")
+                            (readTokens tokens) tmp]))
+      ;--
+      "@" (skipAndParse tokens
+                        (# [(symbol "deref")
+                            (readTokens tokens)]))
+      ;--
+      ")" (throwE token "unexpected ')'")
+      "(" (readList token tokens)
+      ;--
+      "]" (throwE token "unexpected ']'")
+      "[" (readVector token tokens)
+      ;--
+      "}" (throwE token "unexpected '}'")
+      "{" (readObject token tokens)
+      ;--
+      (";" ",") (do->undef (nextToken tokens))
+      ;--
+      (readAtom tokens))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- addAst "" [ast f]
+  (if (def? f) (.push ast f)) ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- parser "" [source fname]
+  (var tokens (tokenize source fname)
+       tlen (count tokens))
+  (set! tokens "pos" 0)
+  (do-with [ast []]
+    (loop [f (readTokens tokens)]
+      (addAst ast f)
+      (if-not (< (.-pos tokens) tlen)
+        ast
+        (recur (readTokens tokens))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- tokenize "" [source fname]
+  (var len (count source)
+       token ""
+       line 1
+       tcol 0
+       col 0
+       pos 0
+       ch nil
+       nx nil
+       esc? false
+       str? false
+       comment? false)
+
+  (do-with [tree []]
+    (var toke! (fn [ln col s]
+                 (if s
+                   (.push tree
+                          (tnode fname ln col s s))) ""))
+    (while (< pos len)
+      (set! ch (.charAt source pos))
+      (++ col)
+      (++ pos)
+      (set! nx (.charAt source pos))
+      (when (= ch "\n")
+        (set! col 0)
+        (++ line)
+        (if comment? (toggle! comment?)))
+      (cond
+        ;--
+        comment?
+        nil
+        ;--
+        esc?
+        (do (toggle! esc?)
+            (+= token ch))
+        ;--
+        (= ch "\"")
+        (if-not str?
+          (do (set! tcol col)
+              (toggle! str?)
+              (+= token ch))
+          (do (toggle! str?)
+              (+= token ch)
+              (set! token (toke! line tcol token))))
+        ;--
+        str?
+        (do (if (= ch "\n") (set! ch "\\n"))
+            (if (= ch "\\") (set! esc? true))
+            (+= token ch))
+        ;--
+        (or (= ch "'") (= ch "`")
+            (= ch "@") (= ch "^"))
+        (if (and (empty? token)
+                 (not (REGEX.wspace.test nx)))
+          (do (set! tcol col)
+              (toke! line tcol ch))
+          (+= token ch))
+        ;--
+        (= ch "~")
+        (if (and (empty? token)
+                 (not (REGEX.wspace.test nx)))
+          (do (set! tcol col)
+              (if (= nx "@")
+                (do (++ pos)
+                    (toke! line tcol "~@"))
+                (toke! line tcol ch)))
+          (+= token ch))
+        ;--
+        (or (= ch "[") (= ch "]")
+            (= ch "{") (= ch "}")
+            (= ch "(") (= ch ")"))
+        (do (set! token (toke! line tcol token))
+            (set! tcol col)
+            (toke! line tcol ch))
+        ;--
+        (= ch ";")
+        (do (set! token (toke! line tcol token))
+            (set! tcol col)
+            (set! comment? true))
+        ;-- comma treated as whitespace
+        (or (= ch ",")
+            (REGEX.wspace.test ch))
+        (set! token
+              (toke! (if (= ch "\n")
+                          (dec line) line) tcol token))
+        :else
+        (do (when (empty? token) (set! tcol col))
+            (+= token ch))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- dumpTree [tree]
+  (var obj nil
+       indent (or (nth arguments 1) 0)
+       pad (.repeat " " indent))
+  (for ((i 0)
+        (< i (count tree)) (i (inc i)))
+    (set! obj (nth tree i))
+    (println (pr__str obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- is-keyword? [obj] (inst? Keyword obj))
+(defn- is-symbol? [obj] (inst? Symbol obj))
+(defn- is-list? [obj] (and (array? obj)
+                           (or (= tkn-list (.-eTYPE obj))
+                               (undef? (.-eTYPE obj)))))
+(defn- is-vector? [obj] (and (array? obj)
+                          (= tkn-vector (.-eTYPE obj))))
+(defn- is-map? [obj] (and (array? obj)
+                         (= tkn-map (.-eTYPE obj))))
+(defn- is-object? [obj] (and (not (array? obj))
+                             (not (fn? obj))
+                             (object? obj)))
+(defn- is-nil? [obj] (null? obj))
+(defn- is-number? [obj] (number? obj))
+(defn- is-string? [obj] (string? obj))
+(defn- is-true? [obj] (true? obj))
+(defn- is-false? [obj] (false? obj))
+(defn- is-atom? [obj] (inst? Atom obj))
+(defn- is-fn? [obj] (fn? obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- tnodeType [obj]
+  (var v (if obj (.-value obj)))
+  (cond
+    (is-keyword? obj) "keyword"
+    (is-symbol? obj) "symbol"
+    (is-list? obj) "list"
+    (is-vector? obj) "vector"
+    (is-object? obj) "object"
+    (is-map? obj) "map"
+    (is-nil? obj) "nil"
+    (is-number? obj) "number"
+    (is-string? obj) "string"
+    (is-true? obj) "true"
+    (is-false? obj) "false"
+    (is-atom? obj) "atom"
+    (is-fn? obj) "function"
+    :else
+    (trap! (str "Unknown type '" (whatis? obj) "'"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- pr__str [obj readable?]
+  (if (undef? readable?) (set! readable? true))
+  (var ot (tnodeType obj) r? readable?)
+  (case ot
+    "list"
+    (str "(" (-> (map (fn [e]
+                        (pr__str e r?)) obj) (.join " ")) ")")
+    "vector"
+    (str "[" (-> (map (fn [e]
+                        (pr__str e r?)) obj) (.join " ")) "]")
+    "map"
+    (str "{" (-> (map (fn [e]
+                        (pr__str e r?)) obj) (.join " ")) "}")
+    "object"
+    (str "{" (-> (reduce
+                   (fn [acc k]
+                     (.push acc
+                            (pr__str k r?)
+                            (pr__str (get obj k) r?))
+                     acc) [] (keys obj))
+                 (.join " ")) "}")
+    "keyword"
+    (str ":" (.-value obj))
+    "symbol"
+    (.-value obj)
+    "atom"
+    (str "(atom " (pr__str (.-value obj) r?) ")")
+    (if obj (.toString obj) "nil")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn- println []
+  (console.log.apply console arguments))
+
+
+
+
+
+
+
 

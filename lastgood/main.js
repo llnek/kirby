@@ -61,20 +61,6 @@ for (var i = 0; (i < len); i = (i + 1)) {
   }).call(this);
 }
 
-//
-function vector() {
-  return   (function() {
-    let ____x = Array.prototype.slice.call(arguments,0);
-      ____x["eTYPE"] = tkn_vector;
-    return ____x;
-  }).call(this);
-}
-
-//
-function list() {
-  return Array.prototype.slice.call(arguments,0);
-}
-
 function each_key(func,obj) {
   return Object.keys(obj).forEach(function (k) {
     return func(obj[k],k,obj);
@@ -137,36 +123,6 @@ function constantly(x) {
 
 function identity(x) {
   return x;
-}
-
-function count(x) {
-  return (some_QUERY(x) ?
-    (((Object.prototype.toString.call(x) === "[object Array]") || (typeof(x) === "string")) ?
-      (x)["length"] :
-      ((Object.prototype.toString.call(x) === "[object Object]") ?
-        count(Object.keys(x)) :
-        (true ?
-          0 :
-          undefined))) :
-    0);
-}
-
-function slice(arr,begin,end) {
-  return ((typeof(end) === "number") ?
-    Array.prototype.slice.call(arr,begin,end) :
-    Array.prototype.slice.call(arr,begin));
-}
-
-function take(c,n) {
-  return (c ?
-    c.slice(0,n) :
-    []);
-}
-
-function drop(c,n) {
-  return (c ?
-    c.slice(n) :
-    []);
 }
 
 function conj_BANG(c,a) {
