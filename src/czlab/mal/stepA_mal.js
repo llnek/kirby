@@ -1,6 +1,6 @@
 if (typeof module !== 'undefined') {
     var types = require('./types');
-    var readline = require('./node_readline');
+    var readline = require('readline');
     var reader = require('./reader');
     var printer = require('./printer');
     var Env = require('./env').Env;
@@ -182,19 +182,33 @@ if (typeof process !== 'undefined' && process.argv.length > 2) {
     process.exit(0);
 }
 
-// repl loop
-if (typeof require !== 'undefined' && require.main === module) {
-    // Synchronous node.js commandline mode
-    rep("(println (str \"Mal [\" *host-language* \"]\"))");
-    while (true) {
-        var line = readline.readline("user> ");
-        if (line === null) { break; }
-        try {
-            if (line) { printer.println(rep(line)); }
-        } catch (exc) {
-            if (exc instanceof reader.BlankException) { continue; }
-            if (exc.stack) { printer.println(exc.stack); }
-            else           { printer.println(exc); }
-        }
-    }
+var prefix= "kirby> ";
+var runrepl=function() {
+  let rl= readline.createInterface(
+            process.stdin, process.stdout);
+  rl.on("line",
+    function(line) {
+      try {
+        if (line) { printer.println(rep(line)); }
+      } catch (err) {
+        console.log(err);
+      }
+      rl.setPrompt(prefix, prefix.length);
+      rl.prompt();
+    });
+
+  rl.on("close",
+    function() {
+      console.log("Bye!");
+      process.exit(0);
+    });
+
+  console.log(prefix + "Kirby REPL v1.0.0");
+  rl.setPrompt(prefix, prefix.length);
+  rl.prompt();
 }
+
+rep("(println (str \"Mal [\" *host-language* \"]\"))");
+runrepl();
+
+

@@ -1,27 +1,30 @@
-;; A very simple REPL written in LispyScript
+var readline= require("readline"),
+    prefix= "kirby> ";
 
-(require "./require")
-(def readline (require "readline")
-     ls (require "../lib/ls")
-     prefix "lispy> ")
+var runrepl=function() {
+  let rl= readline.createInterface(
+            process.stdin, process.stdout);
+  rl.on("line",
+    function(line) {
+      try {
+        let l= ls.transpile(line);
+        console.log(this.eval(l));
+      } catch (err) {
+        console.log(err);
+      }
+      rl.setPrompt(prefix, prefix.length);
+      rl.prompt();
+    });
 
-(set! exports.runrepl
-  (#
-    (var rl (readline.createInterface process.stdin process.stdout))
-    (rl.on "line"
-      (fn (line)
-        (try
-          (var l (ls.transpile line))
-          (console.log (this.eval l))
-          (catch err
-            (console.log err)))
-        (rl.setPrompt prefix prefix.length)
-        (rl.prompt)))
-    (rl.on "close"
-      (#
-        (console.log "Bye!")
-        (process.exit 0)))
-    (console.log (str prefix "LispyScript REPL v" ls.version))
-    (rl.setPrompt prefix prefix.length)
-    (rl.prompt)))
+  rl.on("close",
+    function() {
+      console.log("Bye!");
+      process.exit(0);
+    });
+
+  console.log(prefix + "Kirby REPL v1.0.0");
+  rl.setPrompt(prefix, prefix.length);
+  rl.prompt();
+}
+
 
