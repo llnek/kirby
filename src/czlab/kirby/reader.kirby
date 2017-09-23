@@ -42,8 +42,8 @@
 ;;
 (def- REGEX
   { :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-    :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$")
-    :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_$]+$")
+    :id (regex "^[a-zA-Z_$][?\\-*!0-9a-zA-Z_'<>#@$]*$")
+    :id2 (regex "^[*\\-][?\\-*!0-9a-zA-Z_'<>#@$]+$")
     :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
     ;;/^-?[0-9][0-9.]*$/
     :int (regex "^[-+]?[0-9]+$")
@@ -56,6 +56,11 @@
     :query (regexs "\\?" "g")
     :bang (regexs "!" "g")
     :dash (regexs "-" "g")
+    :quote (regexs "'" "g")
+    :hash (regexs "#" "g")
+    :at (regexs "@" "g")
+    :less (regexs "<" "g")
+    :greater (regexs ">" "g")
     :star (regexs "\\*" "g")
     :wspace (regex "\\s") })
 
@@ -82,7 +87,7 @@
               "try" "if" "get" "aget" "str"
               "list" "[" "vec" "{" "hash-map"
               "ns" "comment" "for" "cons"
-              "js#" "defmacro"]})
+              "js#" "macro" "defmacro"]})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -135,6 +140,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
+(defn- jsid [name] (normalizeId name))
 (defn- normalizeId [name]
   (var pfx "")
   (when (and (string? name)
@@ -146,6 +152,11 @@
         (.replace REGEX.query "_QUERY")
         (.replace REGEX.bang "_BANG")
         (.replace REGEX.dash "_")
+        (.replace REGEX.quote "_QTE")
+        (.replace REGEX.hash "_HASH")
+        (.replace REGEX.at "_AT")
+        (.replace REGEX.less "_LT")
+        (.replace REGEX.greater "_GT")
         (.replace REGEX.star "_STAR"))
     (if (= pfx "") name (str pfx name))))
 
@@ -597,44 +608,49 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- is-keyword? [obj] (inst? Keyword obj))
-(defn- is-symbol? [obj] (inst? Symbol obj))
-(defn- is-list? [obj] (and (array? obj)
-                           (or (= tkn-list (.-eTYPE obj))
-                               (undef? (.-eTYPE obj)))))
-(defn- is-vector? [obj] (and (array? obj)
-                          (= tkn-vector (.-eTYPE obj))))
-(defn- is-map? [obj] (and (array? obj)
+(defn- ast-keyword? [obj] (inst? Keyword obj))
+(defn- ast-symbol? [obj] (inst? Symbol obj))
+(defn- ast-list? [obj] (and (array? obj)
+                            (or (= tkn-list (.-eTYPE obj))
+                                (undef? (.-eTYPE obj)))))
+(defn- ast-vector? [obj] (and (array? obj)
+                              (= tkn-vector (.-eTYPE obj))))
+(defn- ast-map? [obj] (and (array? obj)
                          (= tkn-map (.-eTYPE obj))))
-(defn- is-object? [obj] (and (not (array? obj))
-                             (not (fn? obj))
-                             (object? obj)))
-(defn- is-nil? [obj] (null? obj))
-(defn- is-number? [obj] (number? obj))
-(defn- is-string? [obj] (string? obj))
-(defn- is-true? [obj] (true? obj))
-(defn- is-false? [obj] (false? obj))
-(defn- is-atom? [obj] (inst? Atom obj))
-(defn- is-fn? [obj] (fn? obj))
+(defn- ast-object? [obj] (and (not (array? obj))
+                              (not (fn? obj))
+                              (object? obj)))
+(defn- ast-nil? [obj] (and (atom? obj)
+                           (null? (.-value obj))))
+(defn- ast-number? [obj] (and (atom? obj)
+                              (number? (.-value obj))))
+(defn- ast-string? [obj] (and (atom? obj)
+                              (string? (.-value obj))))
+(defn- ast-true? [obj] (and (atom? obj)
+                            (true? (.-value obj))))
+(defn- ast-false? [obj] (and (atom? obj)
+                             (false? (.-value obj))))
+(defn- ast-fn? [obj] (fn? obj))
 
+(defn- atom? [obj] (inst? Atom obj))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defn- tnodeType [obj]
   (var v (if obj (.-value obj)))
   (cond
-    (is-keyword? obj) "keyword"
-    (is-symbol? obj) "symbol"
-    (is-list? obj) "list"
-    (is-vector? obj) "vector"
-    (is-object? obj) "object"
-    (is-map? obj) "map"
-    (is-nil? obj) "nil"
-    (is-number? obj) "number"
-    (is-string? obj) "string"
-    (is-true? obj) "true"
-    (is-false? obj) "false"
-    (is-atom? obj) "atom"
-    (is-fn? obj) "function"
+    (ast-keyword? obj) "keyword"
+    (ast-symbol? obj) "symbol"
+    (ast-list? obj) "list"
+    (ast-vector? obj) "vector"
+    (ast-object? obj) "object"
+    (ast-map? obj) "map"
+    (ast-nil? obj) "nil"
+    (ast-number? obj) "number"
+    (ast-string? obj) "string"
+    (ast-true? obj) "true"
+    (ast-false? obj) "false"
+    (atom? obj) "atom"
+    (ast-fn? obj) "function"
     :else
     (trap! (str "Unknown type '" (whatis? obj) "'"))))
 

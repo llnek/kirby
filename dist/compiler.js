@@ -247,8 +247,8 @@ function list_QUERY(obj) {
 var TreeNode = (_STARsmap_STAR)["SourceNode"];
 var REGEX = {
   "noret": new RegExp("^def\\b|^var\\b|^set!\\b|^throw\\b"),
-  "id": new RegExp("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_$]*$"),
-  "id2": new RegExp("^[*\\-][?\\-*!0-9a-zA-Z_$]+$"),
+  "id": new RegExp("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_'<>#@$]*$"),
+  "id2": new RegExp("^[*\\-][?\\-*!0-9a-zA-Z_'<>#@$]+$"),
   "float": new RegExp("^[-+]?[0-9]+\\.[0-9]+$"),
   "int": new RegExp("^[-+]?[0-9]+$"),
   "hex": new RegExp("^[-+]?0x"),
@@ -258,6 +258,11 @@ var REGEX = {
   "func": new RegExp("^function\\b"),
   "query": new RegExp("\\?","g"),
   "bang": new RegExp("!","g"),
+"quote": new RegExp("'","g"),
+"hash": new RegExp("#","g"),
+"at": new RegExp("@","g"),
+"less": new RegExp("<","g"),
+"greater": new RegExp(">","g"),
   "dash": new RegExp("-","g"),
   "star": new RegExp("\\*","g"),
   "wspace": new RegExp("\\s")
@@ -401,7 +406,16 @@ function normalizeId(name) {
     }).call(this) :
     undefined);
   return (testid_QUERY(name) ?
-    [pfx,name].join("").replace(REGEX.query,"_QUERY").replace(REGEX.bang,"_BANG").replace(REGEX.dash,"_").replace(REGEX.star,"_STAR") :
+    [pfx,name].join("").
+    replace(REGEX.query,"_QUERY").
+    replace(REGEX.bang,"_BANG").
+replace(REGEX.quote,"_QTE").
+replace(REGEX.hash,"_HASH").
+replace(REGEX.at,"_AT").
+replace(REGEX.less,"_LT").
+replace(REGEX.greater,"_GT").
+    replace(REGEX.dash,"_").
+    replace(REGEX.star,"_STAR") :
     ((pfx === "") ?
       name :
       [pfx,name].join("")));
@@ -2699,7 +2713,7 @@ function spitExterns() {
 
 function compileCode(codeStr,fname,withSrcMap_QUERY) {
   try {
-    dumpTree(parser(codeStr,fname));
+    //dumpTree(parser(codeStr,fname));
   } catch (e) {
     console.log(e);
     console.log(e.stack) ;

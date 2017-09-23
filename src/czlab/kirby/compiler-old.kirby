@@ -188,26 +188,26 @@
   (var cmd "" tmp nil mc nil)
 
   (cond
-    (= tkn-vector (.-eTYPE expr)) (set! cmd "[")
-    (= tkn-map (.-eTYPE expr)) (set! cmd "{")
+    (= tkn-object (.-eTYPE expr)) (set! cmd "{")
+    (= tkn-array (.-eTYPE expr)) (set! cmd "[")
     :else
-    (do (set! cmd (desymbol (car expr)))
+    (do (set! cmd (name?? (car expr)))
         (set! mc (get MACROS-MAP cmd))))
 
   (cond
     (some? mc)
     (eval?? (evalMacro mc expr))
-    ;js property access
+
     (.startsWith cmd ".-")
     (do-with [ret (tnode)]
       (.add ret (eval?? (cadr expr)))
       (.prepend ret "(")
-      (.add ret [")[\"" (symbol (.slice cmd 2)) "\"]"]))
-    ;js method invoke
+      (.add ret [")[\"" (.slice cmd 2) "\"]"]))
+
     (= (.charAt cmd 0) ".")
     (do-with [ret (tnode)]
       (.add ret (eval?? (cadr expr)))
-      (.add ret ["." (symbol (.slice cmd 1)) "("])
+      (.add ret [(car expr) "("])
       (for ((i 2) (< i (alen expr)) (i (inc i)))
         (if (not= i 2) (.add ret ","))
         (.add ret (eval?? (nth expr i))))
@@ -220,7 +220,7 @@
     (do (evalAtoms expr)
         (set! cmd (car expr))
         (if-not cmd (syntax! :e1 expr))
-        (if (re-test? REGEX.func cmd)
+        (if (REGEX.func.test cmd)
           (set! cmd (tnodeEx ["(" cmd ")"])))
         (tnodeEx [cmd "("
                   (-> (.slice expr 1)
@@ -1196,8 +1196,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defn- dekeyword [k] (if (keyword? k) (.-value k) ""))
-(defn- desymbol [s] (if (symbol? s) (.-value s) ""))
+(defn- dekeyword [s] (.-value k))
+(defn- desymbol [s] (.-value s))
 (defn- applyMacro [mc data] "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
