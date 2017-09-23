@@ -1242,7 +1242,7 @@
     :else
     (let [s (if-not (string? expr)
               (.toString expr) expr)]
-      (str "eval(" + s + ")"))))
+      (eval (str "(" + s + ")")))))
 
 
 
