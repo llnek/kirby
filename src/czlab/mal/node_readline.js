@@ -1,46 +1,27 @@
-// IMPORTANT: choose one
-var RL_LIB = "libreadline";  // NOTE: libreadline is GPL
-//var RL_LIB = "libedit";
+;; A very simple REPL written in LispyScript
 
-var HISTORY_FILE = require('path').join(process.env.HOME, '.mal-history');
+(require "./require")
+(def readline (require "readline")
+     ls (require "../lib/ls")
+     prefix "lispy> ")
 
-var rlwrap = {}; // namespace for this module in web context
+(set! exports.runrepl
+  (#
+    (var rl (readline.createInterface process.stdin process.stdout))
+    (rl.on "line"
+      (fn (line)
+        (try
+          (var l (ls.transpile line))
+          (console.log (this.eval l))
+          (catch err
+            (console.log err)))
+        (rl.setPrompt prefix prefix.length)
+        (rl.prompt)))
+    (rl.on "close"
+      (#
+        (console.log "Bye!")
+        (process.exit 0)))
+    (console.log (str prefix "LispyScript REPL v" ls.version))
+    (rl.setPrompt prefix prefix.length)
+    (rl.prompt)))
 
-var ffi = require('ffi'),
-    fs = require('fs');
-
-var rllib = ffi.Library(RL_LIB, {
-    'readline':    [ 'string', [ 'string' ] ],
-    'add_history': [ 'int',    [ 'string' ] ]});
-
-var rl_history_loaded = false;
-
-exports.readline = rlwrap.readline = function(prompt) {
-    prompt = typeof prompt !== 'undefined' ? prompt : "user> ";
-
-    if (!rl_history_loaded) {
-        rl_history_loaded = true;
-        var lines = [];
-        if (fs.existsSync(HISTORY_FILE)) {
-            lines = fs.readFileSync(HISTORY_FILE).toString().split("\n");
-        }
-        // Max of 2000 lines
-        lines = lines.slice(Math.max(lines.length - 2000, 0));
-        for (var i=0; i<lines.length; i++) {
-            if (lines[i]) { rllib.add_history(lines[i]); }
-        }
-    }
-
-    var line = rllib.readline(prompt);
-    if (line) {
-        rllib.add_history(line);
-        try {
-            fs.appendFileSync(HISTORY_FILE, line + "\n");
-        } catch (exc) {
-            // ignored
-        }
-    }
-
-    return line;
-};
-var readline = exports;

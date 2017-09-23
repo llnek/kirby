@@ -1,26 +1,27 @@
+// Node vs browser behavior
 var reader = {};
-var types = require('./types');
-
-function Reader(tokens) {
-  this.tokens = tokens.map(function (a) {
-    return a; });
-  this.position = 0;
+if (typeof module !== 'undefined') {
+    var types = require('./types');
+} else {
+    var exports = reader;
 }
 
-Reader.prototype.next = function() {
-  return this.tokens[this.position++]; }
-
-Reader.prototype.peek = function() {
-  return this.tokens[this.position]; }
+function Reader(tokens) {
+    // copy
+    this.tokens = tokens.map(function (a) { return a; });
+    this.position = 0;
+}
+Reader.prototype.next = function() { return this.tokens[this.position++]; }
+Reader.prototype.peek = function() { return this.tokens[this.position]; }
 
 function tokenize(str) {
-  var re = /[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g;
-  var results = [];
-  while ((match = re.exec(str)[1]) != '') {
-      if (match[0] === ';') { continue; }
-      results.push(match);
-  }
-  return results;
+    var re = /[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"|;.*|[^\s\[\]{}('"`,;)]*)/g;
+    var results = [];
+    while ((match = re.exec(str)[1]) != '') {
+        if (match[0] === ';') { continue; }
+        results.push(match);
+    }
+    return results;
 }
 
 function read_atom (reader) {
@@ -31,7 +32,7 @@ function read_atom (reader) {
     } else if (token.match(/^-?[0-9][0-9.]*$/)) {
         return parseFloat(token,10);     // float
     } else if (token[0] === "\"") {
-        return token.slice(1,token.length-1)
+        return token.slice(1,token.length-1) 
             .replace(/\\"/g, '"')
             .replace(/\\n/g, "\n")
             .replace(/\\\\/g, "\\"); // string
