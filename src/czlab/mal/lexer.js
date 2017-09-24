@@ -1,35 +1,59 @@
-var smap= require("source-map"),
+var TreeNode= require("source-map").SourceNode,
+  printer=require("./printer"),
+  types=require("./types"),
   path= require("path"),
   fs= require("fs");
 
-function nodeTag(obj, src, line, col, type) {
-  if (obj) {
-    obj.source=  src;
-    obj.column =col;
-    obj.line= line;
-    obj.isMeta= false;
-    obj.eTYPE= type;
+function tnode(source, line, col, chunk, name, type) {
+  let argsQ = arguments.length > 0,
+    n=null;
+
+  if (argsQ) {
+    if (name) {
+      n=new TreeNode(line, col, source, chunk, name);
+    } else {
+      n=new TreeNode(line, col, source, chunk);
+    }
+  } else {
+    n= new TreeNode();
   }
-  return obj;
+
+  return n;
 }
 
+function tnodeEx(chunk, name, type) {
+  return tnode(null,null,null,chunk, name, type);
+}
+
+function regex(s,glim) {return new RegExp(s,glim);}
+var REGEX= {
+  noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
+  id: regex("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_'<>#@$]*$"),
+  id2: regex("^[*\\-][?\\-*!0-9a-zA-Z_'<>#@$]+$"),
+  float: regex( "^[-+]?[0-9]+\\.[0-9]+$"),
+  int: regex("^[-+]?[0-9]+$"),
+  hex: regex("^[-+]?0x"),
+  macroGet: regex("^#slice@(\\d+)"),
+  dquoteHat: regex("^\""),
+  dquoteEnd: regex("\"$"),
+  func: regex("^function\\b"),
+  query: regex( "\\?" ,"g"),
+  bang: regex( "!", "g"),
+  dash: regex( "-", "g"),
+  quote: regex( "'", "g"),
+  hash: regex( "#", "g"),
+  at: regex( "@", "g"),
+  less: regex( "<", "g"),
+  greater: regex( ">", "g"),
+  star: regex( "\\*", "g"),
+  wspace: regex("\\s") };
+
 function testid_Q (name) {
-  //(or (REGEX.id.test name) (REGEX.id2.test name)))
+  return REGEX.id.test(name) || REGEX.id2.test(name);
 }
 
 function jsid (name) { return normalizeId(name); }
-
 function normalizeId (name) {
-  let pfx="";
-  if (types._string_Q(name) ||
-      "-" === name.charAt(0)) {
-    pfx= "-";
-    name= name.slice(1);
-  }
-  if (testid_Q(name)) {
-  } else {
-    //(if (= pfx "") name (str pfx name))))
-  }
 }
 
 function throwE(token, msg) {
@@ -68,7 +92,7 @@ function readAtom(tokens) {
     tn="";
   if (token) tn = token.name;
 
-  if (tn.length===0) { ret= undefined; }
+  if (!tn || tn.length===0) { ret= undefined; }
   else if (REGEX.float.test(tn)) {
     ret=parseFloat(tn);
   }
@@ -79,11 +103,15 @@ function readAtom(tokens) {
   else if (tn.startsWith("\"") &&
     tn.endsWith("\"")) {
     ret=tn;
+    ret=tn.slice(1,tn.length-1)
+            .replace(/\\"/g, '"')
+            .replace(/\\n/g, "\n")
+            .replace(/\\\\/g, "\\");
   }
-  else if (tn.startsWith(":") {
-    ret= new Keyword(tn.slice(1));
+  else if (tn.startsWith(":")) {
+    ret= types._keyword(tn);
   }
-  else if ("nil"=== tn) ||
+  else if ("nil"=== tn ||
            "null"=== tn)  {
     ret= null;
   }
@@ -94,21 +122,20 @@ function readAtom(tokens) {
     ret=false;
   }
   else {
-    ret =new Symbol(tn);
+    ret =types._symbol(tn);
   }
 
   return copyTokenData(token,ret);
 }
 
 function readBlock(tokens, head, tail) {
-
   let token= nextToken(tokens),
     ret,
     tn="";
   if (token) tn= token.name;
 
   if (tn !== head)
-    throwE(token, "expected '" + head+  "'");
+    throwE(token, "expected '" + head + "'");
 
   let ast=[],
       cur= peekToken(tokens);
@@ -121,7 +148,7 @@ function readBlock(tokens, head, tail) {
       }
       break;
     }
-    addAst(ast, (readTokens tokens));
+    addAst(ast, readTokens(tokens));
     cur=peekToken(tokens);
   }
   nextToken(tokens);
@@ -150,7 +177,7 @@ function skipAndParse (tokens ,func) {
 }
 
 function readTokens (tokens) {
-  let tmp=nil,
+  let tmp=null,
        token= peekToken(tokens);
 
   if (! token) { return undefined; }
@@ -158,28 +185,28 @@ function readTokens (tokens) {
     case "'": return skipAndParse(tokens,
                         function () {
                           return
-                          [new Symbol("quote"),
+                          [types._symbol("quote"),
                            readTokens(tokens)];});
     case "`": return skipAndParse(tokens,
                         function () {
-                          return [new Symbol("quasiquote"),
+                          return [types._symbol("quasiquote"),
                                   readTokens(tokens)];});
     case "~": return skipAndParse(tokens,
                         function () {
-                          return [new Symbol("unquote"),
+                          return [types._symbol("unquote"),
                                   readTokens(tokens)];});
     case "~@": return skipAndParse(tokens,
                          function(){
-                           return [new Symbol("splice-unquote"),
+                           return [types._symbol("splice-unquote"),
                              readTokens(tokens)];});
     case "^": return skipAndParse(tokens,
                         function () {
                           tmp= readTokens(tokens);
-                           return [new Symbol("with-meta"),
+                           return [types._symbol("with-meta"),
                             readTokens(tokens), tmp];});
     case "@": return skipAndParse(tokens,
                         function(){
-                          return [new Symbol("deref"),
+                          return [types._symbol("deref"),
                             readTokens(tokens)];});
     case ")": throwE(token, "unexpected ')'");
     case "(": return readList(token, tokens);
@@ -199,12 +226,17 @@ function addAst(ast, f) {
   return ast;
 }
 
+function read_str(s) {
+  return parser(s, "**adhoc**");
+}
+
 function parser (source, fname) {
   let tokens= tokenize(source, fname),
+    f, ast=[],
        tlen= tokens.length;
-  tokens.pos=0,
-    f,
-    ast=[];
+  tokens.pos=0;
+
+  for(var i=0;i<tokens.length;++i) { console.log("token="+tokens[i].name); }
 
   while (true) {
     f= readTokens(tokens);
@@ -215,7 +247,8 @@ function parser (source, fname) {
       break;
     }
   }
-  return ast;
+  //dumpTree(ast);
+  return ast.length ===1 ? ast[0] : ast;
 }
 
 function tokenize (source, fname) {
@@ -232,8 +265,8 @@ function tokenize (source, fname) {
     tree=[],
        commentQ= false;
 
-  let toke=function(ln, col, s) {
-    if (s) {
+  let toke=function(ln, col, s,astring) {
+    if (astring || s.length > 0) {
      tree.push(tnode(fname, ln, col, s, s));
     }
     return "";
@@ -257,16 +290,16 @@ function tokenize (source, fname) {
     else if (ch === "\"") {
       if (!strQ) {
           tcol= col;
-              strQ=false;
+              strQ=true;
               token += ch;
       } else {
-        strQ=true;
+        strQ=false;
         token += ch;
-        token= toke(line, tcol, token);
+        token= toke(line, tcol, token, true);
       }
     }
     else if (strQ) {
-        if ( ch=== "\n") ch= "\\n";
+        //if ( ch=== "\n") ch= "\\n";
         if ( ch=== "\\") escQ= true;
             token += ch;
     }
@@ -317,6 +350,7 @@ function tokenize (source, fname) {
             token += ch;
     }
   }
+  return tree;
 }
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -325,13 +359,16 @@ function dumpTree (tree) {
   let obj= null,
        indent= arguments[1] || 0,
        pad = "".repeat(indent);
-  for (int i=0; i < tree.length; ++i) {
+
+  for (var i=0; i < tree.length; ++i) {
     obj= tree[i];
-    printer.println(pr__str(obj));
+    printer.println(printer._pr_str(obj));
   }
 }
 
-
+exports.dumpTree=dumpTree;
+exports.parser=parser;
+exports.read_str=read_str;
 
 
 

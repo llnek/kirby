@@ -5,7 +5,7 @@ if (typeof module === 'undefined') {
 } else {
     var types = require('./types'),
         readline = require('./node_readline'),
-        reader = require('./reader'),
+        reader = require('./lexer'),
         printer = require('./printer'),
         interop = require('./interop');
 }

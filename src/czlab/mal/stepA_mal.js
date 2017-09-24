@@ -1,7 +1,7 @@
 if (typeof module !== 'undefined') {
     var types = require('./types');
     var readline = require('readline');
-    var reader = require('./reader');
+    var reader = require('./lexer');
     var printer = require('./printer');
     var Env = require('./env').Env;
     var core = require('./core');
@@ -161,15 +161,12 @@ function _EVAL(ast, env) {
         return types._function(EVAL, Env, a2, env, a1);
     default:
         var el = eval_ast(ast, env), f = el[0];
+
         if (f.__ast__) {
             ast = f.__ast__;
             env = f.__gen_env__(el.slice(1));
         } else {
-          if (macrocount > 0) {
             return f.apply(f, el.slice(1));
-          } else {
-            return el;
-          }
         }
     }
 

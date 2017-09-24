@@ -7,7 +7,8 @@ if (typeof module === 'undefined') {
 // General functions
 
 function _obj_type(obj) {
-    if      (_symbol_Q(obj)) {   return 'symbol'; }
+    if      (_keyword_Q(obj)) {   return 'keyword'; }
+    else if (_symbol_Q(obj)) {   return 'symbol'; }
     else if (_list_Q(obj)) {     return 'list'; }
     else if (_vector_Q(obj)) {   return 'vector'; }
     else if (_hash_map_Q(obj)) { return 'hash-map'; }
@@ -19,7 +20,7 @@ function _obj_type(obj) {
         switch (typeof(obj)) {
         case 'number':   return 'number';
         case 'function': return 'function';
-        case 'string': return obj[0] == '\u029e' ? 'keyword' : 'string';
+        case 'string': return 'string';
         default: throw new Error("Unknown type '" + typeof(obj) + "'");
         }
     }
@@ -93,25 +94,32 @@ function _string_Q(obj) {
 }
 
 
-// Symbols
+function Keyword(name) {
+    this.value = name.slice(1);
+    return this;
+}
+
 function Symbol(name) {
     this.value = name;
     return this;
 }
+
 Symbol.prototype.toString = function() { return this.value; }
 function _symbol(name) { return new Symbol(name); }
 function _symbol_Q(obj) { return obj instanceof Symbol; }
-
+Keyword.prototype.toString = function() { return this.value; }
+function _keyword(name) { return new Keyword(name); }
+function _keyword_Q(obj) { return obj instanceof Keyword; }
 
 // Keywords
-function _keyword(obj) {
+function XX_keyword(obj) {
     if (typeof obj === 'string' && obj[0] === '\u029e') {
         return obj;
     } else {
         return "\u029e" + obj;
     }
 }
-function _keyword_Q(obj) {
+function XX_keyword_Q(obj) {
     return typeof obj === 'string' && obj[0] === '\u029e';
 }
 

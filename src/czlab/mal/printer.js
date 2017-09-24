@@ -31,12 +31,11 @@ function _pr_str(obj, print_readably) {
         } else if (_r) {
             return '"' + obj.replace(/\\/g, "\\\\")
                 .replace(/"/g, '\\"')
-                .replace(/\n/g, "\\n") + '"'; // string
+                .replace(/\n/g, "\\n") + '"';
         } else {
             return obj;
         }
-    case 'keyword':
-        return ':' + obj.slice(1);
+    //case 'keyword': return ':' + obj.slice(1);
     case 'nil':
         return "nil";
     case 'atom':
