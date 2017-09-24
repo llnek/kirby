@@ -1,0 +1,337 @@
+var smap= require("source-map"),
+  path= require("path"),
+  fs= require("fs");
+
+function nodeTag(obj, src, line, col, type) {
+  if (obj) {
+    obj.source=  src;
+    obj.column =col;
+    obj.line= line;
+    obj.isMeta= false;
+    obj.eTYPE= type;
+  }
+  return obj;
+}
+
+function testid_Q (name) {
+  //(or (REGEX.id.test name) (REGEX.id2.test name)))
+}
+
+function jsid (name) { return normalizeId(name); }
+
+function normalizeId (name) {
+  let pfx="";
+  if (types._string_Q(name) ||
+      "-" === name.charAt(0)) {
+    pfx= "-";
+    name= name.slice(1);
+  }
+  if (testid_Q(name)) {
+  } else {
+    //(if (= pfx "") name (str pfx name))))
+  }
+}
+
+function throwE(token, msg) {
+  if (token) {
+    msg = msg +
+          "\nnear line " + token.line +
+          "\nin file " +  token.source;
+  } else {
+    msg = msg + "\nnear EOF ";
+  }
+  throw new Error(msg);
+}
+
+function nextToken(tokens) {
+  let t= tokens[tokens.pos];
+  ++tokens.pos;
+  return t;
+}
+
+function peekToken(tokens)  {
+  return tokens[tokens.pos];
+}
+
+function copyTokenData (token, node) {
+  if (node) {
+    node.source= token.source;
+    node.line= token.line;
+    node.column= token.column;
+  }
+  return node;
+}
+
+function readAtom(tokens) {
+  let token = nextToken(tokens),
+    ret,
+    tn="";
+  if (token) tn = token.name;
+
+  if (tn.length===0) { ret= undefined; }
+  else if (REGEX.float.test(tn)) {
+    ret=parseFloat(tn);
+  }
+  else if (REGEX.hex.test(tn) ||
+           REGEX.int.test(tn)) {
+    ret=parseInt(tn);
+  }
+  else if (tn.startsWith("\"") &&
+    tn.endsWith("\"")) {
+    ret=tn;
+  }
+  else if (tn.startsWith(":") {
+    ret= new Keyword(tn.slice(1));
+  }
+  else if ("nil"=== tn) ||
+           "null"=== tn)  {
+    ret= null;
+  }
+  else if ("true" === tn) {
+    ret=true;
+  }
+  else if ("false"=== tn) {
+    ret=false;
+  }
+  else {
+    ret =new Symbol(tn);
+  }
+
+  return copyTokenData(token,ret);
+}
+
+function readBlock(tokens, head, tail) {
+
+  let token= nextToken(tokens),
+    ret,
+    tn="";
+  if (token) tn= token.name;
+
+  if (tn !== head)
+    throwE(token, "expected '" + head+  "'");
+
+  let ast=[],
+      cur= peekToken(tokens);
+  while (true) {
+    if (!cur || (tail === cur.name)) {
+      if (cur) {
+        copyTokenData(token, ast);
+      } else {
+        throwE(cur, "expected '"+ tail+ "', got EOF");
+      }
+      break;
+    }
+    addAst(ast, (readTokens tokens));
+    cur=peekToken(tokens);
+  }
+  nextToken(tokens);
+  return ast;
+}
+
+function readList(cur, tokens) {
+  let v=readBlock(tokens, "(", ")");
+  return v;
+}
+
+function readVector(cur, tokens) {
+  let v=readBlock(tokens, "[", "]");
+  v.__isvector__=true;
+  return v;
+}
+
+function readObject (cur, tokens) {
+  let v= readBlock(tokens, "{",  "}");
+  return v;
+}
+
+function skipAndParse (tokens ,func) {
+  let cur= nextToken(tokens);
+  return copyTokenData(cur, func(tokens));
+}
+
+function readTokens (tokens) {
+  let tmp=nil,
+       token= peekToken(tokens);
+
+  if (! token) { return undefined; }
+  switch (token.name) {
+    case "'": return skipAndParse(tokens,
+                        function () {
+                          return
+                          [new Symbol("quote"),
+                           readTokens(tokens)];});
+    case "`": return skipAndParse(tokens,
+                        function () {
+                          return [new Symbol("quasiquote"),
+                                  readTokens(tokens)];});
+    case "~": return skipAndParse(tokens,
+                        function () {
+                          return [new Symbol("unquote"),
+                                  readTokens(tokens)];});
+    case "~@": return skipAndParse(tokens,
+                         function(){
+                           return [new Symbol("splice-unquote"),
+                             readTokens(tokens)];});
+    case "^": return skipAndParse(tokens,
+                        function () {
+                          tmp= readTokens(tokens);
+                           return [new Symbol("with-meta"),
+                            readTokens(tokens), tmp];});
+    case "@": return skipAndParse(tokens,
+                        function(){
+                          return [new Symbol("deref"),
+                            readTokens(tokens)];});
+    case ")": throwE(token, "unexpected ')'");
+    case "(": return readList(token, tokens);
+    case "]": throwE(token, "unexpected ']'");
+    case "[": return readVector(token, tokens);
+    case "}": throwE(token, "unexpected '}'");
+    case "{": return readObject(token, tokens);
+    case ";":
+    case ",": nextToken(tokens); return undefined;
+    default:
+      return readAtom(tokens);
+  }
+}
+
+function addAst(ast, f) {
+  if (typeof f !== "undefined") ast.push(f);
+  return ast;
+}
+
+function parser (source, fname) {
+  let tokens= tokenize(source, fname),
+       tlen= tokens.length;
+  tokens.pos=0,
+    f,
+    ast=[];
+
+  while (true) {
+    f= readTokens(tokens);
+    addAst(ast, f);
+    if (tokens.pos < tlen) {
+      f=readTokens(tokens);
+    } else {
+      break;
+    }
+  }
+  return ast;
+}
+
+function tokenize (source, fname) {
+  let len= source.length,
+       token= "",
+       line= 1,
+       tcol= 0,
+       col= 0,
+       pos= 0,
+       ch= null,
+       nx= null,
+       escQ= false,
+       strQ= false,
+    tree=[],
+       commentQ= false;
+
+  let toke=function(ln, col, s) {
+    if (s) {
+     tree.push(tnode(fname, ln, col, s, s));
+    }
+    return "";
+  }
+  while (pos < len) {
+    ch= source.charAt(pos);
+    ++col;
+    ++pos;
+    nx= source.charAt(pos);
+    if (ch=== "\n") {
+      col= 0;
+      ++line;
+      if (commentQ) commentQ=false;
+    }
+
+    if (commentQ) {}
+    else if (escQ) {
+        escQ=false;
+        token += ch;
+    }
+    else if (ch === "\"") {
+      if (!strQ) {
+          tcol= col;
+              strQ=false;
+              token += ch;
+      } else {
+        strQ=true;
+        token += ch;
+        token= toke(line, tcol, token);
+      }
+    }
+    else if (strQ) {
+        if ( ch=== "\n") ch= "\\n";
+        if ( ch=== "\\") escQ= true;
+            token += ch;
+    }
+    else if ((ch=== "'") || (ch=== "`") ||
+             (ch=== "@") || ( ch=== "^")) {
+      if (token.length===0 &&
+          (!REGEX.wspace.test(nx))) {
+          tcol= col;
+              toke(line, tcol, ch);
+      } else {
+          token += ch;
+      }
+    }
+    else if (ch === "~") {
+      if (token.length===0 &&
+          (!REGEX.wspace.test(nx))) {
+          tcol= col;
+              if (nx=== "@") {
+                ++pos;
+                toke(line, tcol, "~@");
+              } else {
+                toke(line, tcol, ch);
+              }
+        } else {
+          token += ch;
+        }
+    }
+    else if ((ch=== "[") || (ch=== "]") ||
+            (ch=== "{") || (ch=== "}") ||
+      (ch=== "(") || (ch=== ")")) {
+        token= toke(line, tcol, token);
+            tcol= col;
+            toke(line, tcol, ch);
+    }
+    else if (ch === ";") {
+        token= toke(line, tcol, token);
+            tcol= col;
+            commentQ= true;
+    }
+    else if ((ch=== ",") ||
+      REGEX.wspace.test(ch)) {
+      let n=line;
+      if (ch==="\n") n=line-1;
+        token= toke( n, tcol, token);
+    }
+    else {
+        if (token.length===0) tcol= col;
+            token += ch;
+    }
+  }
+}
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+function dumpTree (tree) {
+  let obj= null,
+       indent= arguments[1] || 0,
+       pad = "".repeat(indent);
+  for (int i=0; i < tree.length; ++i) {
+    obj= tree[i];
+    printer.println(pr__str(obj));
+  }
+}
+
+
+
+
+

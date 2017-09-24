@@ -6,6 +6,10 @@ if (typeof module !== 'undefined') {
     var Env = require('./env').Env;
     var core = require('./core');
 }
+var macrocount=0;
+function dbg(obj) {
+  printer.println(printer._pr_str(obj, true));
+}
 
 // read
 function READ(str) {
@@ -41,10 +45,25 @@ function is_macro_call(ast, env) {
 }
 
 function macroexpand(ast, env) {
+  var isM=is_macro_call(ast, env);
+  var cmd= isM ? ast[0] : "";
+  if (isM) {
+    printer.println("macro-in("+cmd+"):", printer._pr_str(ast, true));
+  }
+  ++macrocount;
     while (is_macro_call(ast, env)) {
-        var mac = env.get(ast[0]);
+        var cmd= ast[0],
+            mac = env.get(ast[0]);
+printer.println("macro(before-"+cmd+":", printer._pr_str(ast, true));
         ast = mac.apply(mac, ast.slice(1));
+printer.println("macro(after-"+cmd+":", printer._pr_str(ast, true));
     }
+  --macrocount;
+
+  if (isM) {
+    printer.println("macro-out("+cmd+"):", printer._pr_str(ast, true));
+  }
+
     return ast;
 }
 
@@ -71,7 +90,8 @@ function eval_ast(ast, env) {
 function _EVAL(ast, env) {
     while (true) {
 
-    //printer.println("EVAL:", printer._pr_str(ast, true));
+    printer.println("EVAL:", printer._pr_str(ast, true));
+
     if (!types._list_Q(ast)) {
         return eval_ast(ast, env);
     }
@@ -85,8 +105,13 @@ function _EVAL(ast, env) {
         return ast;
     }
 
+    printer.println("SWITCH:", printer._pr_str(ast, true));
+
     var a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
     switch (a0.value) {
+      case "set!":
+        var res = EVAL(a2,repl_env);
+        return repl_env.set(a1,res);
     case "def!":
         var res = EVAL(a2, env);
         return env.set(a1, res);
@@ -140,7 +165,11 @@ function _EVAL(ast, env) {
             ast = f.__ast__;
             env = f.__gen_env__(el.slice(1));
         } else {
+          if (macrocount > 0) {
             return f.apply(f, el.slice(1));
+          } else {
+            return el;
+          }
         }
     }
 
@@ -166,7 +195,7 @@ for (var n in core.ns) { repl_env.set(types._symbol(n), core.ns[n]); }
 repl_env.set(types._symbol('eval'), function(ast) {
     return EVAL(ast, repl_env); });
 repl_env.set(types._symbol('*ARGV*'), []);
-
+repl_env.set(types._symbol("opmode", 1));
 // core.mal: defined using the language itself
 rep("(def! *host-language* \"javascript\")")
 rep("(def! not (fn* (a) (if a false true)))");
@@ -174,7 +203,9 @@ rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\"))
 rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))");
 rep("(def! *gensym-counter* (atom 0))");
 rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
-rep("(defmacro! or (fn* (& xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
+rep("(defmacro! or (fn* (&xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
+rep("(defmacro! when-not (fn* [k & xs] `(if (not ~k) (do ~@xs))))");
+
 
 if (typeof process !== 'undefined' && process.argv.length > 2) {
     repl_env.set(types._symbol('*ARGV*'), process.argv.slice(3));

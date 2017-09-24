@@ -10,15 +10,16 @@ function Env(outer, binds, exprs) {
     this.outer = outer || null;
 
     if (binds && exprs) {
-        // Returns a new Env with symbols in binds bound to
-        // corresponding values in exprs
-        // TODO: check types of binds and exprs and compare lengths
         for (var i=0; i<binds.length;i++) {
             if (binds[i].value === "&") {
-                // variable length arguments
                 this.data[binds[i+1].value] = Array.prototype.slice.call(exprs, i);
                 break;
-            } else {
+            }
+          else if (binds[i].value.startsWith("&")) {
+            this.data[ binds[i].value.slice(1)] = Array.prototype.slice.call(exprs, i);
+            break;
+          }
+          else {
                 this.data[binds[i].value] = exprs[i];
             }
         }
