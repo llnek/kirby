@@ -4,6 +4,7 @@ if (typeof module !== 'undefined') {
     var reader = require('./lexer');
     var printer = require('./printer');
     var Env = require('./env').Env;
+    var JS= require("./interop");
     var core = require('./core');
 }
 var macrocount=0;
@@ -128,7 +129,13 @@ function _EVAL(ast, env) {
     case "quasiquote":
         ast = quasiquote(a1);
         break;
-    case 'defmacro!':
+    case 'defmacro':
+        let p2=ast[2],
+            p3=ast.slice(3);
+        ast=[ast[0], ast[1],
+             [types._symbol("fn*"), p2].concat(p3)]
+        a2=ast[2];
+        a1=ast[1];
         var func = EVAL(a2, env);
         func._ismacro_ = true;
         return env.set(a1, func);
@@ -197,12 +204,14 @@ repl_env.set(types._symbol("opmode", 1));
 rep("(def! *host-language* \"javascript\")")
 rep("(def! not (fn* (a) (if a false true)))");
 rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))");
-rep("(defmacro! cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))");
+//rep("(defmacro cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))");
+rep("(defmacro cond [& xs] (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs))))))");
 rep("(def! *gensym-counter* (atom 0))");
 rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
-rep("(defmacro! or (fn* (&xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
-rep("(defmacro! when-not (fn* [k & xs] `(if (not ~k) (do ~@xs))))");
-
+//rep("(defmacro or (fn* (&xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
+rep("(defmacro or [&xs] (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs))))))))");
+//rep("(defmacro when-not (fn* [k & xs] `(if (not ~k) (do ~@xs))))");
+rep("(defmacro when-not [k & xs] `(if (not ~k) (do ~@xs)))");
 
 if (typeof process !== 'undefined' && process.argv.length > 2) {
     repl_env.set(types._symbol('*ARGV*'), process.argv.slice(3));
