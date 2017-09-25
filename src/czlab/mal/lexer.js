@@ -168,7 +168,7 @@ function readVector(cur, tokens) {
 
 function readObject (cur, tokens) {
   let v= readBlock(tokens, "{",  "}");
-  return v;
+  return types._hash_map.apply(null, v);
 }
 
 function skipAndParse (tokens ,func) {

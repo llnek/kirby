@@ -58,6 +58,7 @@ function slurp(f) {
 // Number functions
 function time_ms() { return new Date().getTime(); }
 
+function _type_of(x) { return typeof x; }
 
 // Hash Map functions
 function assoc(src_hm) {
@@ -98,7 +99,8 @@ function concat(lst) {
 
 function nth(lst, idx) {
     if (idx < lst.length) { return lst[idx]; }
-    else                  { throw new Error("nth: index out of range"); }
+    else undefined;
+    //else { throw new Error("nth: index out of range"); }
 }
 
 function first(lst) { return (lst === null) ? null : lst[0]; }
@@ -241,6 +243,8 @@ var ns = {'type': types._obj_type,
           'apply': apply,
           'map': map,
 
+  "typeof?": _type_of,
+
           'conj': conj,
           'seq': seq,
 
@@ -253,7 +257,7 @@ var ns = {'type': types._obj_type,
           "swap!": swap_BANG,
 
           'js-eval': js_eval,
-          '.': js_method_call
+          'js!': js_method_call
 };
 
 exports.ns = core.ns = ns;
