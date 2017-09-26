@@ -69,7 +69,10 @@ printer.println("macro(after-"+cmd+":", printer._pr_str(ast, true));
 }
 
 function eval_ast(ast, env) {
-    if (types._symbol_Q(ast)) {
+    if (types._keyword_Q(ast)) {
+        return "\"" + ast.value + "\"";
+    }
+    else if (types._symbol_Q(ast)) {
         return env.get(ast);
     } else if (types._list_Q(ast)) {
         return ast.map(function(a) { return EVAL(a, env); });
@@ -77,13 +80,21 @@ function eval_ast(ast, env) {
         var v = ast.map(function(a) { return EVAL(a, env); });
         v.__isvector__ = true;
         return v;
-    } else if (types._hash_map_Q(ast)) {
+    } else if (false && types._hash_map_Q(ast)) {
         var new_hm = {};
         for (k in ast) {
             new_hm[EVAL(k, env)] = EVAL(ast[k], env);
         }
         return new_hm;
-    } else {
+    }
+    else if (types._map_Q(ast)) {
+        var k, new_hm = {};
+        for (var i=0; i < ast.length; i=i+2) {
+          new_hm[ EVAL(ast[i], env) ] = EVAL(ast[i+1], env);
+        }
+        return new_hm;
+    }
+    else {
         return ast;
     }
 }

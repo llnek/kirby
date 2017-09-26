@@ -1,29 +1,8 @@
-var TreeNode= require("source-map").SourceNode,
-  printer=require("./printer"),
+var printer=require("./printer"),
+  TN=require("./tnode"),
   types=require("./types"),
   path= require("path"),
   fs= require("fs");
-
-function tnode(source, line, col, chunk, name, type) {
-  let argsQ = arguments.length > 0,
-    n=null;
-
-  if (argsQ) {
-    if (name) {
-      n=new TreeNode(line, col, source, chunk, name);
-    } else {
-      n=new TreeNode(line, col, source, chunk);
-    }
-  } else {
-    n= new TreeNode();
-  }
-
-  return n;
-}
-
-function tnodeEx(chunk, name, type) {
-  return tnode(null,null,null,chunk, name, type);
-}
 
 function regex(s,glim) {return new RegExp(s,glim);}
 var REGEX= {
@@ -168,7 +147,8 @@ function readVector(cur, tokens) {
 
 function readObject (cur, tokens) {
   let v= readBlock(tokens, "{",  "}");
-  return types._hash_map.apply(null, v);
+  v.__ismap__=true;
+  return v;//types._hash_map.apply(null, v);
 }
 
 function skipAndParse (tokens ,func) {
@@ -267,7 +247,7 @@ function tokenize (source, fname) {
 
   let toke=function(ln, col, s,astring) {
     if (astring || s.length > 0) {
-     tree.push(tnode(fname, ln, col, s, s));
+     tree.push(TN.tnode(fname, ln, col, s, s));
     }
     return "";
   }

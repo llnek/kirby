@@ -3,6 +3,13 @@ var types = {};
 if (typeof module === 'undefined') {
     var exports = types;
 }
+function _array_Q(x) {
+  return Array.isArray(x);
+}
+
+function _undef_Q(x) {
+  return typeof x === "undefined";
+}
 
 // General functions
 
@@ -11,7 +18,8 @@ function _obj_type(obj) {
     else if (_symbol_Q(obj)) {   return 'symbol'; }
     else if (_list_Q(obj)) {     return 'list'; }
     else if (_vector_Q(obj)) {   return 'vector'; }
-    else if (_hash_map_Q(obj)) { return 'hash-map'; }
+    else if (_hash_map_Q(obj)) { return 'object'; }
+    else if (_map_Q(obj)) { return 'hash-map'; }
     else if (_nil_Q(obj)) {      return 'nil'; }
     else if (_true_Q(obj)) {     return 'true'; }
     else if (_false_Q(obj)) {    return 'false'; }
@@ -36,6 +44,7 @@ function _equal_Q (a, b) {
     }
     switch (ota) {
     case 'symbol': return a.value === b.value;
+    case "hash-map":
     case 'list':
     case 'vector':
         if (a.length !== b.length) { return false; }
@@ -43,7 +52,8 @@ function _equal_Q (a, b) {
             if (! _equal_Q(a[i], b[i])) { return false; }
         }
         return true;
-    case 'hash-map':
+
+    case 'object':
         if (Object.keys(a).length !== Object.keys(b).length) { return false; }
         for (var k in a) {
             if (! _equal_Q(a[k], b[k])) { return false; }
@@ -65,7 +75,11 @@ function _clone (obj) {
         new_obj = obj.slice(0);
         new_obj.__isvector__ = true;
         break;
-    case 'hash-map':
+    case "hash-map":
+        new_obj = obj.slice(0);
+        new_obj.__ismap__ = true;
+        break;
+    case 'object':
         new_obj = {};
         for (var k in obj) {
             if (obj.hasOwnProperty(k)) { new_obj[k] = obj[k]; }
@@ -148,8 +162,8 @@ Function.prototype.clone = function() {
 
 // Lists
 function _list() { return Array.prototype.slice.call(arguments, 0); }
-function _list_Q(obj) { return Array.isArray(obj) && !obj.__isvector__; }
-
+function _list_Q(obj) {
+  return Array.isArray(obj) && !obj.__isvector__ && !obj.__ismap__; }
 
 // Vectors
 function _vector() {
@@ -157,8 +171,11 @@ function _vector() {
     v.__isvector__ = true;
     return v;
 }
-function _vector_Q(obj) { return Array.isArray(obj) && !!obj.__isvector__; }
+function _vector_Q(obj) {
+  return Array.isArray(obj) && !!obj.__isvector__; }
 
+function _map_Q(obj) {
+  return Array.isArray(obj) && !!obj.__ismap__; }
 
 
 // Hash Maps
@@ -174,6 +191,7 @@ function _hash_map_Q(hm) {
            !Array.isArray(hm) &&
            !(hm === null) &&
            !(hm instanceof Symbol) &&
+           !(hm instanceof Keyword) &&
            !(hm instanceof Atom);
 }
 function _assoc_BANG(hm) {
@@ -184,7 +202,7 @@ function _assoc_BANG(hm) {
         var ktoken = arguments[i],
             vtoken = arguments[i+1];
         if (typeof ktoken !== "string") {
-            throw new Error("expected hash-map key string, got: " + (typeof ktoken));
+            throw new Error("expected object key string, got: " + (typeof ktoken));
         }
         hm[ktoken] = vtoken;
     }
@@ -230,3 +248,7 @@ exports._assoc_BANG = types._assoc_BANG = _assoc_BANG;
 exports._dissoc_BANG = types._dissoc_BANG = _dissoc_BANG;
 exports._atom = types._atom = _atom;
 exports._atom_Q = types._atom_Q = _atom_Q;
+exports._undef_Q = types._undef_Q = _undef_Q;
+exports._array_Q = types._array_Q = _array_Q;
+exports._map_Q = types._map_Q = _map_Q;
+

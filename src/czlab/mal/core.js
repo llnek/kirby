@@ -1,4 +1,4 @@
-// Node vs browser behavior
+
 var core = {};
 if (typeof module === 'undefined') {
     var exports = core;

@@ -20,6 +20,9 @@ function _pr_str(obj, print_readably) {
         var ret = obj.map(function(e) { return _pr_str(e,_r); });
         return "[" + ret.join(' ') + "]";
     case 'hash-map':
+        var ret = obj.map(function(e) { return _pr_str(e,_r); });
+        return "{" + ret.join(' ') + "}";
+    case 'object':
         var ret = [];
         for (var k in obj) {
             ret.push(_pr_str(k,_r), _pr_str(obj[k],_r));
@@ -40,6 +43,8 @@ function _pr_str(obj, print_readably) {
         return "nil";
     case 'atom':
         return "(atom " + _pr_str(obj.val,_r) + ")";
+    case "keyword":
+        return ":" + obj.toString();
     default:
         return obj.toString();
     }
