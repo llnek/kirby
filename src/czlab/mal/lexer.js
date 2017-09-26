@@ -236,7 +236,7 @@ function parser (source, fname) {
        tlen= tokens.length;
   tokens.pos=0;
 
-  for(var i=0;i<tokens.length;++i) { console.log("token="+tokens[i].name); }
+  //for(var i=0;i<tokens.length;++i) { console.log("token="+tokens[i].name); }
 
   while (true) {
     f= readTokens(tokens);

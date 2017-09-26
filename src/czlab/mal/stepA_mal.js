@@ -212,6 +212,15 @@ rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] 
 rep("(defmacro or [&xs] (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs))))))))");
 //rep("(defmacro when-not (fn* [k & xs] `(if (not ~k) (do ~@xs))))");
 rep("(defmacro when-not [k & xs] `(if (not ~k) (do ~@xs)))");
+rep("(defmacro -> [expr form & xs] (if (> (count xs) 0) `(-> (~(nth form 0) ~expr ~@(rest form)) ~@xs) `(~(nth form 0) ~expr ~@(rest form))))");
+rep("(defmacro ->> [expr form & xs] (if (> (count xs) 0) `(->> (~@form ~expr) ~@xs) `(~@form ~expr)))");
+rep("(defmacro while [cond & xs] `(let* [f (fn* [] ~@xs) r (fn* [] (if ~cond (do (f) (r))))] (r)))");
+
+rep("(defmacro loop [bindings &xs] (let* [es (evens bindings) os (odds bindings)] `(fn* [] (let* [recur nil ____xs nil ____f (fn* [ ~@es  ] ~@xs) ____ret ____f] (def! recur (fn* [] (def! ____xs arguments) (when (isdef? ____ret) (def! ____ret undefined) (while (undef? ____ret) (def! ____ret (.apply ____f this ____xs))) ____ret))) (recur ~@os)))))");
+
+rep("(defmacro and [&xs] (let* [cvar (gensym)] (if (empty? xs) `(= 1 1) `(let* [~cvar ~(first xs)] (if ~cvar (and ~@(rest xs)) ~cvar)))))");
+rep("(defmacro do-with [binding & xs] `(let* [~(first binding) ~(nth binding 1)] (do ~@xs ~(first binding))))");
+
 
 if (typeof process !== 'undefined' && process.argv.length > 2) {
     repl_env.set(types._symbol('*ARGV*'), process.argv.slice(3));

@@ -149,6 +149,23 @@ function map(f, lst) {
     return lst.map(function(el){ return f(el); });
 }
 
+function evens(lst) {
+  let ret=[];
+  lst= lst || [];
+  for (var i=0; i < lst.length; i += 2) {
+    ret.push(lst[i]);
+  }
+  return ret;
+}
+
+function odds(lst) {
+  let ret=[];
+  lst= lst || [];
+  for (var i=1; i < lst.length; i += 2) {
+    ret.push(lst[i]);
+  }
+  return ret;
+}
 
 // Metadata functions
 function with_meta(obj, m) {
@@ -177,6 +194,9 @@ function swap_BANG(atm, f) {
     return atm.val;
 }
 
+function decr(n) { return n - 1; }
+function incr(n) { return n + 1; }
+
 function js_eval(str) {
     return interop.js_to_mal(eval(str.toString()));
 }
@@ -189,11 +209,16 @@ function js_method_call(object_method_str) {
     return interop.js_to_mal(res);
 }
 
+function some_stuff(x) {
+  return typeof x !== "undefined" && x !== null;
+}
+
 // types.ns is namespace of type functions
 var ns = {'type': types._obj_type,
           '=': types._equal_Q,
           'throw': mal_throw,
           'nil?': types._nil_Q,
+  "some?" : some_stuff,
           'true?': types._true_Q,
           'false?': types._false_Q,
           'string?': types._string_Q,
@@ -231,6 +256,8 @@ var ns = {'type': types._obj_type,
           'contains?': contains_Q,
           'keys': keys,
           'vals': vals,
+  "inc" : incr,
+  "dec" : decr,
 
           'sequential?': types._sequential_Q,
           'cons': cons,
@@ -244,6 +271,8 @@ var ns = {'type': types._obj_type,
           'map': map,
 
   "typeof?": _type_of,
+  "evens" : evens,
+  "odds" : odds,
 
           'conj': conj,
           'seq': seq,
