@@ -226,12 +226,46 @@ function sf_do (expr,env) {
     ret.add(""+ p+ "}).call(this)");
   }
 }
-
 SPEC_OPS["do"]=sf_do;
 
-//doto
+function sf_case (expr, env) {
+  let tst= nth(expr,1),
+      e =null, t= null, c=null, dft=null;
+  if (odd_Q(expr.length)) {
+    dft= expr.pop();
+  }
+  let ret= tnode();
+  for (var i=2;
+       i < expr.length; i += 2) {
 
+    c= nth(expr,i+1);
+    e= nth(expr, i);
+    if (types._list_Q(e)) {
+      for (var j=0;
+           j < e.length; ++j) {
+        ret.add(["case ", nth(e,j), ":\n"]);
+        if (j === (e.length-1))
+        ret.add(["____x= ",
+                eval_QQ(c,env), ";\nbreak;\n"]);
+      }
+    } else {
+      ret.add(["case ", e, ":\n"]);
+      ret.add(["____x= ",
+               eval_QQ(c), ";\nbreak;\n"]);
+    }
+  }
+  if (dft) {
+    ret.add("default:\n");
+    ret.add(["____x= ",
+      eval_QQ(dft), ";\nbreak;\n"]);
+  }
+  ret.prepend(["switch (",
+    eval_QQ(tst), ") {\n"]);
+  ret.add("}\n");
+  ret.prepend("(function() { let ____x;\n");
+  ret.add("return ____x;}).call(this)");
+}
 
-
+SPEC_OPS["case"]=sf_case;
 
 

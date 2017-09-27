@@ -176,6 +176,14 @@
   `(let* [~(first binding) ~(nth binding 1)]
      (when (some? ~(first binding)) ~@xs)))
 
+(defmacro doto [target & xs]
+  (let* [cvar (gensym)]
+    `(let* [~cvar ~target] ~@xs ~cvar)))
+
+
+
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

@@ -103,6 +103,10 @@ function nth(lst, idx) {
     //else { throw new Error("nth: index out of range"); }
 }
 
+function even_Q(n) { return (n % 2) === 0; }
+
+function odd_Q(n) { return !even_Q(n); }
+
 function first(lst) { return (lst === null) ? null : lst[0]; }
 
 function rest(lst) { return (lst == null) ? [] : lst.slice(1); }
@@ -256,6 +260,10 @@ var ns = {'type': types._obj_type,
           'contains?': contains_Q,
           'keys': keys,
           'vals': vals,
+
+  "even?" : even_Q,
+  "odd?" : odd_Q,
+
   "inc" : incr,
   "dec" : decr,
 
