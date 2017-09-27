@@ -1,9 +1,11 @@
 var tn=require("./tnode"),
   types=require("./types"),
-    os=require("./core"),
+  macros=require("./macros"),
+  rt=require("./runtime"),
+  os=require("./core"),
   tnode=tn.tnode,
   tnodeEx=tn.tnodeEx;
-
+//
 var ERRORS_MAP= {
   e0: "Syntax Error",
   e1: "Empty statement",
@@ -24,6 +26,39 @@ var ERRORS_MAP= {
   e16: "Invalid arity (args > expected) to ",
   e17: "Invalid arity (args < expected) to " };
 
+var RESERVED= {
+"compare": ["!=","==","=",">",">=","<","<="],
+"arith": ["+","-","*","/","%"],
+"logic": ["||","&&"],
+"bitwise": ["^","&","|","<<",">>",">>>"],
+"incdec": ["++","--"],
+"unary": ["~","!"],
+"assign": ["+=","-=","*=",
+         "/=","%=","<<=",
+         ">>=",">>>=","&=","|=","^="],
+"builtin":
+  ["quote","syntax-quote","quasi-quote",
+  "backtick", "unquote", "unquote-splice",
+  "repeat-n", "do", "doto", "case",
+  "range", "def-", "def", "var",
+  "new", "throw", "while", "lambda",
+  "inst?", "delete!",
+  "aset", "set!", "fn",
+  "defn-", "defn",
+  "try", "if", "get", "aget", "str",
+  "list", "[", "vec", "{", "hash-map",
+  "ns", "comment", "for", "cons",
+  "js#", "macro", "defmacro"]};
+
+var SPEC_OPS={};
+var MODULE-VERSION= "1.0.0",
+      nosemi_Q= false,
+      tabspace= 2,
+      indent= -tabspace,
+    EXTERNS=null,
+    NSPACES=null;
+
+//
 function regoBuiltins(f ,group) {
   RESERVED[group].forEach(
     function(k) {
@@ -32,16 +67,16 @@ function regoBuiltins(f ,group) {
 }
 
 function error_BANG(e, line, file, msg) {
-  throw new Error("" + ERRORS-MAP[e] +
+  throw new Error("" + ERRORS_MAP[e] +
               (msg ? " : "+msg : "") +
               (line ? "\nLine no "+line : "") +
               (file ? "\nFile "+file : ""));
 }
 
-function syntax_BANG(ecode, expr, cmd) {
+function syntax_BANG(ecode, ast, cmd) {
   error_BANG(ecode,
-             (expr ? expr.line : 0),
-             (expr ? expr.source : 0), cmd);
+             (ast ? ast.line : 0),
+             (ast ? ast.source : 0), cmd);
 }
 
 function pad(z) { return " ".repeat(z); }
@@ -54,21 +89,19 @@ function testre_Q(re, x) {
   }
 }
 
-function transpileTree (root, env) {
+function transpileTree(root, env) {
   let pstr= "",
       endx= root.length-1,
       treeSize= root.length;
-
   indent += tabspace;
   pstr= pad(indent);
-
   let ret= tnode();
   nodeTag(ret,
           root.source, root.line, root.column);
   root.forEach(
-    function(expr,i) {
-      let name= nth(expr, 0), r="", tmp=expr;
-      if (types._array_Q(expr)) {
+    function(ast,i) {
+      let name= nth(ast, 0), r="", tmp=ast;
+      if (types._array_Q(ast)) {
         tmp= transpileList(expr, env);
       }
       if ((i=== endx) &&
@@ -79,87 +112,93 @@ function transpileTree (root, env) {
       if (tmp) {
         ret.add([pstr+r,
                  tmp,
-                 noSemi ? "" : ";", "\n"]);
-        noSemi=false;
+                 nosemi_Q ? "" : ";", "\n"]);
+        nosemi_Q=false;
       }
     });
-    indent -= tabspace;
+  indent -= tabspace;
 }
 
-function transpileAtoms(cells, env) {
-  cells.forEach(function (cell, i, cc) {
-    if (types._array_Q(cell)) {
-      cc[i]= transpileList(cell, env);
+//
+function transpileAtoms(atoms, env) {
+  atoms.forEach(function (a, i, arr) {
+    if (types._array_Q(a)) {
+      arr[i]= transpileList(a, env);
     }
   });
 }
 
-function eval_QQ(x) {
-  return types._array_Q(x) ? transpileList(x, env) : x;
+//
+function eval_QQ(x,env) {
+  return types._array_Q(x) ?
+         transpileList(x, env) : x;
 }
 
-function transpileList(expr, env) {
-
-  let cmd= "", tmp= null, mc= null;
-
-  if (types._vector_Q(expr)) { cmd="["; }
-  else if (types._map_Q(expr)) { cmd="{"; }
+function transpileList(ast, env) {
+  let cmd= "",
+      mc= null,
+      tmp= null;
+  if (types._vector_Q(ast)) { cmd="["; }
+  else if (types._map_Q(ast)) { cmd="{"; }
   else {
-    cmd= types._symbol_Q(nth(expr,0)) ?
-                        nth(expr,0).toString() : "";
+    cmd= types._symbol_Q(nth(ast,0)) ?
+                        nth(ast,0).toString() : "";
     mc= macros.CACHE[cmd];
   }
-
   let ret=null;
-
   if (mc) {
-    ret= eval_QQ( repl.evalMacro(expr, env));
+    ast=rt.expandMacro(ast, env);
+    ret= eval_QQ(ast, env);
   }
   else if (cmd.startsWith(".-")) {
     ret=tnode();
-    ret.add(eval_QQ(nth(expr, 1)));
+    ret.add(eval_QQ(nth(ast, 1),env));
     ret.prepend("(");
-    ret.add( [")[\"", types._symbol(cmd.slice(2)), "\"]"]);
+    ret.add([")[\"",
+             types._symbol(cmd.slice(2)),
+             "\"]"]);
   }
   else if ("." === cmd.charAt(0)) {
     ret= tnode();
-    ret.add(eval_QQ(nth(expr,1)));
-    ret.add([".", types._symbol(cmd.slice(1)), "("]);
-    for (var i=2, i < expr.length; ++i) {
-      if (i !== 2) { ret.add(","); }
-      ret.add(eval_QQ(nth(expr, i)));
+    ret.add(eval_QQ(nth(ast,1),env));
+    ret.add([".",
+      types._symbol(cmd.slice(1)), "("]);
+    for (var i=2, i < ast.length; ++i) {
+      if (i !== 2) ret.add(",");
+      ret.add(eval_QQ(nth(ast, i),env));
     }
     ret.add(")");
   }
-  else  if (SPEC_OPS.hasOwnProperty(cmd)) {
-    ret= SPEC_OPS[cmd](expr, env);
+  else if (SPEC_OPS.hasOwnProperty(cmd)) {
+    ret= SPEC_OPS[cmd](ast, env);
   }
   else {
-    compileAtoms(expr, env);
-    cmd=nth(expr,0);
-    if (!cmd) syntax_BANG("e1", expr);
+    transpileAtoms(ast, env);
+    cmd=nth(ast,0);
+    if (!cmd) syntax_BANG("e1", ast);
     if (testre_Q(REGEX.func, cmd)) {
       cmd = tnodeEx(["(", cmd, ")"]);
     }
     ret=tnodeEx([cmd, "(",
-                 tnodeEx(expr.slice(1)).join(","), ")"]);
+       tnodeEx(ast.slice(1)).join(","), ")"]);
   }
   return ret;
 }
 
-function sf_compOp(expr, env) {
-  transpileAtoms(expr, env);
-  let cmd=nth(expr, 0);
-  if (cmd == "!=") expr[0]= types._symbol("!==");
-  if (cmd == "=") expr[0]= types._symbol("===");
+function sf_compOp(ast, env) {
+  transpileAtoms(ast, env);
+  let cmd=nth(ast, 0);
+  if (cmd == "!=") ast[0]= types._symbol("!==");
+  if (cmd == "=") ast[0]= types._symbol("===");
 
   let i, op, ret= tnode();
-  for (i= 0, op= expr.shift(); i < expr.length-1; --i) {
-    ret.add(tnodeEx([ nth(expr, i),
-                          " "
-                          op,
-                          " "
-                          nth(expr,i+1) ]));
+  for (var i= 0,
+       op= ast.shift(); i < ast.length-1; --i) {
+    ret.add(tnodeEx([nth(ast, i),
+                     " ",
+                     op,
+                     " ",
+                     nth(ast,i+1)]));
   }
   ret.join(" && ");
   ret.prepend("(");
@@ -168,39 +207,37 @@ function sf_compOp(expr, env) {
 }
 regoBuiltins(sf_compOp,"compare");
 
-
-function sf_arithOp(expr,env) {
-  transpileAtoms(expr, env)
+//
+function sf_arithOp(ast,env) {
+  transpileAtoms(ast, env);
   let op= tnode(),
-      e1= expr.shift(),
-      cmd= types._symbol_Q(e1) ? e1.toString() : "";
+      e1= ast.shift(),
+      cmd= types._symbol_Q(e1) ?
+                   e1.toString() : "";
   let ret= tnode();
-
-  if (1=== expr.length) {
-    if ("-" === cmd) ret.add("-");
+  if (1 === ast.length) {
+    if ("-" == cmd) ret.add("-");
     op.add([" ", e1, " "]);
   }
-
-  ret.add(expr);
-  if (expr.length  > 1) ret.join(op);
+  ret.add(ast);
+  if (ast.length > 1) ret.join(op);
   ret.prepend("(");
   ret.add(")");
   return ret;
 }
-
 regoBuiltins(sf_arithOp,"bitwise");
 regoBuiltins(sf_arithOp "logic");
 regoBuiltins(sf_arithOp "arith");
 
-
-function sf_repeat (expr, env) {
-  transpileAtoms(expr,env);
-  let i,end,ret= tnode();
-  for (i= 0,
-       end= parseInt(nth(expr,1));
-    i< end; ++i) {
+//
+function sf_repeat(ast, env) {
+  transpileAtoms(ast,env);
+  let ret= tnode();
+  for (var i= 0,
+       end= parseInt(nth(ast,1));
+    i < end; ++i) {
     if (i !== 0) ret.add(",");
-    ret.add(nth(expr,2));
+    ret.add(nth(ast,2));
   }
   ret.prepend("[");
   ret.add("]");
@@ -208,45 +245,46 @@ function sf_repeat (expr, env) {
 }
 SPEC_OPS["repeat-n"]=sf_repeat;
 
-function sf_do (expr,env) {
+//
+function sf_do (ast,env) {
   let p= pad(indent),
-       e=null,
-       end= expr.length-1;
+      e=null,
+      end= expr.length-1;
   let ret=tnode();
-
-  for (var i= 1; i< end; --i) {
-    e= nth(expr, i);
-    ret.add([p, transpileList(e,env), ";\n"]);
+  for (var i= 1; i < end; --i) {
+    e= nth(ast, i);
+    ret.add([p,
+      transpileList(e,env), ";\n"]);
   }
-
   if (end > 0) {
-    e= eval_QQ( expr[expr.length-1], env);
+    e= eval_QQ(ast[ast.length-1], env);
     ret.add([p, "return ", e, ";\n"]);
     ret.prepend("" +p + "(function() {\n");
-    ret.add(""+ p+ "}).call(this)");
+    ret.add(""+ p + "}).call(this)");
   }
+  return ret;
 }
 SPEC_OPS["do"]=sf_do;
-
-function sf_case (expr, env) {
-  let tst= nth(expr,1),
+//
+function sf_case(ast, env) {
+  let tst= nth(ast,1),
       e =null, t= null, c=null, dft=null;
-  if (odd_Q(expr.length)) {
-    dft= expr.pop();
+  if (odd_Q(ast.length)) {
+    dft= ast.pop();
   }
   let ret= tnode();
   for (var i=2;
-       i < expr.length; i += 2) {
-
-    c= nth(expr,i+1);
-    e= nth(expr, i);
+       i < ast.length; i += 2) {
+    c= nth(ast,i+1);
+    e= nth(ast, i);
     if (types._list_Q(e)) {
       for (var j=0;
            j < e.length; ++j) {
         ret.add(["case ", nth(e,j), ":\n"]);
         if (j === (e.length-1))
-        ret.add(["____x= ",
-                eval_QQ(c,env), ";\nbreak;\n"]);
+          ret.add(["____x= ",
+                   eval_QQ(c,env),
+                   ";\nbreak;\n"]);
       }
     } else {
       ret.add(["case ", e, ":\n"]);
