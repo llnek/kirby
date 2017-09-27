@@ -268,4 +268,564 @@ function sf_case (expr, env) {
 
 SPEC_OPS["case"]=sf_case;
 
+function sf_range (ast,env) {
+  if (ast.length < 2 || ast.length > 4) syntax_BANG("e0",ast);
+
+  let len= 0, start= 0, step= 1, end= 0;
+  transpileAtoms(ast,env);
+  len=ast.length;
+  end= parseInt(nth(ast,1));
+
+  let ret= tnode();
+  if (len > 2) {
+    start= parseInt(nth(ast,1));
+    end= parseInt(nth(ast,2));
+  }
+
+  if (len > 3)
+    step= parseInt(nth(expr, 3));
+
+  for (var i= start; i< end; i += step) {
+    if (i !== start) ret.add(",");
+    ret.add("" +  i);
+  }
+  ret.prepend("[");
+  ret.add("]");
+  return ret;
+}
+
+SPEC_OPS["range"]=sf_range;
+
+
+function sf_var (ast, env, cmd) {
+  //must be even pairs
+  if (ast.length < 3 ||
+      0 === (ast.length % 2)) syntax_BANG("e0", ast);
+
+  let vname=null,
+      publicQ= ("global" === cmd);
+
+  if (ast.length > 3) indent += tabspace;
+
+  if (publicQ ||
+          ("local"=== cmd)) cmd="var";
+
+  transpileAtoms(ast,env);
+  let ret=tnode();
+  for (var i= 1; i< ast.length; i += 2) {
+    if (i > 1)
+      ret.add(",\n" +  pad(indent));
+    if (!testid_Q(nth(ast,i))) syntax_BANG("e9",ast);
+    vname= nth(ast,i);
+    if (publicQ &&
+             (1=== NSPACES.length)) EXTERNS[vname]= vname;
+    ret.add([vname, " = ", nth(ast,i+1)]);
+  }
+  ret.prepend(" ");
+  ret.prepend(cmd);
+  if (ast.length > 3) indent -= tabspace;
+  return ret;
+}
+
+function sf_var_local(ast,env) {
+  return sf_var(ast, env, "local");
+}
+
+SPEC_OPS["def-"]=sf_var_local;
+
+function sf_var_global(ast,env) {
+  return sf_var(ast,env, "global");
+}
+SPEC_OPS["def"]=sf_var_global;
+
+function sf_var_let (ast,env) {
+  return sf_var(ast,env, "let");
+}
+SPEC_OPS["var"]=sf_var_let;
+
+function sf_inst_Q (ast,env) {
+  let ret= tnode();
+  ret.add(["(",
+               eval_QQ(nth(ast,2)),
+               " instanceof ",
+               eval_QQ(nth(ast,1)), ")"]);
+  return ret;
+}
+
+SPEC_OPS["inst?"]=sf_inst_Q;
+
+function sf_new(ast,env) {
+  let ret= tnode();
+  ret.add(transpileList(ast.slice(1),env));
+  ret.prepend("new ");
+  return ret;
+}
+
+SPEC_OPS["new"]=sf_new;
+
+function sf_throw(ast,env) {
+  let ret= tnode();
+  ret.add(["throw ", eval_QQ(nth(ast,1)), ";"]);
+  ret.prepend("(function (){ ");
+  ret.add(" }).call(this)");
+  return ret;
+}
+
+SPEC_OPS["throw"]=sf_throw;
+
+function sf_x_opop(ast,env) {
+  return tnodeEx([nth(ast,0), eval_QQ(nth(ast,1))]);
+}
+
+regoBuiltins(sf_x_opop,"incdec");
+
+
+function sf_x_eq(ast,env) {
+  return tnodeEx([nth(ast,1),
+            " ",
+            nth(ast,0),
+            " ",
+            eval_QQ(nth(ast,2))]);
+}
+regoBuiltins(sf_x_eq,"assign");
+
+function sf_set(ast,env) {
+  let ret= tnode();
+  if (4 === ast.length) {
+    ret.add(eval_QQ(nth(ast,1)));
+    ret.add("[");
+    ret.add(eval_QQ(nth(ast,2)));
+    ret.add("]");
+  } else {
+    ret.add(nth(ast,1));
+  }
+  ret.add([" = ", eval_QQ(ast[ast.length-1])]);
+  return ret;
+}
+SPEC_OPS["aset"]=sf_set;
+SPEC_OPS["set!"]=sf_set;
+
+
+function sf_lambda(ast,env) {
+  let args=nth(ast,1),
+      body= ast.slice(2),
+      ret= tnodeEx(args);
+
+  ret.join(",");
+  ret.prepend("function (");
+  ret.add([") {\n",
+             transpileTree(body),
+             pad(indent), "}"]);
+  return ret;
+}
+SPEC_OPS["fn"]=sf_lambda;
+
+
+function sf_func(ast,env,publicQ) {
+  let fname= normalizeId(nth(ast,1)),
+      e3= nth(ast,3).eTYPE,
+      e2= nth(ast,2).eTYPE,
+      doc=null, attrs=null, args= 2, body= 3;
+  if (types._list_Q(e2)) {}
+  else if (types.string_Q(e2)) {
+    doc= 2;
+    args= 3;
+    if (types._map_Q(e3)) {
+      attrs= 3;
+      args= 4;
+    }
+  } else if (types._map_Q(e2)) {
+    attrs= 2;
+    args= 3;
+  }
+  body= args+1;
+  if (doc) doc= nth(ast,doc);
+  if (attrs) attrs= nth(ast,attrs);
+  args= nth(ast,args);
+  body= ast.slice(body);
+  let ret=null;
+  ret= tnodeEx(args);
+  ret.join(",");
+  ret.prepend("function "+ fname+ "(");
+  ret.add([") {\n",
+               transpileTree(body,env),
+               pad(indent), "}\n"]);
+  if (attrs) {
+    ret.add(fmtSpecOps(fname, attrs));
+    ret.add(";");
+  }
+  if (doc) {
+    doc= doc.replace(REGEX.dquoteHat, "");
+    doc=doc.replace(REGEX.dquoteEnd, "");
+    ret.prepend(
+      doc.split("\\n").map(function(s) {
+        return "//"+ s +  "\n";
+      }));
+  }
+  if (publicQ &&
+             (1=== NSPACES.length)) EXTERNS[fname]=fname;
+  noSemi=true;
+  return ret;
+}
+
+function sf_func_private(ast,env){
+  return sf_func(ast,env,false);
+}
+SPEC_OPS["defn-"]=sf_func_private;
+
+function sf_func_public(ast,env) {
+  return sf_func(ast,env,true);
+}
+SPEC_OPS["defn"]=sf_func_public;
+
+
+function sf_try(ast,env) {
+  let sz=ast.length,
+       t=null,
+       f=null,
+       c=null,
+       ind= pad(indent);
+  //look for finally
+  f=ast[ast.length-1];
+  if (types._array_Q(f) &&
+      "finally" == nth(f,0)) {
+    f= ast.pop();
+    sz=ast.length;
+  } else {
+    f=null;
+  }
+  //look for catch
+  c= null;
+  if (sz > 1) c=nth(ast,sz-1);
+  if (types._array_Q(c) &&
+      "catch" == nth(c,0)) {
+    if (c.length < 2 ||
+        (! types._symbol_Q(nth(c,1)))) syntax_BANG("e0",ast);
+    c=ast.pop();
+  } else {
+    c=null;
+  }
+  //try needs either a catch or finally or both
+  if (f===null && c===null) syntax_BANG("e0", ast);
+  let ret= tnodeEx(
+                  ["(function() {\n"+ind+ ind "try {\n",
+                   transpileTree(ast.slice(1),env),
+                   "\n"+ ind +"} "]);
+  if (c) {
+    t= nth(c,1);
+    c.splice(0, 2, types._symbol("do"));
+    ret.add(["catch ("+ t+ ") {\n",
+             "return ",
+             transpileList(c,env),
+             ";\n"+ ind+ "}\n"]);
+  }
+
+  if (f) {
+    f.splice(0, 1, types._symbol("do"));
+    ret.add(["finally {\n",
+             transpileList(f,env),
+             ";\n"+ ind + "}\n"]);
+  }
+
+  ret.add(ind +"}).call(this)");
+  return ret;
+}
+SPEC_OPS["try"]=sf_try;
+
+
+function sf_if(ast,env) {
+  indent += tabspace;
+  transpileAtoms(ast,env);
+  let ret=
+    tnodeEx([
+      "(",
+      nth(ast,1),
+      " ?\n"+ pad(indent),
+      nth(ast,2),
+      " :\n"+ pad(indent),
+      (nth(ast,3) || "null"), ")"]);
+  indent -= tabspace;
+  return ret;
+}
+SPEC_OPS["if"]=sf_if;
+
+function sf_get(ast,env) {
+  transpileAtoms(ast,env);
+  return tnodeEx([nth(ast,1), "[", nth(ast,2), "]"]);
+}
+
+SPEC_OPS["aget"]=sf_get;
+SPEC_OPS["get"]=sf_get;
+
+function sf_str(ast,env) {
+  transpileAtoms(ast,env);
+  let ret= tnode();
+  ret.add(ast.slice(1));
+  ret.join(",");
+  ret.prepend("[");
+  ret.add("].join(\"\")");
+  return ret;
+}
+SPEC_OPS["str"]=sf_str;
+
+function sf_array(ast,env) {
+  let p= pad(indent),
+      epilog= "\n"+ p+ "]";
+  let ret= tnode();
+  if (!ast || ast.length===0) {
+    ret.add("[]");
+  } else {
+    if (!types._vector_Q(ast)) {
+      ast.splice(0, 1);
+    }
+    indent += tabspace;
+    transpileAtoms(ast,env);
+    p= pad(indent);
+    ret.add( "[\n"+ p);
+    for (var i= 0; i< ast.length; ++i) {
+      if (i > 0) ret.add(",\n"+ p);
+      ret.add(nth(ast, i));
+    }
+    ret.add(epilog);
+    indent -= tabspace;
+  }
+  return ret;
+}
+SPEC_OPS["vec"]= sf_array;
+SPEC_OPS["["]= sf_array;
+
+function sf_object(ast,env) {
+  let p= pad(indent),
+      epilog= "\n"+ p +"}";
+  let ret= tnode();
+  if (!ast || ast.length===0) {
+    ret.add("{}");
+  } else {
+    if (!types._map_Q(ast)) {
+      ast.splice(0, 1);
+    }
+    indent += tabspace;
+    transpileAtoms(ast,env);
+    p= pad(indent);
+    ret.add( "{\n"+ p);
+    for (var i= 0; i< ast.length; i +=2) {
+      if (i > 0) ret.add(",\n"+ p);
+      ret.add([nth(ast,i),
+                 ": ",
+                 nth(ast,i+1)]);
+    }
+    ret.add(epilog);
+    indent -= tabspace;
+  }
+  return ret;
+}
+
+SPEC_OPS["hash-map"]= sf_object;
+SPEC_OPS["{"]= sf_object;
+
+
+//(require ["path" :as *path*] ["fs" :as *fs*]))
+function sf_require(ast,env) {
+  let path=null,v= null, e=null;
+  let ret= tnode();
+  for (var i= 1;
+       i < ast.length; ++i) {
+    e= nth(ast, i);
+    if (!types._array_Q(e) ||
+           3 !== e.length) syntax_BANG("e0",ast);
+
+    path=nth(e,0);
+    v= nth(e,2);
+    ret.add(["var ",
+             normalizeId(v),
+             "= require(", path, ");\n"]);
+  }
+  return ret;
+}
+
+function sf_ns(ast,env) {
+  let ret= [];
+  ret.__isns__=true;
+  for (var i= 1;
+          i< ast.length; ++i) {
+    let e= nth(ast,i);
+        nm= nth(e,0);
+    if (types._symbol_Q(e)) {
+      NSPACES.push(e.toString());
+    }
+    else if (types._list_Q(e) &&
+             "include"==nm) {
+      ret.push(sf_include(e));
+    }
+    else if (types._list_Q(e) &&
+             "require"==nm) {
+      ret.push(sf_require(e));
+    }
+  }
+  return ret;
+}
+SPEC_OPS["ns"]=sf_ns;
+
+function sf_comment(ast,env) {
+  return tnode();
+}
+SPEC_OPS["comment"]=sf_comment;
+
+
+function sf_floop(ast,env) {
+
+  let c1=null,
+       c2=null,
+       c3=null,
+       c=nth(ast,1),
+       ind= pad(indent);
+
+  let ret= tnodeEx("for (");
+  if ((! types._array_Q(c)) ||
+      (3 !== c.length)) syntax_BANG("e0",ast);
+
+  c1=nth(c,0);
+  c2=nth(c,1);
+  c3=nth(c,2);
+  indent += tabspace;
+
+  for (var i= 0; i < c1.length; i += 2) {
+    if (i === 0) ret.add("var ");
+    if (i > 0) ret.add(",");
+    ret.add([nth(c1, i),
+               " = ",
+               eval_QQ(nth(c1,i+1)) ]);
+  }
+  ret.add("; ");
+  ret.add(transpileList(c2,env));
+  ret.add("; ");
+  for (var i= 0; i < c3.length; i += 2) {
+    if (i > 0) ret.add(",");
+    ret.add([nth(c3, i),
+               " = ",
+               eval_QQ(nth(c3,i+1))] );
+  }
+  ret.add(") {\n");
+  if (ast.length > 2) {
+    ast.splice(0, 2, types._symbol("do"));
+    ret.add([ind, pad(tabspace), transpileList(ast,env), ";"]);
+  }
+  ret.add("\n"+ ind+ "}\n");
+  ret.prepend("(function () {\n");
+  ret.add("}).call(this)");
+  indent -= tabspace;
+  return ret;
+}
+
+SPEC_OPS["for"]=sf_floop;
+
+function sf_jscode(ast,env) {
+  noSemi= true;
+  return tnodeEx(
+    nth(ast,1).toString().
+    replace(REGEX.dquoteHat,"").
+    replace(REGEX.dquoteEnd,""));
+}
+
+SPEC_OPS["js#"]=sf_jscode;
+
+function sf_macro(ast,env) {
+  let p2=ast[2],
+      p3=ast.slice(3);
+  ast=[ ast[0], ast[1],
+        [types._symbol("fn*"), p2].concat(p3)];
+  let a2=ast[2];
+  let a1=ast[1].toString();
+  let func = repl.eval(a2, env);
+  func._ismacro_ = true;
+  macros.CACHE[a1]=func;
+  return tnode();
+}
+
+SPEC_OPS["defmacro"]=sf_macro;
+
+function sf_unary(ast,env) {
+  transpileAtoms(ast,env);
+  return tnodeEx(["(", nth(ast,0) , nth(ast,1), ")"]);
+}
+
+regoBuiltins(sf_unary, "unary");
+
+
+function spitExterns() {
+  let p= pad(tabspace),
+      ks= Object.keys(EXTERNS),
+      s="";
+
+  if (ks.length > 0) {
+    s= Object.keys(EXTERNS).map(function(k) {
+              return p + k + ": " + k;
+       }).join(",\n");
+    s= "\n\nmodule.exports = {\n" +  s +  "\n};\n\n";
+  }
+
+  return s;
+}
+
+function transpileCode(codeStr, fname, srcMap_Q) {
+
+  if (!macros.loaded_Q) {
+    macros.load();
+  }
+
+  indent= -tabspace;
+  EXTERNS= {};
+  NSPACES = [];
+
+  let outNode= transpileTree(parse(codeStr, fname)),
+      extra= spitExterns();
+  outNode.prepend(banner);
+
+  if (srcMap_Q) {
+    let outFile= path.basename(fname, ".kirby") + ".js",
+        srcMap= outFile+ ".map",
+        output= outNode.toStringWithSourceMap(
+                                         {file: outFile });
+    fs.writeFileSync(srcMap, output.map);
+    return output.code +
+           extra +
+           "\n//# sourceMappingURL=" +
+           path.relative(path.dirname(fname), srcMap);
+  } else {
+    return outNode + extra;
+  }
+}
+
+function transpileXXX(code, file, smap_Q) {
+  try {
+    return transpileCode(code, file, smap_Q);
+  } catch (e) {
+    console.log(e.stack);
+    throw e;
+  }
+}
+
+function transpileWithSrcMap(code, file) {
+  return transpileXXX(code, file, true);
+}
+
+function transpile(code, file) {
+  return transpileXXX(code, file, false);
+}
+
+function parseWithSourceMap(codeStr, fname) {
+  let outNode= transpileTree(parse(codeStr, fname));
+  outNode.prepend(MODULE-BANNER);
+  return outNode.toStringWithSourceMap();
+}
+
+var version= MODULE-VERSION;
+
+
+module.exports = {
+  transpileWithSrcMap: transpileWithSrcMap,
+  transpile: transpile,
+  parseWithSourceMap: parseWithSourceMap,
+  version: version
+};
 
