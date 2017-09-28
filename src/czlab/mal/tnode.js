@@ -1,5 +1,5 @@
 var TreeNode= require("source-map").SourceNode;
-
+//
 function tnode(source, line, col, chunk, name, type) {
   let argsQ = arguments.length > 0,
     n=null;
@@ -14,7 +14,7 @@ function tnode(source, line, col, chunk, name, type) {
   }
   return n;
 }
-
+//
 function tnodeEx(chunk, name, type) {
   return tnode(null,null,null,chunk, name, type);
 }

@@ -121,9 +121,13 @@ function Symbol(name) {
 Symbol.prototype.toString = function() { return this.value; }
 function _symbol(name) { return new Symbol(name); }
 function _symbol_Q(obj) { return obj instanceof Symbol; }
+function _symbol_S(s) {
+  return _symbol_Q(s) ? s.value : s ? s.toString() :""; }
 Keyword.prototype.toString = function() { return this.value; }
 function _keyword(name) { return new Keyword(name); }
 function _keyword_Q(obj) { return obj instanceof Keyword; }
+function _keyword_S(k) {
+  return _keyword_Q(k) ? k.value : k ? k.toString() :""; }
 
 // Keywords
 function XX_keyword(obj) {
@@ -234,8 +238,10 @@ exports._false_Q = types._false_Q = _false_Q;
 exports._string_Q = types._string_Q = _string_Q;
 exports._symbol = types._symbol = _symbol;
 exports._symbol_Q = types._symbol_Q = _symbol_Q;
+exports._symbol_S = types._symbol_S = _symbol_S;
 exports._keyword = types._keyword = _keyword;
 exports._keyword_Q = types._keyword_Q = _keyword_Q;
+exports._keyword_S = types._keyword_S = _keyword_S;
 exports._function = types._function = _function;
 exports._function_Q = types._function_Q = _function_Q;
 exports._list = types._list = _list;
