@@ -1,10 +1,12 @@
+"use strict";
 var tn=require("./tnode"),
   types=require("./types"),
   rdr=require("./lexer"),
   psr=require("./parser"),
   macros=require("./macros"),
   rt=require("./runtime"),
-  os=require("./core"),
+  core=require("./core").ns,
+  nth=core.nth,
   tnode=tn.tnode,
   tnodeEx=tn.tnodeEx;
 
@@ -36,18 +38,18 @@ var RESERVED= {
 "logic": ["||","&&"],
 "bitwise": ["^","&","|","<<",">>",">>>"],
 "incdec": ["++","--"],
-"unary": ["~","!"],
+"unary": ["not", "~","!"],
 "assign": ["+=","-=","*=",
          "/=","%=","<<=",
          ">>=",">>>=","&=","|=","^="],
 "builtin":
   ["quote","syntax-quote","quasi-quote",
   "backtick", "unquote", "unquote-splice",
-  "repeat-n", "do", "doto", "case",
-  "range", "def-", "def", "var",
+  "repeat-n", "do", "doto", "case","apply",
+  "range", "def-", "def", "var", "forlet",
   "new", "throw", "while", "lambda",
   "inst?", "delete!",
-  "aset", "set!", "fn",
+  "aset", "set!", "fn", "def!",
   "defn-", "defn",
   "try", "if", "get", "aget", "str",
   "list", "[", "vec", "{", "hash-map",
@@ -96,7 +98,8 @@ function testre_Q(re, x) {
 
 //
 function nodeTag(obj, src) {
-  if (obj && src) {
+  if (obj && src && typeof obj !== "boolean" &&
+      typeof obj !== "number") {
     obj.source= src.source;;
     obj.column= src.column;
     obj.line= src.line;
@@ -114,7 +117,7 @@ function transpileTree(root, env) {
   let ret= tnode();
   nodeTag(ret, root);
   root.forEach(
-    function(ast,i) {
+    function(ast) {
       let name= nth(ast, 0), tmp=ast;
       if (types._array_Q(ast)) {
         tmp= transpileList(ast, env);
@@ -132,17 +135,48 @@ function transpileTree(root, env) {
 
 //
 function transpileAtoms(atoms, env) {
-  atoms.forEach(function (a, i, arr) {
+  atoms.forEach(function(a,i,arr){
     if (types._array_Q(a)) {
       arr[i]= transpileList(a, env);
+    }
+    else {
+      arr[i]=transpileSingle(a);
     }
   });
 }
 
 //
+function transpileSingle(a) {
+  if (types._symbol_Q(a)) {
+    return types._symbol_S(a);
+  }
+  if (types._keyword_Q(a)) {
+    return "\"" + types._keyword_S(a) + "\"";
+  }
+  if (types._string_Q(a)) {
+    return "\"" + types._keyword_S(a) + "\"";
+  }
+  if (a===null) {
+    return "null";
+  }
+
+  return ""+a;
+}
+
+//
 function eval_QQ(x,env) {
-  return types._array_Q(x) ?
-         transpileList(x, env) : x;
+  return types._array_Q(x) ? transpileList(x, env) : transpileSingle(x);
+}
+
+//
+function findCmd(ast) {
+  let cmd="";
+  if (types._vector_Q(ast)) { cmd="["; }
+  else if (types._map_Q(ast)) { cmd="{"; }
+  else if (types._list_Q(ast)) {
+    cmd= types._symbol_S(nth(ast,0));
+  } else { cmd=""}
+  return cmd;
 }
 
 //
@@ -150,18 +184,16 @@ function transpileList(ast, env) {
   let cmd= "",
       mc= null,
       tmp= null;
-  if (types._vector_Q(ast)) { cmd="["; }
-  else if (types._map_Q(ast)) { cmd="{"; }
-  else {
-    cmd= types._symbol_S(nth(ast,0));
-    mc= macros.get(cmd);
-  }
+  cmd=findCmd(ast);
+  mc= macros.get(cmd);
+
   let ret=tnode();
   if (mc) {
     ast=rt.expandMacro(ast, env, mc);
-    ret= eval_QQ(ast, env);
+    cmd= findCmd(ast);
   }
-  else if (cmd.startsWith(".-")) {
+
+  if (cmd.startsWith(".-")) {
     ret.add(eval_QQ(nth(ast, 1),env));
     ret.prepend("(");
     ret.add([")[\"",
@@ -170,39 +202,64 @@ function transpileList(ast, env) {
   }
   else if ("." === cmd.charAt(0)) {
     ret.add(eval_QQ(nth(ast,1),env));
-    ret.add([".",
-      types._symbol(cmd.slice(1)), "("]);
-    for (var i=2; i < ast.length; ++i) {
-      if (i !== 2) ret.add(",");
-      ret.add(eval_QQ(nth(ast, i),env));
+    //ret.add([".", types._symbol(cmd.slice(1)), "("]);
+    ret.add([cmd, "("]);
+    for (var n=2; n < ast.length; ++n) {
+      if (n !== 2) ret.add(",");
+      ret.add(eval_QQ(nth(ast, n),env));
     }
     ret.add(")");
   }
   else if (SPEC_OPS.hasOwnProperty(cmd)) {
-    ret= SPEC_OPS[cmd](ast, env);
+    ret = (SPEC_OPS[cmd])(ast, env);
   }
   else {
-    transpileAtoms(ast, env);
-    cmd=nth(ast,0);
-    if (!cmd) syntax_BANG("e1", ast);
-    if (testre_Q(REGEX.func, cmd)) {
-      cmd = tnodeEx(["(", cmd, ")"]);
+    if (types._list_Q(ast)) {
+      transpileAtoms(ast, env);
+      cmd=nth(ast,0);
+    } else {
+      cmd=transpileSingle(ast);
     }
-    ret.add([cmd,
-             "(",
-             tnodeEx(ast.slice(1)).join(","), ")"]);
+    if (!cmd) syntax_BANG("e1", ast);
+    if (types._list_Q(ast)) {
+      if (testre_Q(rdr.REGEX.func, cmd)) {
+        cmd = tnodeEx(["(", cmd, ")"]);
+      }
+      ret.add([cmd,
+               "(",
+               tnodeEx(ast.slice(1)).join(","), ")"]);
+    } else {
+      ret.add(cmd);
+    }
   }
   return nodeTag(ret,ast);
 }
 
 //
+function sf_apply(ast,env) {
+  let args= ast.slice(2),
+      f=ast[1],
+      ret=nodeTag(tnode(),ast);
+  for (var i=0; i < args.length; ++i) {
+    ret.add(eval_QQ(args[i],env));
+  }
+  if (args.length > 1) ret.join(",");
+  ret.prepend("[");
+  ret.add("]");
+  ret.prepend([eval_QQ(f,env), ".apply(this,"]);
+  ret.add(")");
+  return ret;
+}
+SPEC_OPS["apply"]=sf_apply;
+
+//
 function sf_compOp(ast, env) {
-  transpileAtoms(ast, env);
   let cmd=nth(ast, 0);
   if (cmd == "!=") ast[0]= types._symbol("!==");
   if (cmd == "=") ast[0]= types._symbol("===");
 
-  let i, op, ret= nodeTag(tnode(),ast);
+  let ret= nodeTag(tnode(),ast);
+  transpileAtoms(ast, env);
   for (var i= 0,
        op= ast.shift(); i < ast.length-1; ++i) {
     ret.add(tnodeEx([nth(ast, i),
@@ -227,7 +284,8 @@ function sf_arithOp(ast,env) {
       cmd= types._symbol_S(e1);
   if (1 === ast.length) {
     if ("-" == cmd) { ret.add("-"); }
-    else { op.add([" ", e1, " "]); }
+  } else {
+    op.add([" ", e1, " "]);
   }
   ret.add(ast);
   if (ast.length > 1) ret.join(op);
@@ -292,7 +350,7 @@ function sf_case(ast, env) {
   let ret= nodeTag(tnode(),ast);
   let tst= nth(ast,1),
       e =null, t= null, c=null, dft=null;
-  if (os.odd_Q(ast.length)) {
+  if (core.odd_Q(ast.length)) {
     dft= ast.pop();
   }
   for (var i=2;
@@ -464,27 +522,31 @@ regoBuiltins(sf_x_eq,"assign");
 
 //
 function sf_set(ast,env) {
-  let ret= nodeTag(tnode(),ast);
+  let ret= nodeTag(tnode(),ast),
+      e1= eval_QQ(nth(ast,1),env);
+
   if (4 === ast.length) {
-    ret.add(eval_QQ(nth(ast,1),env));
+    ret.add(e1);
     ret.add("[");
     ret.add(eval_QQ(nth(ast,2),env));
     ret.add("]");
   } else {
-    ret.add(nth(ast,1));
+    ret.add(e1);
   }
   ret.add([" = ", eval_QQ(ast[ast.length-1],env)]);
   return ret;
 }
 SPEC_OPS["aset"]=sf_set;
 SPEC_OPS["set!"]=sf_set;
-
+SPEC_OPS["def!"]=sf_set;
 //
 function sf_lambda(ast,env) {
   let args=nth(ast,1),
       body= ast.slice(2),
-      ret= nodeTag(tnodeEx(args),ast);
+      ret= null;
 
+  transpileAtoms(args);
+  ret= nodeTag(tnodeEx(args),ast);
   ret.join(",");
   ret.prepend("function (");
   ret.add([") {\n",
@@ -605,16 +667,19 @@ SPEC_OPS["try"]=sf_try;
 
 //
 function sf_if(ast,env) {
-  let ret=nodeTag(tnode(),ast);
+  let ret=nodeTag(tnode(),ast),
+    a1=ast[1],
+    a2=ast[2],
+    a3=ast.length > 3 ? ast[3] : null;
+
   indent += tabspace;
-  transpileAtoms(ast,env);
   ret.add([
       "(",
-      nth(ast,1),
+      eval_QQ(a1,env),
       " ?\n"+ pad(indent),
-      nth(ast,2),
+      eval_QQ(a2,env),
       " :\n"+ pad(indent),
-      (nth(ast,3) || "null"), ")"]);
+      (eval_QQ(a3,env) || "null"), ")"]);
   indent -= tabspace;
   return ret;
 }
@@ -750,7 +815,7 @@ function sf_comment(ast,env) {
 SPEC_OPS["comment"]=sf_comment;
 
 //
-function sf_floop(ast,env) {
+function sf_floop(ast,env,hint) {
   let ret= nodeTag(tnodeEx("for ("),ast);
   let c1=null,
       c2=null,
@@ -766,22 +831,25 @@ function sf_floop(ast,env) {
   c3=nth(c,2);
   indent += tabspace;
 
-  for (var i= 0; i < c1.length; i += 2) {
-    if (i === 0) ret.add("var ");
-    if (i > 0) ret.add(",");
-    ret.add([nth(c1, i),
-             " = ",
-             eval_QQ(nth(c1,i+1),env)]);
-  }
+  if (types._array_Q(c1))
+    for (var i= 0; i < c1.length; i += 2) {
+      if (i === 0) ret.add(hint);
+      if (i > 0) ret.add(",");
+      ret.add([transpileSingle(nth(c1, i)),
+               " = ",
+               eval_QQ(nth(c1,i+1),env)]);
+    }
   ret.add("; ");
-  ret.add(transpileList(c2,env));
+  if (types._array_Q(c2))
+    ret.add(transpileList(c2,env));
   ret.add("; ");
-  for (var i= 0; i < c3.length; i += 2) {
-    if (i > 0) ret.add(",");
-    ret.add([nth(c3, i),
-             " = ",
-             eval_QQ(nth(c3,i+1),env)]);
-  }
+  if (types._array_Q(c3))
+    for (var i= 0; i < c3.length; i += 2) {
+      if (i > 0) ret.add(",");
+      ret.add([transpileSingle(nth(c3, i)),
+               " = ",
+               eval_QQ(nth(c3,i+1),env)]);
+    }
   ret.add(") {\n");
   if (ast.length > 2) {
     //ast.splice(0, 2, types._symbol("do"));
@@ -795,15 +863,43 @@ function sf_floop(ast,env) {
   indent -= tabspace;
   return ret;
 }
-SPEC_OPS["for"]=sf_floop;
+SPEC_OPS["for"]=function (ast,env) {
+  return sf_floop(ast,env,"");
+}
+SPEC_OPS["forlet"]=function (ast,env) {
+  return sf_floop(ast,env,"var");
+}
+//
+function sf_wloop(ast,env) {
+  let ret= nodeTag(tnodeEx("for (;"),ast);
+  let cond=nth(ast,1),
+      ind= pad(indent);
+
+  ret.add(eval_QQ(cond,env));
+  ret.add(";) {\n");
+  indent += tabspace;
+  if (ast.length > 2) {
+    //ast.splice(0, 2, types._symbol("do"));
+    ret.add([ind,
+             pad(tabspace),
+             transpileDo(ast.slice(2),env,false), ";"]);
+  }
+  ret.add("\n"+ ind+ "}\n");
+  ret.prepend("(function () {\n");
+  ret.add("}).call(this)");
+  indent -= tabspace;
+  return ret;
+}
+SPEC_OPS["while"]=sf_wloop;
+
 
 //
 function sf_jscode(ast,env) {
   nosemi_Q= true;
   return nodeTag(tnodeEx(
     nth(ast,1).toString().
-    replace(REGEX.dquoteHat,"").
-    replace(REGEX.dquoteEnd,"")),ast);
+    replace(rdr.REGEX.dquoteHat,"").
+    replace(rdr.REGEX.dquoteEnd,"")),ast);
 }
 
 SPEC_OPS["js#"]=sf_jscode;
@@ -814,6 +910,7 @@ function sf_macro(ast,env) {
       p3=ast.slice(3);
   ast=[ast[0], ast[1],
        [types._symbol("fn*"), p2].concat(p3)];
+
   let a2=ast[2];
   let a1=ast[1].toString();
   let func = rt.eval(a2, env);
@@ -825,9 +922,13 @@ SPEC_OPS["defmacro"]=sf_macro;
 
 //
 function sf_unary(ast,env) {
-  let ret=nodeTag(tnode(),ast);
-  transpileAtoms(ast,env);
-  ret.add(["(", nth(ast,0) , nth(ast,1), ")"]);
+  let ret=nodeTag(tnode(),ast),
+      a0=ast[0],
+      a1=ast[1];
+
+  if (a0 == "not") a0=types._symbol("!");
+
+  ret.add(["(", eval_QQ(a0,env) , eval_QQ(a1,env), ")"]);
   return ret;
 }
 regoBuiltins(sf_unary, "unary");
@@ -859,16 +960,14 @@ function banner() {
 
 //
 function transpileCode(codeStr, fname, srcMap_Q) {
-  if (!macros.loaded_Q) {
-    macros.load();
-  }
+  //if (!macros.loaded_Q) { macros.load(); }
 
   indent= -tabspace;
   EXTERNS= {};
   NSPACES = [];
 
   let outNode= transpileTree(
-                psr.parser(codeStr, fname),rt.newEnv()),
+                psr.parser(codeStr, fname),rt.globalEnv()),
       extra= spitExterns();
   outNode.prepend(banner());
 

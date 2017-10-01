@@ -1,4 +1,5 @@
 #!/usr/bin/env node
 
-require("../dist/main");
+//require("../dist/main");
+require("../src/czlab/mal/main");
 

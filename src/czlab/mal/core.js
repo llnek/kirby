@@ -90,7 +90,9 @@ function vals(hm) { return Object.keys(hm).map(function(k) { return hm[k]; }); }
 
 
 // Sequence functions
-function cons(a, b) { return [a].concat(b); }
+function cons(a, b) {
+  return [a].concat(b);
+}
 
 function concat(lst) {
     lst = lst || [];

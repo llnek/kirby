@@ -1,14 +1,18 @@
 
 (defmacro values [obj]
-  `(js! "Object.values" ~obj))
+  `(Object.values ~obj))
+
 (defmacro keys [obj]
-  `(js! "Object.keys" ~obj))
+  `(Object.keys ~obj))
 
 (defmacro whatis? [obj]
-  `(js! "Object.prototype.toString.call" ~obj))
+  `(Object.prototype.toString.call ~obj))
+
+(defmacro typeof? [obj] `(typeof ~obj))
 
 (defmacro regexs [pattern glim] `(new RegExp ~pattern ~glim))
 (defmacro regex [pattern] `(new RegExp ~pattern))
+
 
 (defmacro undef? [obj]
   `(= (typeof? ~obj) "undefined"))
@@ -61,9 +65,6 @@
 ;;
 (defmacro false? [obj] `(= false ~obj))
 
-
-(defmacro not [x] `(if ~x false true))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro when-not [cond & xs] `(when (not ~cond) ~@xs))
@@ -72,8 +73,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro if-not [cond & xs]
-  (let* [e1 (nth rest 0)
-         e2 (nth rest 1)]
+  (let* [e1 (nth xs 0)
+         e2 (nth xs 1)]
     `(if (not ~cond) ~e1 ~e2)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -98,66 +99,74 @@
     `(->> (~@form ~expr) ~@xs)
     `(~@form ~expr)))
 
-(defmacro while [cond & xs]
-  `(let* [f (fn* [] ~@xs)
-          r (fn* []
-               (if ~cond
-                 (do (f) (r))))]
-    (r)))
+(defmacro let [bindings & xs]
+  (let* [ps (evens bindings)
+         vs (odds bindings)]
+    `((fn [~@ps] ~@xs) ~@vs)))
 
-
-(defmacro loop [bindings &xs]
+(defmacro XXloop [bindings & more]
   (let*
     [es (evens bindings)
-     os (odds bindings)
-     func
-      `(fn* []
-         (let* [recur nil ____xs nil
-                ____f (fn* [ ~@es  ] ~@xs)
-                ____ret ____f]
-           (def! recur
-             (fn* []
-                (def! ____xs arguments)
-                (when (isdef? ____ret)
-                  (def! ____ret undefined)
-                  (while (undef? ____ret)
-                    (def! ____ret
-                      (.apply ____f this ____xs)))
-                  ____ret)))
-           (recur ~@os)))]
-    (func)))
+     xs (gensym)
+     f (gensym)
+     ret (gensym)
+     os (odds bindings)]
+    `((fn []
+         (var recur nil ~xs nil
+              ~f (fn [ ~@es  ] ~@more)
+              ~ret ~f)
+         (set! recur
+           (fn []
+             (set! ~xs arguments)
+             (if (isdef? ~ret)
+               (do (set! ~ret undefined)
+                   (while (undef? ~ret)
+                     (set! ~ret (.apply ~f this ~xs))) ~ret)
+               undefined)))
+         (recur ~@os)))))
 
+(defmacro loop [bindings & more]
+  (let*
+    [es (evens bindings)
+     xs (gensym)
+     f (gensym)
+     ret (gensym)
+     os (odds bindings)]
+    `((fn []
+         (var recur nil ~xs nil
+              ~f (fn [~@es ] ~@more)
+              ~ret ~f)
+         (set! recur
+           (fn []
+             (set! ~xs arguments)
+             (if (isdef? ~ret)
+               (do (for ((~ret undefined)
+                         (= ~ret undefined) nil)
+                     (set! ~ret (.apply ~f this ~xs))) ~ret)
+               undefined)))
+         (recur ~@os)))))
 
-(defmacro or [&xs]
-  (let* [cvar (gensym)]
-    (if (empty? xs)
-      nil
-      `(let* [~cvar ~(first xs)]
-         (if ~cvar ~cvar (or ~@(rest xs)))))))
+(defmacro or [&xs] `(|| ~@xs))
 
-(defmacro and [&xs]
-  (let* [cvar (gensym)]
-    (if (empty? xs)
-      `(= 1 1)
-      `(let* [~cvar ~(first xs)]
-        (if ~cvar
-          (and ~@(rest xs))
-          ~cvar)))))
+(defmacro and [&xs] `(&& ~@xs))
 
 (defmacro do-with [binding & xs]
-  `(let* [~(first binding)
-          ~(nth binding 1)]
+  `(let [~(first binding)
+         ~(nth binding 1)]
     (do ~@xs ~(first binding))))
 
-(defmacro do->false [&xs] `(do ~@xs (= 1 0)))
-(defmacro do->true [&xs] `(do ~@xs (= 1 1)))
+(defmacro do->false [&xs] `(do ~@xs false))
+(defmacro do->true [&xs] `(do ~@xs true))
 (defmacro do->nil [&xs] `(do ~@xs nil))
 (defmacro do->undef [&xs] `(do ~@xs undefined))
+
+(defmacro inc [x] `(+ ~x 1))
+(defmacro dec [x] `(- ~x 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro dotimes [binding &xs]
-  (let [_times (gensym)]
+  (let* [_times (gensym)]
     `(loop [~(first binding) 0
             ~_times ~(nth binding 1)]
        (when (> ~_times ~(first binding))
@@ -167,18 +176,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro if-some [binding then otherwise]
-  `(let* [~(first binding) ~(nth binding 1)]
-     (if (some? ~(first binding)) ~then ~otherwise)))
+  `(let [~(first binding) ~(nth binding 1)]
+     (if ~(first binding) ~then ~otherwise)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (defmacro when-some [binding &xs]
-  `(let* [~(first binding) ~(nth binding 1)]
-     (when (some? ~(first binding)) ~@xs)))
+  `(let [~(first binding) ~(nth binding 1)]
+     (when ~(first binding) ~@xs)))
 
 (defmacro doto [target & xs]
   (let* [cvar (gensym)]
-    `(let* [~cvar ~target] ~@xs ~cvar)))
+    `(let [~cvar ~target] ~@xs ~cvar)))
 
 
 

@@ -190,7 +190,7 @@ function parser (source, fname) {
     f= readTokens(tokens);
     addAst(ast, f);
     if (tokens.pos < tlen) {
-      f=readTokens(tokens);
+      //f=readTokens(tokens);
     } else {
       break;
     }

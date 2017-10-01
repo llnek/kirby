@@ -1,7 +1,7 @@
 var types = require('./types');
 var readline = require('readline');
 var macros=require("./macros");
-var reader = require('./parser');
+var parser = require('./parser');
 var printer = require('./printer');
 var Env = require('./env').Env;
 var JS= require("./interop");
@@ -9,7 +9,7 @@ var core = require('./core');
 
 //
 function dbg(obj) {
-  printer.println(printer._pr_str(obj, true));
+  printer.println("DBG-RT: " + printer._pr_str(obj, true));
 }
 
 //
@@ -22,6 +22,7 @@ function isPair(x) {
 }
 
 function quasiquote(ast) {
+
   if (!isPair(ast)) {
       return [types._symbol("quote"), ast];
   } else if (types._symbol_Q(ast[0]) && ast[0].value === 'unquote') {
@@ -31,9 +32,10 @@ function quasiquote(ast) {
               ast[0][1],
               quasiquote(ast.slice(1))];
   } else {
+    let a0=ast[0],a1=ast.slice(1);
       return [types._symbol("cons"),
-              quasiquote(ast[0]),
-              quasiquote(ast.slice(1))];
+              quasiquote(a0),
+              quasiquote(a1)];
   }
 }
 
@@ -45,7 +47,9 @@ function isMacroCall(ast, env) {
 }
 
 function expandMacro(ast,env, mc) {
-  return macroexpand(ast,env);
+  let ret= macroexpand(ast,env);
+  //dbg(ret);
+  return ret;
 }
 
 //
@@ -53,14 +57,14 @@ function macroexpand(ast, env) {
   var isM=isMacroCall(ast, env);
   var cmd= isM ? ast[0] : "";
   if (isM) {
-    printer.println("macro-in("+cmd+"):", printer._pr_str(ast, true));
+    //printer.println("macro-in("+cmd+"):", printer._pr_str(ast, true));
   }
   while (isMacroCall(ast, env)) {
     var cmd= types._symbol_S(ast[0]),
         mac = macros.get(cmd);
-printer.println("macro(before-"+cmd+":", printer._pr_str(ast, true));
+//printer.println("macro(before-"+cmd+":", printer._pr_str(ast, true));
         ast = mac.apply(mac, ast.slice(1));
-printer.println("macro(after-"+cmd+":", printer._pr_str(ast, true));
+//printer.println("macro(after-"+cmd+":", printer._pr_str(ast, true));
   }
   if (isM) {
     printer.println("macro-out("+cmd+"):", printer._pr_str(ast, true));
@@ -75,6 +79,10 @@ function evalAst(ast, env) {
   }
   else if (types._symbol_Q(ast)) {
     return env.get(ast);
+    try {
+    } catch (e) {
+      dbg(ast);
+    }
   } else if (types._list_Q(ast)) {
     return ast.map(function(a) { return compute(a, env); });
   } else if (types._vector_Q(ast)) {
@@ -104,7 +112,7 @@ function evalAst(ast, env) {
 function computeLoop(ast, env) {
     while (true) {
 
-    printer.println("EVAL:", printer._pr_str(ast, true));
+    //printer.println("EVAL:", printer._pr_str(ast, true));
 
     if (!types._list_Q(ast)) {
         return evalAst(ast, env);
@@ -119,13 +127,11 @@ function computeLoop(ast, env) {
         return ast;
     }
 
-    printer.println("SWITCH:", printer._pr_str(ast, true));
+    //printer.println("SWITCH:", printer._pr_str(ast, true));
 
     var a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
     switch (a0.value) {
-      case "set!":
-        var res = compute(a2,repl_env);
-        return repl_env.set(a1,res);
+      //case "set!": var res = compute(a2,repl_env); return repl_env.set(a1,res);
     case "def!":
         var res = compute(a2, env);
         return env.set(a1, res);
@@ -195,6 +201,7 @@ function computeLoop(ast, env) {
 
 //
 function compute(ast, env) {
+  if (!env) env=global_env;
   var result = computeLoop(ast, env);
   return (typeof result !== "undefined") ? result : null;
 }
@@ -213,44 +220,14 @@ function newEnv() {
     return compute(ast, ret);
   });
   ret.set(types._symbol('*ARGV*'), []);
-  ret.set(types._symbol("opmode", 1));
+  ret.set(types._symbol("*host-language*"), "javascript");
+  ret.set(types._symbol("*gensym-counter*"), types._atom(0));
   return ret;
 }
 
 // repl
-var repl_env = newEnv();
-var rep = function(str) {
-  return show(compute(readAst(str), repl_env)); };
-
-// core.mal: defined using the language itself
-rep("(def! *host-language* \"javascript\")")
-rep("(def! not (fn* (a) (if a false true)))");
-rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))");
-//rep("(defmacro cond (fn* (& xs) (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs)))))))");
-rep("(defmacro cond [& xs] (if (> (count xs) 0) (list 'if (first xs) (if (> (count xs) 1) (nth xs 1) (throw \"odd number of forms to cond\")) (cons 'cond (rest (rest xs))))))");
-rep("(def! *gensym-counter* (atom 0))");
-rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
-//rep("(defmacro or (fn* (&xs) (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs)))))))))");
-rep("(defmacro or [&xs] (if (empty? xs) nil (if (= 1 (count xs)) (first xs) (let* (condvar (gensym)) `(let* (~condvar ~(first xs)) (if ~condvar ~condvar (or ~@(rest xs))))))))");
-//rep("(defmacro when-not (fn* [k & xs] `(if (not ~k) (do ~@xs))))");
-rep("(defmacro when-not [k & xs] `(if (not ~k) (do ~@xs)))");
-rep("(defmacro -> [expr form & xs] (if (> (count xs) 0) `(-> (~(nth form 0) ~expr ~@(rest form)) ~@xs) `(~(nth form 0) ~expr ~@(rest form))))");
-rep("(defmacro ->> [expr form & xs] (if (> (count xs) 0) `(->> (~@form ~expr) ~@xs) `(~@form ~expr)))");
-rep("(defmacro while [cond & xs] `(let* [f (fn* [] ~@xs) r (fn* [] (if ~cond (do (f) (r))))] (r)))");
-
-rep("(defmacro loop [bindings &xs] (let* [es (evens bindings) os (odds bindings)] `(fn* [] (let* [recur nil ____xs nil ____f (fn* [ ~@es  ] ~@xs) ____ret ____f] (def! recur (fn* [] (def! ____xs arguments) (when (isdef? ____ret) (def! ____ret undefined) (while (undef? ____ret) (def! ____ret (.apply ____f this ____xs))) ____ret))) (recur ~@os)))))");
-
-rep("(defmacro and [&xs] (let* [cvar (gensym)] (if (empty? xs) `(= 1 1) `(let* [~cvar ~(first xs)] (if ~cvar (and ~@(rest xs)) ~cvar)))))");
-rep("(defmacro do-with [binding & xs] `(let* [~(first binding) ~(nth binding 1)] (do ~@xs ~(first binding))))");
-
-if (typeof process !== 'undefined' && process.argv.length > 2) {
-    repl_env.set(types._symbol('*ARGV*'), process.argv.slice(3));
-    rep('(load-file "' + process.argv[2] + '")');
-    process.exit(0);
-}
-
 var prefix= "kirby> ";
-var runrepl=function() {
+var run_repl=function() {
   let rl= readline.createInterface(
             process.stdin, process.stdout);
   rl.on("line",
@@ -275,11 +252,25 @@ var runrepl=function() {
   rl.prompt();
 }
 
-rep("(println (str \"Mal [\" *host-language* \"]\"))");
-runrepl();
+var rep = function(str) { return show(compute(readAST(str))); };
+var global_env=new Env();
+function runRepl() {
+  init();
+  run_repl();
+}
 
+function init() {
+  global_env=newEnv();
+  rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
+  rep("(def! not (fn* (a) (if a false true)))");
+  //rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))");
+}
 module.exports= {
   expandMacro: expandMacro,
+  eval: compute,
+  init: init,
+  globalEnv: function() { return global_env; },
+  repl: runRepl,
   newEnv: newEnv
 };
 

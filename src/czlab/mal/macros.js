@@ -1,6 +1,6 @@
 
 var loaded_Q=false;
-var cache= {};
+var CACHE= {};
 
 function load() {
   loaded_Q=true;
@@ -8,7 +8,10 @@ function load() {
 }
 
 function set(cmd, func) {
-  if (cmd && func) CACHE[cmd]=func;
+  if (cmd && func) {
+    //console.log("adding macro ==== " + cmd);
+    CACHE[cmd]=func;
+  }
 }
 
 function get(x) {
@@ -19,7 +22,6 @@ module.exports= {
   load: load,
   set: set,
   get: get,
-  CACHE: cache,
   loaded_Q : loaded_Q
 };
 

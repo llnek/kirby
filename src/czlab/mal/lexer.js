@@ -8,7 +8,7 @@ var REGEX= {
   noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
   id: regex("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_'<>#@$]*$"),
   id2: regex("^[*\\-][?\\-*!0-9a-zA-Z_'<>#@$]+$"),
-  float: regex( "^[-+]?[0-9]+\\.[0-9]+$"),
+  float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
   int: regex("^[-+]?[0-9]+$"),
   hex: regex("^[-+]?0x"),
   macroGet: regex("^#slice@(\\d+)"),
@@ -96,6 +96,11 @@ function tokenize (source, fname) {
           token += ch;
       }
     }
+    else if (ch === "&" && nx === "&") {
+      if (token.length===0) tcol= col;
+      token += ch + nx;
+      ++pos;
+    }
     else if (ch === "~") {
       if (token.length===0 &&
           (!REGEX.wspace.test(nx))) {
@@ -130,7 +135,7 @@ function tokenize (source, fname) {
     }
     else {
         if (token.length===0) tcol= col;
-            token += ch;
+        token += ch;
     }
   }
   return tree;
