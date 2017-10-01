@@ -17,7 +17,7 @@ G__2 = arguments;
 return ((!(typeof(G__4) === "undefined")) ?
     (function() {
   (function () {
-for (G__4 = undefined; (G__4 === undefined); ) {
+for ( G__4 = undefined; (G__4 === undefined); ) {
         G__4 = G__3.apply(this,G__2);
 ;
   }
@@ -110,7 +110,7 @@ G__5 = arguments;
 return ((!(typeof(G__7) === "undefined")) ?
     (function() {
   (function () {
-for (G__7 = undefined; (G__7 === undefined); ) {
+for ( G__7 = undefined; (G__7 === undefined); ) {
         G__7 = G__6.apply(this,G__5);
 ;
   }
@@ -155,34 +155,12 @@ return null;
 return undefined;
 }).call(this);
 (function () {
-let recur = null,
-  G__9 = null,
-  G__10 = function (i,G__8) {
-  return ((G__8 > i) ?
-        (function() {
+for (var i_STAR = 0,G__8 = 8; (i_STAR < G__8); i_STAR = (i_STAR + 1)) {
     "hello";
-    "world";
-    return recur((i + 1),G__8);
-    }).call(this) :
-    null);
-  },
-  G__11 = G__10;
-recur = function () {
-G__9 = arguments;
-return ((!(typeof(G__11) === "undefined")) ?
-    (function() {
-  (function () {
-for (G__11 = undefined; (G__11 === undefined); ) {
-        G__11 = G__10.apply(this,G__9);
+  "world";
 ;
-  }
+}
 }).call(this);
-  return G__11;
-  }).call(this) :
-  undefined);
-};
-return recur(0,8);
-})();
 (function (a) {
 return (a ?
   (8 * 9) :
@@ -201,8 +179,8 @@ return (a ?
   }).call(this) :
   null);
 })((9 * 8));
-(function (G__12) {
+(function (G__9) {
 "5".replace();
 "6".replace();
-return G__12;
+return G__9;
 })(["2","4"].join(""));

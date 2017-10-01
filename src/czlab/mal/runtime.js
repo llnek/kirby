@@ -67,7 +67,7 @@ function macroexpand(ast, env) {
 //printer.println("macro(after-"+cmd+":", printer._pr_str(ast, true));
   }
   if (isM) {
-    printer.println("macro-out("+cmd+"):", printer._pr_str(ast, true));
+    //printer.println("macro-out("+cmd+"):", printer._pr_str(ast, true));
   }
   return ast;
 }

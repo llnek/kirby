@@ -104,27 +104,6 @@
          vs (odds bindings)]
     `((fn [~@ps] ~@xs) ~@vs)))
 
-(defmacro XXloop [bindings & more]
-  (let*
-    [es (evens bindings)
-     xs (gensym)
-     f (gensym)
-     ret (gensym)
-     os (odds bindings)]
-    `((fn []
-         (var recur nil ~xs nil
-              ~f (fn [ ~@es  ] ~@more)
-              ~ret ~f)
-         (set! recur
-           (fn []
-             (set! ~xs arguments)
-             (if (isdef? ~ret)
-               (do (set! ~ret undefined)
-                   (while (undef? ~ret)
-                     (set! ~ret (.apply ~f this ~xs))) ~ret)
-               undefined)))
-         (recur ~@os)))))
-
 (defmacro loop [bindings & more]
   (let*
     [es (evens bindings)
@@ -165,13 +144,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defmacro dotimes [binding &xs]
+(defmacro Xdotimes [binding &xs]
   (let* [_times (gensym)]
     `(loop [~(first binding) 0
             ~_times ~(nth binding 1)]
        (when (> ~_times ~(first binding))
          ~@xs
          (recur (inc ~(first binding)) ~_times)))))
+
+(defmacro dotimes [binding &xs]
+  (let* [_times (gensym)]
+    `(forlet ((~(first binding) 0 ~_times ~(nth binding 1))
+           (< ~(first binding) ~_times)
+           (~(first binding) (inc ~(first binding))))
+         ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

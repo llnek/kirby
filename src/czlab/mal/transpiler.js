@@ -148,7 +148,7 @@ function transpileAtoms(atoms, env) {
 //
 function transpileSingle(a) {
   if (types._symbol_Q(a)) {
-    return types._symbol_S(a);
+    return rdr.jsid(types._symbol_S(a));
   }
   if (types._keyword_Q(a)) {
     return "\"" + types._keyword_S(a) + "\"";
@@ -557,7 +557,7 @@ function sf_lambda(ast,env) {
 SPEC_OPS["fn"]=sf_lambda;
 
 function sf_func(ast,env,publicQ) {
-  let fname= rdr.jsid(nth(ast,1)),
+  let fname= transpileSingle(nth(ast,1)),
       e3= nth(ast,3),
       e2= nth(ast,2),
       doc=null, attrs=null, args= 2, body= 3;
@@ -777,7 +777,7 @@ function sf_require(ast,env) {
     path=nth(e,0);
     v= nth(e,2);
     ret.add(["var ",
-             rdr.jsid(v),
+             transpileSingle(v),
              "= require(", path, ");\n"]);
   }
   return ret;
@@ -833,7 +833,7 @@ function sf_floop(ast,env,hint) {
 
   if (types._array_Q(c1))
     for (var i= 0; i < c1.length; i += 2) {
-      if (i === 0) ret.add(hint);
+      if (i === 0) ret.add(hint+" ");
       if (i > 0) ret.add(",");
       ret.add([transpileSingle(nth(c1, i)),
                " = ",

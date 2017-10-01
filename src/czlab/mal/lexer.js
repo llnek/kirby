@@ -1,4 +1,5 @@
 var tn=require("./tnode"),
+    types=require("./types"),
     tnode=tn.tnode,
     tnodeEx=tn.tnodeEx;
 
@@ -31,7 +32,26 @@ function testid_Q (name) {
 }
 
 function normalizeId (name) {
-  return name;
+  let pfx= "";
+  if (types._string_Q(name) &&
+      "-" === name.charAt(0)) {
+    pfx= "-";
+    name= name.slice(1);
+  }
+
+  if (testid_Q(name)) {
+    return (pfx+name).replace(REGEX.query, "_QUERY").
+        replace(REGEX.bang, "_BANG").
+        replace(REGEX.dash, "_").
+        replace(REGEX.quote, "_QTE").
+        replace(REGEX.hash, "_HASH").
+        replace(REGEX.at, "_AT").
+        replace(REGEX.less, "_LT").
+        replace(REGEX.greater, "_GT").
+        replace(REGEX.star, "_STAR");
+  } else {
+    return (pfx === "") ? name : pfx+ name;
+  }
 }
 
 function tokenize (source, fname) {
