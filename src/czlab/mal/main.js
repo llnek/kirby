@@ -1,17 +1,30 @@
-var gopt=require("node-getopt"),
+// Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+// The use and distribution terms for this software are covered by the
+// Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
+// which can be found in the file epl-v10.html at the root of this distribution.
+// By using this software in any fashion, you are agreeing to be bound by
+// the terms of this license.
+// You must not remove this notice, or any other, from this software.
+"use strict";
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+var kirby=require("./cg/transpiler"),
+    macros=require("./bl/macros"),
+    rt=require("./rt/runtime"),
+    gopt=require("node-getopt"),
     watcher=require("watch"),
-    kirby=require("./transpiler"),
-    rt=require("./runtime"),
-    macros=require("./macros"),
     path=require("path"),
     fs=require("fs");
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+var validFlag_Q=new RegExp("-h\\b|-r\\b|-v\\b|-b\\b|-s\\b|-t\\b");
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var error=function(e) {
   console.error(e);
   process.exit(1);
 }
-var validFlag_Q=new RegExp("-h\\b|-r\\b|-v\\b|-b\\b|-s\\b|-t\\b");
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var opt=
 gopt.create([["h","help","display this help"],
              ["v","version","show version"],
@@ -57,6 +70,7 @@ function handleNoArgs() {
   }, 20);
 }
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function compileFiles() {
   let fin,fout;
   if (opt.argv[0]) {
@@ -96,9 +110,10 @@ function compileFiles() {
   }
 }
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
   require.extensions[".kirby"]=function(module, fname) {
-    let kb= require("./transpiler"),
+    let kb= require("./cg/transpiler"),
         code= fs.readFileSync(fname, "utf8");
     module._compile(
       kb.transpile(code, path.relative(process.cwd(), fname)), fname);
@@ -107,13 +122,16 @@ function init() {
   macros.load();
 }
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function main() {
   init();
   compileFiles();
 }
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 main();
 
-
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+//EOF
 
 
