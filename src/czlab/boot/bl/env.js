@@ -7,7 +7,7 @@
 // You must not remove this notice, or any other, from this software.
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var core=require("./core");
+var std=require("./stdlib");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function Env(outer, binds, exprs) {
@@ -17,11 +17,11 @@ function Env(outer, binds, exprs) {
   if (binds && exprs) {
     for (var i=0; i<binds.length; ++i) {
       if (binds[i].value === "&") {
-        this.data[binds[i+1].value] = core.slice(exprs, i);
+        this.data[binds[i+1].value] = std.slice(exprs, i);
         break;
       }
       if (binds[i].value.startsWith("&")) {
-        this.data[ binds[i].value.slice(1)] = core.slice(exprs, i);
+        this.data[ binds[i].value.slice(1)] = std.slice(exprs, i);
         break;
       }
       this.data[binds[i].value] = exprs[i];
@@ -55,8 +55,8 @@ Env.prototype.get = function(key) {
     throw new Error("env.get key must be a symbol");
   }
   let env = this.find(key);
-  if (!env) { throw new Error("'" + key.value + "' not found"); }
-  return env.data[key.value];
+  if (!env) { std.raise("'",key.value, "' not found"); }
+  return env ? env.data[key.value] : key;
 };
 
 module.exports= {

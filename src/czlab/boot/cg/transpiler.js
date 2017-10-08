@@ -8,8 +8,8 @@
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var macros=require("../bl/macros"),
-    core=require("../bl/core"),
-    lib=require("../rt/lib"),
+    types=require("../bl/types"),
+  std=require("../bl/stdlib"),
     tn=require("../bl/tnode"),
     rdr=require("../bl/lexer"),
     psr=require("../bl/parser"),
@@ -17,7 +17,6 @@ var macros=require("../bl/macros"),
 
 var tnodeEx=tn.tnodeEx;
 var tnode=tn.tnode;
-var nth=lib.nth;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var ERRORS_MAP= {
@@ -42,7 +41,7 @@ var ERRORS_MAP= {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var RESERVED= {
-"compare": ["!=","==","=",">",">=","<","<="],
+"compare": ["not=","!=","==","=",">",">=","<","<="],
 "arith": ["+","-","*","/","%"],
 "logic": ["||","&&"],
 "bitwise": ["^","&","|","<<",">>",">>>"],
@@ -123,7 +122,7 @@ function transpileTree(root, env) {
 
   root.forEach(function(ast) {
     let tmp=ast;
-    if (core.array_Q(ast)) {
+    if (std.array_p(ast)) {
       tmp= transpileList(ast, env);
     }
     if (tmp) {
@@ -140,7 +139,7 @@ function transpileTree(root, env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileAtoms(atoms, env) {
   atoms.forEach(function(a,i,arr){
-    if (core.array_Q(a)) {
+    if (std.array_p(a)) {
       arr[i]= transpileList(a, env);
     } else {
       arr[i]=transpileSingle(a);
@@ -150,14 +149,14 @@ function transpileAtoms(atoms, env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileSingle(a) {
-  if (core.symbol_Q(a)) {
-    return rdr.jsid(core.symbol_S(a));
+  if (types.symbol_p(a)) {
+    return rdr.jsid(types.symbol_s(a));
   }
-  if (core.keyword_Q(a)) {
-    return "\"" + core.keyword_S(a) + "\"";
+  if (types.keyword_p(a)) {
+    return "\"" + types.keyword_s(a) + "\"";
   }
-  if (core.string_Q(a)) {
-    return "\"" + core.keyword_S(a) + "\"";
+  if (std.string_p(a)) {
+    return a;
   }
   if (a===null) {
     return "null";
@@ -167,17 +166,17 @@ function transpileSingle(a) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function eval_QQ(x,env) {
-  return core.array_Q(x) ?
+  return std.array_p(x) ?
          transpileList(x, env) : transpileSingle(x);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function findCmd(ast) {
   let cmd="";
-  if (core.vector_Q(ast)) { cmd="["; }
-  else if (core.map_Q(ast)) { cmd="{"; }
-  else if (core.list_Q(ast)) {
-    cmd= core.symbol_S(nth(ast,0));
+  if (types.vector_p(ast)) { cmd="["; }
+  else if (types.map_p(ast)) { cmd="{"; }
+  else if (types.list_p(ast)) {
+    cmd= types.symbol_s(ast[0]);
   } else { cmd=""}
   return cmd;
 }
@@ -197,18 +196,19 @@ function transpileList(ast, env) {
   }
 
   if (cmd.startsWith(".-")) {
-    ret.add(eval_QQ(nth(ast, 1),env));
-    ret.prepend("(");
-    ret.add([")[\"",
-             core.symbol(cmd.slice(2)),
+    ret.add(eval_QQ(ast[1],env));
+    //ret.prepend("(");
+    //ret.add(")");
+    ret.add(["[\"",
+             transpileSingle(types.symbol(cmd.slice(2))),
              "\"]"]);
   }
   else if ("." === cmd.charAt(0)) {
-    ret.add(eval_QQ(nth(ast,1),env));
+    ret.add(eval_QQ(ast[1],env));
     ret.add([cmd, "("]);
     for (var n=2; n < ast.length; ++n) {
       if (n !== 2) ret.add(",");
-      ret.add(eval_QQ(nth(ast, n),env));
+      ret.add(eval_QQ(ast[n],env));
     }
     ret.add(")");
   }
@@ -216,14 +216,14 @@ function transpileList(ast, env) {
     ret = (SPEC_OPS[cmd])(ast, env);
   }
   else {
-    if (core.list_Q(ast)) {
+    if (types.list_p(ast)) {
       transpileAtoms(ast, env);
-      cmd=nth(ast,0);
+      cmd=ast[0];
     } else {
       cmd=transpileSingle(ast);
     }
     if (!cmd) syntax_E("e1", ast);
-    if (core.list_Q(ast)) {
+    if (types.list_p(ast)) {
       if (testre_Q(rdr.REGEX.func, cmd)) {
         cmd = tnodeEx(["(", cmd, ")"]);
       }
@@ -256,19 +256,19 @@ SPEC_OPS["apply"]=sf_apply;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_compOp(ast, env) {
-  let cmd=nth(ast, 0);
-  if (cmd == "!=") ast[0]= core.symbol("!==");
-  if (cmd == "=") ast[0]= core.symbol("===");
+  let cmd=ast[0];
+  if (cmd == "not=" || cmd == "!=") ast[0]= types.symbol("!==");
+  if (cmd == "=") ast[0]= types.symbol("===");
 
   let ret= nodeTag(tnode(),ast);
   transpileAtoms(ast, env);
   for (var i= 0,
        op= ast.shift(); i < ast.length-1; ++i) {
-    ret.add(tnodeEx([nth(ast, i),
+    ret.add(tnodeEx([ast[i],
                      " ",
                      op,
                      " ",
-                     nth(ast,i+1)]));
+                     ast[i+1]]));
   }
   ret.join(" && ");
   ret.prepend("(");
@@ -283,7 +283,7 @@ function sf_arithOp(ast,env) {
   let ret= nodeTag(tnode(),ast);
   let op= tnode(),
       e1= ast.shift(),
-      cmd= core.symbol_S(e1);
+      cmd= types.symbol_s(e1);
   if (1 === ast.length) {
     if ("-" == cmd) { ret.add("-"); }
   } else {
@@ -304,10 +304,10 @@ function sf_repeat(ast, env) {
   transpileAtoms(ast,env);
   let ret= nodeTag(tnode(),ast);
   for (var i= 0,
-       end= parseInt(nth(ast,1));
+       end= parseInt(ast[1]);
        i < end; ++i) {
     if (i !== 0) ret.add(",");
-    ret.add(nth(ast,2));
+    ret.add(ast[2]);
   }
   ret.prepend("[");
   ret.add("]");
@@ -322,7 +322,7 @@ function transpileDo(ast,env,return_Q) {
       end= ast.length-1;
   let ret=nodeTag(tnode(),ast);
   for (var i= 0; i < end; ++i) {
-    e= nth(ast, i);
+    e= ast[i];
     ret.add([p, transpileList(e,env), ";\n"]);
   }
   if (end >= 0) {
@@ -350,19 +350,19 @@ SPEC_OPS["do"]=sf_do;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_case(ast, env) {
   let ret= nodeTag(tnode(),ast);
-  let tst= nth(ast,1),
+  let tst= ast[1],
       e =null, t= null, c=null, dft=null;
-  if (core.odd_Q(ast.length)) {
+  if (std.odd_p(ast.length)) {
     dft= ast.pop();
   }
   for (var i=2;
        i < ast.length; i += 2) {
-    c= nth(ast,i+1);
-    e= nth(ast, i);
-    if (core.list_Q(e)) {
+    c= ast[i+1];
+    e= ast[i];
+    if (types.list_p(e)) {
       for (var j=0;
            j < e.length; ++j) {
-        ret.add(["case ", nth(e,j), ":\n"]);
+        ret.add(["case ", e[j], ":\n"]);
         if (j === (e.length-1))
           ret.add(["____x= ",
                    eval_QQ(c,env), ";\nbreak;\n"]);
@@ -396,15 +396,15 @@ function sf_range (ast,env) {
 
   transpileAtoms(ast,env);
   len=ast.length;
-  end= parseInt(nth(ast,1));
+  end= parseInt(ast[1]);
 
   if (len > 2) {
-    start= parseInt(nth(ast,1));
-    end= parseInt(nth(ast,2));
+    start= parseInt(ast[1]);
+    end= parseInt(ast[2]);
   }
 
   if (len > 3)
-    step= parseInt(nth(ast, 3));
+    step= parseInt(ast[3]);
 
   for (var i= start; i< end; i += step) {
     if (i !== start) ret.add(",");
@@ -434,11 +434,11 @@ function sf_var (ast, env, cmd) {
   for (var i= 1; i< ast.length; i += 2) {
     if (i > 1)
       ret.add(",\n" +  pad(indent));
-    if (!rdr.testid_Q( nth(ast,i))) syntax_E("e9",ast);
-    vname= core.symbol_S(nth(ast,i));
+    if (!rdr.testid_Q( ast[i])) syntax_E("e9",ast);
+    vname= types.symbol_s(ast[i]);
     if (publicQ &&
         (1 === NSPACES.length)) EXTERNS[vname]= vname;
-    ret.add([vname, " = ", nth(ast,i+1)]);
+    ret.add([vname, " = ", ast[i+1]]);
   }
   ret.prepend(" ");
   ret.prepend(cmd);
@@ -468,9 +468,9 @@ SPEC_OPS["var"]=sf_var_let;
 function sf_inst_Q (ast,env) {
   let ret= nodeTag(tnode(),ast);
   ret.add(["(",
-           eval_QQ(nth(ast,2)),
+           eval_QQ(ast[2]),
            " instanceof ",
-           eval_QQ(nth(ast,1)), ")"]);
+           eval_QQ(ast[1]), ")"]);
   return ret;
 }
 SPEC_OPS["inst?"]=sf_inst_Q;
@@ -478,7 +478,7 @@ SPEC_OPS["inst?"]=sf_inst_Q;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_delete(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  ret.add(["delete ", eval_QQ(nth(ast,1))]);
+  ret.add(["delete ", eval_QQ(ast[1])]);
   return ret;
 }
 SPEC_OPS["delete!"]=sf_delete;
@@ -495,7 +495,7 @@ SPEC_OPS["new"]=sf_new;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_throw(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  ret.add(["throw ", eval_QQ(nth(ast,1)), ";"]);
+  ret.add(["throw ", eval_QQ(ast[1]), ";"]);
   ret.prepend("(function (){ ");
   ret.add(" }).call(this)");
   return ret;
@@ -504,29 +504,30 @@ SPEC_OPS["throw"]=sf_throw;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_x_opop(ast,env) {
-  return nodeTag(tnodeEx([nth(ast,0),
-                          eval_QQ(nth(ast,1),env)]),ast);
+  transpileAtoms(ast,env);
+  return nodeTag(tnodeEx([ast[0],
+                          ast[1]]),ast);
 }
 regoBuiltins(sf_x_opop,"incdec");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_x_eq(ast,env) {
+  transpileAtoms(ast,env);
   return nodeTag(
-           tnodeEx([nth(ast,1),
-                    " ", nth(ast,0), " ",
-                    eval_QQ(nth(ast,2),env)]));
+           tnodeEx([ast[1],
+                    " ", ast[0], " ", ast[2]]));
 }
 regoBuiltins(sf_x_eq,"assign");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_set(ast,env) {
   let ret= nodeTag(tnode(),ast),
-      e1= eval_QQ(nth(ast,1),env);
+      e1= eval_QQ(ast[1],env);
 
   if (4 === ast.length) {
     ret.add(e1);
     ret.add("[");
-    ret.add(eval_QQ(nth(ast,2),env));
+    ret.add(eval_QQ(ast[2],env));
     ret.add("]");
   } else {
     ret.add(e1);
@@ -540,50 +541,92 @@ SPEC_OPS["def!"]=sf_set;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_lambda(ast,env) {
-  let args=nth(ast,1),
+  let args=ast[1],
+    varg="",
       body= ast.slice(2),
       ret= null;
 
-  transpileAtoms(args);
-  ret= nodeTag(tnodeEx(args),ast);
+  args= args.map(function(a) { return a;});
+  transpileAtoms(args,env);
+  args=handleArgs(args);
+  if (args[1] >= 0) {
+    //var-args
+    varg="let " + args[2] + "=Array.prototype.slice.call(arguments," +
+      args[1] + ");\n";
+  }
+  ret= nodeTag(tnodeEx(args[0]),ast);
   ret.join(",");
   ret.prepend("function (");
-  ret.add([") {\n",
+  ret.add([") {\n", varg,
            transpileDo(body,env),
            pad(indent), "}"]);
   return ret;
 }
 SPEC_OPS["fn"]=sf_lambda;
 
+function handleArgs(args) {
+  let skip=-1, varg="", ret=[];
+  for (var i=0,e=null; i < args.length; ++i) {
+    e= args[i];
+    if (e== "&") {
+      varg = "" + args[i+1];
+      skip=i;
+      break;
+    }
+    if ((""+e).startsWith("&")) {
+      varg= ("" + e).slice(1);
+      skip=i;
+      break;
+    }
+    ret.push(e);
+  }
+  return [ret,skip,varg];
+}
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
-  let fname= transpileSingle(nth(ast,1)),
-      e3= nth(ast,3),
-      e2= nth(ast,2),
+  let fname= transpileSingle(ast[1]),
+      dotQ= fname.includes("."),
+      e3= ast[3],
+      e2= ast[2],
       doc=null, attrs=null, args= 2, body= 3;
-  if (core.list_Q(e2)) {}
-  else if (core.string_Q(e2)) {
+  if (types.list_p(e2)) {}
+  else if (std.string_p(e2)) {
     doc= 2;
     args= 3;
-    if (core.map_Q(e3)) {
+    if (types.map_p(e3)) {
       attrs= 3;
       args= 4;
     }
-  } else if (core.map_Q(e2)) {
+  } else if (types.map_p(e2)) {
     attrs= 2;
     args= 3;
   }
   body= args+1;
-  if (doc) doc= nth(ast,doc);
-  if (attrs) attrs= nth(ast,attrs);
-  args= nth(ast,args);
+  if (doc) doc= ast[doc];
+  if (attrs) attrs= ast[attrs];
+  args= ast[args];
+  args= args.map(function(a) { return a;});
+  transpileAtoms(args,env);
+  args= handleArgs(args);
   body= ast.slice(body);
-  let ret=nodeTag(tnodeEx(args),ast);
+  let ret=nodeTag(tnodeEx(args[0]),ast);
+  let vargs="";
   ret.join(",");
-  ret.prepend("function "+ fname+ "(");
+  if (dotQ) {
+    ret.prepend([fname, " = function ("]);
+  } else {
+    ret.prepend("function "+ fname+ "(");
+  }
+  if (args[1] >= 0) {
+    //var-args
+    vargs="let " + args[2] + "=Array.prototype.slice.call(arguments," +
+      args[1] + ");\n";
+  }
   ret.add([") {\n",
-               transpileDo(body,env),
-               pad(indent), "}\n"]);
+           vargs,
+           transpileDo(body,env),
+           pad(indent), "}\n"]);
   if (false && attrs) {
     //ret.add(fmtSpecOps(fname, attrs));
     //ret.add(";");
@@ -623,8 +666,8 @@ function sf_try(ast,env) {
        ind= pad(indent);
   //look for finally
   f=ast[ast.length-1];
-  if (core.array_Q(f) &&
-      "finally" == nth(f,0)) {
+  if (std.array_p(f) &&
+      "finally" == f[0]) {
     f= ast.pop();
     sz=ast.length;
   } else {
@@ -632,11 +675,11 @@ function sf_try(ast,env) {
   }
   //look for catch
   c= null;
-  if (sz > 1) c=nth(ast,sz-1);
-  if (core.array_Q(c) &&
-      "catch" == nth(c,0)) {
+  if (sz > 1) c=ast[sz-1];
+  if (std.array_p(c) &&
+      "catch" == c[0]) {
     if (c.length < 2 ||
-        (! core.symbol_Q(nth(c,1)))) syntax_E("e0",ast);
+        (! types.symbol_p(c[1]))) syntax_E("e0",ast);
     c=ast.pop();
   } else {
     c=null;
@@ -648,7 +691,7 @@ function sf_try(ast,env) {
            transpileDo(ast.slice(1),env),
            "\n"+ ind +"} "]);
   if (c) {
-    t= nth(c,1);
+    t= c[1];
     ret.add(["catch ("+ t+ ") {\n",
              transpileDo(c.slice(2),env),
              ";\n"+ ind+ "}\n"]);
@@ -686,10 +729,19 @@ function sf_if(ast,env) {
 SPEC_OPS["if"]=sf_if;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_nth(ast,env) {
+  let ret=nodeTag(tnode(),ast);
+  transpileAtoms(ast,env);
+  ret.add([ast[1], "[", ast[2], "]"]);
+  return ret;
+}
+SPEC_OPS["nth"]=sf_nth;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_get(ast,env) {
   let ret=nodeTag(tnode(),ast);
   transpileAtoms(ast,env);
-  ret.add([nth(ast,1), "[", nth(ast,2), "]"]);
+  ret.add([ast[1], "[", ast[2], "]"]);
   return ret;
 }
 SPEC_OPS["aget"]=sf_get;
@@ -697,12 +749,17 @@ SPEC_OPS["get"]=sf_get;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_str(ast,env) {
-  let ret= nodeTag(tnode(),ast);
-  transpileAtoms(ast,env);
-  ret.add(ast.slice(1));
-  ret.join(",");
-  ret.prepend("[");
-  ret.add("].join(\"\")");
+  let ret= nodeTag(tnode(),ast),
+      args=ast.slice(1);
+  transpileAtoms(args,env);
+  if (args.length > 1) {
+    ret.add(args);
+    ret.join(",");
+    ret.prepend("[");
+    ret.add("].join(\"\")");
+  } else if (args.length > 0) {
+    ret.add(args[0].toString());
+  }
   return ret;
 }
 SPEC_OPS["str"]=sf_str;
@@ -715,7 +772,7 @@ function sf_array(ast,env) {
   if (!ast || ast.length===0) {
     ret.add("[]");
   } else {
-    if (!core.vector_Q(ast)) {
+    if (!types.vector_p(ast)) {
       ast.splice(0, 1);
     }
     indent += tabspace;
@@ -724,7 +781,7 @@ function sf_array(ast,env) {
     ret.add( "[\n"+ p);
     for (var i= 0; i< ast.length; ++i) {
       if (i > 0) ret.add(",\n"+ p);
-      ret.add(nth(ast, i));
+      ret.add(ast[i]);
     }
     ret.add(epilog);
     indent -= tabspace;
@@ -742,7 +799,7 @@ function sf_object(ast,env) {
   if (!ast || ast.length===0) {
     ret.add("{}");
   } else {
-    if (!core.map_Q(ast)) {
+    if (!types.map_p(ast)) {
       ast.splice(0, 1);
     }
     indent += tabspace;
@@ -751,9 +808,9 @@ function sf_object(ast,env) {
     ret.add( "{\n"+ p);
     for (var i= 0; i< ast.length; i +=2) {
       if (i > 0) ret.add(",\n"+ p);
-      ret.add([nth(ast,i),
+      ret.add([ast[i],
                  ": ",
-                 nth(ast,i+1)]);
+                 ast[i+1]]);
     }
     ret.add(epilog);
     indent -= tabspace;
@@ -769,14 +826,15 @@ function sf_require(ast,env) {
   let path=null,v= null, e=null;
   for (var i= 1;
        i < ast.length; ++i) {
-    e= nth(ast, i);
-    if (!core.array_Q(e) ||
+    e= ast[i];
+    if (!std.array_p(e) ||
            3 !== e.length) syntax_E("e0",ast);
-    path=nth(e,0);
-    v= nth(e,2);
+    path=e[0];
+    v= e[2];
     ret.add(["var ",
              transpileSingle(v),
-             "= require(", path, ");\n"]);
+             "= require(",
+             transpileSingle(path), ");\n"]);
   }
   return ret;
 }
@@ -784,22 +842,26 @@ function sf_require(ast,env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_ns(ast,env) {
   let ret= [];
-  ret.__isns__=true;
-  for (var i= 1; i< ast.length; ++i) {
-    let e= nth(ast,i);
-        nm= nth(e,0);
-    if (core.symbol_Q(e)) {
+  //ret.__isns__=true;
+  for (var i= 1; i < ast.length; ++i) {
+    let e= ast[i],
+        nm= e[0];
+    if (nm == "with-meta") {
+      NSPACES.push(e[1].toString());
+    }
+    else
+    if (types.symbol_p(e)) {
       NSPACES.push(e.toString());
     }
-    else if (core.list_Q(e) &&
+    else if (types.list_p(e) &&
              "include"==nm) {
       ret.push(sf_include(e));
     }
-    else if (core.list_Q(e) &&
+    else if (types.list_p(e) &&
              "require"==nm) {
       ret.push(sf_require(e));
     }
-    else if (core.list_Q(e) &&
+    else if (types.list_p(e) &&
              "with-meta"==nm) {
     }
   }
@@ -819,35 +881,35 @@ function sf_floop(ast,env,hint) {
   let c1=null,
       c2=null,
       c3=null,
-      c=nth(ast,1),
+      c=ast[1],
       ind= pad(indent);
 
-  if ((! core.array_Q(c)) ||
+  if ((! std.array_p(c)) ||
       (3 !== c.length)) syntax_E("e0",ast);
 
-  c1=nth(c,0);
-  c2=nth(c,1);
-  c3=nth(c,2);
+  c1=c[0];
+  c2=c[1];
+  c3=c[2];
   indent += tabspace;
 
-  if (core.array_Q(c1))
+  if (std.array_p(c1))
     for (var i= 0; i < c1.length; i += 2) {
       if (i === 0) ret.add(hint+" ");
       if (i > 0) ret.add(",");
-      ret.add([transpileSingle(nth(c1, i)),
+      ret.add([transpileSingle(c1[i]),
                " = ",
-               eval_QQ(nth(c1,i+1),env)]);
+               eval_QQ(c1[i+1],env)]);
     }
   ret.add("; ");
-  if (core.array_Q(c2))
+  if (std.array_p(c2))
     ret.add(transpileList(c2,env));
   ret.add("; ");
-  if (core.array_Q(c3))
+  if (std.array_p(c3))
     for (var i= 0; i < c3.length; i += 2) {
       if (i > 0) ret.add(",");
-      ret.add([transpileSingle(nth(c3, i)),
+      ret.add([transpileSingle(c3[i]),
                " = ",
-               eval_QQ(nth(c3,i+1),env)]);
+               eval_QQ(c3[i+1],env)]);
     }
   ret.add(") {\n");
   if (ast.length > 2) {
@@ -871,7 +933,7 @@ SPEC_OPS["forlet"]=function (ast,env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_wloop(ast,env) {
   let ret= nodeTag(tnodeEx("for (;"),ast);
-  let cond=nth(ast,1),
+  let cond=ast[1],
       ind= pad(indent);
 
   ret.add(eval_QQ(cond,env));
@@ -894,7 +956,7 @@ SPEC_OPS["while"]=sf_wloop;
 function sf_jscode(ast,env) {
   nosemi_Q= true;
   return nodeTag(tnodeEx(
-    nth(ast,1).toString().
+    ast[1].toString().
     replace(rdr.REGEX.dquoteHat,"").
     replace(rdr.REGEX.dquoteEnd,"")),ast);
 }
@@ -905,7 +967,7 @@ function sf_macro(ast,env) {
   let p2=ast[2],
       p3=ast.slice(3);
   ast=[ast[0], ast[1],
-       [core.symbol("fn*"), p2].concat(p3)];
+       [types.symbol("fn*"), p2].concat(p3)];
 
   let a2=ast[2];
   let a1=ast[1].toString();
@@ -922,7 +984,7 @@ function sf_unary(ast,env) {
       a0=ast[0],
       a1=ast[1];
 
-  if (a0 == "not") a0=core.symbol("!");
+  if (a0 == "not") a0=types.symbol("!");
 
   ret.add(["(", eval_QQ(a0,env) , eval_QQ(a1,env), ")"]);
   return ret;
@@ -936,7 +998,7 @@ function spitExterns() {
       s="";
 
   if (ks.length > 0) {
-    s= Object.keys(EXTERNS).map(function(k) {
+    s= ks.map(function(k) {
               return p + k + ": " + k;
        }).join(",\n");
     s= "\n\nmodule.exports = {\n" +  s +  "\n};\n\n";
@@ -951,6 +1013,7 @@ function banner() {
        "Auto generated by Kirby - v" +
        MODULE_VERSION +
        " " +
+       (new Date) +
        "*/\n\n";
 }
 
@@ -967,7 +1030,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   outNode.prepend(banner());
 
   if (srcMap_Q) {
-    let outFile= path.basename(fname, ".kirby") + ".js",
+    let outFile= path.basename(fname, ".ky") + ".js",
         srcMap= outFile+ ".map",
         output= outNode.toStringWithSourceMap(
                                          {file: outFile });

@@ -8,56 +8,30 @@
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var GLOBAL= typeof(window)==="undefined" ? undefined : window;
+var std=require("./stdlib");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function slice(a,s,e) {
-  return e ?
-    Array.prototype.slice.call(a, s,e) :
-    Array.prototype.slice.call(a, s);
+function wrap_str(s) {
+  return '"' + s.replace(/\\/g, "\\\\").
+                     replace(/"/g, '\\"').
+                     replace(/\n/g, "\\n") + '"';
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function raise_E(e) { throw e; }
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function resolveJS(str) {
-  if (str.match(/\./)) {
-    let re = /^(.*)\.[^\.]*$/,
-        mc = re.exec(str);
-    return [eval(match[1]), eval(str)];
+function unwrap_str(s) {
+  if (s.startsWith("\"") && s.endsWith("\"")) {
+    return s.slice(1,s.length-1).
+            replace(/\\"/g, '"').
+            replace(/\\n/g, "\n").
+            replace(/\\\\/g, "\\");
   } else {
-    return [GLOBAL, eval(str)];
+    return s;
   }
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function filterJS(obj) {
-  if (!obj) {return null;}
-  let cache=[];
-  let s=JSON.stringify(obj, function(k, v) {
-    if (v && typeof v === "object") {
-      if (cache.indexOf(v) === -1) {
-        cache.push(v);
-      } else {
-        //skip found object, avoid circular reference
-        v=undefined;
-      }
-    }
-    return v;
-  });
-  return JSON.parse(s);
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function println() {
-  console.log.apply(console, arguments);
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function pr_obj(obj, print_readably) {
-  if (typeof print_readably === "undefined") { print_readably = true; }
-  let _r = print_readably,
+function pr_obj(obj, readable) {
+  let _r = readable || true,
       ot = obj_type(obj);
   switch (ot) {
     case "list":
@@ -75,11 +49,8 @@ function pr_obj(obj, print_readably) {
                            acc.push(pr_obj(k, _r),
                                     pr_obj(obj[k],_r)); return acc; }, []) + "}";
     case "string":
-      if (_r) {
-        return '"' + obj.
-                     replace(/\\/g, "\\\\").
-                     replace(/"/g, '\\"').
-                     replace(/\n/g, "\\n") + '"';
+      if (false && _r) {
+        return wrap_str(obj);
       } else {
         return obj;
       }
@@ -95,59 +66,51 @@ function pr_obj(obj, print_readably) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function undef_Q(x) { return typeof x === "undefined"; }
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function array_Q(x) { return Array.isArray(x); }
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function keys(x) { return Object.keys(x); }
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function obj_type(obj) {
-  if (keyword_Q(obj)) { return "keyword"; }
-  if (symbol_Q(obj)) { return "symbol"; }
-  if (list_Q(obj)) { return "list"; }
-  if (vector_Q(obj)) { return "vector"; }
-  if (object_Q(obj)) { return "object"; }
-  if (map_Q(obj)) { return "hash-map"; }
-  if (nil_Q(obj)) { return "null"; }
-  if (true_Q(obj)) { return "true"; }
-  if (false_Q(obj)) { return "false"; }
-  if (atom_Q(obj)) { return "atom"; }
-  switch (typeof(obj)) {
-    case "function": return "function";
-    case "number":   return "number";
-    case "string": return "string";
-    default:
-      throw new Error("Unknown type '" + typeof(obj) + "'");
-  }
+  if (keyword_p(obj)) { return "keyword"; }
+  if (symbol_p(obj)) { return "symbol"; }
+  if (list_p(obj)) { return "list"; }
+  if (vector_p(obj)) { return "vector"; }
+  if (object_p(obj)) { return "object"; }
+  if (map_p(obj)) { return "hash-map"; }
+  if (std.nil_p(obj)) { return "null"; }
+  if (std.true_p(obj)) { return "true"; }
+  if (std.false_p(obj)) { return "false"; }
+  if (atom_p(obj)) { return "atom"; }
+  if (std.function_p(obj)) { return "function"; }
+  if (std.string_p(obj)) { return "string"; }
+  if (std.number_p(obj)) { return "number"; }
+  std.raise("Unknown type '", typeof(obj), "'");
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sequential_Q(arr) {
-  return list_Q(arr) || vector_Q(arr); }
+function sequential_p(arr) {
+  return list_p(arr) || vector_p(arr); }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function eq_Q (a, b) {
+function eq_p (a, b) {
   let ota = obj_type(a),
       otb = obj_type(b);
   if (!(ota === otb ||
-       (sequential_Q(a) && sequential_Q(b)))) {
+       (sequential_p(a) && sequential_p(b)))) {
     return false;
   }
   switch (ota) {
-    case "symbol": return a.value === b.value;
+    case "symbol":
+      return a.value === b.value;
     case "hash-map":
     case "list":
     case "vector":
       if (a.length !== b.length) { return false; }
       for (var i=0; i<a.length; ++i) {
-        if (! eq_Q(a[i], b[i])) { return false; }
+        if (! eq_p(a[i], b[i])) { return false; }
       }
       return true;
     case "object":
       if (keys(a).length !== keys(b).length) {
         return false; }
       for (var k in a) {
-        if (!eq_Q(a[k], b[k])) { return false; }
+        if (!eq_p(a[k], b[k])) { return false; }
       }
       return true;
     default:
@@ -180,27 +143,13 @@ function clone (obj) {
       ret = obj.clone();
       break;
     default:
-      throw new Error("clone of non-collection: " + obj_type(obj));
+      std.raise("clone of non-collection: ", obj_type(obj));
   }
   Object.defineProperty(ret, "__meta__", {
     enumerable: false,
     writable: true
   });
   return ret;
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function nil_Q(a) { return a === null ? true : false; }
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function true_Q(a) { return a === true ? true : false; }
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function false_Q(a) { return a === false ? true : false; }
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function string_Q(obj) {
-  return typeof obj === "string";
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -218,15 +167,16 @@ function Symbol(name) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Symbol.prototype.toString = function() { return this.value; }
 function symbol(name) { return new Symbol(name); }
-function symbol_Q(obj) { return obj instanceof Symbol; }
-function symbol_S(s) {
-  return symbol_Q(s) ? s.value : s ? s.toString() :""; }
+function symbol_p(obj) { return obj instanceof Symbol; }
+function symbol_s(s) {
+  return symbol_p(s) ? s.value : s ? s.toString() :""; }
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Keyword.prototype.toString = function() { return this.value; }
 function keyword(name) { return new Keyword(name); }
-function keyword_Q(obj) { return obj instanceof Keyword; }
-function keyword_S(k) {
-  return keyword_Q(k) ? k.value : k ? k.toString() :""; }
+function keyword_p(obj) { return obj instanceof Keyword; }
+function keyword_s(k) {
+  return keyword_p(k) ? k.value : k ? k.toString() :""; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function fn_wrap(run, Env, ast, env, params) {
@@ -240,9 +190,6 @@ function fn_wrap(run, Env, ast, env, params) {
                      return new Env(env, params, args); };
   return fn;
 }
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function function_Q(obj) { return typeof obj === "function"; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Function.prototype.clone = function() {
@@ -260,7 +207,7 @@ function list() {
   return Array.prototype.slice.call(arguments, 0); }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function list_Q(obj) {
+function list_p(obj) {
   return Array.isArray(obj) &&
          !obj.__isvector__ && !obj.__ismap__; }
 
@@ -272,43 +219,40 @@ function vector() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function vector_Q(obj) {
+function vector_p(obj) {
   return Array.isArray(obj) && !!obj.__isvector__; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function map_Q(obj) {
+function map_p(obj) {
   return Array.isArray(obj) && !!obj.__ismap__; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function hashmap() {
   if (arguments.length % 2 === 1) {
-    throw new Error("Odd number of hash map arguments");
+    std.raise("Odd number of hash map arguments");
   }
-  let args = [{}].concat(
-             Array.prototype.slice.call(arguments, 0));
-  return assoc_BANG.apply(this, args);
+  let args = [{}].concat(std.slice(arguments, 0));
+  return assoc.apply(this, args);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function object_Q(m) {
-  return typeof m === "object" &&
-         !Array.isArray(m) &&
-         !(m === null) &&
+function object_p(m) {
+  return std.object_p(m) &&
+         !(m instanceof Atom) &&
          !(m instanceof Symbol) &&
-         !(m instanceof Keyword) &&
-         !(m instanceof Atom);
+         !(m instanceof Keyword);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function assoc_BANG(m) {
+function assoc(m) {
   if (arguments.length % 2 !== 1) {
-    throw new Error("Odd number of assoc arguments");
+    std.raise("Odd number of assoc arguments");
   }
   for (var i=1; i<arguments.length; i+=2) {
     let ktoken = arguments[i],
         vtoken = arguments[i+1];
-    if (typeof ktoken !== "string") {
-      throw new Error("expected object key string, got: " + (typeof ktoken));
+    if (std.string_p(ktoken)) {
+      std.raise("expected object key string, got: ", typeof(ktoken));
     }
     m[ktoken] = vtoken;
   }
@@ -316,7 +260,7 @@ function assoc_BANG(m) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function dissoc_BANG(m) {
+function dissoc(m) {
   for (var i=1; i<arguments.length; ++i) {
     delete m[ arguments[i]];
   }
@@ -326,50 +270,38 @@ function dissoc_BANG(m) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function Atom(val) { this.value = val; }
 function atom(val) { return new Atom(val); }
-function atom_Q(atm) { return atm instanceof Atom; }
+function atom_p(atm) { return atm instanceof Atom; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 module.exports= {
+  Atom: Atom,
+  Keyword: Keyword,
+  Symbol: Symbol,
+  assoc: assoc,
+  atom: atom,
+  atom_p: atom_p,
+  clone: clone,
+  dissoc: dissoc,
+  eq_p: eq_p,
+  fn_wrap: fn_wrap,
+  hashmap: hashmap,
+  keyword: keyword,
+  keyword_p: keyword_p,
+  keyword_s: keyword_s,
+  list: list,
+  list_p: list_p,
+  map_p: map_p,
   obj_type: obj_type,
-  clone : clone,
-  hashmap  : hashmap,
-  symbol : symbol,
-  keyword : keyword,
-  vector : vector,
-  list : list,
-  atom  : atom,
-  fn_wrap : fn_wrap,
-  assoc_BANG : assoc_BANG,
-  dissoc_BANG : dissoc_BANG,
-
-  keyword_S : keyword_S,
-  symbol_S : symbol_S,
-
-  sequential_Q : sequential_Q,
-  eq_Q : eq_Q,
-  nil_Q : nil_Q,
-  true_Q : true_Q,
-  false_Q : false_Q,
-  string_Q : string_Q,
-  symbol_Q : symbol_Q,
-  keyword_Q : keyword_Q,
-  function_Q : function_Q,
-  list_Q : list_Q,
-  vector_Q : vector_Q,
-  object_Q  : object_Q,
-  atom_Q : atom_Q,
-  undef_Q : undef_Q,
-  array_Q : array_Q,
-  map_Q : map_Q,
-
-  println : println,
-  pr_obj : pr_obj,
-
-  slice : slice,
-  raise_E : raise_E,
-
-  resolveJS : resolveJS,
-  filterJS: filterJS
+  object_p: object_p,
+  pr_obj: pr_obj,
+  sequential_p: sequential_p,
+  symbol: symbol,
+  symbol_p: symbol_p,
+  symbol_s: symbol_s,
+  unwrap_str: unwrap_str,
+  vector: vector,
+  vector_p: vector_p,
+  wrap_str: unwrap_str
 
 };
 

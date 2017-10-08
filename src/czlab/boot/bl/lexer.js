@@ -8,7 +8,7 @@
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var tn=require("./tnode"),
-    core=require("./core"),
+    std=require("./stdlib"),
     tnode=tn.tnode,
     tnodeEx=tn.tnodeEx;
 
@@ -18,8 +18,8 @@ function regex(s,glim) {return new RegExp(s,glim);}
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var REGEX= {
   noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
-  id: regex("^[a-zA-Z_$][?\\-*!0-9a-zA-Z_'<>#@$]*$"),
-  id2: regex("^[*\\-][?\\-*!0-9a-zA-Z_'<>#@$]+$"),
+  id: regex("^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$"),
+  id2: regex("^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$"),
   float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
   int: regex("^[-+]?[0-9]+$"),
   hex: regex("^[-+]?0x"),
@@ -46,7 +46,7 @@ function testid_Q (name) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function normalizeId (name) {
   let pfx= "";
-  if (core.string_Q(name) &&
+  if (std.string_p(name) &&
       "-" === name.charAt(0)) {
     pfx= "-";
     name= name.slice(1);
@@ -116,7 +116,7 @@ function tokenize (source, fname) {
       }
     }
     else if (strQ) {
-        //if ( ch=== "\n") ch= "\\n";
+        if ( ch=== "\n") ch= "\\n";
         if ( ch=== "\\") escQ= true;
             token += ch;
     }

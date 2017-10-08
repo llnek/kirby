@@ -7,7 +7,8 @@
 // You must not remove this notice, or any other, from this software.
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var core=require("./core"),
+var types=require("./types"),
+  std=require("./stdlib"),
     rdr=require("./lexer");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -60,13 +61,9 @@ function readAtom(tokens) {
   else if (tn.startsWith("\"") &&
     tn.endsWith("\"")) {
     ret=tn;
-    ret=tn.slice(1,tn.length-1)
-            .replace(/\\"/g, '"')
-            .replace(/\\n/g, "\n")
-            .replace(/\\\\/g, "\\");
   }
   else if (tn.startsWith(":")) {
-    ret= core.keyword(tn);
+    ret= types.keyword(tn);
   }
   else if ("nil"=== tn ||
            "null"=== tn)  {
@@ -79,7 +76,7 @@ function readAtom(tokens) {
     ret=false;
   }
   else {
-    ret =core.symbol(tn);
+    ret =types.symbol(tn);
   }
 
   return copyTokenData(token,ret);
@@ -145,28 +142,28 @@ function readTokens (tokens) {
     case "'": return skipAndParse(tokens,
                         function () {
                           return
-                          [core.symbol("quote"),
+                          [types.symbol("quote"),
                            readTokens(tokens)];});
     case "`": return skipAndParse(tokens,
                         function () {
-                          return [core.symbol("quasiquote"),
+                          return [types.symbol("quasiquote"),
                                   readTokens(tokens)];});
     case "~": return skipAndParse(tokens,
                         function () {
-                          return [core.symbol("unquote"),
+                          return [types.symbol("unquote"),
                                   readTokens(tokens)];});
     case "~@": return skipAndParse(tokens,
                          function(){
-                           return [core.symbol("splice-unquote"),
+                           return [types.symbol("splice-unquote"),
                              readTokens(tokens)];});
     case "^": return skipAndParse(tokens,
                         function () {
                           tmp= readTokens(tokens);
-                           return [core.symbol("with-meta"),
+                           return [types.symbol("with-meta"),
                             readTokens(tokens), tmp];});
     case "@": return skipAndParse(tokens,
                         function(){
-                          return [core.symbol("deref"),
+                          return [types.symbol("deref"),
                             readTokens(tokens)];});
     case ")": throwE(token, "unexpected ')'");
     case "(": return readList(token, tokens);
@@ -215,7 +212,7 @@ function dumpTree (tree) {
        pad = "".repeat(indent);
   for (var i=0; i < tree.length; ++i) {
     obj= tree[i];
-    core.println(core.pr_obj(obj));
+    std.println(types.pr_obj(obj));
   }
 }
 

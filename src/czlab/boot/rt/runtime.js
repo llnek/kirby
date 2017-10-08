@@ -10,47 +10,52 @@
 var parser = require('../bl/parser');
 var readline = require("readline");
 var macros=require("../bl/macros");
-var core = require("../bl/core");
-var lib = require("../rt/lib");
+var types = require("../bl/types");
+var std = require("../bl/stdlib");
+var rt = require("../rt/toolkit");
 var env = require("../bl/env");
 var Env=env.Env;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function dbg(obj) {
-  core.println("DBG-RT: " + core.pr_obj(obj, true));
+  std.println("DBG-RT: " + types.pr_obj(obj, true));
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function readAST(s) { return parser.parser(s); }
+function readAST(s) {
+  let ret= parser.parser(s);
+  if (ret.length===1) ret= ret[0];
+  return ret;
+}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function isPair(x) {
-  return core.sequential_Q(x) && x.length > 0;
+  return types.sequential_p(x) && x.length > 0;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function quasiquote(ast) {
   if (!isPair(ast)) {
-      return [core.symbol("quote"), ast];
+      return [types.symbol("quote"), ast];
   }
-  else if (core.symbol_Q(ast[0]) && ast[0].value === 'unquote') {
+  else if (types.symbol_p(ast[0]) && ast[0].value === 'unquote') {
       return ast[1];
   }
   else if (isPair(ast[0]) && ast[0][0].value === 'splice-unquote') {
-      return [core.symbol("concat"),
+      return [types.symbol("concat"),
               ast[0][1],
               quasiquote(ast.slice(1))];
   } else {
     let a0=ast[0],a1=ast.slice(1);
-      return [core.symbol("cons"), quasiquote(a0), quasiquote(a1)];
+      return [types.symbol("cons"), quasiquote(a0), quasiquote(a1)];
   }
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function isMacroCall(ast, env) {
-  return core.list_Q(ast) &&
-         core.symbol_Q(ast[0]) &&
-         macros.get(core.symbol_S(ast[0]));
+  return types.list_p(ast) &&
+         types.symbol_p(ast[0]) &&
+         macros.get(types.symbol_s(ast[0]));
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -68,7 +73,7 @@ function macroexpand(ast, env) {
     //core.println("macro-in("+cmd+"):", core.pr_obj(ast, true));
   }
   while (isMacroCall(ast, env)) {
-    var cmd= core.symbol_S(ast[0]),
+    var cmd= types.symbol_s(ast[0]),
         mac = macros.get(cmd);
 //core.println("macro(before-"+cmd+":", core.pr_obj(ast, true));
         ast = mac.apply(mac, ast.slice(1));
@@ -82,28 +87,31 @@ function macroexpand(ast, env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function evalAst(ast, env) {
-  if (core.keyword_Q(ast)) {
+  if (types.keyword_p(ast)) {
     return "\"" + ast.value + "\"";
   }
-  if (core.symbol_Q(ast)) {
+  if (std.string_p(ast)) {
+    return types.unwrap_str(ast);
+  }
+  if (types.symbol_p(ast)) {
     return env.get(ast);
   }
-  if (core.list_Q(ast)) {
+  if (types.list_p(ast)) {
     return ast.map(function(a) { return compute(a, env); });
   }
-  if (core.vector_Q(ast)) {
+  if (types.vector_p(ast)) {
     let v = ast.map(function(a) { return compute(a, env); });
     v.__isvector__ = true;
     return v;
   }
-  if (false && core.hashmap_Q(ast)) {
+  if (false && types.hashmap_p(ast)) {
     let new_hm = {};
     for (k in ast) {
       new_hm[compute(k, env)] = compute(ast[k], env);
     }
     return new_hm;
   }
-  if (core.map_Q(ast)) {
+  if (types.map_p(ast)) {
     let k, new_hm = {};
     for (var i=0; i < ast.length; i=i+2) {
       new_hm[ compute(ast[i], env) ] = compute(ast[i+1], env);
@@ -118,15 +126,15 @@ function evalAst(ast, env) {
 function computeLoop(ast, env) {
   while (true) {
 
-    //core.println("EVAL:", core.pr_obj(ast, true));
+    //std.println("EVAL:", types.pr_obj(ast, true));
 
-    if (!core.list_Q(ast)) {
+    if (!types.list_p(ast)) {
         return evalAst(ast, env);
     }
 
     // apply list
     ast = macroexpand(ast, env);
-    if (!core.list_Q(ast)) {
+    if (!types.list_p(ast)) {
         return evalAst(ast, env);
     }
     if (ast.length === 0) {
@@ -135,9 +143,22 @@ function computeLoop(ast, env) {
 
     //core.println("SWITCH:", core.pr_obj(ast, true));
 
-    var a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
+    var t, a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
     switch (a0.value) {
-    case "set!":
+    case "and?":
+        t=true;
+        for (var i=1; i < ast.length; ++i) {
+          t=compute(ast[i],env);
+          if (!t) break;
+        }
+        return t;
+    case "or?":
+        t=nil;
+        for (var i=1; i < ast.length; ++i) {
+          t=compute(ast[i],env);
+          if (t) break;
+        }
+        return t;
     case "def!":
         let res = compute(a2, env);
         return env.set(a1, res);
@@ -154,34 +175,34 @@ function computeLoop(ast, env) {
     case "quasiquote":
         ast = quasiquote(a1);
         break;
-    case 'defmacro':
+    case "defmacro":
         let p2=ast[2],
             p3=ast.slice(3);
         ast=[ast[0], ast[1],
-             [core.symbol("fn*"), p2].concat(p3)]
+             [types.symbol("fn*"), p2].concat(p3)]
         a2=ast[2];
         a1=ast[1];
         var func = compute(a2, env);
         func._ismacro_ = true;
         return env.set(a1, func);
-    case 'macroexpand':
+    case "macroexpand":
         return macroexpand(a1, env);
     case "try*":
         try {
             return compute(a1, env);
         } catch (exc) {
-            if (a2 && a2[0].value === "catch*") {
+            if (a2 && a2[0].value === "catch") {
                 if (exc instanceof Error) { exc = exc.message; }
                 return compute(a2[2], new Env(env, [a2[1]], [exc]));
             } else {
                 throw exc;
             }
         }
-    case "do":
+    case "do*":
         evalAst(ast.slice(1, -1), env);
         ast = ast[ast.length-1];
         break;
-    case "if":
+    case "if*":
         var cond = compute(a1, env);
         if (cond === null || cond === false) {
             ast = (typeof a3 !== "undefined") ? a3 : null;
@@ -190,7 +211,7 @@ function computeLoop(ast, env) {
         }
         break;
     case "fn*":
-        return core.fn_wrap(compute, Env, a2, env, a1);
+        return types.fn_wrap(compute, Env, a2, env, a1);
     default:
         let el = evalAst(ast, env), f = el[0];
         if (f.__ast__) {
@@ -212,21 +233,22 @@ function compute(ast, env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function show(exp) {
-    return core.pr_obj(exp, true);
+    return types.pr_obj(exp, true);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function newEnv() {
   let ret=new Env();
-  for (var n in lib) {
-    ret.set(core.symbol(n), lib[n]);
+  for (var n in rt) {
+    //console.log("n===== "+n);
+    ret.set(types.symbol(n), rt[n]);
   }
-  ret.set(core.symbol('eval'), function(ast) {
+  ret.set(types.symbol('eval'), function(ast) {
     return compute(ast, ret);
   });
-  ret.set(core.symbol('*ARGV*'), []);
-  ret.set(core.symbol("*host-language*"), "javascript");
-  ret.set(core.symbol("*gensym-counter*"), core.atom(0));
+  ret.set(types.symbol('*ARGV*'), []);
+  ret.set(types.symbol("*host-language*"), "javascript");
+  ret.set(types.symbol("*gensym-counter*"), types.atom(0));
   return ret;
 }
 
@@ -238,7 +260,7 @@ var run_repl=function() {
   rl.on("line",
     function(line) {
       try {
-        if (line) { core.println(rep(line)); }
+        if (line) { std.println(rep(line)); }
       } catch (err) {
         console.log(err);
       }
@@ -266,11 +288,24 @@ function runRepl() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+var macro_assert=`
+(defmacro assert! [c msg]
+  (if* c true (throw! msg)))
+`;
+var macro_cond=`
+(defmacro cond* [&xs]
+  (if* (> (count xs) 0)
+    (list 'if*
+          (first xs)
+          (nth xs 1)
+          (cons 'cond* (rest (rest xs))))))`;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
   global_env=newEnv();
-  rep("(def! gensym (fn* [] (symbol (str \"G__\" (swap! *gensym-counter* (fn* [x] (+ 1 x)))))))");
-  rep("(def! not (fn* (a) (if a false true)))");
-  //rep("(def! load-file (fn* (f) (eval (read-string (str \"(do \" (slurp f) \")\")))))");
+  global_env.set(types.symbol("*host-language*"), "javascript");
+  rep(macro_cond);
+  rep(macro_assert);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

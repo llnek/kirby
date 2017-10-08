@@ -28,7 +28,7 @@ var error=function(e) {
 var opt=
 gopt.create([["h","help","display this help"],
              ["v","version","show version"],
-             ["r","run","run .kirby files"],
+             ["r","run","run .ky files"],
              ["w","watch","auto-compile changed files"],
              ["b","browser-bundle","bundle for browser"],
              ["m","map","generate source maps"],
@@ -81,9 +81,9 @@ function compileFiles() {
   }
   fout= opt.argv[1];
   if (!fout) {
-    fout= fin.replace(new RegExp("\\.kirby$"), ".js");
+    fout= fin.replace(new RegExp("\\.ky$"), ".js");
     if (fout === fin) {
-      error("Input file must have extension \".kirby\"");
+      error("Input file must have extension \".ky\"");
     }
   }
   try {
@@ -112,7 +112,7 @@ function compileFiles() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
-  require.extensions[".kirby"]=function(module, fname) {
+  require.extensions[".ky"]=function(module, fname) {
     let kb= require("./cg/transpiler"),
         code= fs.readFileSync(fname, "utf8");
     module._compile(
