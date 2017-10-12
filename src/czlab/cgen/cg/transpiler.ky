@@ -216,7 +216,7 @@
     (.prepend [(transpile* f env) ".apply(this,"])
     (.add ret ")")))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC_OPS :apply sf-apply)
+(set! SPEC-OPS :apply sf-apply)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp "" [ast env]
@@ -269,80 +269,70 @@
       (.add ret (nth ast 2)))
     (.prepend ret "[")
     (.add ret "]")))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-SPEC_OPS["repeat-n"]=sf_repeat;
+(set! SPEC-OPS :repeat-n sf-repeat)
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileDo(ast,env,return_Q) {
-  let p= pad(indent),
-      e=null,
-      end= ast.length-1;
-  let ret=nodeTag(tnode(),ast);
-  for (var i= 0; i < end; ++i) {
-    e= ast[i];
-    ret.add([p, transpileList(e,env), ";\n"]);
-  }
-  if (end >= 0) {
-    e= transpile*(ast[end], env);
-    if (return_Q === false) {
-      ret.add([p, e, ";\n"]);
-    } else {
-      ret.add([p, "return ", e, ";\n"]);
-    }
-  }
-  return ret;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpileDo "" [ast env return?]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var p (pad indent)
+         e nil
+         end (eindex ast))
+    (forlet ((i 0) (< i end) (i (inc i)))
+      (set! e (nth ast i))
+      (.add ret [p (transpileList e env) ";\n"]))
+    (when  (>= end 0)
+      (set! e (transpile* (nth ast end) env))
+      (if-not return?
+        (.add ret [p e ";\n"])
+        (.add ret [p "return " e ";\n"])))))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_do (ast,env) {
-  let ret=nodeTag(tnode(),ast);
-  let p= pad(indent);
-  ret.add(p + "(function() {\n");
-  ret.add(transpileDo(ast.slice(1),env));
-  ret.add(""+ p + "}).call(this)");
-  return ret;
-}
-SPEC_OPS["do"]=sf_do;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-do "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var p (pad indent))
+    (.add ret (str p "(function() {\n"))
+    (.add ret (transpileDo (.slice ast 1) env))
+    (.add ret (str p "}).call(this)"))))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_case(ast, env) {
-  let ret= nodeTag(tnode(),ast);
-  let tst= ast[1],
-      e =null, t= null, c=null, dft=null;
-  if (std.odd_p(ast.length)) {
-    dft= ast.pop();
-  }
-  for (var i=2;
-       i < ast.length; i += 2) {
-    c= ast[i+1];
-    e= ast[i];
-    if (types.list_p(e)) {
-      for (var j=0;
-           j < e.length; ++j) {
-        ret.add(["case ", e[j], ":\n"]);
-        if (j === (e.length-1))
-          ret.add(["____x= ",
-                   transpile*(c,env), ";\nbreak;\n"]);
-      }
-    } else {
-      ret.add(["case ", e, ":\n"]);
-      ret.add(["____x= ",
-               transpile*(c), ";\nbreak;\n"]);
-    }
-  }
-  if (dft) {
-    ret.add("default:\n");
-    ret.add(["____x= ",
-             transpile*(dft), ";\nbreak;\n"]);
-  }
-  ret.prepend(["switch (",
-               transpile*(tst,env), ") {\n"]);
-  ret.add("}\n");
-  ret.prepend("(function() { let ____x;\n");
-  ret.add("return ____x;}).call(this)");
-  return ret;
-}
-SPEC_OPS["case"]=sf_case;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC-OPS :do sf-do)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-case "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var tst (second ast)
+         e nil t nil c nil dft nil)
+    (if (std.odd? (alen ast))
+      (set! dft (.pop ast)))
+    (forlet ((i 2)
+             (< i (alen ast) (i (+ i 2))))
+      (set! c (nth ast (inc i)))
+      (set! e (nth ast i))
+      (if (types.list? e)
+        (forlet ((j 0)
+                 (< j (alen e)) (i (inc)))
+          (.add ret ["case " (nth e j) ":\n"])
+          (if (= j (eindex e))
+            (.add ret ["____x= "
+                       (transpile* c env) ";\nbreak;\n"])))
+        (do (.add ret ["case " e ":\n"])
+            (.add ret ["____x= "
+                       (transpile* c env) ";\nbreak;\n"]))))
+    (when dft
+      (.add ret "default:\n")
+      (.add ret ["____x= "
+                 (transpile* dft env) ";\nbreak;\n"]))
+
+    (.prepend ret ["switch (",
+                   (transpile* tst env) ") {\n"])
+    (.add ret "}\n")
+    (.prepend ret "(function() { let ____x;\n")
+    (.add ret "return ____x;}).call(this)")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC-OPS :case sf-case)
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_range (ast,env) {
