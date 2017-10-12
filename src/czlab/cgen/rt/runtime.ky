@@ -1,0 +1,341 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.runtime
+  (require ["../bl/parser" :as parser]
+           ["readline" :as readline]
+           ["../bl/macros" :as macros]
+           ["../bl/types" :as types]
+           ["../bl/stdlib" :as std]
+           ["../rt/toolkit" :as rt]
+           ["../bl/env" :as env]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def Env env.Env)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dbg "" [obj]
+  (std.println "DBG-RT: " (types.pr-obj obj true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readAST "" [s]
+  (do-with [ret (parser.parser s)]
+    (if (= 1 (alen ret)) (set! ret (first ret)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- isPair "" [x]
+  (and (types.sequential? x) (std.not-empty x)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- quasiquote "" [ast]
+  (cond
+    (not (isPair ast))
+    [(types.symbol "quote") ast]
+    (and (types.symbol? (first ast))
+         (= (.-value (first ast)) "unquote"))
+    (second ast)
+    (and (isPair (first ast))
+         (= (.-value (first (first ast))) "splice-unquote"))
+    [(types.symbol "concat")
+     (second (first ast))
+     (quasiquote (.slice ast 1))]
+    :else
+    (let [a0 (first ast)
+          a1 (.slice ast 1)]
+      [(types.symbol "cons")
+       (quasiquote a0)
+       (quasiquote a1)])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- isMacroCall? "" [ast env]
+  (and (types.list? ast)
+       (types.symbol? (first ast))
+       (.get macros (types.symbol-s (first ast)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn expandMacro "" [ast env mc]
+  (do-with [ret (macroexpand ast env)]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- macroexpand "" [ast env]
+  (var isM? (isMacroCall? ast env)
+       mac nil
+       cmd (if isM? (first ast) ""))
+  ;(if isM? (.println rt "macro-in(" cmd "):" (types.pr-obj ast)))
+  (while (isMacroCall? ast env)
+    (set! cmd (types.symbol-s (first ast)))
+    (set! mac (.get macros cmd))
+    ;(.println rt "macro(before-" cmd ":" (types.pr-obj ast))
+    (set! ast (.apply mac mac (.slice ast 1))))
+    ;(.println rt "macro(after-" cmd ":" (types.pr-obj ast))
+  ;(if isM? (.println rt "macro-out(" cmd "):" (types.pr-obj ast)))
+  ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- evalAst "" [ast env]
+  (cond
+    (types.keyword? ast)
+    (str "\"" (.-value ast) "\"")
+    (std.string? ast)
+    (types.unwrap-str ast)
+    (types.symbol? ast)
+    (.get env ast)
+    (types.list? ast)
+    (std.map (fn [a] (compute a env)) ast)
+    (types.vector? ast)
+    (do-with [v (std.map (fn [a] (compute a env)) ast)]
+      (set! v :__isvector__ true))
+    (and false
+         (types.hashmap? ast))
+    (do-with [m {}]
+      (forkeys [k ast]
+        (set! m
+              (compute k env)
+              (compute (get ast k) env))))
+    (types.map? ast)
+    (do-with [m {}]
+      (forlet ((i 0)
+               (< i (alen ast)) (i (+ i 2)))
+        (set! m
+              (compute (nth ast i) env)
+              (compute (nth ast (inc i)) env))))
+    :else ast))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleAND "" [ast env]
+  (let [ret true
+        skip? false]
+    (forlet ((i 1)
+             (and (not skip?)
+                  (< i (alen ast))) (i (inc i)))
+      (set! ret (compute (nth ast i) env))
+      (if-not ret (set! skip? true)))
+    ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleOR "" [ast env]
+  (let [ret nil skip? false]
+    (forlet ((i 1)
+             (and (not skip?)
+                  (< i (alen ast))) (i (inc i)))
+      (set! ret (compute (nth ast i) env))
+      (if ret (set! skip? true)))
+    ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleLet "" [ast env]
+  (var e (new Env env)
+       a1 (nth ast 1))
+  (forlet ((i 0)
+           (< i (alen a1)) (i (+ i 2)))
+    (.set e
+          (nth a1 i)
+          (compute (nth a1 (inc i)) e)))
+  [true a2 e])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleMacro "" [ast env]
+  (var rc [(nth ast 0) (nth ast 1)
+           (std.concat [(types.symbol "fn*") (nth ast 2)]
+                       (.slice ast 3))]
+       a2 (nth rc 2)
+       a1 (nth rc 1)
+       func (compute  a2 env))
+  (set! func :_ismacro_ true)
+  (.set env a1 func))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleTry "" [ast env]
+  (var a1 (nth ast 1)
+       a2 (nth ast 2))
+  (try
+    (compute a1 env)
+    (catch ex
+      (if (and a2 (= "catch*"
+                     (.-value (first a2))))
+        (if (inst? Error ex)
+          (set! ex (.-message ex)))
+        (compute (nth a2 2)
+                   (new Env env [(nth a2 1)] [ex]))
+        (throw ex)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleIf "" [ast env]
+  (var c (compute (nth ast 1) env)
+       a2 (nth ast 2)
+       a3 (nth ast 3))
+  (if (or (= c null)
+          (false? c))
+    (if-not (undef? a3) a3) a2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleForm "" [ast env]
+  (var el (evalAst ast env)
+       f (nth el 0))
+  (if (.-__ast__ f)
+    [true
+     (.-__ast__ f)
+     (.__gen_env__ f (.slice el 1))]
+    [false (.apply f this (.slice el 1)) env]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- computeLoop "" [ast env]
+;;(.println rt "EVAL:" (types.pr-obj ast))
+  (var ok? true ret nil)
+  (while ok?
+    (set! ast (macroexpand ast env))
+    (set! ok?
+          (cond
+            (not (types.list? ast))
+            (do->false (set! ret (evalAst ast env)))
+            (= 0 (alen ast))
+            (do->false (set! ret ast))
+            (= "and?"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (handleAND ast env)))
+            (= "or?"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (handleOR ast env)))
+            (= "def!"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (.set env
+                                       a1 (compute a2 env))))
+            (= "let*"
+               (.-value (nth ast 0)))
+            (let [rc (handleLet ast env)]
+              (set! ast (nth rc 1))
+              (set! env (nth rc 2))
+              (nth rc 0))
+            (= "quote"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (nth ast 1)))
+            (= "quasiquote"
+               (.-value (nth ast 0)))
+            (do->true (set! ast (quasiquote (nth ast 1))))
+            (= "defmacro"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (handleMacro ast env)))
+            (= "macroexpand"
+               (.-value (nth ast 0)))
+            (do->false (set! ret
+                             (macroexpand (nth ast 1) env)))
+            (= "try*"
+               (.-value (nth ast 0)))
+            (do->false (set! ret (handleTry ast env)))
+            (= "do*"
+               (.-value (nth ast 0)))
+            (do->true (evalAst (.slice ast 1 -1) env)
+                      (set! ast (nth ast (eindex ast))))
+            (= "if*"
+               (.-value (nth ast 0)))
+            (do->true (handleIf ast env))
+            (= "fn*"
+               (.-value (nth ast 0)))
+            (do->false (set! ret
+                             (types.fn-wrap compute
+                                            Env
+                                            (nth ast 2)
+                                            env
+                                            (nth ast 1))))
+            :else
+            (let [rc (handleForm ast env)]
+              (if (first rc)
+                (do (set! ast (nth rc 1))
+                    (set! env (nth rc 2)))
+                (do (set! ret (nth rc 1))))
+              (nth rc 0)))))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn compute "" [ast env]
+  (if-not env (set! env global_env))
+  (var ret (computeLoop ast env))
+  (if (undef? ret) null ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- show "" [exp] (types.pr-obj exp))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn newEnv "" []
+  (do-with [ret (new Env)]
+    (each-key (fn [v k]
+                (std.println "k===== " k)
+                (.set ret (types.symbol n) v)) rt)
+    (.set ret
+          (types.symbol "eval")
+          (fn [ast] (compute ast ret)))
+    (.set ret (types.symbol "*ARGV*") [])
+    (.set ret (types.symbol "*host-language*")  "javascript")
+    (.set ret (types.symbol "*gensym-counter*") (types.atom 0))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def-  prefix "kirby> ")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def-  run_repl (fn []
+  (var rl (.createInterface readline
+                            process.stdin process.stdout))
+  (.on rl
+       "line"
+       (fn [line]
+         (try
+           (if line (std.println (rep line)))
+           (catch err
+             (std.println err)))
+         (.setPrompt rl prefix  (.-length prefix))
+         (.prompt rl)))
+
+  (.on rl
+       "close"
+       (fn []
+         (std.println "Bye!")
+         (.exit process 0)))
+
+  (std.println (str prefix "Kirby REPL v1.0.0"))
+  (.setPrompt rl prefix  (.-length prefix))
+  (.prompt rl)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def-  rep (fn [s] (show (compute (readAST s)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def-  global_env (new Env))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runRepl "" []
+  (init)
+  (run_repl))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- macro_assert "
+  (defmacro assert! [c msg] (if* c true (throw! msg)))")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- macro_cond "
+  (defmacro cond* [&xs]
+    (if* (> (count xs) 0)
+      (list 'if*
+            (first xs)
+            (nth xs 1)
+            (cons 'cond* (rest (rest xs))))))")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- init "" []
+  (set! global_env (newEnv))
+  (.set global_env (types.symbol "*host-language*") "javascript")
+  (rep macro_cond)
+  (rep macro_assert))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn globalEnv "" [] global_env)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+

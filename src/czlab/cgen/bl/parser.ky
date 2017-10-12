@@ -1,0 +1,171 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.parser
+  (require ["./types" :as types]
+           ["./stdlib" :as std]
+           ["./lexer" :as rdr]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- throwE "" [token msg]
+  (-> (if token
+        (str msg
+             "\nnear line " token.line
+             "\nin file " token.source)
+        (str msg "\nnear EOF "))
+      (std.raise )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- nextToken "" [tokens]
+  (do-with [t (nth tokens tokens.pos)]
+    (++ tokens.pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- peekToken "" [tokens] (nth tokens tokens.pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- copyTokenData "" [token node]
+  (when (std.object? node)
+    (set! node.source token.source)
+    (set! node.line token.line)
+    (set! node.column token.column)) node)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readAtom "" [tokens]
+  (var ret nil tn ""
+       token (nextToken tokens))
+  (if token
+    (set! tn token.name))
+  (cond
+    (std.empty? tn) (set! ret undefined)
+    (rdr.REGEX.float.test tn)
+    (set! ret (parseFloat tn))
+    (or (rdr.REGEX.hex.test tn)
+        (rdr.REGEX.int.test tn))
+    (set! ret (parseInt tn))
+    (and (.startsWith tn "\"")
+         (.endsWith tn "\""))
+    (set! ret tn)
+    (.startsWith tn ":")
+    (set! ret (types.keyword tn))
+    (or (= "nil" tn)
+        (= "null" tn))
+    (set! ret nil)
+    (= "true" tn)
+    (set! ret true)
+    (= "false" tn)
+    (set! ret false)
+    :else (set! ret (types.symbol tn)))
+  (copyTokenData token ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readBlock "" [tokens head tail]
+  (var token (nextToken tokens)
+       ok? true ret nil tn "" cur nil)
+  (if token (set! tn token.name))
+  (if (not= tn head)
+    (throwE token (str "expected '" head "'")))
+
+  (do-with [ast []]
+    (set! cur (peekToken tokens))
+    (while ok?
+      (if (or (std.nichts? cur)
+              (= tail cur.name))
+        (if cur
+          (copyTokenData token ast)
+          (throwE cur (str "expected '" tail "', got EOF")))
+        (set! ok? false))
+      (when ok?
+        (addAst ast (readTokens tokens))
+        (set! cur (peekToken tokens))))
+    (nextToken tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readList "" [cur tokens] (readBlock tokens "(", ")"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readVector "" [cur tokens]
+  (do-with [v (readBlock tokens "[" "]")]
+    (set! v :__isvector__ true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readObject "" [cur tokens]
+  (do-with [v (readBlock tokens "{" "}")]
+    (set! v :__ismap__ true)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- skipAndParse "" [tokens func]
+  (copyTokenData (nextToken tokens) (func tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readTokens "" [tokens]
+  (var tmp nil token (peekToken tokens))
+  (if (std.nichts? token)
+    undefined
+    (case token.name
+      "'" (skipAndParse tokens
+                        (fn [] [(types.symbol "quote")
+                                (readTokens tokens)]))
+      "`" (skipAndParse tokens
+                        (fn [] [(types.symbol "quasiquote")
+                                (readTokens tokens)]))
+      "~" (skipAndParse tokens
+                        (fn [] [(types.symbol "unquote")
+                                (readTokens tokens)]))
+      "~@" (skipAndParse tokens
+                         (fn [] [(types.symbol "splice-unquote")
+                                 (readTokens tokens)]))
+      "^" (skipAndParse tokens
+                        (fn []
+                          (set! tmp (readTokens tokens))
+                          [(types.symbol "with-meta")
+                           (readTokens tokens) tmp]))
+      "@" (skipAndParse tokens
+                        (fn [] [(types.symbol "deref")
+                                (readTokens tokens)]))
+      ")" (throwE token "unexpected ')'")
+      "(" (readList token tokens)
+      "]" (throwE token "unexpected ']'")
+      "[" (readVector token tokens)
+      "}" (throwE token "unexpected '}'")
+      "{" (readObject token tokens)
+      (";" ",") (do->undef (nextToken tokens))
+      ;else
+      (readAtom tokens))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- addAst "" [ast f] (if-not (undef? f) (.push ast f)) ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn parser "" [source fname]
+  (var tokens (rdr.lexer source
+                         (or fname "**adhoc**"))
+       f nil ast [] tlen (alen tokens))
+  (set! tokens.pos 0)
+  (do-with [ast []]
+    (comment
+    (forlet ((i 0)
+             (< i tlen)(i (inc i)))
+      (std.println "token=" (.-name (nth tokens i)))))
+    (while (< tokens.pos tlen)
+      (addAst ast (readTokens tokens)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dumpTree "" [tree]
+  (var indent (or (nth arguments 1) 0)
+       pad (.repeat " " indent))
+  (forlet ((i 0)
+           (< i (alen tree)) (i (inc i)))
+    (std.println (types.pr-obj (nth tree i)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+

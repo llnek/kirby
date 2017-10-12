@@ -1,318 +1,275 @@
-// Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
-// The use and distribution terms for this software are covered by the
-// Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
-// which can be found in the file epl-v10.html at the root of this distribution.
-// By using this software in any fashion, you are agreeing to be bound by
-// the terms of this license.
-// You must not remove this notice, or any other, from this software.
-"use strict";
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var macros=require("../bl/macros"),
-    types=require("../bl/types"),
-  std=require("../bl/stdlib"),
-    tn=require("../bl/tnode"),
-    rdr=require("../bl/lexer"),
-    psr=require("../bl/parser"),
-    rt=require("../rt/runtime");
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
 
-var tnodeEx=tn.tnodeEx;
-var tnode=tn.tnode;
+(ns ^{:doc ""
+      :author ""}
+  czlab.kirby.transpiler
+  (require ["../bl/macros" :as macros]
+           ["../bl/types" :as types]
+           ["../bl/stdlib" :as std]
+           ["../bl/tnode" :as tn]
+           ["../bl/lexer" :as rdr]
+           ["../bl/parser" :as psr]
+           ["../rt/runtime" :as rt]))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var ERRORS_MAP= {
-  e0: "Syntax Error",
-  e1: "Empty statement",
-  e2: "Invalid characters in function name",
-  e3: "End of File encountered, unterminated string",
-  e4: "Closing square bracket, without an opening square bracket",
-  e5: "End of File encountered, unterminated array",
-  e6: "Closing curly brace, without an opening curly brace",
-  e7: "End of File encountered, unterminated javascript object '}'",
-  e8: "End of File encountered, unterminated parenthesis",
-  e9: "Invalid character in var name",
-  e10: "Extra chars at end of file. Maybe an extra ')'.",
-  e11: "Cannot Open include File",
-  e12: "Invalid no of arguments to ",
-  e13: "Invalid Argument type to ",
-  e14: "End of File encountered, unterminated regular expression",
-  e15: "Invalid vararg position, must be last argument.",
-  e16: "Invalid arity (args > expected) to ",
-  e17: "Invalid arity (args < expected) to " };
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- tnodeEx tn.tnodeEx)
+(def- tnode tn.tnode)
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var RESERVED= {
-"compare": ["not=","!=","==","=",">",">=","<","<="],
-"arith": ["+","-","*","/","%", "mod"],
-"logic": ["||","&&"],
-"bitwise": ["^","&","|","<<",">>",">>>"],
-"incdec": ["++","--"],
-"unary": ["not", "~","!"],
-"assign": ["+=","-=","*=",
-         "/=","%=","<<=",
-         ">>=",">>>=","&=","|=","^="],
-"builtin":
-  ["quote","syntax-quote","quasi-quote",
-  "backtick", "unquote", "unquote-splice",
-  "repeat-n", "do", "doto", "case","apply",
-  "range", "def-", "def", "var", "forlet",
-  "new", "throw", "while", "lambda",
-  "inst?", "delete!",
-  "aset", "set!", "fn", "def!",
-  "defn-", "defn",
-  "try", "if", "get", "aget", "str",
-  "list", "[", "vec", "{", "hash-map",
-  "ns", "comment", "for", "cons",
-  "js#", "macro", "defmacro"]};
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- ERRORS_MAP {
+  :e0 "Syntax Error"
+  :e1 "Empty statement"
+  :e2 "Invalid characters in function name"
+  :e3 "End of File encountered, unterminated string"
+  :e4 "Closing square bracket, without an opening square bracket"
+  :e5 "End of File encountered, unterminated array"
+  :e6 "Closing curly brace, without an opening curly brace"
+  :e7 "End of File encountered, unterminated javascript object '}'"
+  :e8 "End of File encountered, unterminated parenthesis"
+  :e9 "Invalid character in var name"
+  :e10 "Extra chars at end of file. Maybe an extra ')'."
+  :e11 "Cannot Open include File"
+  :e12 "Invalid no of arguments to "
+  :e13 "Invalid Argument type to "
+  :e14 "End of File encountered, unterminated regular expression"
+  :e15 "Invalid vararg position, must be last argument."
+  :e16 "Invalid arity (args > expected) to "
+  :e17 "Invalid arity (args < expected) to "})
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var MODULE_VERSION= "1.0.0",
-    nosemi_Q= false,
-    tabspace= 2,
-    indent= -tabspace,
-    EXTERNS=null,
-    NSPACES=null;
-var SPEC_OPS={};
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- RESERVED {
+  :compare ["not=" "!=" "==" "=" ">" ">=" "<" "<="]
+  :arith ["+" "-" "*" "/" "%"  "mod"]
+  :logic ["||" "&&"]
+  :bitwise ["^" "&" "|" "<<" ">>" ">>>"]
+  :incdec ["++" "--"]
+  :unary ["not"  "~" "!"]
+  :assign ["+=" "-=" "*="
+         "/=" "%=" "<<="
+         ">>=" ">>>=" "&=" "|=" "^="]
+  :builtin
+  ["quote" "syntax-quote" "quasi-quote"
+  "backtick"  "unquote" "unquote-splice"
+  "repeat-n"  "do"  "doto"  "case" "apply"
+  "range"  "def-"  "def"  "var"  "forlet"
+  "new"  "throw"  "while"  "lambda"
+  "inst?"  "delete!"
+  "aset"  "set!"  "fn"  "def!"
+  "defn-"  "defn"
+  "try"  "if"  "get"  "aget"  "str"
+  "list"  "["  "vec"  "{"  "hash-map"
+  "ns"  "comment"  "for"  "cons"
+  "js#"  "macro"  "defmacro"]})
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function regoBuiltins(f ,group) {
-  RESERVED[group].forEach(function(k) { SPEC_OPS[k]= f; });
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- MODULE_VERSION "1.0.0"
+    nosemi? false
+    tabspace 2
+    indent (- tabspace)
+    EXTERNS nil
+    NSPACES nil
+    SPEC_OPS {})
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function error_E(e, line, file, msg) {
-  throw new Error("" + ERRORS_MAP[e] +
-                  (msg ? " : "+msg : "") +
-                  (line ? "\nLine no "+line : "") +
-                  (file ? "\nFile "+file : ""));
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- regoBuiltins "" [f group]
+  (each (fn [k] (set! SPEC_OPS k f)) (get RESERVED group)))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function syntax_E(ecode, ast, cmd) {
-  error_E(ecode,
-          (ast ? ast.line : 0),
-          (ast ? ast.source : 0), cmd);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- error! "" [e line file msg]
+  (std.raise! (get ERRORS_MAP e)
+              (if msg (str " : " msg) "")
+              (if line (str "\nLine no " line) "")
+              (if file (str "\nFile " file) "")))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function pad(z) { return " ".repeat(z); }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- syntax! "" [ecode ast cmd]
+  (error! ecode
+          (if ast ast.line 0)
+          (if ast ast.source 0) cmd))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function testre_Q(re, x) { return x ? re.test(x) : false; }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pad "" [z] (.repeat " " z))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function nodeTag(obj, src) {
-  if (obj && src && typeof obj !== "boolean" &&
-      typeof obj !== "number") {
-    obj.source= src.source;;
-    obj.column= src.column;
-    obj.line= src.line;
-  }
-  return obj;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- testre? "" [re x] (if x (.test re x) false))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileTree(root, env) {
-  let ret= nodeTag(tnode(), root);
-  let pstr= "",
-      endx= root.length-1,
-      treeSize= root.length;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- nodeTag "" [obj src]
+  (when (and obj
+             src
+             (not= (type obj) "boolean")
+             (not= (type obj) "number"))
+    (set! obj.source src.source)
+    (set! obj.column src.column)
+    (set! obj.line src.line))
+  obj)
 
-  indent += tabspace;
-  pstr= pad(indent);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpileTree "" [root env]
+  (do-with [ret (nodeTag (tnode) root)]
+    (var pstr ""
+         endx (eindex root)
+         treeSize (alen root))
+    (+= indent tabspace)
+    (set! pstr (pad indent))
+    (each (fn [ast]
+            (var tmp ast)
+            (if (std.array? ast)
+              (set! tmp (transpileList ast env)))
+            (when tmp
+              (.add ret [pstr tmp (if nosemi? ""  ";") "\n"])
+              (set! nosemi? false))) root)
+    (-= indent tabspace)))
 
-  root.forEach(function(ast) {
-    let tmp=ast;
-    if (std.array_p(ast)) {
-      tmp= transpileList(ast, env);
-    }
-    if (tmp) {
-      ret.add([pstr,
-               tmp,
-               nosemi_Q ? "" : ";", "\n"]);
-      nosemi_Q=false;
-    }
-  });
-  indent -= tabspace;
-  return ret;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpileAtoms "" [atoms env]
+  (each (fn [a i arr]
+          (set! arr
+                i
+                (if (std.array? a)
+                  (transpileList a env)
+                  (transpileSingle a)))) atoms))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileAtoms(atoms, env) {
-  atoms.forEach(function(a,i,arr){
-    if (std.array_p(a)) {
-      arr[i]= transpileList(a, env);
-    } else {
-      arr[i]=transpileSingle(a);
-    }
-  });
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpileSingle "" [a]
+  (cond
+    (types.symbol? a)
+    (.jsid rdr (types.symbol-s a))
+    (types.keyword? a)
+    (str "\"" (types.keyword-s a) "\"")
+    (std.string? a)
+    a
+    (nil? a)
+    "null"
+    :else
+    (str "" a)))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileSingle(a) {
-  if (types.symbol_p(a)) {
-    return rdr.jsid(types.symbol_s(a));
-  }
-  if (types.keyword_p(a)) {
-    return "\"" + types.keyword_s(a) + "\"";
-  }
-  if (std.string_p(a)) {
-    return a;
-  }
-  if (a===null) {
-    return "null";
-  }
-  return ""+a;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpile* "" [x env]
+  (if (std.array? x)
+         (transpileList x env) (transpileSingle x)))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function eval_QQ(x,env) {
-  return std.array_p(x) ?
-         transpileList(x, env) : transpileSingle(x);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- findCmd "" [ast]
+  (do-with [cmd ""]
+    (cond
+      (types.vector? ast) (set! cmd "[")
+      (types.map? ast) (set! cmd "{")
+      (types.list? ast) (set! cmd (types.symbol-s (first ast))))))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function findCmd(ast) {
-  let cmd="";
-  if (types.vector_p(ast)) { cmd="["; }
-  else if (types.map_p(ast)) { cmd="{"; }
-  else if (types.list_p(ast)) {
-    cmd= types.symbol_s(ast[0]);
-  } else { cmd=""}
-  return cmd;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- transpileList "" [ast env]
+  (var cmd (findCmd ast)
+       mc (.get macros cmd) tmp nil)
+  (do-with [ret (tnode)]
+    (when mc
+      (set! ast (.expandMacro rt ast env mc))
+      (set! cmd (findCmd ast)))
+    (cond
+      (.startsWith cmd ".-")
+      (.add ret [(transpile* (second ast) env)
+                 "."
+                 (transpileSingle (types.symbol (.slice cmd 2))) ])
+      (= "." (.charAt cmd 0))
+      (do (.add ret (transpile* (second ast) env))
+          (.add ret [cmd "("])
+          (forlet ((n 2)
+                   (< n (alen ast)) (n (inc n)))
+            (if (not= n 2) (.add ret ","))
+            (.add ret (transpile* (nth ast n) env)))
+          (.add ret ")"))
+      (.hasOwnProperty SPEC-OPS cmd)
+      (set! ret ((get SPEC_OPS cmd) ast env))
+      :else
+      (do (if (types.list? ast)
+            (do (transpileAtoms ast env)
+                (set! cmd (first ast)))
+            (set! cmd (transpileSingle ast)))
+          (if-not cmd (syntax! "e1" ast))
+          (if (types.list? ast)
+            (do (if (testre? (rdr.REGEX.func  cmd))
+                  (set! cmd (tnodeEx ["("  cmd  ")"])))
+                (.add ret [cmd
+                           "("
+                           (-> (tnodeEx (.slice ast 1))
+                               (.join ",")) ")"]))
+            (.add ret cmd))))
+    (set! ret (nodeTag ret ast))))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileList(ast, env) {
-  let cmd= "",
-      mc= null,
-      tmp= null;
-  cmd=findCmd(ast);
-  mc= macros.get(cmd);
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-apply "" [ast env]
+  (var args (.slice ast 2)
+       f (second ast)
+      ret (nodeTag (tnode) ast))
+  (forlet ((i 0) (< i (alen args)) (i (inc i)))
+    (.add ret (transpile* (nth args i) env)))
+  (if (> (alen args) 1) (.join ret ","))
+  (doto ret
+    (.prepend "[")
+    (.add "]")
+    (.prepend [(transpile* f env) ".apply(this,"])
+    (.add ret ")")))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC_OPS :apply sf-apply)
 
-  let ret=tnode();
-  if (mc) {
-    ast=rt.expandMacro(ast, env, mc);
-    cmd= findCmd(ast);
-  }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-compOp "" [ast env]
+  (var cmd (first ast))
+  (if (or (= cmd "not=")
+          (= cmd "!=")) (set! ast 0 (types.symbol "!==")))
+  (if (= cmd "=") (set! ast 0 (types.symbol "===")))
+  (do-with [ret (nodeTag (tnode) ast)]
+    (transpileAtoms ast env)
+    (forlet ((i 0
+              op (.shift ast))
+             (< i (eindex ast)) (i (inc i)))
+      (.add ret (tnodeEx [(nth ast i)
+                          " " op " " (nth ast (inc i))])))
+    (.join ret " && ")
+    (.prepend ret "(")
+    (.add ret ")")))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(regoBuiltins sf-compOp "compare")
 
-  if (cmd.startsWith(".-")) {
-    let c= transpileSingle(types.symbol(cmd.slice(2)));
-    ret.add([eval_QQ(ast[1],env), ".",c]);
-    //ret.add(["[\"", c "\"]"]);
-  }
-  else if ("." === cmd.charAt(0)) {
-    ret.add(eval_QQ(ast[1],env));
-    ret.add([cmd, "("]);
-    for (var n=2; n < ast.length; ++n) {
-      if (n !== 2) ret.add(",");
-      ret.add(eval_QQ(ast[n],env));
-    }
-    ret.add(")");
-  }
-  else if (SPEC_OPS.hasOwnProperty(cmd)) {
-    ret = (SPEC_OPS[cmd])(ast, env);
-  }
-  else {
-    if (types.list_p(ast)) {
-      transpileAtoms(ast, env);
-      cmd=ast[0];
-    } else {
-      cmd=transpileSingle(ast);
-    }
-    if (!cmd) syntax_E("e1", ast);
-    if (types.list_p(ast)) {
-      if (testre_Q(rdr.REGEX.func, cmd)) {
-        cmd = tnodeEx(["(", cmd, ")"]);
-      }
-      ret.add([cmd,
-               "(",
-               tnodeEx(ast.slice(1)).join(","), ")"]);
-    } else {
-      ret.add(cmd);
-    }
-  }
-  return nodeTag(ret,ast);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-arithOp "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (transpileAtoms ast env)
+    (var op (tnode)
+         e1 (.shift ast)
+         cmd (types.symbol-s e1))
+    (if (= cmd "mod") (set! cmd "%"))
+    (if (= 1 (alen ast))
+      (if (= "-" cmd) (.add ret "-"))
+      (.add op [""  cmd  ""]))
+    (.add ret ast)
+    (if (> (alen ast) 1) (.join ret op))
+    (.prepend ret "(")
+    (.add ret ")")))
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_apply(ast,env) {
-  let args= ast.slice(2),
-      f=ast[1],
-      ret=nodeTag(tnode(),ast);
-  for (var i=0; i < args.length; ++i) {
-    ret.add(eval_QQ(args[i],env));
-  }
-  if (args.length > 1) ret.join(",");
-  ret.prepend("[");
-  ret.add("]");
-  ret.prepend([eval_QQ(f,env), ".apply(this,"]);
-  ret.add(")");
-  return ret;
-}
-SPEC_OPS["apply"]=sf_apply;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(regoBuiltins sf-arithOp "bitwise")
+(regoBuiltins sf-arithOp "logic")
+(regoBuiltins sf-arithOp "arith")
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_compOp(ast, env) {
-  let cmd=ast[0];
-  if (cmd == "not=" || cmd == "!=") ast[0]= types.symbol("!==");
-  if (cmd == "=") ast[0]= types.symbol("===");
-
-  let ret= nodeTag(tnode(),ast);
-  transpileAtoms(ast, env);
-  for (var i= 0,
-       op= ast.shift(); i < ast.length-1; ++i) {
-    ret.add(tnodeEx([ast[i],
-                     " ",
-                     op,
-                     " ",
-                     ast[i+1]]));
-  }
-  ret.join(" && ");
-  ret.prepend("(");
-  ret.add(")");
-  return ret;
-}
-regoBuiltins(sf_compOp,"compare");
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_arithOp(ast,env) {
-  let ret= nodeTag(tnode(),ast);
-  transpileAtoms(ast, env);
-  let op= tnode(),
-      e1= ast.shift(),
-      cmd= types.symbol_s(e1);
-
-  if(cmd == "mod") cmd="%";
-
-  if (1 === ast.length) {
-    if ("-" == cmd) { ret.add("-"); }
-  } else {
-    op.add(["", cmd, ""]);
-  }
-  ret.add(ast);
-  if (ast.length > 1) ret.join(op);
-  ret.prepend("(");
-  ret.add(")");
-  return ret;
-}
-regoBuiltins(sf_arithOp,"bitwise");
-regoBuiltins(sf_arithOp, "logic");
-regoBuiltins(sf_arithOp, "arith");
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_repeat(ast, env) {
-  transpileAtoms(ast,env);
-  let ret= nodeTag(tnode(),ast);
-  for (var i= 0,
-       end= parseInt(ast[1]);
-       i < end; ++i) {
-    if (i !== 0) ret.add(",");
-    ret.add(ast[2]);
-  }
-  ret.prepend("[");
-  ret.add("]");
-  return ret;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-repeat "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (transpileAtoms ast env)
+    (forlet ((i 0
+              end (parseInt (second ast)))
+             (< i  end) (i (inc i)))
+      (if (not= i 0) (.add ret ","))
+      (.add ret (nth ast 2)))
+    (.prepend ret "[")
+    (.add ret "]")))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 SPEC_OPS["repeat-n"]=sf_repeat;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -326,7 +283,7 @@ function transpileDo(ast,env,return_Q) {
     ret.add([p, transpileList(e,env), ";\n"]);
   }
   if (end >= 0) {
-    e= eval_QQ(ast[end], env);
+    e= transpile*(ast[end], env);
     if (return_Q === false) {
       ret.add([p, e, ";\n"]);
     } else {
@@ -365,21 +322,21 @@ function sf_case(ast, env) {
         ret.add(["case ", e[j], ":\n"]);
         if (j === (e.length-1))
           ret.add(["____x= ",
-                   eval_QQ(c,env), ";\nbreak;\n"]);
+                   transpile*(c,env), ";\nbreak;\n"]);
       }
     } else {
       ret.add(["case ", e, ":\n"]);
       ret.add(["____x= ",
-               eval_QQ(c), ";\nbreak;\n"]);
+               transpile*(c), ";\nbreak;\n"]);
     }
   }
   if (dft) {
     ret.add("default:\n");
     ret.add(["____x= ",
-             eval_QQ(dft), ";\nbreak;\n"]);
+             transpile*(dft), ";\nbreak;\n"]);
   }
   ret.prepend(["switch (",
-               eval_QQ(tst,env), ") {\n"]);
+               transpile*(tst,env), ") {\n"]);
   ret.add("}\n");
   ret.prepend("(function() { let ____x;\n");
   ret.add("return ____x;}).call(this)");
@@ -468,9 +425,9 @@ SPEC_OPS["var"]=sf_var_let;
 function sf_inst_Q (ast,env) {
   let ret= nodeTag(tnode(),ast);
   ret.add(["(",
-           eval_QQ(ast[2]),
+           transpile*(ast[2]),
            " instanceof ",
-           eval_QQ(ast[1]), ")"]);
+           transpile*(ast[1]), ")"]);
   return ret;
 }
 SPEC_OPS["inst?"]=sf_inst_Q;
@@ -478,7 +435,7 @@ SPEC_OPS["inst?"]=sf_inst_Q;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_delete(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  ret.add(["delete ", eval_QQ(ast[1])]);
+  ret.add(["delete ", transpile*(ast[1])]);
   return ret;
 }
 SPEC_OPS["delete!"]=sf_delete;
@@ -495,7 +452,7 @@ SPEC_OPS["new"]=sf_new;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_throw(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  ret.add(["throw ", eval_QQ(ast[1]), ";"]);
+  ret.add(["throw ", transpile*(ast[1]), ";"]);
   ret.prepend("(function (){ ");
   ret.add(" }).call(this)");
   return ret;
@@ -522,17 +479,17 @@ regoBuiltins(sf_x_eq,"assign");
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_set(ast,env) {
   let ret= nodeTag(tnode(),ast),
-      e1= eval_QQ(ast[1],env);
+      e1= transpile*(ast[1],env);
 
   if (4 === ast.length) {
     ret.add(e1);
     ret.add("[");
-    ret.add(eval_QQ(ast[2],env));
+    ret.add(transpile*(ast[2],env));
     ret.add("]");
   } else {
     ret.add(e1);
   }
-  ret.add([" = ", eval_QQ(ast[ast.length-1],env)]);
+  ret.add([" = ", transpile*(ast[ast.length-1],env)]);
   return ret;
 }
 SPEC_OPS["aset"]=sf_set;
@@ -718,11 +675,11 @@ function sf_if(ast,env) {
   indent += tabspace;
   ret.add([
       "(",
-      eval_QQ(a1,env),
+      transpile*(a1,env),
       " ?\n"+ pad(indent),
-      eval_QQ(a2,env),
+      transpile*(a2,env),
       " :\n"+ pad(indent),
-      (eval_QQ(a3,env) || "null"), ")"]);
+      (transpile*(a3,env) || "null"), ")"]);
   indent -= tabspace;
   return ret;
 }
@@ -898,7 +855,7 @@ function sf_floop(ast,env,hint) {
       if (i > 0) ret.add(",");
       ret.add([transpileSingle(c1[i]),
                " = ",
-               eval_QQ(c1[i+1],env)]);
+               transpile*(c1[i+1],env)]);
     }
   ret.add("; ");
   if (std.array_p(c2))
@@ -909,7 +866,7 @@ function sf_floop(ast,env,hint) {
       if (i > 0) ret.add(",");
       ret.add([transpileSingle(c3[i]),
                " = ",
-               eval_QQ(c3[i+1],env)]);
+               transpile*(c3[i+1],env)]);
     }
   ret.add(") {\n");
   if (ast.length > 2) {
@@ -936,7 +893,7 @@ function sf_wloop(ast,env) {
   let cond=ast[1],
       ind= pad(indent);
 
-  ret.add(eval_QQ(cond,env));
+  ret.add(transpile*(cond,env));
   ret.add(";) {\n");
   indent += tabspace;
   if (ast.length > 2) {
@@ -986,7 +943,7 @@ function sf_unary(ast,env) {
 
   if (a0 == "not") a0=types.symbol("!");
 
-  ret.add(["(", eval_QQ(a0,env) , eval_QQ(a1,env), ")"]);
+  ret.add(["(", transpile*(a0,env) , transpile*(a1,env), ")"]);
   return ret;
 }
 regoBuiltins(sf_unary, "unary");

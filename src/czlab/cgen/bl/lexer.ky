@@ -1,0 +1,153 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.lexer
+  (require ["./tnode" :as tn]
+           ["./stdlib" :as std]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- tnode tn.tnode
+      tnodeEx tn.tnodeEx)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def REGEX {
+  :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
+  :id (regex "^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$")
+  :id2 (regex "^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$")
+  :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
+  :int (regex "^[-+]?[0-9]+$")
+  :hex (regex "^[-+]?0x")
+  :macroGet (regex "^#slice@(\\d+)")
+  :dquoteHat (regex "^\"")
+  :dquoteEnd (regex "\"$")
+  :func (regex "^function\\b")
+  :query (regex "\\?" "g")
+  :bang (regex "!" "g")
+  :dash (regex "-" "g")
+  :quote (regex "'" "g")
+  :hash (regex "#" "g")
+  :at (regex "@" "g")
+  :less (regex "<" "g")
+  :greater (regex ">" "g")
+  :star (regex "\\*" "g")
+  :wspace (regex "\\s")})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn testid? "" [name]
+  (or (REGEX.id.test name) (REGEX.id2.test name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsid "" [name]
+  (var pfx "")
+  (when (and (std.string? name)
+             (= "-" (.charAt name 0)))
+    (set! pfx "-")
+    (set! name (.slice name 1)))
+  (if (testid? name)
+    (-> (str pfx name)
+        (.replace REGEX.query "_QUERY")
+        (.replace REGEX.bang "_BANG")
+        (.replace REGEX.dash "_")
+        (.replace REGEX.quote "_QTE")
+        (.replace REGEX.hash "_HASH")
+        (.replace REGEX.at "_AT")
+        (.replace REGEX.less "_LT")
+        (.replace REGEX.greater "_GT")
+        (.replace REGEX.star "_STAR"))
+    (if (= pfx "") name (str pfx name))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tokenize "" [source fname]
+  (var len (alen source)
+       token ""
+       line 1
+       tcol 0
+       col 0
+       pos 0
+       ch nil
+       nx nil
+       esc? false
+       str? false
+       comment? false)
+  (do-with [tree []]
+    (var toke (fn [ln col s s?]
+                (if (or s? (std.not-empty s))
+                  (.push tree (tnode fname ln col s s))) ""))
+    (while (< pos len)
+      (set! ch (.charAt source pos))
+      (++ col)
+      (++ pos)
+      (set! nx (.charAt source pos))
+      (when (= ch "\n")
+        (set! col 0)
+        (++ line)
+        (if comment? (set! comment? false)))
+      (cond
+        comment? nil
+        esc? (do (set! esc? false)
+                 (+= token ch))
+        (= ch "\"")
+        (if-not str?
+          (do (set! tcol col)
+              (set! str? true)
+              (+= token ch))
+          (do (set! str? false)
+              (+= token ch)
+              (set! token
+                    (toke line tcol token true))))
+        str?
+        (do (if (= ch "\n") (set! ch "\\n"))
+            (if (= ch "\\") (set! esc? true))
+            (+= token ch))
+        (or (= ch "'")
+            (= ch "`")
+            (= ch "@")
+            (= ch "^"))
+        (if (and (std.empty? token)
+                 (not (REGEX.wspace.test nx)))
+          (do (set! tcol col)
+              (toke line tcol ch))
+          (+= token ch))
+        (and (= ch "&")
+             (= nx "&"))
+        (do (if (std.empty? token) (set! tcol col))
+            (+= token (str ch nx))
+            (++ pos))
+        (= ch "~")
+        (if (and (std.empty? token)
+                 (not (REGEX.wspace.test nx)))
+          (do (set! tcol col)
+              (if (= nx "@")
+                (do (++ pos)
+                    (toke line tcol "~@"))
+                (toke line tcol ch)))
+          (+= token ch))
+        (or (= ch "[")(= ch "]")
+            (= ch "{")(= ch "}")
+            (= ch "(")(= ch ")"))
+        (do (set! token (toke line tcol token))
+            (set! tcol col)
+            (toke line tcol ch))
+        (= ch ";")
+        (do (set! token (toke line tcol token))
+            (set! tcol col)
+            (set! comment? true))
+        (or (= ch ",")
+            (REGEX.wspace.test ch))
+        (let [n line]
+          (if (= ch "\n") (set! n (dec line)))
+          (set! token (toke n tcol token)))
+        :else
+        (do (if (std.empty? token) (set! tcol col))
+            (+= token ch))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+

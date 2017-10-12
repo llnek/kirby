@@ -1,0 +1,166 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.toolkit
+  (require ["../bl/types" :as types]
+           ["../bl/stdlib" :as std]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pr-str-A "" [arr]
+  (std.map (fn [e] (types.pr-obj e)) arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pr-str "" [&xs]
+  (-> (pr-str-A xs)(.join " ")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- str-A "" [arr]
+  (std.map (fn [e] (types.pr-obj e false)) arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn str "" [&xs]
+  (-> (str-A xs)(.join "")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn prn "" [&xs]
+  (.apply std.println this (pr-str-A xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn println "" [&xs]
+  (.apply std.println this (str-A xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn slurp "" [f]
+  (-> (require "fs")(.readFileSync f "utf-8")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn timeMillis "" [] (-> (new Date)(.getTime )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn assoc "" [src &xs]
+  (.apply types.assoc
+          this
+          (std.concat [ (types.clone src) ] xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dissoc "" [src &xs]
+  (.apply types.dissoc
+          this
+          (std.concat [ (types.clone src) ] xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cons "" [a b] (std.concat [a] b))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn conj "" [arr &xs]
+  (cond
+    (types.list? arr)
+    (-> (.reverse xs)(.concat arr))
+    (std.some? arr)
+    (do-with [v (std.concat arr xs)]
+      (set! v :__isvector__ true))
+    :else arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn seq "" [obj]
+  (cond
+    (types.list? obj)
+    (if (std.not-empty obj) obj)
+    (types.vector? obj)
+    (if (std.not-empty obj) (std.slice obj))
+    (std.string? obj)
+    (if (std.not-empty obj) (.split obj ""))
+    (= obj null)
+    null
+    :else
+    (std.raise! "seq: called on non-sequence")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn apply "" [f & xs]
+  (var end (eindex xs))
+  (.apply f
+          this
+          (std.concat (.slice xs 0 end) (nth xs end))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- GLOBAL (if (undef? window) undefined  window))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resolveJS "" [s]
+  [(if (.includes s ".")
+     (let [re (regex "^(.*)\\.[^\\.]*$" "g")
+           mc (.exec re s)]
+       (eval (nth mc 1)))
+     GLOBAL)
+   (eval s)])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn filterJS "" [obj]
+  (var cache []
+       s (if obj
+           (JSON.stringify obj
+                           (fn [k v]
+                             (if (object? v)
+                               (if-not (std.contains? cache v)
+                                 (.push cache v)
+                                 (set! v undefined)))
+                             v))))
+  (if (std.not-empty s) (JSON.parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn withMeta "" [obj m]
+  (do-with [ret (types.clone obj)] (set! ret :__meta__ m)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn meta "" [obj]
+  (if (and (not (types.sequential? obj))
+           (not (types.hashmap? obj))
+           (not (types.object? obj))
+           (not (std.fn? obj)))
+    (std.raise! "attempt to get metadata from: "
+                (types.obj-type obj)))
+  (get obj :__meta__))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deref "" [a] (.-value a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn reset! "" [a v] (set! a :value v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn swap! "" [a f &xs]
+  (var args (std.concat [ (.-value a) ] xs))
+  (set! a :value (.apply f this args))
+  (get a :value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn evalJS "" [s]
+  (filterJS (eval (.toString s))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn invokeJS "" [method & xs]
+  (var r (resolveJS method)
+       obj (std.first r)
+       f (std.second r)
+       res (.apply f obj xs))
+  (filterJS res))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- gensym-counter (types.atom 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gensym "" []
+  (types.symbol (str "G__"
+                     (swap! gensym-counter
+                            (fn [x] (+ x 1))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
