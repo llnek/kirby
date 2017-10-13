@@ -126,7 +126,7 @@ function evalAst(ast, env) {
 function computeLoop(ast, env) {
   while (true) {
 
-    //std.println("EVAL:", types.pr_obj(ast, true));
+    //std.println("EVALLOOP:", types.pr_obj(ast, true));
 
     if (!types.list_p(ast)) {
         return evalAst(ast, env);
@@ -226,6 +226,7 @@ function computeLoop(ast, env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function compute(ast, env) {
+  //std.println("EVAL:", types.pr_obj(ast, true));
   if (!env) env=global_env;
   let result = computeLoop(ast, env);
   return (typeof result !== "undefined") ? result : null;

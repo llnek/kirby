@@ -193,7 +193,7 @@
 (defmacro doto [target & xs]
   (let* [cvar (gensym)]
     `(let [~cvar ~target]
-       ~@(map (fn* [e] `(~(first e) ~cvar ~@(rest e))) xs)
+       ~@(amap (fn* [e] `(~(first e) ~cvar ~@(rest e))) xs)
        ~cvar)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
