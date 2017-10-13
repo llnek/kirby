@@ -1,0 +1,139 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.kalaso.main
+
+  (require ["./cg/transpiler" :as kalaso]
+           ["./bl/macros" :as macros]
+           ["./bl/stdlib" :as std]
+           ["./rt/runtime" :as rt]
+           ["node-getopt" :as gopt]
+           ["watch" :as watcher]
+           ["path" :as path]
+           ["fs" :as fs]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- validFlag? (regex "-h\\b|-r\\b|-v\\b|-b\\b|-s\\b|-t\\b"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- error (fn [e]
+              (std.println e)
+              (.exit process 1)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- opt
+  (-> (.create gopt
+               [["h" "help" "display this help"]
+                ["v" "version" "show version"]
+                ["r" "run" "run .kal files"]
+                ["w" "watch" "auto-compile changed files"]
+                ["b" "browser-bundle" "bundle for browser"]
+                ["m" "map" "generate source maps"]
+                ["t" "tree" "show AST"]
+                ["i" "include-dir=ARG+" "add directory to include search path"]])
+      (.setHelp (str "kalaso [OPTION] [<infile>] [<outfile>]\n\n"
+                     "<outfile> default to <infile> with \".js\" extension\n\n"
+                     "Also compile stdin to stdout\n"
+                     "eg. $ echo '(console.log \"hello\")' | kalaso\n\n"
+                     "[[OPTIONS]]\n\n"))
+      (.bindHelp)
+      (.parseSystem)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;when no args do stdin -> stdout compile or run repl and return null to
+;;halt operations.
+(defn- handleNoArgs "" []
+  (var pout (.-stdout process)
+       source ""
+       pin (.-stdin process))
+  (.resume pin)
+  (.setEncoding pin "utf8")
+  (.on pin
+       "data"
+       (fn [chunk]
+         (+= source (.toString chunk))))
+  (.on pin
+       "end"
+       (fn []
+         (try
+           (.write pout (.transpile kalaso source (.cwd process)))
+           (catch e
+             (error! e)))))
+  (.on pout "error" error)
+  (.on pin "error" error)
+  (setTimeout (fn []
+    (when (= 0 (.-bytesRead pin))
+      (.removeAllListeners pin "data")
+      (runrepl)))
+    20))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- compileFiles "" []
+  (var fin nil
+       fout nil)
+  (if (std.first (opt.argv))
+    (set! fin (std.first opt.argv))
+    (error! "No Input file"))
+  (set! fout (nth opt.argv 1))
+  (when-not fout
+    (set! fout (.replace fin (regex ("\\.kal$")) ".js"))
+    (if (=== fout fin)
+      (error! "Input file must have extension \".kal\"")))
+  (try
+    (var wantMap? (get opt.options "map")
+         dbgAST? (get opt.options "tree")
+         source nil
+         dirs (get opt.options "include-dir"))
+    (if-not dbgAST?
+      (std.println "kalaso v1.0.0"
+                   ": compiling: " fin " -> " fout))
+    (set! source (.readFileSync fs fin "utf8"))
+    (if dbgAST?
+      (.dbgAST kalaso source fin dirs)
+      (let [out
+            (if wantMap?
+              (.transpileWithSrcMap kalaso source fin dirs)
+              (.transpile kalaso source fin dirs))]
+        (.writeFileSync fs fout out "utf8")))
+    (catch e
+      (error! e))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- init "" []
+  (set! require.extensions
+        ".kal"
+        (fn [module fname]
+          (var kb (require "./cg/transpiler")
+               code (.readFileSync fs fname "utf8"))
+
+          (._compile module
+                     (.transpile kb
+                                 code
+                                 (.relative path
+                                            (.cwd process)
+                                            fname)) fname)))
+  (.init rt)
+  (.load macros))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn main "" []
+  (init)
+  (compileFiles))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(main)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+

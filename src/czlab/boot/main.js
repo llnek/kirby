@@ -81,9 +81,9 @@ function compileFiles() {
   }
   fout= opt.argv[1];
   if (!fout) {
-    fout= fin.replace(new RegExp("\\.ky$"), ".js");
+    fout= fin.replace(new RegExp("\\.kal$"), ".js");
     if (fout === fin) {
-      error("Input file must have extension \".ky\"");
+      error("Input file must have extension \".kal\"");
     }
   }
   try {
@@ -92,7 +92,7 @@ function compileFiles() {
         source=null,
         dirs= opt.options["include-dir"];
     if (!dbgAST_Q) {
-      console.log("kirby v1.0.0"+ ": compiling: "+ fin+ " -> "+ fout);
+      console.log("kalaso v1.0.0"+ ": compiling: "+ fin+ " -> "+ fout);
     }
     source= fs.readFileSync(fin, "utf8");
     if (dbgAST_Q) {
@@ -112,7 +112,7 @@ function compileFiles() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
-  require.extensions[".ky"]=function(module, fname) {
+  require.extensions[".kal"]=function(module, fname) {
     let kb= require("./cg/transpiler"),
         code= fs.readFileSync(fname, "utf8");
     module._compile(
