@@ -842,7 +842,6 @@ function sf_require(ast,env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_ns(ast,env) {
   let ret= [];
-  //ret.__isns__=true;
   for (var i= 1; i < ast.length; ++i) {
     let e= ast[i],
         nm= e[0];
