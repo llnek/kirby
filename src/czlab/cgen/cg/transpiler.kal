@@ -9,8 +9,6 @@
 (ns ^{:doc ""
       :author ""}
   czlab.kirby.transpiler
-  (include ["../bl/defmacros.kal"]
-           ["../bl/stdlib.kal"])
   (require ["../bl/macros" :as macros]
            ["../bl/types" :as types]
            ["../bl/stdlib" :as std]
@@ -733,6 +731,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :hash-map sf-object)
 (set! SPEC-OPS "{" sf-object)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- includeFile
+  ((fn []
+     (var icache [])
+     (fn [fname]
+       (if (std.contains? icache fname)
+         (tnode)
+         (let [src (.readFileSync fs fname "utf-8")]
+           (.push icache fname)
+           (transpileTree (.parser psr src fname) (.globalEnv rt))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-include "" [ast env]
+
+  (var ret [] fname nil dir (.dirname path ast.source))
+  (forlet ((i 1 e nil)
+           (< i (alen ast)) (i (inc i)))
+    (set! e (nth ast i))
+    (if (or (not (std.array? e))
+            (not= 1 (alen e))) (syntax! :e0 ast))
+    (set! fname (first e))
+    (if fname
+      (set! fname (.replace fname (regex "[\"]" "g") "")))
+    (try
+      (set! fname (.realpathSync fs (str dir "/" fname)))
+      (catch e
+        (syntax! :e11 ast)))
+    (try
+      (-= indent tabspace)
+      (.push ret (includeFile fname))
+      (finally
+        (.pop NSPACES)
+        (+= indent tabspace))))
+  (if (std.empty? ret) (tnode) ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require "" [ast env]
