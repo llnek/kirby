@@ -29,34 +29,37 @@ function gensym() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function destruct_vec(lhs,rhs) {
+function destruct_vec(cmd, lhs,rhs) {
   let ret=tnode(),
+    v,
       r=gensym();
-  ret.add(["let ", r, "= ", rhs, ";\n"]);
+  ret.add([cmd, " ", r, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
-    v=lhs[i];
+    v=transpileSingle(lhs[i]);
     if (v == "_") {}
     else {
-      ret.add(["let ", v, "= ", r, "[", i, "];\n"]);
+      ret.add([cmd, " ", v, "= ", r, "[", ""+i, "];\n"]);
     }
   }
   return ret;
 }
 
-function destruct_map(lhs,rhs) {
+function destruct_map(cmd, lhs,rhs) {
   let ret=tnode(),
       keys=[],
+      k,v,
       r=gensym();
-  ret.add(["let ", r, "= ", rhs, ";\n"]);
+  ret.add([cmd, " ", r, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
     //look for :strs
-    if ("strs" == lhs[i]) {
+    if ("keys" == lhs[i]) {
       keys=lhs[i+1];
       break;
     }
   }
   for (var i =0; i < keys.length; ++i) {
-    ret.add(["let ", keys[i], "= ", r, "[", keys[i], "];\n"]);
+    k= transpileSingle(keys[i]);
+    ret.add([cmd, " ", k, "= ", r, "[\"", k, "\"];\n"]);
   }
   return ret;
 }
@@ -460,7 +463,7 @@ function sf_range (ast,env) {
 SPEC_OPS["range"]=sf_range;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_var (ast, env, cmd) {
+function sf_varXX (ast, env, cmd) {
   //must be even pairs
   if (ast.length < 3 ||
       0 === (ast.length % 2)) syntax_E("e0", ast);
@@ -486,6 +489,40 @@ function sf_var (ast, env, cmd) {
   ret.prepend(" ");
   ret.prepend(cmd);
   if (ast.length > 3) indent -= tabspace;
+  return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_var (ast, env, cmd) {
+  let vname=null, publicQ= ("global" == cmd);
+  let ret=nodeTag(tnode(),ast);
+
+  ast=ast.slice(1);
+  if (publicQ ||
+          ("local" == cmd)) cmd="var";
+
+  let keys= std.evens(ast);
+  let vals= std.odds(ast);
+  let k,v;
+
+  for (var i= 0; i< keys.length; ++i) {
+    k=keys[i];
+    v=eval_QQ(vals[i],env);
+
+    if (types.vector_p(k)) {
+      ret.add(destruct_vec(cmd, k, v));
+    }
+    else if (types.map_p(k)) {
+      ret.add(destruct_map(cmd, k, v));
+    }
+    else if (types.symbol(k)) {
+      ret.add([cmd, " ", types.symbol_s(k), " = ", v, ";\n"]);
+    }
+    //if (publicQ && (1 === NSPACES.length)) EXTERNS[vname]= vname;
+  }
+  //ret.prepend(" ");
+  //ret.prepend(cmd);
+  //if (ast.length > 3) indent -= tabspace;
   return ret;
 }
 

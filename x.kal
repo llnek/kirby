@@ -1,2 +1,5 @@
-(fn [a b & xs])
+
+(var {:keys [hello world]} { :hello 10 :world 5 }
+     [a b] [1 3]
+     x 1)
 
