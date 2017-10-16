@@ -83,7 +83,7 @@ function seq(obj) {
   if (types.vector_p(obj)) {
     return obj.length > 0 ? std.slice(obj) : null;
   }
-  if (std.string_p(obj)) {
+  if (typeof obj === "string") {
     return obj.length > 0 ? obj.split("") : null;
   }
   if (obj === null) {
@@ -143,7 +143,7 @@ function meta(obj) {
   if (!types.sequential_p(obj) &&
       !types.hashmap_p(obj) &&
       !types.object_p(obj) &&
-      !std.function_p(obj)) {
+      typeof obj !== "function") {
     std.raise("attempt to get metadata from: ", types.obj_type(obj));
   }
   return obj.__meta__;
@@ -189,25 +189,29 @@ function gensym() {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 module.exports= {
 
-  "is-same?" : function (a,b) { return a==b;},
+  "is-same?" : function(a,b) { return a==b;},
 
   "obj-type*" : types.obj_type,
   "gensym*" : gensym,
-
   "is-eq?" : types.eq_p,
-  "is-nil??" : std.nil_p,
-  "is-some?" : std.some_p,
 
-  "throw*" : std.raise,
-  "slice*" : std.slice,
+  "is-nil?" : function(x) { return x===null; },
+  "is-some?" : function(x) {
+    return typeof x !== "undefined" && x !== null;
+  },
 
-  "#t" : std.true_p,
-  "#f" : std.false_p,
-  "is-str?" : std.string_p,
+  "slice*" : function() { return std.slice(arguments); },
+  "throw*" : function() {
+    throw new Error(std.slice(arguments).join(""));
+  },
 
-  "symbol" : types.symbol,
+  "#f?" : function(x) { return x===false; },
+  "#t?" : function(x) { return x===true;},
+  "is-str?" : function(x) { return typeof x === "string";},
+
+  "symbol*" : types.symbol,
   "is-symbol?" : types.symbol_p,
-  "keyword" : types.keyword,
+  "keyword*" : types.keyword,
   "is-keyword?" : types.keyword_p,
 
   "pr-str*" : pr_str,
@@ -225,47 +229,74 @@ module.exports= {
   "*"  : function(a,b){return a*b;},
   "/"  : function(a,b){return a/b;},
 
-  "time" : timeMillis,
+  "time*" : timeMillis,
 
-  "list" : types.list,
+  "list*" : types.list,
   "is-list?" : types.list_p,
 
-  "vector" : types.vector,
+  "vector*" : types.vector,
   "is-vector?" : types.vector_p,
 
-  "hash-map" : types.hashmap,
+  "hash-map*" : types.hashmap,
   "is-map?" : types.hashmap_p,
 
   "assoc*" : assoc,
   "dissoc*" : dissoc,
 
-  "is-contains?" : std.contains_p,
-  "get*" : std.get,
-  "keys*" : std.keys,
-  "values*" : std.values,
+  "is-contains?" : function(c, x) {
+    return (Array.isArray(c) || typeof c === "string")
+      ? c.includes(x)
+      : (typeof c ==="object")
+      ? c.hasOwnProperty(x) : false;
+  },
+
+  "get*" : function(m,k) { return m ? m[k] : undefined; },
+  "keys*" : function(x) { return Object.keys(x); },
+  "values*" : function(x) { return Object.values(x); },
 
   "dec*" : function(x) { return x-1; },
   "inc*" : function(x) { return x+1;},
 
   "is-not?" : function(x) { return x ? false : true },
 
-  "is-even?" : std.even_p,
-  "is-odd?" : std.odd_p,
+  "is-even?" : function(n) { return (n % 2) === 0; },
+  "is-odd?" : function(n) { return (n % 2) === 1; },
 
   "is-sequential?" : types.sequential_p,
   "cons*" : cons,
-  "concat*" : std.concat,
-  "nth*" : std.nth,
-  "first*" : std.first,
-  "rest*" : std.rest,
-  "is-empty?" : std.empty_p,
-  "count*" : std.count,
+  "concat*" : function (arr) {
+    arr = arr || [];
+    return arr.concat.apply(arr, std.slice(arguments, 1)); },
+
+  "nth*" : function(arr, idx) { return arr ? arr[idx] : null; },
+  "first*" : function(arr) { return arr ? arr[0] : null },
+  "rest*" : function rest(arr) { return arr ? arr.slice(1) : []; },
+  "is-empty?" : function (arr) { return arr===null || arr.length === 0; },
+  "count*" : function (s) {
+    return (Array.isArray(s) || typeof s === "string") ?
+      s.length : (s === null) ? 0 :
+      (typeof s === "object") ? Object.keys(s).length : 0;
+  },
+
   "apply*" : apply,
   "map*" : map,
 
-  "type*" : std.isa,
-  "evens*" : std.evens,
-  "odds*" : std.odds,
+  "type*" : function(x) { return typeof x;},
+  "evens*" : function (arr) {
+    let ret=[];
+    arr= arr || [];
+    for (var i=0; i < arr.length; i += 2) {
+      ret.push(arr[i]);
+    }
+    return ret; },
+
+  "odds*" : function (arr) {
+    let ret=[];
+    arr= arr || [];
+    for (var i=1; i < arr.length; i += 2) {
+      ret.push(arr[i]);
+    }
+    return ret; },
 
   "conj*" : conj,
   "seq*" : seq,
@@ -278,8 +309,8 @@ module.exports= {
   "reset*" : reset,
   "swap*" : swap,
 
-  "js-eval" : evalJS,
-  "js#" : invokeJS
+  "js-eval*" : evalJS,
+  "js*" : invokeJS
 
 };
 

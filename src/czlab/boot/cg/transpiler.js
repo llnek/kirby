@@ -19,6 +19,47 @@ var macros=require("../bl/macros"),
 
 var tnodeEx=tn.tnodeEx;
 var tnode=tn.tnode;
+var gensym_counter=1;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function gensym() {
+  let x= gensym_counter;
+  gensym_counter++;
+  return "G____" + x;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function destruct_vec(lhs,rhs) {
+  let ret=tnode(),
+      r=gensym();
+  ret.add(["let ", r, "= ", rhs, ";\n"]);
+  for (var i=0; i < lhs.length; ++i) {
+    v=lhs[i];
+    if (v == "_") {}
+    else {
+      ret.add(["let ", v, "= ", r, "[", i, "];\n"]);
+    }
+  }
+  return ret;
+}
+
+function destruct_map(lhs,rhs) {
+  let ret=tnode(),
+      keys=[],
+      r=gensym();
+  ret.add(["let ", r, "= ", rhs, ";\n"]);
+  for (var i=0; i < lhs.length; ++i) {
+    //look for :strs
+    if ("strs" == lhs[i]) {
+      keys=lhs[i+1];
+      break;
+    }
+  }
+  for (var i =0; i < keys.length; ++i) {
+    ret.add(["let ", keys[i], "= ", r, "[", keys[i], "];\n"]);
+  }
+  return ret;
+}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var ERRORS_MAP= {

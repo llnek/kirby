@@ -8,10 +8,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro whatis? [obj] `(Object.prototype.toString.call ~obj))
+(defmacro last-index [x] `(- (alen ~x) 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro eindex [arr] `(- (alen ~arr) 1))
+(defmacro rest [x] `(.slice ~x 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro second [x] `(nth ~x 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro first [x] `(nth ~x 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nth [x i] `(get ~x ~i))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro whatis? [obj] `(Object.prototype.toString.call ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro alen [arr] `(.-length ~arr))
@@ -77,52 +89,52 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-not [cond & xs]
-  (let* [e1 (nth xs 0)
-         e2 (nth xs 1)] `(if ~cond ~e2 ~e1)))
+  (let* [e1 (nth* xs 0)
+         e2 (nth* xs 1)] `(if ~cond ~e2 ~e1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when [cond & xs] `(if ~cond (do ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro cond [& xs]
-  (let* [len (count xs)
-         ok? (even? len)]
+  (let* [len (count* xs)
+         ok? (is-even? len)]
     (do*
-      (assert! ok? "want even args")
+      (assert* ok? "want even args")
       (if* (> len 0)
-        (let* [c (nth xs 0)
-               e (nth xs 1)
-               r (rest (rest xs))]
+        (let* [c (nth* xs 0)
+               e (nth* xs 1)
+               r (rest* (rest* xs))]
           (do*
-            (if* (== c "else") (def! c true))
+            (if* (is-same? c "else") (def* c true))
             `(if ~c ~e (cond ~@r))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro -> [expr form & xs]
-  (if* (> (count xs) 0)
-    `(-> (~(nth form 0) ~expr ~@(rest form)) ~@xs)
-    `(~(nth form 0) ~expr ~@(rest form))))
+  (if* (> (count* xs) 0)
+    `(-> (~(nth* form 0) ~expr ~@(rest* form)) ~@xs)
+    `(~(nth* form 0) ~expr ~@(rest* form))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ->> [expr form & xs]
-  (if* (> (count xs) 0)
+  (if* (> (count* xs) 0)
     `(->> (~@form ~expr) ~@xs)
     `(~@form ~expr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro let [bindings & xs]
-  (let* [ps (evens bindings)
-         vs (odds bindings)]
+  (let* [ps (evens* bindings)
+         vs (odds* bindings)]
     `((fn [~@ps] ~@xs) ~@vs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro loop [bindings & more]
   (let*
-    [es (evens bindings)
-     xs (gensym)
-     f (gensym)
-     ret (gensym)
-     os (odds bindings)]
+    [es (evens* bindings)
+     xs (gensym*)
+     f (gensym*)
+     ret (gensym*)
+     os (odds* bindings)]
     `((fn []
          (var recur nil ~xs nil
               ~f (fn [~@es ] ~@more)
@@ -145,25 +157,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-with [binding & xs]
-  `(let [~(first binding) ~(nth binding 1)]
+  `(let [~(first* binding) ~(nth* binding 1)]
     ~@xs
-    ~(first binding)))
+    ~(first* binding)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->false [&xs]
-  (let* [arg (gensym)] `(let [~arg false] ~@xs ~arg)))
+  (let* [arg (gensym*)] `(let [~arg false] ~@xs ~arg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->true [&xs]
-  (let* [arg (gensym)] `(let [~arg true] ~@xs ~arg)))
+  (let* [arg (gensym*)] `(let [~arg true] ~@xs ~arg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->nil [&xs]
-  (let* [arg (gensym)] `(let [~arg nil] ~@xs ~arg)))
+  (let* [arg (gensym*)] `(let [~arg nil] ~@xs ~arg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->undef [&xs]
-  (let* [arg (gensym)] `(let [~arg undefined] ~@xs ~arg)))
+  (let* [arg (gensym*)] `(let [~arg undefined] ~@xs ~arg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro inc [x] `(+ ~x 1))
@@ -173,27 +185,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro dotimes [binding &xs]
-  (let* [_times (gensym)]
-    `(forlet ((~(first binding) 0 ~_times ~(nth binding 1))
-              (< ~(first binding) ~_times)
-              (~(first binding) (inc ~(first binding))))
+  (let* [_times (gensym*)]
+    `(forlet ((~(first* binding) 0 ~_times ~(nth* binding 1))
+              (< ~(first* binding) ~_times)
+              (~(first* binding) (inc ~(first* binding))))
          ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-some [binding then otherwise]
-  `(let [~(first binding) ~(nth binding 1)]
-     (if ~(first binding) ~then ~otherwise)))
+  `(let [~(first* binding) ~(nth* binding 1)]
+     (if ~(first* binding) ~then ~otherwise)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some [binding &xs]
-  `(let [~(first binding) ~(nth binding 1)]
-     (when ~(first binding) ~@xs)))
+  `(let [~(first* binding) ~(nth* binding 1)]
+     (when ~(first* binding) ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro doto [target & xs]
-  (let* [cvar (gensym)]
+  (let* [cvar (gensym*)]
     `(let [~cvar ~target]
-       ~@(amap (fn* [e] `(~(first e) ~cvar ~@(rest e))) xs)
+       ~@(map* (fn* [e] `(~(first* e) ~cvar ~@(rest* e))) xs)
        ~cvar)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,7 +222,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each-key [func obj]
-  (let* [tmp (gensym)]
+  (let* [tmp (gensym*)]
     `(let [~tmp ~obj]
        (each (fn [k]
                (~func (get ~tmp k) k ~tmp)) (Object.keys ~tmp)))))

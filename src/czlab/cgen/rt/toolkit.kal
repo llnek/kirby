@@ -8,58 +8,58 @@
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-  czlab.kirby.toolkit
+
+  czlab.kalaso.toolkit
+
   (require ["../bl/types" :as types]
            ["../bl/stdlib" :as std]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pr-str-A "" [arr]
-  (std.map (fn [e] (types.pr-obj e)) arr))
+  (map (fn [e] (types.pr-obj e)) arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pr-str "" [&xs]
-  (-> (pr-str-A xs)(.join " ")))
+(defn- pr-str "" [&xs] (-> (pr-str-A xs)(.join " ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- str-A "" [arr]
-  (std.map (fn [e] (types.pr-obj e false)) arr))
+  (map (fn [e] (types.pr-obj e false)) arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn str "" [&xs]
-  (-> (str-A xs)(.join "")))
+(defn- str "" [&xs] (-> (str-A xs)(.join "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn prn "" [&xs]
+(defn- prn "" [&xs]
   (.apply std.println this (pr-str-A xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn println "" [&xs]
+(defn- println "" [&xs]
   (.apply std.println this (str-A xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn slurp "" [f]
+(defn- slurp "" [f]
   (-> (require "fs")(.readFileSync f "utf-8")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn timeMillis "" [] (-> (new Date)(.getTime )))
+(defn- timeMillis "" [] (-> (new Date)(.getTime )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc "" [src &xs]
+(defn- assoc "" [src &xs]
   (.apply types.assoc
           this
           (std.concat [ (types.clone src) ] xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc "" [src &xs]
+(defn- dissoc "" [src &xs]
   (.apply types.dissoc
           this
           (std.concat [ (types.clone src) ] xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn cons "" [a b] (std.concat [a] b))
+(defn- cons "" [a b] (std.concat [a] b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn conj "" [arr &xs]
+(defn- conj "" [arr &xs]
   (cond
     (types.list? arr)
     (-> (.reverse xs)(.concat arr))
@@ -69,32 +69,32 @@
     :else arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn seq "" [obj]
+(defn- seq "" [obj]
   (cond
     (types.list? obj)
     (if (std.not-empty obj) obj)
     (types.vector? obj)
     (if (std.not-empty obj) (std.slice obj))
-    (std.string? obj)
+    (string? obj)
     (if (std.not-empty obj) (.split obj ""))
-    (= obj null)
-    null
+    (nil? obj)
+    nil
     :else
     (std.raise! "seq: called on non-sequence")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn apply "" [f & xs]
-  (var end (eindex xs))
+(defn- apply "" [f & xs]
+  (var end (last-index xs))
   (.apply f
           this
-          (std.concat (.slice xs 0 end) (nth xs end))))
+          (std.concat (std.slice xs 0 end) (nth xs end))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- GLOBAL (if (undef? window) undefined  window))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resolveJS "" [s]
-  [(if (.includes s ".")
+(defn- resolveJS "" [s]
+  [(if (std.contains? s ".")
      (let [re (regex "^(.*)\\.[^\\.]*$" "g")
            mc (.exec re s)]
        (eval (nth mc 1)))
@@ -102,7 +102,7 @@
    (eval s)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn filterJS "" [obj]
+(defn- filterJS "" [obj]
   (var cache []
        s (if obj
            (JSON.stringify obj
@@ -115,40 +115,40 @@
   (if (std.not-empty s) (JSON.parse s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn withMeta "" [obj m]
+(defn- withMeta "" [obj m]
   (do-with [ret (types.clone obj)] (set! ret :__meta__ m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn meta "" [obj]
+(defn- meta "" [obj]
   (if (and (not (types.sequential? obj))
            (not (types.hashmap? obj))
            (not (types.object? obj))
-           (not (std.fn? obj)))
+           (not (fn? obj)))
     (std.raise! "attempt to get metadata from: "
                 (types.obj-type obj)))
   (get obj :__meta__))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deref "" [a] (.-value a))
+(defn- deref "" [a] (.-value a))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn reset! "" [a v] (set! a :value v))
+(defn- reset! "" [a v] (set! a :value v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn swap! "" [a f &xs]
+(defn- swap! "" [a f &xs]
   (var args (std.concat [ (.-value a) ] xs))
   (set! a :value (.apply f this args))
   (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn evalJS "" [s]
+(defn- evalJS "" [s]
   (filterJS (eval (.toString s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn invokeJS "" [method & xs]
+(defn- invokeJS "" [method & xs]
   (var r (resolveJS method)
-       obj (std.first r)
-       f (std.second r)
+       obj (first r)
+       f (second r)
        res (.apply f obj xs))
   (filterJS res))
 
@@ -156,10 +156,138 @@
 (def- gensym-counter (types.atom 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn gensym "" []
+(defn- gensym "" []
   (types.symbol (str "G__"
                      (swap! gensym-counter
                             (fn [x] (+ x 1))))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! module.exports {
+
+  "is-same?"  (fn [a b] (== a b))
+
+  "obj-type*"  types.obj-type
+
+  "gensym*"  gensym
+
+  "is-eq?"  types.eq?
+
+  "is-nil?"  (fn [x] (nil? x))
+
+  "is-some?"  (fn [x] (and (isdef? x) (not= x nil)))
+
+  "slice*"  (fn [&xs] (.apply std.slice this xs))
+
+  "throw*"  (fn [&xs] (.apply std.raise! this xs))
+
+  "#f?"  (fn [x] (false? x))
+  "#t?"  (fn [x] (true? x))
+  "is-str?"  (fn [x] (string? x))
+
+  "symbol*"  types.symbol
+  "is-symbol?"  types.symbol?
+  "keyword*"  types.keyword
+  "is-keyword?"  types.keyword?
+
+  "pr-str*"  pr-str
+  "str*"  str
+  "prn*"  prn
+  "println*"  println
+  "slurp*"  slurp
+
+  "<"   (fn [a b] (< a b))
+  "<="  (fn [a b] (<= a b))
+  ">"   (fn [a b] (> a b))
+  ">="  (fn [a b] (>= a b))
+  "+"   (fn [a b] (+ a b))
+  "-"   (fn [a b] (- a b))
+  "*"   (fn [a b] (* a b))
+  "/"   (fn [a b] (/ a b))
+
+  "time*"  timeMillis
+
+  "list*"  types.list
+  "is-list?"  types.list?
+
+  "vector*"  types.vector
+  "is-vector?"  types.vector?
+
+  "hash-map*"  types.hashmap
+  "is-map?"  types.hashmap?
+
+  "assoc*"  assoc
+  "dissoc*"  dissoc
+
+  "is-contains?"  (fn [c x]
+                      (cond
+                        (or (array? c)
+                            (string? c)) (.includes c x)
+                        (object? c) (.hasOwnProperty c x)
+                        :else false))
+
+  "get*"  (fn [m k] (get m k))
+  "keys*"  (fn [x] (Object.keys x))
+  "values*"  (fn [x] (Object.values x))
+
+  "dec*"  (fn [x] (- x 1))
+  "inc*"  (fn [x] (+ x 1))
+
+  "not*"  (fn [x] (if x false true))
+
+  "is-even?"  (fn [n] (= 0 (mod n 2)))
+  "is-odd?"  (fn [n]  (= 1 (mod n 2)))
+
+  "is-sequential?"  types.sequential?
+  "cons*"  cons
+
+  "concat*"  (fn [arr]
+                (set! arr (or arr []))
+                (arr.concat.apply arr
+                        (std.slice arguments 1)))
+
+  "nth*"  (fn [arr i] (get arr i))
+  "first*"  (fn [arr] (get arr 0))
+  "rest*"  (fn [arr] (if arr (.slice arr 1) []))
+
+  "is-empty?"  (fn [arr] (or (nil? arr) (= 0 (alen arr))))
+
+  "count*"  (fn [s]
+               (cond
+                 (or (array? s)
+                     (string? s)) (alen s)
+                 (nil? s) 0
+                 (object? s) (Object.keys s)
+                 :else 0))
+
+  "apply*"  apply
+  "map*"  map
+
+  "type*"  (fn [x] (typeof x))
+  "evens*"  (fn [arr]
+               (do-with [ret []]
+                 (set! arr (or arr []))
+                 (forlet ((i 0) (< i (alen arr)) (i (+ i 2)))
+                   (.push ret (nth arr i)))))
+  "odds*"  (fn [arr]
+               (do-with [ret []]
+                 (set! arr (or arr []))
+                 (forlet ((i 1) (< i (alen arr)) (i (+ i 2)))
+                   (.push ret (nth arr i)))))
+
+  "conj*"  conj
+  "seq*"  seq
+
+  "with-meta*"  withMeta
+  "meta*"  meta
+  "atom*"  types.atom
+  "is-atom?"  types.atom?
+  "deref*"  deref
+  "reset*"  reset
+  "swap*"  swap
+
+  "js-eval*"  evalJS
+  "js*"  invokeJS
+
+})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

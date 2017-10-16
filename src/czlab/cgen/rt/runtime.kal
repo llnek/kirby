@@ -43,13 +43,13 @@
     (second ast)
     (and (isPair (first ast))
          (= (.-value (first (first ast))) "splice-unquote"))
-    [(types.symbol "concat")
+    [(types.symbol "concat*")
      (second (first ast))
      (quasiquote (.slice ast 1))]
     :else
     (let [a0 (first ast)
           a1 (.slice ast 1)]
-      [(types.symbol "cons")
+      [(types.symbol "cons*")
        (quasiquote a0)
        (quasiquote a1)])))
 
@@ -197,13 +197,13 @@
             (do->false (set! ret (evalAst ast env)))
             (= 0 (alen ast))
             (do->false (set! ret ast))
-            (= "and?"
+            (= "and*"
                (.-value (nth ast 0)))
             (do->false (set! ret (handleAND ast env)))
-            (= "or?"
+            (= "or*"
                (.-value (nth ast 0)))
             (do->false (set! ret (handleOR ast env)))
-            (= "def!"
+            (= "def*"
                (.-value (nth ast 0)))
             (do->false (set! ret (.set env
                                        a1 (compute a2 env))))
@@ -266,7 +266,7 @@
 (defn newEnv "" []
   (do-with [ret (new Env)]
     (each-key (fn [v k]
-                (std.println "k===== " k)
+                ;;(std.println "k===== " k)
                 (.set ret (types.symbol n) v)) rt)
     (.set ret
           (types.symbol "eval")
@@ -276,7 +276,7 @@
     (.set ret (types.symbol "*gensym-counter*") (types.atom 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def-  prefix "kirby> ")
+(def-  prefix "kalaso> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def-  run_repl (fn []
@@ -298,7 +298,7 @@
          (std.println "Bye!")
          (.exit process 0)))
 
-  (std.println (str prefix "Kirby REPL v1.0.0"))
+  (std.println (str prefix "Kalaso REPL v1.0.0"))
   (.setPrompt rl prefix  (.-length prefix))
   (.prompt rl)))
 
@@ -315,16 +315,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- macro_assert "
-  (defmacro assert! [c msg] (if* c true (throw! msg)))")
+  (defmacro assert* [c msg] (if* c true (throw* msg)))")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- macro_cond "
   (defmacro cond* [&xs]
-    (if* (> (count xs) 0)
-      (list 'if*
-            (first xs)
-            (nth xs 1)
-            (cons 'cond* (rest (rest xs))))))")
+    (if* (> (count* xs) 0)
+      (list* 'if*
+            (first* xs)
+            (nth* xs 1)
+            (cons* 'cond* (rest* (rest* xs))))))")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []

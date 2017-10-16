@@ -42,12 +42,12 @@ function quasiquote(ast) {
       return ast[1];
   }
   else if (isPair(ast[0]) && ast[0][0].value === 'splice-unquote') {
-      return [types.symbol("concat"),
+      return [types.symbol("concat*"),
               ast[0][1],
               quasiquote(ast.slice(1))];
   } else {
     let a0=ast[0],a1=ast.slice(1);
-      return [types.symbol("cons"), quasiquote(a0), quasiquote(a1)];
+      return [types.symbol("cons*"), quasiquote(a0), quasiquote(a1)];
   }
 }
 
@@ -145,21 +145,21 @@ function computeLoop(ast, env) {
 
     var t, a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
     switch (a0.value) {
-    case "and?":
+    case "is-and?":
         t=true;
         for (var i=1; i < ast.length; ++i) {
           t=compute(ast[i],env);
           if (!t) break;
         }
         return t;
-    case "or?":
+    case "is-or?":
         t=nil;
         for (var i=1; i < ast.length; ++i) {
           t=compute(ast[i],env);
           if (t) break;
         }
         return t;
-    case "def!":
+    case "def*":
         let res = compute(a2, env);
         return env.set(a1, res);
     case "let*":
@@ -191,7 +191,7 @@ function computeLoop(ast, env) {
         try {
             return compute(a1, env);
         } catch (exc) {
-            if (a2 && a2[0].value === "catch") {
+            if (a2 && a2[0].value === "catch*") {
                 if (exc instanceof Error) { exc = exc.message; }
                 return compute(a2[2], new Env(env, [a2[1]], [exc]));
             } else {
@@ -254,7 +254,7 @@ function newEnv() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var prefix= "kirby> ";
+var prefix= "kalaso> ";
 var run_repl=function() {
   let rl= readline.createInterface(
             process.stdin, process.stdout);
@@ -275,7 +275,7 @@ var run_repl=function() {
       process.exit(0);
     });
 
-  console.log(prefix + "Kirby REPL v1.0.0");
+  console.log(prefix + "Kalaso REPL v1.0.0");
   rl.setPrompt(prefix, prefix.length);
   rl.prompt();
 }
@@ -290,16 +290,16 @@ function runRepl() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var macro_assert=`
-(defmacro assert! [c msg]
-  (if* c true (throw! msg)))
+(defmacro assert* [c msg]
+  (if* c true (throw* msg)))
 `;
 var macro_cond=`
 (defmacro cond* [&xs]
-  (if* (> (count xs) 0)
-    (list 'if*
-          (first xs)
-          (nth xs 1)
-          (cons 'cond* (rest (rest xs))))))`;
+  (if* (> (count* xs) 0)
+    (list* 'if*
+          (first* xs)
+          (nth* xs 1)
+          (cons* 'cond* (rest* (rest* xs))))))`;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
