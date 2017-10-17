@@ -184,14 +184,19 @@
          ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro if-some [binding then otherwise]
-  `(let [~(first* binding) ~(nth* binding 1)]
-     (if ~(first* binding) ~then ~otherwise)))
+(defmacro if-some [binding then &xs]
+  (let* [cvar (gensym*)
+         otherwise (nth* xs 0)]
+    `(let [~cvar ~(nth* binding 1)
+           ~(first* binding) ~cvar]
+       (if ~cvar ~then ~otherwise)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some [binding &xs]
-  `(let [~(first* binding) ~(nth* binding 1)]
-     (when ~(first* binding) ~@xs)))
+  (let* [cvar (gensym*)]
+    `(let [~cvar ~(nth* binding 1)
+           ~(first* binding) ~cvar]
+       (when ~cvar ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro doto [target & xs]
@@ -216,8 +221,8 @@
 (defmacro each-key [func obj]
   (let* [tmp (gensym*)]
     `(let [~tmp ~obj]
-       (each (fn [k]
-               (~func (get ~tmp k) k ~tmp)) (Object.keys ~tmp)))))
+       (each (fn [e]
+               (~func (nth e 1) (nth e 0))) (Object.entries ~tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

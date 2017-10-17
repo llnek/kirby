@@ -1,3 +1,7 @@
+(when-some [a (poo 3)] (+ 1 2))
+
+
+
 (fn [a b & {:strs [h y] :as poo}]
   "j")
 

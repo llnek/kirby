@@ -224,8 +224,8 @@
 (defmacro each-key [func obj]
   (let* [tmp (gensym*)]
     `(let [~tmp ~obj]
-       (each (fn [k]
-               (~func (get ~tmp k) k ~tmp)) (Object.keys ~tmp)))))
+       (each (fn [e]
+               (~func (nth e 1) (nth e 0))) (Object.entries ~tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
