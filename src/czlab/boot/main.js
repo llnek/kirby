@@ -34,10 +34,10 @@ gopt.create([["h","help","display this help"],
              ["m","map","generate source maps"],
              ["t","tree","show AST"],
              ["i","include-dir=ARG+","add directory to include search path"]]);
-opt.setHelp("kirby [OPTION] [<infile>] [<outfile>]\n\n"+
+opt.setHelp("kalaso [OPTION] [<infile>] [<outfile>]\n\n"+
             "<outfile> default to <infile> with \".js\" extension\n\n"+
             "Also compile stdin to stdout\n"+
-            "eg. $ echo '(console.log \"hello\")' | kirby\n\n"+
+            "eg. $ echo '(console.log \"hello\")' | kalaso\n\n"+
             "[[OPTIONS]]\n\n");
 opt=opt.bindHelp().parseSystem();
 

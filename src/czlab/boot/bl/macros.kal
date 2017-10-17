@@ -110,10 +110,14 @@
     `(~@form ~expr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro let [bindings & xs]
+(defmacro xxxlet [bindings & xs]
   (let* [ps (evens* bindings)
          vs (odds* bindings)]
     `((fn [~@ps] ~@xs) ~@vs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro let [bindings & xs]
+  `((fn [] (var ~@bindings) ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro loop [bindings & more]

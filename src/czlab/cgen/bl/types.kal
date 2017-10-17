@@ -238,7 +238,7 @@
     (std.raise "Odd number of assoc arguments"))
   (forlet ((i 1 k nil v nil)
            (< i (alen arguments)) (i (+ i 2)))
-    (set! k (nth arguments i))
+    (set! k (str "" (nth arguments i)))
     (set! v (nth arguments (inc i)))
     (if-not (std.string? k)
       (std.raise "expected string, got: " (type k)))
@@ -248,7 +248,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dissoc "" [m]
   (forlet ((i 1) (< i (alen arguments)) (i (inc i)))
-    (delete! m (nth arguments i)))
+    (delete! m (str "" (nth arguments i))))
   m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

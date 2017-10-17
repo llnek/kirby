@@ -1,5 +1,13 @@
+(fn [a b & {:strs [h y] :as poo}]
+  "j")
 
-(var {:keys [hello world]} { :hello 10 :world 5 }
-     [a b] [1 3]
-     x 1)
+
+(var a 3
+     a (inc a))
+
+(var {:keys [hello world]} { :hello 10 :world 5 } [a b] [1 3] x 1)
+(let [{:keys [hello world]} { :hello 10 :world 5 }
+      [a b] [1 3] x 1]
+  (+ 1 23)
+  (poo 44))
 

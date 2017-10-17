@@ -254,7 +254,7 @@ function assoc(m) {
     if (std.string_p(ktoken)) {
       std.raise("expected object key string, got: ", typeof(ktoken));
     }
-    m[ktoken] = vtoken;
+    m[""+ktoken] = vtoken;
   }
   return m;
 }
@@ -262,7 +262,7 @@ function assoc(m) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function dissoc(m) {
   for (var i=1; i<arguments.length; ++i) {
-    delete m[ arguments[i]];
+    delete m[ ""+ arguments[i]];
   }
   return m;
 }

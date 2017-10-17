@@ -29,27 +29,25 @@ function gensym() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function destruct_vec(cmd, lhs,rhs) {
-  let ret=tnode(),
-    v,
-      r=gensym();
-  ret.add([cmd, " ", r, "= ", rhs, ";\n"]);
+function destruct_vec(gs, lhs,rhs) {
+  let ret=tnode(), v;
+
+  ret.add([gs, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
     v=transpileSingle(lhs[i]);
     if (v == "_") {}
     else {
-      ret.add([cmd, " ", v, "= ", r, "[", ""+i, "];\n"]);
+      ret.add([v, "= ", gs, "[", ""+i, "];\n"]);
     }
   }
   return ret;
 }
 
-function destruct_map(cmd, lhs,rhs) {
+function destruct_map(gs, lhs,rhs) {
   let ret=tnode(),
       keys=[],
-      k,v,
-      r=gensym();
-  ret.add([cmd, " ", r, "= ", rhs, ";\n"]);
+      k,v;
+  ret.add([gs, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
     //look for :strs
     if ("keys" == lhs[i]) {
@@ -59,7 +57,7 @@ function destruct_map(cmd, lhs,rhs) {
   }
   for (var i =0; i < keys.length; ++i) {
     k= transpileSingle(keys[i]);
-    ret.add([cmd, " ", k, "= ", r, "[\"", k, "\"];\n"]);
+    ret.add([k, "= ", gs, "[\"", k, "\"];\n"]);
   }
   return ret;
 }
@@ -503,20 +501,42 @@ function sf_var (ast, env, cmd) {
 
   let keys= std.evens(ast);
   let vals= std.odds(ast);
-  let k,v;
-
+  let k,v, gs, m={};
+  for (var i= 0; i< keys.length; ++i) {
+    k=keys[i];
+    if (types.vector_p(k)) {
+      k.map(function(x) {m[""+x]=null;});
+    }
+    else
+    if (types.map_p(k)) {
+      k.map(function(x,i) {
+        if (x == "keys" || x == "strs") {
+          k[i+1].map(function(x) {m[""+x]=null;});
+        }
+      });
+    }
+    else
+    if (types.symbol(k)) {
+      m[""+k]=null;
+    }
+  }
+  ret.add([cmd, " ", Object.keys(m).join(","), ";\n"]);
   for (var i= 0; i< keys.length; ++i) {
     k=keys[i];
     v=eval_QQ(vals[i],env);
 
     if (types.vector_p(k)) {
-      ret.add(destruct_vec(cmd, k, v));
+      gs=gensym();
+      ret.add(["let ", gs, ";\n"]);
+      ret.add(destruct_vec(gs, k, v));
     }
     else if (types.map_p(k)) {
-      ret.add(destruct_map(cmd, k, v));
+      gs=gensym();
+      ret.add(["let ", gs, ";\n"]);
+      ret.add(destruct_map(gs, k, v));
     }
     else if (types.symbol(k)) {
-      ret.add([cmd, " ", types.symbol_s(k), " = ", v, ";\n"]);
+      ret.add([types.symbol_s(k), " = ", v, ";\n"]);
     }
     //if (publicQ && (1 === NSPACES.length)) EXTERNS[vname]= vname;
   }
@@ -617,7 +637,6 @@ function sf_set(ast,env) {
 }
 SPEC_OPS["aset"]=sf_set;
 SPEC_OPS["set!"]=sf_set;
-SPEC_OPS["def!"]=sf_set;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_lambda(ast,env) {
@@ -626,15 +645,12 @@ function sf_lambda(ast,env) {
       body= ast.slice(2),
       ret= null;
 
-  args= args.map(function(a) { return a;});
-  transpileAtoms(args,env);
   args=handleArgs(args);
   if (args[1] >= 0) {
-    //var-args
-    varg="let " + args[2] + "=Array.prototype.slice.call(arguments," +
-      args[1] + ");\n";
+    varg=handleVarArgs(args[2],args[1]);
   }
-  ret= nodeTag(tnodeEx(args[0]),ast);
+  ret= nodeTag(tnode(),ast);
+  ret.add(args[0].map(function(x) { return ""+x; }));
   ret.join(",");
   ret.prepend("function (");
   ret.add([") {\n", varg,
@@ -644,16 +660,24 @@ function sf_lambda(ast,env) {
 }
 SPEC_OPS["fn"]=sf_lambda;
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function handleArgs(args) {
-  let skip=-1, varg="", ret=[];
+  let skip=-1, varg, ret=[];
+
   for (var i=0,e=null; i < args.length; ++i) {
     e= args[i];
-    if (e== "&") {
-      varg = "" + args[i+1];
+    if (e == "&") {
+      varg = args[i+1];
+      if (types.vector_p(varg)) {
+      } else if (types.map_p(varg)) {
+        varg=types.assoc.apply(this, [{}].concat(varg));
+      } else {
+        varg=""+varg;
+      }
       skip=i;
       break;
     }
-    if ((""+e).startsWith("&")) {
+    else if ((""+e).startsWith("&")) {
       varg= ("" + e).slice(1);
       skip=i;
       break;
@@ -661,6 +685,46 @@ function handleArgs(args) {
     ret.push(e);
   }
   return [ret,skip,varg];
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function handleVarArgs(vargs, pos) {
+  let keys={}, k, v, as="";
+  let ret=tnode();
+
+  if (typeof vargs === "string") {
+    as=vargs;
+  }
+  else
+  if (Array.isArray(vargs)) {
+    for (var i=0; i < vargs.length; ++i) {
+      k=""+vargs[i];
+      if (k == "as") { as= ""+ vargs[i+1]; ++i; }
+      else if (k =="_") {}
+      else { keys[k]=i; }
+    }
+  }
+  else if (typeof vargs === "object") {
+    keys= (vargs["keys"] || vargs["strs"]).reduce(
+            function(acc,x) { x=""+x; acc[x]=null; return acc; }, {});
+    as=vargs["as"];
+  }
+
+  if (as && (""+as).length > 0) {} else { as=gensym(); }
+
+  ret.add("let " + as +
+          "=Array.prototype.slice.call"+
+          "(arguments," + pos + ");\n");
+
+  if (Object.keys(keys).length > 0) {
+    ret.add("let " + Object.keys(keys).join(",") + ";\n");
+    Object.keys(keys).map(function(x) {
+      v=keys[x];
+      if (v === null) { v= "\""+x+"\""; }
+      ret.add("let " + x + "=" + as + "[" + v + "];\n");
+    });
+  }
+  return ret;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -686,11 +750,10 @@ function sf_func(ast,env,publicQ) {
   if (doc) doc= ast[doc];
   if (attrs) attrs= ast[attrs];
   args= ast[args];
-  args= args.map(function(a) { return a;});
-  transpileAtoms(args,env);
   args= handleArgs(args);
   body= ast.slice(body);
-  let ret=nodeTag(tnodeEx(args[0]),ast);
+  let ret=nodeTag(tnode(),ast);
+  ret.add(args[0].map(function(x) { return ""+x;}));
   let vargs="";
   ret.join(",");
   if (dotQ) {
@@ -699,9 +762,7 @@ function sf_func(ast,env,publicQ) {
     ret.prepend("function "+ fname+ "(");
   }
   if (args[1] >= 0) {
-    //var-args
-    vargs="let " + args[2] + "=Array.prototype.slice.call(arguments," +
-      args[1] + ");\n";
+    vargs=handleVarArgs(args[2], args[1]);
   }
   ret.add([") {\n",
            vargs,
@@ -847,7 +908,7 @@ SPEC_OPS["str"]=sf_str;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_array(ast,env) {
   let p= pad(indent),
-      epilog= "\n"+ p+ "]";
+      epilog= " ]";
   let ret= nodeTag(tnode(),ast);
   if (!ast || ast.length===0) {
     ret.add("[]");
@@ -858,9 +919,9 @@ function sf_array(ast,env) {
     indent += tabspace;
     transpileAtoms(ast,env);
     p= pad(indent);
-    ret.add( "[\n"+ p);
+    ret.add( "[ ");
     for (var i= 0; i< ast.length; ++i) {
-      if (i > 0) ret.add(",\n"+ p);
+      if (i > 0) ret.add(",");
       ret.add(ast[i]);
     }
     ret.add(epilog);
@@ -875,7 +936,7 @@ SPEC_OPS["["]= sf_array;
 function sf_object(ast,env) {
   let ret= nodeTag(tnode(),ast);
   let p= pad(indent),
-      epilog= "\n"+ p +"}";
+      epilog= " }";
   if (!ast || ast.length===0) {
     ret.add("{}");
   } else {
@@ -885,9 +946,9 @@ function sf_object(ast,env) {
     indent += tabspace;
     transpileAtoms(ast,env);
     p= pad(indent);
-    ret.add( "{\n"+ p);
+    ret.add( "{ ");
     for (var i= 0; i< ast.length; i +=2) {
-      if (i > 0) ret.add(",\n"+ p);
+      if (i > 0) ret.add(",");
       ret.add([ast[i],
                  ": ",
                  ast[i+1]]);
@@ -1131,7 +1192,7 @@ function spitExterns() {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function banner() {
   return "/*" +
-       "Auto generated by Kirby - v" +
+       "Auto generated by Kalaso - v" +
        MODULE_VERSION +
        " " +
        NSPACES[0] + " " +
