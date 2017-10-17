@@ -189,7 +189,7 @@
          otherwise (nth* xs 0)]
     `(let [~cvar ~(nth* binding 1)
            ~(first* binding) ~cvar]
-       (if ~cvar ~then ~otherwise)))
+       (if ~cvar ~then ~otherwise))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some [binding &xs]

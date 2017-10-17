@@ -31,15 +31,38 @@ function gensym() {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function destruct_vec(gs, lhs,rhs) {
   let ret=tnode(), v;
-
-  ret.add([gs, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
-    v=transpileSingle(lhs[i]);
-    if (v == "_") {}
-    else {
-      ret.add([v, "= ", gs, "[", ""+i, "];\n"]);
+    v=lhs[i];
+    if (types.keyword_p(v) && v == "as") {
+      gs= "" + lhs[i+1];
     }
   }
+  for (var i=0; i < lhs.length; ++i) {
+    v=lhs[i];
+    if (!types.symbol_p(v) && !types.keyword_p(v)) {
+      throw new Error("nested destructuring not supported");
+    }
+    if (types.keyword_p(v) && v == "as") {
+      //gs= "" + lhs[i+1];
+      ++i;
+    } else {
+      if (v == "_") {}
+      else if (v == "&" || (""+v).startsWith("&")) {
+        let x,p=i;
+        if (v=="&") {
+          x="" + lhs[i+1];
+          ++i;
+        } else {
+          x=(""+v).slice(1);
+        }
+        ret.add([x, "= ", gs, ".slice(", ""+p, ");\n"]);
+      }
+      else if (types.symbol_p(v)) {
+        ret.add([""+v, "= ", gs, "[", ""+i, "];\n"]);
+      }
+    }
+  }
+  ret.prepend([gs, "= ", rhs, ";\n"]);
   return ret;
 }
 
@@ -47,14 +70,17 @@ function destruct_map(gs, lhs,rhs) {
   let ret=tnode(),
       keys=[],
       k,v;
-  ret.add([gs, "= ", rhs, ";\n"]);
   for (var i=0; i < lhs.length; ++i) {
     //look for :strs
     if ("keys" == lhs[i]) {
       keys=lhs[i+1];
-      break;
+      ++i;
+    } else if ("as" == lhs[i]) {
+      gs= "" + lhs[i+1];
+      ++i;
     }
   }
+  ret.add([gs, "= ", rhs, ";\n"]);
   for (var i =0; i < keys.length; ++i) {
     k= transpileSingle(keys[i]);
     ret.add([k, "= ", gs, "[\"", k, "\"];\n"]);
@@ -501,19 +527,35 @@ function sf_var (ast, env, cmd) {
 
   let keys= std.evens(ast);
   let vals= std.odds(ast);
-  let k,v, gs, m={};
+  let z, k,v, gs, m={};
   for (var i= 0; i< keys.length; ++i) {
     k=keys[i];
     if (types.vector_p(k)) {
-      k.map(function(x) {m[""+x]=null;});
+      for (var j=0; j < k.length; ++j) {
+        z=k[j];
+        if (z=="_") {}
+        else if (z == "&") {}
+        else if ((""+z).startsWith("&")) {
+          m[(""+z).slice(1)]=null;
+        }
+        else if (types.keyword_p(z)) {}
+        else if (types.symbol_p(z)) {
+          m[""+z]=null;
+        }
+      }
     }
     else
     if (types.map_p(k)) {
-      k.map(function(x,i) {
-        if (x == "keys" || x == "strs") {
-          k[i+1].map(function(x) {m[""+x]=null;});
+      for (var j=0; j < k.length; ++j) {
+        z=k[j];
+        if (z == "keys" || z == "strs") {
+          k[j+1].map(function(x) {m[""+x]=null;});
+          ++j;
+        } else if (z == "as") {
+          m[""+k[j+1]]=null;
+          ++j;
         }
-      });
+      }
     }
     else
     if (types.symbol(k)) {
