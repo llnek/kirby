@@ -181,6 +181,7 @@ function keyword_s(k) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function fn_wrap(run, Env, ast, env, params) {
   let fn = function() {
+    console.log(pr_obj(ast))
     return run(ast, new Env(env, params, arguments));
   };
   fn._ismacro_ = false;

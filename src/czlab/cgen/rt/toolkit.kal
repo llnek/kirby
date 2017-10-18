@@ -250,6 +250,9 @@
 
   "is-empty?"  (fn [arr] (or (nil? arr) (= 0 (alen arr))))
 
+  "not-empty*" (fn [arr] (if (or (nil? arr)
+                                 (= 0 (alen arr))) nil arr))
+
   "count*"  (fn [s]
                (cond
                  (or (array? s)

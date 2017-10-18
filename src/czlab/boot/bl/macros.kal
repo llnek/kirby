@@ -209,10 +209,12 @@
 (defmacro map [f coll] `(.map ~coll ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro reduce [f start coll]
+(defmacro xxreduce [f start coll]
   (if* ~start
     `(.reduce ~coll ~f ~start)
     `(.reduce ~coll ~f)))
+
+(defmacro reduce [f start coll] `(.reduce ~coll ~f ~start))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each [func coll] `(.forEach ~coll ~func))
@@ -226,4 +228,40 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defmacro do-monad [monad bindings & body]
+  `((fn [m] (var mBind m.mBind
+                 mResult m.mResult
+                 mZero m.mZero mPlus m.mPlus)
+            (var ____mResult
+                 (fn [& body]
+                   (if (and mZero
+                            (empty? body))
+                     mZero
+                     (.apply mResult this body))))
+            (m-bind mBind ~bindings (____mResult ~@body))) ~monad))
+
+(defmacro m-bind [binder bindings & body]
+  (let* [a2 (nth* bindings 1)
+         a1 (nth* bindings 0)
+         more (rest* (rest* bindings))]
+    `(~binder ~a2
+              (fn [~a1]
+                (if ~(not-empty* more)
+                  (m-bind binder more ~@body)
+                  (do ~@body))))))
+
+(defmacro arrayMonad []
+  `(hash-map
+     :mBind (fn [mv mf]
+             (reduce
+               (fn [acc v] (.concat acc v))
+               []
+               (map mf mv)))
+    :mResult (fn [v] [v])
+    :mZero []
+    :mPlus (fn []
+             (reduce
+               (fnc [acc v] (.concat acc v))
+               []
+               (Array.prototype.slice.call arguments)))))
 

@@ -487,33 +487,9 @@ function sf_range (ast,env) {
 SPEC_OPS["range"]=sf_range;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_varXX (ast, env, cmd) {
-  //must be even pairs
-  if (ast.length < 3 ||
-      0 === (ast.length % 2)) syntax_E("e0", ast);
-
-  let vname=null, publicQ= ("global" == cmd);
-  let ret=nodeTag(tnode(),ast);
-
-  if (ast.length > 3) indent += tabspace;
-
-  if (publicQ ||
-          ("local" == cmd)) cmd="var";
-
-  transpileAtoms(ast,env);
-  for (var i= 1; i< ast.length; i += 2) {
-    if (i > 1)
-      ret.add(",\n" +  pad(indent));
-    if (!rdr.testid_Q( ast[i])) syntax_E("e9",ast);
-    vname= types.symbol_s(ast[i]);
-    if (publicQ &&
-        (1 === NSPACES.length)) EXTERNS[vname]= vname;
-    ret.add([vname, " = ", ast[i+1]]);
-  }
-  ret.prepend(" ");
-  ret.prepend(cmd);
-  if (ast.length > 3) indent -= tabspace;
-  return ret;
+function sf_doseq(ast,env) {
+  let args=ast[1],
+      body=ast.slice(2);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

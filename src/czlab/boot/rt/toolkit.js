@@ -257,7 +257,7 @@ module.exports= {
   "dec*" : function(x) { return x-1; },
   "inc*" : function(x) { return x+1;},
 
-  "is-not?" : function(x) { return x ? false : true },
+  "not*" : function(x) { return x ? false : true },
 
   "is-even?" : function(n) { return (n % 2) === 0; },
   "is-odd?" : function(n) { return (n % 2) === 1; },
@@ -272,6 +272,10 @@ module.exports= {
   "first*" : function(arr) { return arr ? arr[0] : null },
   "rest*" : function rest(arr) { return arr ? arr.slice(1) : []; },
   "is-empty?" : function (arr) { return arr===null || arr.length === 0; },
+
+  "not-empty*" : function (arr) {
+    return arr===null || arr.length === 0 ? null : arr },
+
   "count*" : function (s) {
     return (Array.isArray(s) || typeof s === "string") ?
       s.length : (s === null) ? 0 :
