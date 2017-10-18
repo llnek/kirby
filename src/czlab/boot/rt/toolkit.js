@@ -270,7 +270,7 @@ module.exports= {
 
   "nth*" : function(arr, idx) { return arr ? arr[idx] : null; },
   "first*" : function(arr) { return arr ? arr[0] : null },
-  "rest*" : function rest(arr) { return arr ? arr.slice(1) : []; },
+  "rest*" : function (arr) { return arr ? std.slice(arr,1) : []; },
   "is-empty?" : function (arr) { return arr===null || arr.length === 0; },
 
   "not-empty*" : function (arr) {

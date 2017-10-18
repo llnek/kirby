@@ -3,29 +3,3 @@
   [a [1 2 3]
    b [3 4 5]]
   (+ a b))
-
-
-;(var [a b &c :as poo] [1 2 3 4])
-
-(var {:keys [hello world] :ass poo} {:hello 1 :world 2})
-
-(when-some [a (poo 3)] (+ 1 2))
-
-
-(fn [a b & {:strs [h y] :as poo}]
-  "j")
-
-
-(var a 3
-     a (inc a))
-
-(var {:keys [hello world]} { :hello 10 :world 5 } [a b] [1 3] x 1)
-(let [{:keys [hello world]} { :hello 10 :world 5 }
-      [a b] [1 3] x 1]
-  (+ 1 23)
-  (poo 44))
-
-
-
-
-

@@ -246,9 +246,9 @@
          more (rest* (rest* bindings))]
     `(~binder ~a2
               (fn [~a1]
-                (if ~(not-empty* more)
-                  (m-bind binder more ~@body)
-                  (do ~@body))))))
+                ~(if* (not-empty* more)
+                    `(m-bind ~binder ~more ~@body)
+                     `(do ~@body))))))
 
 (defmacro arrayMonad []
   `(hash-map
@@ -257,11 +257,11 @@
                (fn [acc v] (.concat acc v))
                []
                (map mf mv)))
-    :mResult (fn [v] [v])
+    :mResult (fn [v] (.concat [] v))
     :mZero []
     :mPlus (fn []
              (reduce
-               (fnc [acc v] (.concat acc v))
+               (fn [acc v] (.concat acc v))
                []
                (Array.prototype.slice.call arguments)))))
 
