@@ -1,5 +1,7 @@
 
-(do-monad (arrayMonad)
-  [a [1 2 3]
-   b [3 4 5]]
-  (+ a b))
+;(monad-array [a [1 2 3] b [3 4 5]] (+ a b))
+(monad-identity
+  (a 1
+   b (* a 2))
+  (do (+ a 1) (+ a b)))
+

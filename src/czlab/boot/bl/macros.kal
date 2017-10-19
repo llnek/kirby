@@ -227,41 +227,45 @@
                (~func (nth e 1) (nth e 0))) (Object.entries ~tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
 (defmacro do-monad [monad bindings & body]
-  `((fn [m] (var mBind m.mBind
-                 mResult m.mResult
-                 mZero m.mZero mPlus m.mPlus)
-            (var ____mResult
-                 (fn [& body]
-                   (if (and mZero
-                            (empty? body))
-                     mZero
-                     (.apply mResult this body))))
-            (m-bind mBind ~bindings (____mResult ~@body))) ~monad))
+  `((fn [m] (var mo (require "./monads"))
+            (do-bind m.bind
+                     ~bindings
+                     (mo.resultWrapperFunc m ~@body))) ~monad))
 
-(defmacro m-bind [binder bindings & body]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do-bind [bindfunc bindings & body]
   (let* [a2 (nth* bindings 1)
          a1 (nth* bindings 0)
          more (rest* (rest* bindings))]
-    `(~binder ~a2
-              (fn [~a1]
-                ~(if* (not-empty* more)
-                    `(m-bind ~binder ~more ~@body)
-                     `(do ~@body))))))
+    `(~bindfunc ~a2
+                (fn [~a1]
+                  ~(if* (not-empty* more)
+                        `(do-bind ~bindfunc
+                                  ~more
+                                  ~@body)
+                        `(do ~@body))))))
 
-(defmacro arrayMonad []
-  `(hash-map
-     :mBind (fn [mv mf]
-             (reduce
-               (fn [acc v] (.concat acc v))
-               []
-               (map mf mv)))
-    :mResult (fn [v] (.concat [] v))
-    :mZero []
-    :mPlus (fn []
-             (reduce
-               (fn [acc v] (.concat acc v))
-               []
-               (Array.prototype.slice.call arguments)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-identity [bindings & body]
+  `(do-monad (.-identity (require "./monads")) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-maybe [bindings & body]
+  `(do-monad (.-maybe (require "./monads")) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-array [bindings & body]
+  `(do-monad (.-array (require "./monads")) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-state [bindings & body]
+  `(do-monad (.-state (require "./monads")) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-continuation [bindings & body]
+  `(do-monad (.-continuation (require "./monads")) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
