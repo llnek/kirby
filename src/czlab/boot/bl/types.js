@@ -167,6 +167,7 @@ function Symbol(name) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 Symbol.prototype.toString = function() { return this.value; }
 function symbol(name) { return new Symbol(name); }
+function regex(pattern) { return new Symbol(pattern); }
 function symbol_p(obj) { return obj instanceof Symbol; }
 function symbol_s(s) {
   return symbol_p(s) ? s.value : s ? s.toString() :""; }
@@ -295,6 +296,7 @@ module.exports= {
   object_p: object_p,
   pr_obj: pr_obj,
   sequential_p: sequential_p,
+  regex: regex,
   symbol: symbol,
   symbol_p: symbol_p,
   symbol_s: symbol_s,

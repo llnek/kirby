@@ -62,6 +62,10 @@ function readAtom(tokens) {
     tn.endsWith("\"")) {
     ret=tn;
   }
+  else if (tn.startsWith("/") &&
+    tn.endsWith("/")) {
+    ret=types.regex(tn);
+  }
   else if (tn.startsWith(":")) {
     ret= types.keyword(tn);
   }

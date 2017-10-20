@@ -17,26 +17,44 @@ function regex(s,glim) {return new RegExp(s,glim);}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var REGEX= {
-  noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
-  id: regex("^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$"),
-  id2: regex("^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$"),
-  float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
-  int: regex("^[-+]?[0-9]+$"),
-  hex: regex("^[-+]?0x"),
-  macroGet: regex("^#slice@(\\d+)"),
-  dquoteHat: regex("^\""),
-  dquoteEnd: regex("\"$"),
-  func: regex("^function\\b"),
-  query: regex( "\\?" ,"g"),
-  bang: regex( "!", "g"),
-  dash: regex( "-", "g"),
-  quote: regex( "'", "g"),
-  hash: regex( "#", "g"),
-  at: regex( "@", "g"),
-  less: regex( "<", "g"),
-  greater: regex( ">", "g"),
-  star: regex( "\\*", "g"),
-  wspace: regex("\\s") };
+  //noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
+  noret: /^def\b|^var\b|^set!\b|^throw\b/,
+  //id: regex("^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$"),
+  id: /^[a-zA-Z_$][.?\-*!0-9a-zA-Z_'<>#@$]*$/,
+  //id2: regex("^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$"),
+  id2: /^[*\-][.?\-*!0-9a-zA-Z_'<>#@$]+$/,
+  //float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
+  float: /^[-+]?[0-9]+\.[0-9]+$/,
+  //int: regex("^[-+]?[0-9]+$"),
+  int: /^[-+]?[0-9]+$/,
+  //hex: regex("^[-+]?0x"),
+  hex: /^[-+]?0x/,
+  //dquoteHat: regex("^\""),
+  dquoteHat: /^"/,
+  //dquoteEnd: regex("\"$"),
+  dquoteEnd: /"$/,
+  //func: regex("^function\\b"),
+  func: /^function\b/,
+  //query: regex( "\\?" ,"g"),
+  query: /\?/g,
+  //bang: regex( "!", "g"),
+  bang: /!/g,
+  //dash: regex( "-", "g"),
+  dash: /-/g,
+  //quote: regex( "'", "g"),
+  quote: /'/g,
+  //hash: regex( "#", "g"),
+  hash: /#/g,
+  //at: regex( "@", "g"),
+  at: /@/g,
+  //less: regex( "<", "g"),
+  less: /</g,
+  //greater: regex( ">", "g"),
+  greater: />/g,
+  //star: regex( "\\*", "g"),
+  star: /\*/g,
+  //wspace: regex("\\s")
+  wspace: /\s/ };
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function testid_Q (name) {
@@ -80,6 +98,7 @@ function tokenize (source, fname) {
        escQ= false,
        strQ= false,
        tree=[],
+       regexQ=false,
        commentQ= false;
 
   let toke=function(ln, col, s,astring) {
@@ -103,6 +122,18 @@ function tokenize (source, fname) {
     else if (escQ) {
         escQ=false;
         token += ch;
+    }
+    else if (regexQ) {
+      if (ch === "\\") { escQ= true; }
+      token += ch;
+      if (ch === "/") {
+        regexQ=false;
+        if ("gimuy".includes(nx)) {
+          token += nx;
+          ++pos;
+        }
+        token= toke(line, tcol, token);
+      }
     }
     else if (ch === "\"") {
       if (!strQ) {
@@ -148,6 +179,11 @@ function tokenize (source, fname) {
         } else {
           token += ch;
         }
+    }
+    else if (ch === "/" && token.length===0) {
+      regexQ=true;
+      tcol=col;
+      token += ch;
     }
     else if ((ch=== "[") || (ch=== "]") ||
             (ch=== "{") || (ch=== "}") ||

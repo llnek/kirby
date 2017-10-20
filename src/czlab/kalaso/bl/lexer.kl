@@ -18,26 +18,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
-  :noret (regex "^def\\b|^var\\b|^set!\\b|^throw\\b")
-  :id (regex "^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$")
-  :id2 (regex "^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$")
-  :float (regex "^[-+]?[0-9]+\\.[0-9]+$")
-  :int (regex "^[-+]?[0-9]+$")
-  :hex (regex "^[-+]?0x")
-  :macroGet (regex "^#slice@(\\d+)")
-  :dquoteHat (regex "^\"")
-  :dquoteEnd (regex "\"$")
-  :func (regex "^function\\b")
-  :query (regex "\\?" "g")
-  :bang (regex "!" "g")
-  :dash (regex "-" "g")
-  :quote (regex "'" "g")
-  :hash (regex "#" "g")
-  :at (regex "@" "g")
-  :less (regex "<" "g")
-  :greater (regex ">" "g")
-  :star (regex "\\*" "g")
-  :wspace (regex "\\s")})
+  noret /^def\b|^var\b|^set!\b|^throw\b/
+  id /^[a-zA-Z_$][.?\-*!0-9a-zA-Z_'<>#@$]*$/
+  id2 /^[*\-][.?\-*!0-9a-zA-Z_'<>#@$]+$/
+  float /^[-+]?[0-9]+\.[0-9]+$/
+  int /^[-+]?[0-9]+$/
+  hex /^[-+]?0x/
+  dquoteHat /^"/
+  dquoteEnd /"$/
+  func /^function\b/
+  query /\?/g
+  bang /!/g
+  dash /-/g
+  quote /'/g
+  hash /#/g
+  at /@/g
+  less /</g
+  greater />/g
+  star /\*/g
+  wspace /\s/})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testid? "" [name]

@@ -1,7 +1,3 @@
 
-;(monad-array [a [1 2 3] b [3 4 5]] (+ a b))
-(monad-identity
-  (a 1
-   b (* a 2))
-  (do (+ a 1) (+ a b)))
+(var a= /^def\b|^var\b|^set!\b|^throw\b/)
 
