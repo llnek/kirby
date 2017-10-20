@@ -28,7 +28,7 @@ var error=function(e) {
 var opt=
 gopt.create([["h","help","display this help"],
              ["v","version","show version"],
-             ["r","run","run .ky files"],
+             ["r","run","run .kl files"],
              ["w","watch","auto-compile changed files"],
              ["b","browser-bundle","bundle for browser"],
              ["m","map","generate source maps"],
@@ -81,9 +81,9 @@ function compileFiles() {
   }
   fout= opt.argv[1];
   if (!fout) {
-    fout= fin.replace(new RegExp("\\.kal$"), ".js");
+    fout= fin.replace(new RegExp("\\.kl$"), ".js");
     if (fout === fin) {
-      error("Input file must have extension \".kal\"");
+      error("Input file must have extension \".kl\"");
     }
   }
   try {
@@ -112,7 +112,7 @@ function compileFiles() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
-  require.extensions[".kal"]=function(module, fname) {
+  require.extensions[".kl"]=function(module, fname) {
     let kb= require("./cg/transpiler"),
         code= fs.readFileSync(fname, "utf8");
     module._compile(

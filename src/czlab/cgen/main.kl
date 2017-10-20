@@ -33,7 +33,7 @@
   (-> (.create gopt
                [["h" "help" "display this help"]
                 ["v" "version" "show version"]
-                ["r" "run" "run .kal files"]
+                ["r" "run" "run .kl files"]
                 ["w" "watch" "auto-compile changed files"]
                 ["b" "browser-bundle" "bundle for browser"]
                 ["m" "map" "generate source maps"]
@@ -85,9 +85,9 @@
     (error! "No Input file"))
   (set! fout (nth opt.argv 1))
   (when-not fout
-    (set! fout (.replace fin (regex ("\\.kal$")) ".js"))
+    (set! fout (.replace fin (regex ("\\.kl$")) ".js"))
     (if (=== fout fin)
-      (error! "Input file must have extension \".kal\"")))
+      (error! "Input file must have extension \".kl\"")))
   (try
     (var wantMap? (get opt.options "map")
          dbgAST? (get opt.options "tree")
@@ -110,7 +110,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
   (set! require.extensions
-        ".kal"
+        ".kl"
         (fn [module fname]
           (var kb (require "./cg/transpiler")
                code (.readFileSync fs fname "utf8"))
