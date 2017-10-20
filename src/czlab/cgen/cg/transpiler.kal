@@ -20,6 +20,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- tnodeEx tn.tnodeEx)
 (def- tnode tn.tnode)
+(def- gensym-counter 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- ERRORS_MAP {
@@ -75,6 +76,66 @@
     EXTERNS nil
     NSPACES nil
     SPEC_OPS {})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- gensym "" [& [pfx]]
+  (var x gensym-counter)
+  (++ gensym-counter)
+  (str (or pfx "G____") x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct-vec "" [gs lhs rhs]
+  (do-with [ret (tnode)]
+    (forlet ((i 0 v nil)
+             (< i (alen lhs)) (i (inc i)))
+      (set! v (nth lhs i))
+      (if (and (types.keyword? v)
+               (== v "as"))
+        (set! gs (str (nth lhs (inc i))))))
+    (set! gs (rdr.jsid gs))
+    (forlet ((i 0 v nil)
+             (< i (alen lhs)) (i (inc i)))
+      (set! v (nth lhs i))
+      (if (and (not (types.symbol? v))
+               (not (types.keyword? v)))
+        (std.raise! "nested destructuring not supported"))
+      (if (and (types.keyword? v)
+               (== v "as"))
+        (++ i)
+        (cond
+          (== v "_") nil
+          (or (== v "&")
+              (.startsWith (str v) "&"))
+          (let [x nil p i]
+            (if (== v "&")
+              (do (set! x (str (nth lhs (inc i))))
+                  (++ i))
+              (set! x (.slice (str v) 1)))
+            (set! x (rdr.jsid x))
+            (.add ret [x "= " gs ".slice(" (str p) ");\n"]))
+          (types.symbol? v)
+          (.add ret [(transpileSingle v) "= " gs "[" (str i) "];\n"]))))
+    (.prepend ret [gs "= " rhs ";\n"])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct-map "" [gs lhs rhs]
+  (do-with [ret (tnode)]
+    (var keys [] k nil v nil)
+    (forlet ((i 0) (< i (alen lhs)) (i (inc i)))
+      ;;look for :strs :keys
+      (cond
+        (or (== "keys" (nth lhs i))
+            (== "strs" (nth lhs i)))
+        (do (set! keys (nth lhs (inc i)))
+            (++ i))
+        (== "as" (nth lhs i))
+        (do (set! gs (str (nth lhs (inc i))))
+            (++ i))))
+    (set! gs (rdr.jsid gs))
+    (.add ret [gs "= " rhs ";\n"])
+    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
+      (set! k (transpileSingle (nth keys i)))
+      (.add ret [k "= " gs "[\"" k "\"];\n"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- regoBuiltins "" [f group]
@@ -348,7 +409,7 @@
   (if (> len 3)
     (set! step (parseInt (nth ast 3))))
 
-  (forlet ((i start) (< i end) (i (i + step)))
+  (forlet ((i start) (< i end) (i (+ i step)))
     (if (not= i start) (.add ret ","))
     (.add ret (str i)))
   (.prepend ret "[")
@@ -359,27 +420,67 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var "" [ast env cmd]
-  ;;must be even pairs
-  (if (or (< (alen ast) 3)
-          (= 0 (mod (alen ast) 2))) (syntax! :e0 ast))
-
   (do-with [ret (nodeTag (tnode) ast)]
-    (var vname nil public? (== "global" cmd))
-    (if (> (alen ast) 3) (+= indent tabspace))
+    (var vname nil
+         public? (== "global" cmd))
+    (set! ast (std.slice ast 1))
     (if (or public?
-          (== "local" cmd)) (set! cmd "var"))
-    (transpileAtoms ast env)
-    (forlet ((i 1) (< i (alen ast)) (i (+ i 2)))
-      (if (> i 1)
-        (.add ret (str ",\n" (pad indent))))
-      (if-not (rdr.testid? (nth ast i)) (syntax! :e9 ast))
-      (set! vname (types.symbol-s (nth ast i)))
-      (if (and public?
-               (= 1 (alen NSPACES))) (set! EXTERNS vname vname))
-      (.add ret [vname " = " (nth ast (inc i))]))
-    (.prepend ret " ")
-    (.prepend ret cmd)
-    (if (> (alen ast) 3) (-= indent tabspace))))
+            (== "local" cmd)) (set! cmd "var"))
+    (var keys (std.evens ast))
+    (var vals (std.odds ast))
+    (var z nil k nil v nil gs nil m {})
+    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
+      (set! k (nth keys i))
+      (cond
+        (types.vector? k)
+        (forlet ((j 0) (< j (alen k)) (j (inc j)))
+          (set! z (nth k j))
+          (cond
+            (or (== z "_")
+                (== z "&")
+                (types.keyword? z)) nil
+            (.startsWith (str z) "&")
+            (set! m (.slice (str z) 1) nil)
+            (types.symbol? z)
+            (set! m (str z) nil)))
+        (types.map? k)
+        (forlet ((j 0) (< j (alen k)) (j (inc j)))
+          (set! z (nth k j))
+          (cond
+            (or (== z "keys")(== z "strs"))
+            (do (map (fn [x] (set! m (str x) nil))
+                     (nth k (inc j)))
+                (++ j))
+            (== z "as")
+            (do (set! m (str (nth k (inc j))) nil)
+                (++ j))))
+        (types.symbol? k)
+        (set! m (str k) nil)))
+    (.add ret [cmd
+               " "
+               (-> (map (fn [s]
+                          (rdr.jsid s)) (keys m))
+                   (.join ",")) ";\n"])
+    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
+      (set! k (nth keys i))
+      (set! v (transpile* (nth vals i) env))
+      (cond
+        (types.vector? k)
+        (do (set! gs (gensym))
+            (.add ret ["let " gs ";\n"])
+            (.add ret (destruct-vec gs k v)))
+        (types.map? k)
+        (do (set! gs (gensym))
+            (.add ret ["let " gs ";\n"])
+            (.add ret (destruct-map gs k v)))
+        (types.symbol? k)
+        (.add ret [(transpileSingle k) " = " v ";\n"])))
+    (if (and public?
+             (= 1 (alen NSPACES)))
+      (each-key
+        (fn [v k]
+          (set! k (rdr.jsid k))
+          (set! EXTERNS k k)) m))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var-local "" [ast env]
@@ -482,59 +583,103 @@
     (var args (nth ast 1)
          varg ""
          body (.slice ast 2))
-    (set! args (map (fn [a] a) args)
-    (transpileAtoms args env)
     (set! args (handleArgs args))
     (if (>= (nth args 1) 0)
-      (set! varg (str "let "
-                      (nth args 2)
-                      "=Array.prototype.slice.call(arguments,"
-                      (nth args 1)
-                      ");\n")))
-    (.add ret (first args))
+      (set! varg (handleVarArgs (nth args 2) (nth args 1))))
+    (.add ret (map (fn [x] (rdr.jsid (str x))) (nth args 0)))
     (.join ret ",")
     (.prepend ret "function (")
     (.add ret [") {\n"
                varg
                (transpileDo body env)
-               (pad indent) "}"]))))
+               (pad indent) "}"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC_OPS :fn sf-lambda)
+(set! SPEC-OPS "fn" sf-lambda)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleArgs "" [args]
-  (var skip -1 varg "" ret [] ____break false)
-  (forlet ((i 0
-            e nil)
-           (and (not ____break)
-                (< i (alen args))) (i (inc i)))
-    (set! e (nth args i))
+  (do-with [out []]
+    (var _BREAK false skip -1 varg nil ret [])
+    (forlet ((i 0 e nil)
+             (and (not _BREAK)
+                  (< i (alen args))) (i (inc i)))
+      (set! e (nth args i))
+      (cond
+        (== e "&")
+        (do (set! varg (nth args (inc i)))
+            (if (types.map? varg)
+              (set! varg (types.assoc.apply this (.concat [{}] varg)))
+              (set! varg (str varg)))
+            (set! skip i)
+            (set! _BREAK true))
+        (.startsWith (str e) "&")
+        (do (set! varg (.slice (str e) 1))
+            (set! skip i)
+            (set! _BREAK true)))
+      (.push ret e))
+    (.push out ret)
+    (.push out skip)
+    (.push out varg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleVarArgs "" [vargs pos]
+  (do-with [ret (tnode)]
+    (var keys {} k nil v nil as "")
     (cond
-      (== e "&")
-      (do (set! varg  (str (nth args (inc i))))
-          (set! skip i)
-          (set! ____break true))
-      (.startsWith (""+e) "&")
-      (do (set! varg (.slice ("" + e) 1))
-          (set! skip i)
-          (set! ____break true))
-      :else
-      (.push ret e)))
-  [ret skip varg])
+      (string? vargs)
+      (set! as vargs)
+      (array? vargs)
+      (forlet ((i 0)
+               (< i (alen vargs)) (i (inc i)))
+        (set! k (str (nth vargs i)))
+        (cond
+          (== k "as")
+          (do (set! as (str (nth vargs (inc i))))
+              (++ i))
+          (== k "_") nil
+          :else (set! keys k i)))
+      (object? vargs)
+      (do (set! keys
+                (reduce
+                  (fn [acc x]
+                    (set! acc (str x) nil)
+                    acc)
+                  {}
+                  (or (get vargs "keys")
+                      (get vargs "strs"))))
+          (set! as (get vargs "as"))))
+    (if (empty? as)
+      (set! as (gensym)))
+    (set! gs (rdr.jsid gs))
+    (.add ret
+          (str "let "
+               as
+               "=Array.prototype.slice.call"
+               "(arguments," pos ");\n"))
+    (when (not-empty (Object.keys keys))
+      (.add ret (str "let "
+                     (-> (map (fn [s] (rdr.jsid s))
+                              (Object.keys keys))
+                         (.join ",")) ";\n"))
+      (each (fn [x]
+              (set! v (get keys x))
+              (set! x (rdr.jsid x))
+              (if (nil? v) (set! v (str  "\"" x "\"")))
+              (.add ret (str "let " x "=" as "[" v "];\n")))
+            (Object.keys keys)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tnode) ast)]
-    (var fname (transpileSingle (nth ast 1) env)
+    (var fname (transpileSingle (nth ast 1))
          dot? (.includes fname ".")
          vargs ""
          e3 (nth ast 3)
          e2 (nth ast 2)
          doc nil attrs nil args 2 body 3)
     (cond
-      (types.list? e2) nil
-      (std.string? e2)
+      (string? e2)
       (do (set! doc 2)
           (set! args 3)
           (when (types.map? e3)
@@ -547,33 +692,29 @@
     (if doc (set! doc (nth ast doc)))
     (if attrs (set! attrs (nth ast attrs)))
     (set! args (nth ast args))
-    (set! args (map (fn [a] a) args))
-    (transpileAtoms args env)
     (set! args (handleArgs args))
     (set! body (.slice ast body))
-    (.add ret (nth args 0))
+    (.add ret (map (fn [x] (rdr.jsid (str x))) (nth args 0)))
     (.join ret ",")
     (if dot?
       (.prepend ret [fname " = function ("])
       (.prepend ret (str "function " fname "(")))
     (if (>= (nth args 1) 0)
-      (set! vargs
-            (str "let "
-                 (nth args 2)
-                 "=Array.prototype.slice.call(arguments,"
-                 (nth args 1) ");\n")))
-    (.add ret [") {\n"
-               vargs
-               (transpileDo body env)
-               (pad indent) "}\n"])
+      (set! vargs (handleVarArgs (nth args 2) (nth args 1))))
+    (.add ret
+          [") {\n"
+           vargs
+           (transpileDo body env)
+           (pad indent) "}\n"])
     (when (and false attrs)
-      (.add ret (fmtSpecOps fname attrs))
-      (.add ret ";"))
+      ;;//ret.add(fmtSpecOps(fname, attrs));
+      ;;//ret.add(";");
+      nil)
     (when doc
       (set! doc (.replace doc rdr.REGEX.dquoteHat ""))
-      (set! doc (.replace doc rdr.REGEX.dquoteEnd, ""))
+      (set! doc (.replace doc rdr.REGEX.dquoteEnd ""))
       (.prepend ret
-                (map (fn [s] (str "//" s  "\n"))
+                (map (fn [s] (str "//" s "\n"))
                      (.split doc "\\n"))))
     (if (and public?
              (not dot?)
@@ -698,7 +839,7 @@
           (+= indent tabspace)
           (transpileAtoms ast env)
           (set! p (pad indent))
-          (.add ret (str "[\n"+ p))
+          (.add ret (str "[\n" p))
           (forlet ((i 0) (< i (alen ast)) (i (inc i)))
             (if (> i 0) (.add ret (str ",\n" p)))
             (.add ret (nth ast i)))

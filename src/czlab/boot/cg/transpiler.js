@@ -37,6 +37,7 @@ function destruct_vec(gs, lhs,rhs) {
       gs= "" + lhs[i+1];
     }
   }
+  gs=rdr.jsid(gs);
   for (var i=0; i < lhs.length; ++i) {
     v=lhs[i];
     if (!types.symbol_p(v) && !types.keyword_p(v)) {
@@ -55,10 +56,11 @@ function destruct_vec(gs, lhs,rhs) {
         } else {
           x=(""+v).slice(1);
         }
+        x=rdr.jsid(x);
         ret.add([x, "= ", gs, ".slice(", ""+p, ");\n"]);
       }
       else if (types.symbol_p(v)) {
-        ret.add([""+v, "= ", gs, "[", ""+i, "];\n"]);
+        ret.add([transpileSingle(v), "= ", gs, "[", ""+i, "];\n"]);
       }
     }
   }
@@ -72,7 +74,7 @@ function destruct_map(gs, lhs,rhs) {
       k,v;
   for (var i=0; i < lhs.length; ++i) {
     //look for :strs
-    if ("keys" == lhs[i]) {
+    if ("strs" == lhs[i] || "keys" == lhs[i]) {
       keys=lhs[i+1];
       ++i;
     } else if ("as" == lhs[i]) {
@@ -80,6 +82,7 @@ function destruct_map(gs, lhs,rhs) {
       ++i;
     }
   }
+  gs=rdr.jsid(gs);
   ret.add([gs, "= ", rhs, ";\n"]);
   for (var i =0; i < keys.length; ++i) {
     k= transpileSingle(keys[i]);
@@ -486,11 +489,6 @@ function sf_range (ast,env) {
 }
 SPEC_OPS["range"]=sf_range;
 
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_doseq(ast,env) {
-  let args=ast[1],
-      body=ast.slice(2);
-}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_var (ast, env, cmd) {
@@ -538,7 +536,8 @@ function sf_var (ast, env, cmd) {
       m[""+k]=null;
     }
   }
-  ret.add([cmd, " ", Object.keys(m).join(","), ";\n"]);
+  ret.add([cmd, " ",
+    Object.keys(m).map(function(s){return rdr.jsid(s);}).join(","), ";\n"]);
   for (var i= 0; i< keys.length; ++i) {
     k=keys[i];
     v=eval_QQ(vals[i],env);
@@ -554,7 +553,7 @@ function sf_var (ast, env, cmd) {
       ret.add(destruct_map(gs, k, v));
     }
     else if (types.symbol(k)) {
-      ret.add([types.symbol_s(k), " = ", v, ";\n"]);
+      ret.add([transpileSingle(k), " = ", v, ";\n"]);
     }
     //if (publicQ && (1 === NSPACES.length)) EXTERNS[vname]= vname;
   }
@@ -668,7 +667,7 @@ function sf_lambda(ast,env) {
     varg=handleVarArgs(args[2],args[1]);
   }
   ret= nodeTag(tnode(),ast);
-  ret.add(args[0].map(function(x) { return ""+x; }));
+  ret.add(args[0].map(function(x) { return rdr.jsid(""+x); }));
   ret.join(",");
   ret.prepend("function (");
   ret.add([") {\n", varg,
@@ -730,14 +729,17 @@ function handleVarArgs(vargs, pos) {
 
   if (as && (""+as).length > 0) {} else { as=gensym(); }
 
+  as=rdr.jsid(as);
   ret.add("let " + as +
           "=Array.prototype.slice.call"+
           "(arguments," + pos + ");\n");
 
   if (Object.keys(keys).length > 0) {
-    ret.add("let " + Object.keys(keys).join(",") + ";\n");
+    ret.add("let " +
+      Object.keys(keys).map(function(s){return rdr.jsid(s);}).join(",") + ";\n");
     Object.keys(keys).map(function(x) {
       v=keys[x];
+      x=rdr.jsid(x);
       if (v === null) { v= "\""+x+"\""; }
       ret.add("let " + x + "=" + as + "[" + v + "];\n");
     });
@@ -771,7 +773,7 @@ function sf_func(ast,env,publicQ) {
   args= handleArgs(args);
   body= ast.slice(body);
   let ret=nodeTag(tnode(),ast);
-  ret.add(args[0].map(function(x) { return ""+x;}));
+  ret.add(args[0].map(function(x) { return rdr.jsid(""+x);}));
   let vargs="";
   ret.join(",");
   if (dotQ) {
