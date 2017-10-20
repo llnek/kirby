@@ -74,6 +74,7 @@
        nx nil
        esc? false
        str? false
+       regex? false
        comment? false)
   (do-with [tree []]
     (var toke (fn [ln col s s?]
@@ -92,6 +93,15 @@
         comment? nil
         esc? (do (set! esc? false)
                  (+= token ch))
+        regex?
+        (do (if (= ch "\\") (set! esc? true))
+            (+= token ch)
+            (when (= ch "/")
+              (set! regex? false)
+              (when (.includes "gimuy" nx)
+                (+= token nx)
+                (++ pos))
+              (set! token (toke line tcol token))))
         (= ch "\"")
         (if-not str?
           (do (set! tcol col)
@@ -128,6 +138,11 @@
                     (toke line tcol "~@"))
                 (toke line tcol ch)))
           (+= token ch))
+        (and (= ch "/")
+             (empty? token))
+        (do (set! regex? true)
+            (set! tcol col)
+            (+= token ch))
         (or (= ch "[")(= ch "]")
             (= ch "{")(= ch "}")
             (= ch "(")(= ch ")"))
