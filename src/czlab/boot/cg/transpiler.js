@@ -1103,8 +1103,11 @@ function sf_floop(ast,env,hint) {
                eval_QQ(c1[i+1],env)]);
     }
   ret.add("; ");
-  if (std.array_p(c2))
-    ret.add(transpileList(c2,env));
+  if (std.array_p(c2)) {
+    ret.add(["(!____break && ", transpileList(c2,env), ")"]);
+  } else {
+    ret.add(" !___break ");
+  }
   ret.add("; ");
   if (std.array_p(c3))
     for (var i= 0; i < c3.length; i += 2) {
@@ -1120,7 +1123,7 @@ function sf_floop(ast,env,hint) {
              transpileDo(ast.slice(2),env,false), ";"]);
   }
   ret.add("\n"+ ind+ "}\n");
-  ret.prepend("(function () {\n");
+  ret.prepend("(function () {let ____break=false;\n");
   ret.add("}).call(this)");
   indent -= tabspace;
   return ret;
@@ -1138,7 +1141,7 @@ function sf_wloop(ast,env) {
   let cond=ast[1],
       ind= pad(indent);
 
-  ret.add(eval_QQ(cond,env));
+  ret.add([" (!____break && ", eval_QQ(cond,env), ") "]);
   ret.add(";) {\n");
   indent += tabspace;
   if (ast.length > 2) {
@@ -1147,7 +1150,7 @@ function sf_wloop(ast,env) {
              transpileDo(ast.slice(2),env,false), ";"]);
   }
   ret.add("\n"+ ind+ "}\n");
-  ret.prepend("(function () {\n");
+  ret.prepend("(function () {let ____break=false;\n");
   ret.add("}).call(this)");
   indent -= tabspace;
   return ret;

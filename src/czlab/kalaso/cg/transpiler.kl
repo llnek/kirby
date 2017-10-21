@@ -974,8 +974,11 @@
                    " = "
                    (transpile* (nth c1 (inc i)) env)])))
     (.add ret "; ")
+
     (if (std.array? c2)
-      (.add ret (transpileList c2 env)))
+      (.add ret ["(!____break && " (transpileList c2 env) ")"])
+      (.add ret " !___break "))
+
     (.add ret "; ")
     (if (std.array? c3)
       (forlet ((i 0) (< i (alen c3)) (i (+ i 2)))
@@ -988,7 +991,7 @@
       (.add ret [ind (pad tabspace)
                  (transpileDo (.slice ast 2) env false) ";"]))
     (.add ret (str "\n" ind "}\n"))
-    (.prepend ret "(function () {\n")
+    (.prepend ret "(function () {let ____break=false;\n")
     (.add ret "}).call(this)")
     (-= indent tabspace)))
 
@@ -1001,7 +1004,7 @@
   (do-with [ret (nodeTag (tnodeEx "for (;") ast)]
     (var cond (second ast)
          ind (pad indent))
-    (.add ret (transpile* cond env))
+    (.add ret [" (!____break && " (transpile* cond env) ") "])
     (.add ret ";) {\n")
     (+= indent tabspace)
     (if (> (alen ast) 2)
@@ -1009,7 +1012,7 @@
                  (pad tabspace)
                  (transpileDo (.slice ast 2) env false) ";"]))
     (.add ret (str "\n" ind "}\n"))
-    (.prepend ret "(function () {\n")
+    (.prepend ret "(function () {let ____break=false;\n")
     (.add ret "}).call(this)")
     (-= indent tabspace)))
 

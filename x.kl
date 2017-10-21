@@ -1,13 +1,5 @@
 
-(doseq [a (poo 3)
-
-        :let [x (+ a 3)
-              y (inc x)]
-        :when (> a 1)
-        :while (< a 100)
-
-
-        ]
-
-  (+ 2 3) (* 7 9))
+(while (< 2 4)
+        (+ 2 3)
+        )
 
