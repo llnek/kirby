@@ -1055,6 +1055,54 @@
 (regoBuiltins sf-unary "unary")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-doseq "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var args (nth ast 1)
+         body (.slice ast 2)
+         loopvar (nth args 0)
+         loopexpr (nth args 1)
+         escvar (gensym)
+         idxvar (gensym)
+         exprvar (gensym))
+    (.add ret
+          ["let " (transpileSingle loopvar)
+           "= " exprvar "[" idxvar "];\n"])
+    (forlet ((i 2 v nil)
+             (< i (alen args)) (i (inc i)))
+      (set! v (nth args i))
+      (cond
+        (== v "while")
+        (.add ret ["if (! " (transpile* (nth args (inc i)) env)
+                   ") {" escvar "=true;}\n"])
+        (== v "when")
+        (doto ret
+          (.add ["if (!" escvar ") {\n"])
+          (.add ["if (! "
+                     (transpile* (nth args (inc i)) env)
+                     ") {continue;}\n"])
+          (.add "}\n"))
+        (== v "let")
+        (.add ret
+              (sf-var-let
+                (std.concat [(types.symbol "var")]
+                            (nth args (inc i))) env))))
+    (.add ret ["if (!" escvar ") {\n"])
+    (.add ret (transpileDo body env false))
+    (.add ret "}\n")
+    (.add ret "}\n")
+    (.prepend ret
+              ["for(var " escvar "=false," idxvar "=0; "
+               "(!" escvar " && " idxvar
+               " < " exprvar ".length); ++" idxvar ") {\n"])
+    (.prepend ret
+              ["let " exprvar "= " (transpile* loopexpr env) ";\n"])
+    (.prepend ret "(function() {\n")
+    (.add ret "})(this);\n")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC-OPS "doseq" sf-doseq)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "" []
   (do-with [s ""]
     (var ks (std.keys EXTERNS)

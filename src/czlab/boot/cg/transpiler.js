@@ -22,10 +22,10 @@ var tnode=tn.tnode;
 var gensym_counter=1;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function gensym() {
+function gensym(pfx) {
   let x= gensym_counter;
   gensym_counter++;
-  return "G____" + x;
+  return (pfx || "G____") + x;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1192,6 +1192,50 @@ function sf_unary(ast,env) {
   return ret;
 }
 regoBuiltins(sf_unary, "unary");
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_doseq(ast,env) {
+  let whileexpr,whenexpr,letexpr;
+  let ret=nodeTag(tnode(),ast),
+      args= ast[1],
+      body= ast.slice(2),
+      loopvar= args[0],
+      loopexpr= args[1],
+      escvar=gensym(),
+      idxvar=gensym(),
+      exprvar=gensym();
+
+  ret.add(["let ", transpileSingle(loopvar),
+           "= ", exprvar, "[",idxvar,"];\n"]);
+  if (args.length > 2)
+    for (var i=2,v=null; i < args.length; ++i) {
+      v=args[i];
+      if (v == "while") {
+        whileexpr=args[i+1];
+        ret.add(["if (! ", eval_QQ(whileexpr,env),
+                 ") {", escvar,"=true;}\n"]);
+      } else if (v == "when") {
+        whenexpr=args[i+1];
+        ret.add(["if (!", escvar,") {\n"]);
+        ret.add(["if (! ", eval_QQ(whenexpr,env),") {continue;}\n"]);
+        ret.add("}\n");
+      } else if (v == "let") {
+        letexpr=[types.symbol("var")].concat(args[i+1]);
+        ret.add(sf_var_let(letexpr,env));
+      }
+    }
+  ret.add(["if (!", escvar,") {\n"])
+  ret.add(transpileDo(body,env,false));
+  ret.add("}\n");
+  ret.add("}\n");
+  ret.prepend(["for(var ", escvar,"=false,", idxvar,"=0; ",
+               "(!", escvar," && ", idxvar," < ", exprvar, ".length); ++", idxvar,") {\n"]);
+  ret.prepend(["let ",exprvar,"= ", eval_QQ(loopexpr,env), ";\n"]);
+  ret.prepend("(function() {\n");
+  ret.add("})(this);\n");
+  return ret;
+}
+SPEC_OPS["doseq"]=sf_doseq;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function spitExterns() {

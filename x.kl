@@ -1,3 +1,13 @@
 
-(var a= /^def\b|^var\b|^set!\b|^throw\b/)
+(doseq [a (poo 3)
+
+        :let [x (+ a 3)
+              y (inc x)]
+        :when (> a 1)
+        :while (< a 100)
+
+
+        ]
+
+  (+ 2 3) (* 7 9))
 

@@ -123,9 +123,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro let [bindings & xs]
-  (let* [ps (evens* bindings)
-         vs (odds* bindings)]
-    `((fn [~@ps] ~@xs) ~@vs)))
+  `((fn [] (var ~@bindings) ~@xs) this))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro loop [bindings & more]
