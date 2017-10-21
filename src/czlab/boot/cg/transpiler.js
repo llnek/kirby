@@ -491,7 +491,7 @@ SPEC_OPS["range"]=sf_range;
 
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_var (ast, env, cmd) {
+function XXsf_var (ast, env, cmd) {
   let vname=null, publicQ= ("global" == cmd);
   let ret=nodeTag(tnode(),ast);
 
@@ -560,6 +560,26 @@ function sf_var (ast, env, cmd) {
   //ret.prepend(" ");
   //ret.prepend(cmd);
   //if (ast.length > 3) indent -= tabspace;
+  return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_var (ast, env, cmd) {
+  let vname=null, publicQ= ("global" == cmd);
+  let ret=nodeTag(tnode(),ast);
+
+  ast=ast.slice(1);
+  if (publicQ ||
+          ("local" == cmd)) cmd="var";
+
+  for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
+    rhs=ast[i+1];
+    lhs=ast[i];
+    rc=destruct0(cmd,lhs,rhs,env);
+    ret.add(rc[0]);
+    ret.add(rc[1]);
+  }
+
   return ret;
 }
 
@@ -1334,4 +1354,87 @@ module.exports = {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 //EOF
+function destruct1(lhs) {
+  let as="", keys={};
+  if (types.vector_p(lhs)) {
+    for(var i=0,e=null;i<lhs.length;++i) {
+      e=lhs[i];
+      if(types.symbol_p(e)) {
+        if (e == "_") {}
+        else if (e == "&") {
+          keys["&"+lhs[i+1]]=i;
+          ++i;
+        }
+        else if (e.toString().startsWith("&")) {
+          keys[""+e]=i;
+        }
+        else {
+          keys[""+e]=i;
+        }
+      } else if (types.keyword_p(e)) {
+        if (e == "as") {
+          ++i;
+          as=lhs[i].toString();
+        } else {
+          throw new Error("bad keyword: " + e);
+        }
+      }
+    }
+  } else if (types.map_p(lhs)) {
+    for(var i=0,e=null;i < lhs.length;++i) {
+      e=lhs[i];
+      if (types.keyword_p(e)) {
+        if (e == "keys" || e == "strs") {
+          let ks=lhs[i+1];
+          ++i;
+          for (var j=0;j < ks.length; ++j) {
+            keys[""+ks[j]]=null;
+          }
+        } else if (e == "as") {
+          ++i;
+          as=lhs[i].toString();
+        }
+      } else {
+        throw new Error("bad destruct field: " + types.obj_type(e));
+      }
+    }
+  } else if (types.symbol_p(lhs)) {
+    keys[""+lhs]=null;
+  } else {
+    throw new Error("cant destruct with: " + types.obj_type(lhs));
+  }
+
+  return [as, keys];
+}
+
+function destruct0(cmd, lhs,rhs,env) {
+  let d= destruct1(lhs),
+      as=d[0],
+      keys=d[1];
+  if (as && as.length >0) {} else { as=gensym(); }
+  as=rdr.jsid(as);
+  let kdefs=[], ka,kvals=tnode();
+  Object.entries(keys).forEach(function(x) {
+    let n= x[0]; let rest=false;
+    if (n.startsWith("&")) {
+      rest=true;
+      n=n.slice(1);
+    }
+    n= rdr.jsid(n);
+    kdefs.push(n);
+    let pos=x[1];
+    if (pos===null) {
+      ka=n + "=" + as + "[\"" + n + "\"];\n";
+    } else if (rest) {
+      ka= n + "=" + as + ".slice(" + pos + ");\n";
+    } else {
+      ka= n + "=" + as + "[" + pos + "];\n";
+    }
+    kvals.add(ka);
+  });
+  kvals.prepend(cmd + " " + kdefs.join(",") + ";\n");
+
+  return [tnodeEx([cmd, " ", rdr.jsid(as), "= ", eval_QQ(rhs,env),";\n"]),
+          kvals];
+}
 
