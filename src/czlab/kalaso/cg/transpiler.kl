@@ -578,19 +578,83 @@
 (set! SPEC-OPS :def! sf-set)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- parseFuncArgs "" [args]
+  (do-with [ret []]
+    (forlet ((i 0 e nil)
+             (< i (alen args)) (i (inc i)))
+      (set! e (nth args i))
+      (cond
+        (types.symbol? e)
+        (cond
+          (== e "_")
+          (.push ret (types.symbol (gensym "_")))
+          (== e "&")
+          (do (set! e (nth args (inc i)))
+              (if (types.symbol? e)
+                (.push ret [e i e])
+                (.push ret [(types.symbol (str "&" (gensym))) i e]))
+              (++ i))
+          (.startsWith (str e) "&")
+          (do (set! e (types.symbol (.slice (str e) 1)))
+              (.push ret [e, i, e]))
+          :else
+          (.push ret e))
+        (types.keyword? e)
+        (std.raise! "bad function args destructure: " (types.obj-type e))
+        (std.array? e)
+        (.push ret [(types.symbol (gensym)) i e])
+        :else
+        (std.raise! "bad function args destructure: " (types.obj-type e))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- handleFuncArgs "" [fargs env]
+  (do-with [out []]
+    (var misc [] keys []
+         ret (tnode) knode (tnode))
+    (each (fn [arg]
+            (cond
+              (types.symbol? arg) (.push keys arg)
+              (and (types.symbol? (first arg))
+                   (not (.startsWith (str (first arg)) "&"))
+                   (array? (nth arg 2)))
+              (do (.push keys (first arg))
+                  (.push misc arg))
+              :else (.push misc arg))) fargs)
+    (each (fn [arr]
+            (var a0 (first arr)
+                 name (str a0)
+                 varg? (.startsWith name "&")
+                 pos (str (nth arr 1))
+                 a2 (nth arr 2))
+            (if varg? (set! name (.slice name 1)))
+            (set! name (rdr.jsid name))
+            (cond
+              (and (types.symbol? a0)
+                   (types.symbol? a2))
+              (.add ret ["let " name
+                         "=Array.prototype.slice.call(arguments," pos ");\n"])
+              (array? a2)
+              (do
+                (if varg?
+                  (.add ret ["let " name
+                             "=Array.prototype.slice.call(arguments," pos ");\n"]))
+                (.add ret (destruct0 "let" a2 name env))))) misc)
+
+    (.add knode (-> (map (fn [k] (str k)) keys) (.join ",")))
+    (.push out knode);
+    (.push out ret)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-lambda "" [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
     (var args (nth ast 1)
-         varg ""
-         body (.slice ast 2))
-    (set! args (handleArgs args))
-    (if (>= (nth args 1) 0)
-      (set! varg (handleVarArgs (nth args 2) (nth args 1))))
-    (.add ret (map (fn [x] (rdr.jsid (str x))) (nth args 0)))
-    (.join ret ",")
-    (.prepend ret "function (")
+         body (.slice ast 2)
+         fargs (handleFuncArgs
+                 (parseFuncArgs args) env))
+    (.add ret "function (")
+    (.add ret (first fargs))
     (.add ret [") {\n"
-               varg
+               (second fargs)
                (transpileDo body env)
                (pad indent) "}"])))
 
@@ -598,83 +662,11 @@
 (set! SPEC-OPS "fn" sf-lambda)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleArgs "" [args]
-  (do-with [out []]
-    (var _BREAK false skip -1 varg nil ret [])
-    (forlet ((i 0 e nil)
-             (and (not _BREAK)
-                  (< i (alen args))) (i (inc i)))
-      (set! e (nth args i))
-      (cond
-        (== e "&")
-        (do (set! varg (nth args (inc i)))
-            (if (types.map? varg)
-              (set! varg (types.assoc.apply this (.concat [{}] varg)))
-              (set! varg (str varg)))
-            (set! skip i)
-            (set! _BREAK true))
-        (.startsWith (str e) "&")
-        (do (set! varg (.slice (str e) 1))
-            (set! skip i)
-            (set! _BREAK true)))
-      (.push ret e))
-    (.push out ret)
-    (.push out skip)
-    (.push out varg)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleVarArgs "" [vargs pos]
-  (do-with [ret (tnode)]
-    (var keys {} k nil v nil as "")
-    (cond
-      (string? vargs)
-      (set! as vargs)
-      (array? vargs)
-      (forlet ((i 0)
-               (< i (alen vargs)) (i (inc i)))
-        (set! k (str (nth vargs i)))
-        (cond
-          (== k "as")
-          (do (set! as (str (nth vargs (inc i))))
-              (++ i))
-          (== k "_") nil
-          :else (set! keys k i)))
-      (object? vargs)
-      (do (set! keys
-                (reduce
-                  (fn [acc x]
-                    (set! acc (str x) nil)
-                    acc)
-                  {}
-                  (or (get vargs "keys")
-                      (get vargs "strs"))))
-          (set! as (get vargs "as"))))
-    (if (empty? as)
-      (set! as (gensym)))
-    (set! gs (rdr.jsid gs))
-    (.add ret
-          (str "let "
-               as
-               "=Array.prototype.slice.call"
-               "(arguments," pos ");\n"))
-    (when (not-empty (Object.keys keys))
-      (.add ret (str "let "
-                     (-> (map (fn [s] (rdr.jsid s))
-                              (Object.keys keys))
-                         (.join ",")) ";\n"))
-      (each (fn [x]
-              (set! v (get keys x))
-              (set! x (rdr.jsid x))
-              (if (nil? v) (set! v (str  "\"" x "\"")))
-              (.add ret (str "let " x "=" as "[" v "];\n")))
-            (Object.keys keys)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tnode) ast)]
     (var fname (transpileSingle (nth ast 1))
          dot? (.includes fname ".")
-         vargs ""
+         fargs nil
          e3 (nth ast 3)
          e2 (nth ast 2)
          doc nil attrs nil args 2 body 3)
@@ -692,18 +684,16 @@
     (if doc (set! doc (nth ast doc)))
     (if attrs (set! attrs (nth ast attrs)))
     (set! args (nth ast args))
-    (set! args (handleArgs args))
+    (set! fargs (handleFuncArgs
+                  (parseFuncArgs args) env))
     (set! body (.slice ast body))
-    (.add ret (map (fn [x] (rdr.jsid (str x))) (nth args 0)))
-    (.join ret ",")
     (if dot?
-      (.prepend ret [fname " = function ("])
-      (.prepend ret (str "function " fname "(")))
-    (if (>= (nth args 1) 0)
-      (set! vargs (handleVarArgs (nth args 2) (nth args 1))))
+      (.add ret [fname " = function ("])
+      (.add ret (str "function " fname "(")))
+    (.add ret (first fargs))
     (.add ret
           [") {\n"
-           vargs
+           (second fargs)
            (transpileDo body env)
            (pad indent) "}\n"])
     (when (and false attrs)

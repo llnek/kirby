@@ -678,19 +678,13 @@ SPEC_OPS["set!"]=sf_set;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_lambda(ast,env) {
   let args=ast[1],
-    varg="",
       body= ast.slice(2),
-      ret= null;
+      ret= nodeTag(tnode(),ast),
+      fargs=handleFuncArgs(parseFuncArgs(args),env);
 
-  args=handleArgs(args);
-  if (args[1] >= 0) {
-    varg=handleVarArgs(args[2],args[1]);
-  }
-  ret= nodeTag(tnode(),ast);
-  ret.add(args[0].map(function(x) { return rdr.jsid(""+x); }));
-  ret.join(",");
-  ret.prepend("function (");
-  ret.add([") {\n", varg,
+  ret.add("function (");
+  ret.add(fargs[0]);
+  ret.add([") {\n", fargs[1],
            transpileDo(body,env),
            pad(indent), "}"]);
   return ret;
@@ -698,73 +692,77 @@ function sf_lambda(ast,env) {
 SPEC_OPS["fn"]=sf_lambda;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function handleArgs(args) {
-  let skip=-1, varg, ret=[];
+function parseFuncArgs(args) {
+  let ret=[];
 
   for (var i=0,e=null; i < args.length; ++i) {
     e= args[i];
-    if (e == "&") {
-      varg = args[i+1];
-      if (types.vector_p(varg)) {
-      } else if (types.map_p(varg)) {
-        varg=types.assoc.apply(this, [{}].concat(varg));
+    if (types.symbol_p(e)) {
+      if (e == "_") {
+        ret.push(types.symbol(gensym("_")));
+      } else if (e == "&") {
+        e= args[i+1];
+        if (types.symbol_p(e)) {
+          ret.push([e,i,e]);
+        } else {
+          ret.push([types.symbol("&"+gensym()),i,e]);
+        }
+        ++i;
+      } else if ((""+e).startsWith("&")) {
+        e=types.symbol((""+e).slice(1));
+        ret.push([e, i, e]);
       } else {
-        varg=""+varg;
+        ret.push(e);
       }
-      skip=i;
-      break;
+    } else if (types.keyword_p(e)) {
+      throw new Error("bad function args destructure: " +
+                      types.obj_type(e));
+    } else if (types.vector_p(e)) {
+      ret.push([types.symbol(gensym()), i, e]);
+    } else if (types.map_p(e)) {
+      ret.push([types.symbol(gensym()), i, e]);
+    } else {
+      throw new Error("bad function args destructure: " +
+                      types.obj_type(e));
     }
-    else if ((""+e).startsWith("&")) {
-      varg= ("" + e).slice(1);
-      skip=i;
-      break;
-    }
-    ret.push(e);
   }
-  return [ret,skip,varg];
+  return ret;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function handleVarArgs(vargs, pos) {
-  let keys={}, k, v, as="";
-  let ret=tnode();
+function handleFuncArgs(fargs,env) {
+  let misc=[], keys=[], ret=tnode();
 
-  if (typeof vargs === "string") {
-    as=vargs;
-  }
-  else
-  if (Array.isArray(vargs)) {
-    for (var i=0; i < vargs.length; ++i) {
-      k=""+vargs[i];
-      if (k == "as") { as= ""+ vargs[i+1]; ++i; }
-      else if (k =="_") {}
-      else { keys[k]=i; }
+  fargs.forEach(function(arg){
+    if (types.symbol_p(arg)) {
+      keys.push(arg);
+    } else if (types.symbol_p(arg[0]) &&
+               !(""+arg[0]).startsWith("&") && std.array_p(arg[2])) {
+      keys.push(arg[0]);
+      misc.push(arg);
     }
-  }
-  else if (typeof vargs === "object") {
-    keys= (vargs["keys"] || vargs["strs"]).reduce(
-            function(acc,x) { x=""+x; acc[x]=null; return acc; }, {});
-    as=vargs["as"];
-  }
+    else { misc.push(arg); } });
 
-  if (as && (""+as).length > 0) {} else { as=gensym(); }
+  misc.forEach(function(arr) {
+    let a0=arr[0],
+        name=a0.toString(),
+        varg_p=name.startsWith("&"),
+        pos="" + arr[1], a2=arr[2];
+    if (varg_p) { name=name.slice(1); }
+    name=rdr.jsid(name);
+    if (types.symbol_p(a0) && types.symbol_p(a2)) {
+      ret.add(["let ", name, "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
+    } else if (std.array_p(a2)) {
+      if (varg_p) {
+        ret.add(["let ", name, "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
+      }
+      ret.add(destruct0("let",a2,name,env));
+    }
+  });
 
-  as=rdr.jsid(as);
-  ret.add("let " + as +
-          "=Array.prototype.slice.call"+
-          "(arguments," + pos + ");\n");
-
-  if (Object.keys(keys).length > 0) {
-    ret.add("let " +
-      Object.keys(keys).map(function(s){return rdr.jsid(s);}).join(",") + ";\n");
-    Object.keys(keys).map(function(x) {
-      v=keys[x];
-      x=rdr.jsid(x);
-      if (v === null) { v= "\""+x+"\""; }
-      ret.add("let " + x + "=" + as + "[" + v + "];\n");
-    });
-  }
-  return ret;
+  let knode=tnode();
+  knode.add(keys.map(function(k) { return ""+k; }).join(","));
+  return [knode,ret];
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -790,22 +788,17 @@ function sf_func(ast,env,publicQ) {
   if (doc) doc= ast[doc];
   if (attrs) attrs= ast[attrs];
   args= ast[args];
-  args= handleArgs(args);
   body= ast.slice(body);
-  let ret=nodeTag(tnode(),ast);
-  ret.add(args[0].map(function(x) { return rdr.jsid(""+x);}));
-  let vargs="";
-  ret.join(",");
+  let ret=nodeTag(tnode(),ast),
+      fargs= handleFuncArgs(parseFuncArgs(args),env);
   if (dotQ) {
-    ret.prepend([fname, " = function ("]);
+    ret.add([fname, " = function ("]);
   } else {
-    ret.prepend("function "+ fname+ "(");
+    ret.add("function "+ fname+ "(");
   }
-  if (args[1] >= 0) {
-    vargs=handleVarArgs(args[2], args[1]);
-  }
+  ret.add(fargs[0]);
   ret.add([") {\n",
-           vargs,
+           fargs[1],
            transpileDo(body,env),
            pad(indent), "}\n"]);
   if (false && attrs) {

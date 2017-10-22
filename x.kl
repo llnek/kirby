@@ -1,4 +1,5 @@
 
-(def [x? y-w & z! ] [1 2 3]
-      {:keys [h** w>e] } {})
+(fn [a b _ {:keys [x] :as moo} _  [z :as xxx] & [c d :as poo]    ]
+
+  (* 1 2))
 
