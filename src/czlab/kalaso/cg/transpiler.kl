@@ -986,7 +986,7 @@
     (-= indent tabspace)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :forlet (fn [ast env] (sf-floop ast env "var")))
+(set! SPEC-OPS :forlet (fn [ast env] (sf-floop ast env "let")))
 (set! SPEC-OPS :for (fn [ast env] (sf-floop ast env "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

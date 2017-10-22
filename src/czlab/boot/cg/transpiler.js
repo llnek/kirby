@@ -1145,7 +1145,7 @@ SPEC_OPS["for"]=function (ast,env) {
   return sf_floop(ast,env,"");
 }
 SPEC_OPS["forlet"]=function (ast,env) {
-  return sf_floop(ast,env,"var");
+  return sf_floop(ast,env,"let");
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
