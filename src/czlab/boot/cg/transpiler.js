@@ -29,69 +29,6 @@ function gensym(pfx) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function destruct_vec(gs, lhs,rhs) {
-  let ret=tnode(), v;
-  for (var i=0; i < lhs.length; ++i) {
-    v=lhs[i];
-    if (types.keyword_p(v) && v == "as") {
-      gs= "" + lhs[i+1];
-    }
-  }
-  gs=rdr.jsid(gs);
-  for (var i=0; i < lhs.length; ++i) {
-    v=lhs[i];
-    if (!types.symbol_p(v) && !types.keyword_p(v)) {
-      throw new Error("nested destructuring not supported");
-    }
-    if (types.keyword_p(v) && v == "as") {
-      //gs= "" + lhs[i+1];
-      ++i;
-    } else {
-      if (v == "_") {}
-      else if (v == "&" || (""+v).startsWith("&")) {
-        let x,p=i;
-        if (v=="&") {
-          x="" + lhs[i+1];
-          ++i;
-        } else {
-          x=(""+v).slice(1);
-        }
-        x=rdr.jsid(x);
-        ret.add([x, "= ", gs, ".slice(", ""+p, ");\n"]);
-      }
-      else if (types.symbol_p(v)) {
-        ret.add([transpileSingle(v), "= ", gs, "[", ""+i, "];\n"]);
-      }
-    }
-  }
-  ret.prepend([gs, "= ", rhs, ";\n"]);
-  return ret;
-}
-
-function destruct_map(gs, lhs,rhs) {
-  let ret=tnode(),
-      keys=[],
-      k,v;
-  for (var i=0; i < lhs.length; ++i) {
-    //look for :strs
-    if ("strs" == lhs[i] || "keys" == lhs[i]) {
-      keys=lhs[i+1];
-      ++i;
-    } else if ("as" == lhs[i]) {
-      gs= "" + lhs[i+1];
-      ++i;
-    }
-  }
-  gs=rdr.jsid(gs);
-  ret.add([gs, "= ", rhs, ";\n"]);
-  for (var i =0; i < keys.length; ++i) {
-    k= transpileSingle(keys[i]);
-    ret.add([k, "= ", gs, "[\"", k, "\"];\n"]);
-  }
-  return ret;
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var ERRORS_MAP= {
   e0: "Syntax Error",
   e1: "Empty statement",
@@ -503,79 +440,6 @@ SPEC_OPS["range"]=sf_range;
 
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function XXsf_var (ast, env, cmd) {
-  let vname=null, publicQ= ("global" == cmd);
-  let ret=nodeTag(tnode(),ast);
-
-  ast=ast.slice(1);
-  if (publicQ ||
-          ("local" == cmd)) cmd="var";
-
-  let keys= std.evens(ast);
-  let vals= std.odds(ast);
-  let z, k,v, gs, m={};
-  for (var i= 0; i< keys.length; ++i) {
-    k=keys[i];
-    if (types.vector_p(k)) {
-      for (var j=0; j < k.length; ++j) {
-        z=k[j];
-        if (z=="_") {}
-        else if (z == "&") {}
-        else if ((""+z).startsWith("&")) {
-          m[(""+z).slice(1)]=null;
-        }
-        else if (types.keyword_p(z)) {}
-        else if (types.symbol_p(z)) {
-          m[""+z]=null;
-        }
-      }
-    }
-    else
-    if (types.map_p(k)) {
-      for (var j=0; j < k.length; ++j) {
-        z=k[j];
-        if (z == "keys" || z == "strs") {
-          k[j+1].map(function(x) {m[""+x]=null;});
-          ++j;
-        } else if (z == "as") {
-          m[""+k[j+1]]=null;
-          ++j;
-        }
-      }
-    }
-    else
-    if (types.symbol(k)) {
-      m[""+k]=null;
-    }
-  }
-  ret.add([cmd, " ",
-    Object.keys(m).map(function(s){return rdr.jsid(s);}).join(","), ";\n"]);
-  for (var i= 0; i< keys.length; ++i) {
-    k=keys[i];
-    v=eval_QQ(vals[i],env);
-
-    if (types.vector_p(k)) {
-      gs=gensym();
-      ret.add(["let ", gs, ";\n"]);
-      ret.add(destruct_vec(gs, k, v));
-    }
-    else if (types.map_p(k)) {
-      gs=gensym();
-      ret.add(["let ", gs, ";\n"]);
-      ret.add(destruct_map(gs, k, v));
-    }
-    else if (types.symbol(k)) {
-      ret.add([transpileSingle(k), " = ", v, ";\n"]);
-    }
-    //if (publicQ && (1 === NSPACES.length)) EXTERNS[vname]= vname;
-  }
-  //ret.prepend(" ");
-  //ret.prepend(cmd);
-  //if (ast.length > 3) indent -= tabspace;
-  return ret;
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_var (ast, env, cmd) {
   let vname=null, publicQ= ("global" == cmd);
   let ret=nodeTag(tnode(),ast);
@@ -584,12 +448,27 @@ function sf_var (ast, env, cmd) {
   if (publicQ ||
           ("local" == cmd)) cmd="var";
 
+  let keys=[];
+  for(var i=0;i<ast.length;i+=2) {
+    if (types.symbol_p(ast[i])) {
+      keys.push(ast[i]);
+    }
+  }
+  if (keys.length > 0) {
+    ret.add(["let ",
+             keys.map(function(s) {
+               return transpileSingle(s); }).join(","), ";\n"]);
+  }
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
     lhs=ast[i];
-    rc=destruct0(cmd,lhs,rhs,env);
-    ret.add(rc[0]);
-    ret.add(rc[1]);
+    if (types.symbol_p(lhs)) {
+      ret.add([transpileSingle(lhs), "= ", eval_QQ(rhs,env), ";\n"]);
+    } else {
+      rc=destruct0(cmd,lhs,rhs,env);
+      ret.add(rc[0]);
+      ret.add(rc[1]);
+    }
   }
 
   return ret;

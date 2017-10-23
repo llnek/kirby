@@ -84,60 +84,6 @@
   (str (or pfx "G____") x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct-vec "" [gs lhs rhs]
-  (do-with [ret (tnode)]
-    (forlet ((i 0 v nil)
-             (< i (alen lhs)) (i (inc i)))
-      (set! v (nth lhs i))
-      (if (and (types.keyword? v)
-               (== v "as"))
-        (set! gs (str (nth lhs (inc i))))))
-    (set! gs (rdr.jsid gs))
-    (forlet ((i 0 v nil)
-             (< i (alen lhs)) (i (inc i)))
-      (set! v (nth lhs i))
-      (if (and (not (types.symbol? v))
-               (not (types.keyword? v)))
-        (std.raise! "nested destructuring not supported"))
-      (if (and (types.keyword? v)
-               (== v "as"))
-        (++ i)
-        (cond
-          (== v "_") nil
-          (or (== v "&")
-              (.startsWith (str v) "&"))
-          (let [x nil p i]
-            (if (== v "&")
-              (do (set! x (str (nth lhs (inc i))))
-                  (++ i))
-              (set! x (.slice (str v) 1)))
-            (set! x (rdr.jsid x))
-            (.add ret [x "= " gs ".slice(" (str p) ");\n"]))
-          (types.symbol? v)
-          (.add ret [(transpileSingle v) "= " gs "[" (str i) "];\n"]))))
-    (.prepend ret [gs "= " rhs ";\n"])))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct-map "" [gs lhs rhs]
-  (do-with [ret (tnode)]
-    (var keys [] k nil v nil)
-    (forlet ((i 0) (< i (alen lhs)) (i (inc i)))
-      ;;look for :strs :keys
-      (cond
-        (or (== "keys" (nth lhs i))
-            (== "strs" (nth lhs i)))
-        (do (set! keys (nth lhs (inc i)))
-            (++ i))
-        (== "as" (nth lhs i))
-        (do (set! gs (str (nth lhs (inc i))))
-            (++ i))))
-    (set! gs (rdr.jsid gs))
-    (.add ret [gs "= " rhs ";\n"])
-    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
-      (set! k (transpileSingle (nth keys i)))
-      (.add ret [k "= " gs "[\"" k "\"];\n"]))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- regoBuiltins "" [f group]
   (each (fn [k] (set! SPEC_OPS k f)) (get RESERVED group)))
 
@@ -170,6 +116,89 @@
     (set! obj.column src.column)
     (set! obj.line src.line))
   obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct1 "" [lhs]
+  (var as "" out [] keys {})
+  (cond
+    (types.vector? lhs)
+    (forlet ((i 0 e nil)
+             (< i (alen lhs)) (i (inc i)))
+      (set! e (nth lhs i))
+      (cond
+        (types.symbol? e)
+        (cond
+          (== e "_") nil
+          (== e "&") (do (set! keys
+                               (str "&" (nth lhs (inc i))) i)
+                         (++ i))
+          (.startWith (str e) "&")
+          (set! keys (str e) i)
+          :else
+          (set! keys (str e) i))
+        (types.keyword? e)
+        (if (== e "as")
+          (do (++ i)
+              (set! as (str (nth lhs i))))
+          (std.raise! "bad keyword: " e))))
+    (types.map? lhs)
+    (forlet ((i 0 e nil)
+             (< i (alen lhs)) (i (inc i)))
+      (set! e (nth lhs i))
+      (if (types.keyword? e)
+        (cond
+          (or (== e "keys")
+              (== e "strs"))
+          (let [ks (nth lhs (inc i))]
+            (++ i)
+            (forlet ((j 0)
+                     (< j (alen ks)) (j (inc j)))
+              (set! keys (str (nth ks j)) nil)))
+          (== e "as")
+          (do (++ i)
+              (set! as (str (nth lhs i)))))
+        (std.raise! "bad destruct field: "
+                    (types.obj-type e))))
+    (types.symbol? lhs)
+    (set! keys (str lhs) nil)
+    :else
+    (std.raise! "cant destruct with: " (types.obj-type lhs)))
+  ;;return
+  [as keys])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct0 "" [cmd lhs rhs env]
+  (var d (destruct1 lhs)
+       as (nth d 0)
+       kdefs []
+       ka nil
+       kvals (tnode)
+       keys (nth d 1))
+  (if (empty? as) (set! as (gensym)))
+  (set! as (rdr.jsid as))
+  (each (fn [x]
+          (var n (nth x 0)
+               pos nil
+               rest false)
+          (when (.startsWith n "&")
+            (set! rest true)
+            (set! n (.slice n 1)))
+          (set! n (rdr.jsid n))
+          (.push kdefs n)
+          (set! pos (nth x 1))
+          (cond
+            (nil? pos)
+            (set! ka (str n "=" as "[\"" n "\"];\n"))
+            rest
+            (set! ka (str n "=" as ".slice(" pos ");\n"))
+            :else
+            (set! ka (str n "=" as "[" pos "];\n")))
+          (.add kvals ka))
+        (Object.entries keys))
+  (.prepend kvals (str cmd " " (.join kdefs ",") ";\n"))
+  [(tnodeEx [cmd " "
+             (rdr.jsid as) "= "
+             (transpile* rhs env) ";\n"]) kvals])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileTree "" [root env]
@@ -434,66 +463,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var "" [ast env cmd]
   (do-with [ret (nodeTag (tnode) ast)]
-    (var vname nil
+    (var vname nil keys []
          public? (== "global" cmd))
-    (set! ast (std.slice ast 1))
+    (set! ast (.slice ast 1))
     (if (or public?
             (== "local" cmd)) (set! cmd "var"))
-    (var keys (std.evens ast))
-    (var vals (std.odds ast))
-    (var z nil k nil v nil gs nil m {})
-    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
-      (set! k (nth keys i))
-      (cond
-        (types.vector? k)
-        (forlet ((j 0) (< j (alen k)) (j (inc j)))
-          (set! z (nth k j))
-          (cond
-            (or (== z "_")
-                (== z "&")
-                (types.keyword? z)) nil
-            (.startsWith (str z) "&")
-            (set! m (.slice (str z) 1) nil)
-            (types.symbol? z)
-            (set! m (str z) nil)))
-        (types.map? k)
-        (forlet ((j 0) (< j (alen k)) (j (inc j)))
-          (set! z (nth k j))
-          (cond
-            (or (== z "keys")(== z "strs"))
-            (do (map (fn [x] (set! m (str x) nil))
-                     (nth k (inc j)))
-                (++ j))
-            (== z "as")
-            (do (set! m (str (nth k (inc j))) nil)
-                (++ j))))
-        (types.symbol? k)
-        (set! m (str k) nil)))
-    (.add ret [cmd
-               " "
-               (-> (map (fn [s]
-                          (rdr.jsid s)) (keys m))
-                   (.join ",")) ";\n"])
-    (forlet ((i 0) (< i (alen keys)) (i (inc i)))
-      (set! k (nth keys i))
-      (set! v (transpile* (nth vals i) env))
-      (cond
-        (types.vector? k)
-        (do (set! gs (gensym))
-            (.add ret ["let " gs ";\n"])
-            (.add ret (destruct-vec gs k v)))
-        (types.map? k)
-        (do (set! gs (gensym))
-            (.add ret ["let " gs ";\n"])
-            (.add ret (destruct-map gs k v)))
-        (types.symbol? k)
-        (.add ret [(transpileSingle k) " = " v ";\n"])))
-    (if (and public?
-             (= 1 (alen NSPACES)))
-      (each-key
-        (fn [v k]
-          (set! k (rdr.jsid k))
-          (set! EXTERNS k k)) m))))
+
+    (forlet ((i 0)
+             (< i (alen ast)) (i (+ i 2)))
+      (if (types.symbol? (nth ast i))
+        (.push keys (nth ast i))))
+    (if (std.not-empty keys)
+      (.add ret
+            ["let "
+             (-> (map #(transpileSingle %) keys)
+                 (.join ",")) ";\n"]))
+    (forlet ((rc nil i 0
+              lhs nil rhs nil)
+             (< i (alen ast)) (i (+ i 2)))
+      (set! rhs (nth ast (inc i)))
+      (set! lhs (nth ast i))
+      (if (types.symbol? lhs)
+        (.add ret [(transpileSingle lhs) "= "
+                   (transpile* rhs env) ";\n"])
+
+        (do (set! rc (destruct0 cmd lhs rhs env))
+            (.add ret (nth rc 0))
+            (.add ret (nth rc 1)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var-local "" [ast env]
