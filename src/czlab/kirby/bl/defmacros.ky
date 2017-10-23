@@ -7,6 +7,8 @@
 ;; You must not remove this notice, or any other, from this software.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro delay [f t] `(setTimeout ~f ~t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro last-index [x] `(- (alen ~x) 1))
@@ -33,7 +35,7 @@
 (defmacro type [obj] `(typeof ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro regex [pattern glim]
+(defmacro XXregex [pattern glim]
   (if* glim
     `(new RegExp ~pattern ~glim)
     `(new RegExp ~pattern)))

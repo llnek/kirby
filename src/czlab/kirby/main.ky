@@ -29,15 +29,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- opt
-  (-> (.create gopt
-               [["h" "help" "display this help"]
-                ["v" "version" "show version"]
-                ["r" "run" "run .kl files"]
-                ["w" "watch" "auto-compile changed files"]
-                ["b" "browser-bundle" "bundle for browser"]
-                ["m" "map" "generate source maps"]
-                ["t" "tree" "show AST"]
-                ["i" "include-dir=ARG+" "add directory to include search path"]])
+  (-> (gopt.create
+        [[:h "help" "display this help"]
+         [:v "version" "show version"]
+         [:r "run" "run .kl files"]
+         [:w "watch" "auto-compile changed files"]
+         [:b "browser-bundle" "bundle for browser"]
+         [:m "map" "generate source maps"]
+         [:t "tree" "show AST"]])
       (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
                      "<outfile> default to <infile> with \".js\" extension\n\n"
                      "Also compile stdin to stdout\n"
@@ -53,56 +52,47 @@
   (var pout (.-stdout process)
        source ""
        pin (.-stdin process))
-  (.resume pin)
-  (.setEncoding pin "utf8")
-  (.on pin
-       "data"
-       (fn [chunk]
-         (+= source (.toString chunk))))
-  (.on pin
-       "end"
-       (fn []
-         (try
-           (.write pout (.transpile kirby source (.cwd process)))
-           (catch e
-             (error! e)))))
-  (.on pout "error" error)
-  (.on pin "error" error)
-  (setTimeout (fn []
-    (when (= 0 (.-bytesRead pin))
-      (.removeAllListeners pin "data")
-      (runrepl)))
-    20))
-
+  (pin.resume)
+  (pin.setEncoding "utf8")
+  (pin.on :data
+          #(+= source (.toString %)))
+  (pin.on :end
+          #(try
+             (->> (process.cwd)
+                  (kirby.transpile source)
+                  (pout.write))
+             (catch e (error! e))))
+  (pout.on :error error)
+  (pin.on :error error)
+  (delay #(when (= 0 pin.bytesRead)
+            (pin.removeAllListeners :data)
+            (runrepl)) 20))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compileFiles "" []
-  (var fin nil
-       fout nil)
-  (if (std.first (opt.argv))
-    (set! fin (std.first opt.argv))
+  (var fin nil fout nil)
+  (if (first opt.argv)
+    (set! fin (first opt.argv))
     (error! "No Input file"))
   (set! fout (nth opt.argv 1))
   (when-not fout
-    (set! fout (.replace fin (regex ("\\.kl$")) ".js"))
-    (if (=== fout fin)
+    (set! fout (fin.replace /\.kl$/ ".js"))
+    (if (= fout fin)
       (error! "Input file must have extension \".kl\"")))
   (try
-    (var wantMap? (get opt.options "map")
-         dbgAST? (get opt.options "tree")
+    (var wantMap? (get opt.options :map)
          source nil
-         dirs (get opt.options "include-dir"))
+         dbgAST? (get opt.options :tree))
     (if-not dbgAST?
       (std.println "kirby v1.0.0"
                    ": compiling: " fin " -> " fout))
-    (set! source (.readFileSync fs fin "utf8"))
+    (set! source (fs.readFileSync fin "utf8"))
     (if dbgAST?
-      (.dbgAST kirby source fin dirs)
-      (let [out
-            (if wantMap?
-              (.transpileWithSrcMap kirby source fin dirs)
-              (.transpile kirby source fin dirs))]
-        (.writeFileSync fs fout out "utf8")))
+      (kirby.dbgAST source fin dirs)
+      (let [out (if wantMap?
+                  (kirby.transpileWithSrcMap source fin)
+                  (kirby.transpile source fin))]
+        (fs.writeFileSync fout out "utf8")))
     (catch e
       (error! e))))
 
@@ -112,17 +102,14 @@
         ".kl"
         (fn [module fname]
           (var kb (require "./cg/transpiler")
-               code (.readFileSync fs fname "utf8"))
-
-          (._compile module
-                     (.transpile kb
-                                 code
-                                 (.relative path
-                                            (.cwd process)
-                                            fname)) fname)))
-  (.init rt)
-  (.load macros))
-
+               code (fs.readFileSync fname "utf8"))
+          (module._compile
+            (kb.transpile code
+                          (path.relative
+                            (process.cwd) fname))
+            fname)))
+  (rt.init)
+  (macros.load))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn main "" []

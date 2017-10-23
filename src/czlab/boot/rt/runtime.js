@@ -254,7 +254,7 @@ function newEnv() {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var prefix= "kalaso> ";
+var prefix= "kirby> ";
 var run_repl=function() {
   let rl= readline.createInterface(
             process.stdin, process.stdout);
@@ -275,7 +275,7 @@ var run_repl=function() {
       process.exit(0);
     });
 
-  console.log(prefix + "Kalaso REPL v1.0.0");
+  console.log(prefix + "Kirby REPL v1.0.0");
   rl.setPrompt(prefix, prefix.length);
   rl.prompt();
 }

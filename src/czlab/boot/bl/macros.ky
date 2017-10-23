@@ -20,7 +20,7 @@
 (defmacro type [obj] `(typeof ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro regex [pattern glim]
+(defmacro XXregex [pattern glim]
   (if* glim
     `(new RegExp ~pattern ~glim)
     `(new RegExp ~pattern)))
@@ -206,6 +206,9 @@
        ~cvar)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro delay [f t] `(setTimeout ~f ~t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro map [f coll] `(.map ~coll ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -268,4 +271,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defmacro first [x] `(nth ~x 0))
+(defmacro second [x] `(nth ~x 1))
+(defmacro last-index [a] `(dec (alen ~x)))
+(defmacro rest [x] `(.slice ~x 1))
+(defmacro nth [x i] `(get ~x ~i))
+
+
+
+
 
