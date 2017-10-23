@@ -98,10 +98,16 @@
             `(if ~c ~e (cond ~@r))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro -> [expr form & xs]
+(defmacro XX-> [expr form & xs]
   (if* (> (count* xs) 0)
     `(-> (~(nth* form 0) ~expr ~@(rest* form)) ~@xs)
     `(~(nth* form 0) ~expr ~@(rest* form))))
+
+(defmacro -> [expr form & xs]
+  (if* (> (count* xs) 0)
+    (let* [x `(~(nth* form 0) ~expr ~@(rest* form))]
+      `(-> ~x ~@xs)
+      ~x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ->> [expr form & xs]
