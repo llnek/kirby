@@ -69,6 +69,9 @@ function readAtom(tokens) {
   else if (tn.startsWith(":")) {
     ret= types.keyword(tn);
   }
+  else if (tn.startsWith("%")) {
+    ret= types.lambda_arg(tn);
+  }
   else if ("nil"=== tn ||
            "null"=== tn)  {
     ret= null;
@@ -169,6 +172,10 @@ function readTokens (tokens) {
                         function(){
                           return [types.symbol("deref"),
                             readTokens(tokens)];});
+    case "#": return skipAndParse(tokens,
+                        function () {
+                          return [types.symbol("lambda"),
+                                  readTokens(tokens)];});
     case ")": throwE(token, "unexpected ')'");
     case "(": return readList(token, tokens);
     case "]": throwE(token, "unexpected ']'");

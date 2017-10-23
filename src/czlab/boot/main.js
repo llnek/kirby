@@ -28,16 +28,16 @@ var error=function(e) {
 var opt=
 gopt.create([["h","help","display this help"],
              ["v","version","show version"],
-             ["r","run","run .kl files"],
+             ["r","run","run .ky files"],
              ["w","watch","auto-compile changed files"],
              ["b","browser-bundle","bundle for browser"],
              ["m","map","generate source maps"],
              ["t","tree","show AST"],
              ["i","include-dir=ARG+","add directory to include search path"]]);
-opt.setHelp("kalaso [OPTION] [<infile>] [<outfile>]\n\n"+
+opt.setHelp("kirby [OPTION] [<infile>] [<outfile>]\n\n"+
             "<outfile> default to <infile> with \".js\" extension\n\n"+
             "Also compile stdin to stdout\n"+
-            "eg. $ echo '(console.log \"hello\")' | kalaso\n\n"+
+            "eg. $ echo '(console.log \"hello\")' | kirby\n\n"+
             "[[OPTIONS]]\n\n");
 opt=opt.bindHelp().parseSystem();
 
@@ -81,9 +81,9 @@ function compileFiles() {
   }
   fout= opt.argv[1];
   if (!fout) {
-    fout= fin.replace(new RegExp("\\.kl$"), ".js");
+    fout= fin.replace(new RegExp("\\.ky$"), ".js");
     if (fout === fin) {
-      error("Input file must have extension \".kl\"");
+      error("Input file must have extension \".ky\"");
     }
   }
   try {
@@ -92,7 +92,7 @@ function compileFiles() {
         source=null,
         dirs= opt.options["include-dir"];
     if (!dbgAST_Q) {
-      console.log("kalaso v1.0.0"+ ": compiling: "+ fin+ " -> "+ fout);
+      console.log("kirby v1.0.0"+ ": compiling: "+ fin+ " -> "+ fout);
     }
     source= fs.readFileSync(fin, "utf8");
     if (dbgAST_Q) {
@@ -112,7 +112,7 @@ function compileFiles() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function init() {
-  require.extensions[".kl"]=function(module, fname) {
+  require.extensions[".ky"]=function(module, fname) {
     let kb= require("./cg/transpiler"),
         code= fs.readFileSync(fname, "utf8");
     module._compile(

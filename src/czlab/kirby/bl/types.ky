@@ -141,6 +141,18 @@
                             :writable true })))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn LambdaArg "" [arg]
+  (var name (.slice arg 1)
+       v (parseInt name))
+  (if (empty? name) (set! name "1"))
+  (if-not (> v 0)
+    (std.raise! "Bad lambda-arg: " arg))
+  ;;zero based arg so minus 1
+  (-- v)
+  (set! this.value (str v))
+  this)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Keyword "" [name]
   (set! this.value (.slice name 1)) this)
 
@@ -177,6 +189,19 @@
     (.-value k)
     (if k
       (.toString k) "")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn LambdaArg.prototype.toString "" [] (.-value this))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg "" [name] (new LambdaArg name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg? "" [obj] (inst? LambdaArg obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg-s "" [k]
+  (if (lambda-arg? k) (.-value k) (if k (.toString k) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fn-wrap "" [run Env ast env params]

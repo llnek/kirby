@@ -55,6 +55,8 @@
     (set! ret tn)
     (.startsWith tn ":")
     (set! ret (types.keyword tn))
+    (.startsWith tn "%")
+    (set! ret (types.lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
     (set! ret nil)
@@ -129,6 +131,9 @@
                            (readTokens tokens) tmp]))
       "@" (skipAndParse tokens
                         (fn [] [(types.symbol "deref")
+                                (readTokens tokens)]))
+      "#" (skipAndParse tokens
+                        (fn [] [(types.symbol "lambda")
                                 (readTokens tokens)]))
       ")" (throwE token "unexpected ')'")
       "(" (readList token tokens)

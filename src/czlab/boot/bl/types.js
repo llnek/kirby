@@ -153,6 +153,20 @@ function clone (obj) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function LambdaArg(name) {
+  this.value = name.slice(1);
+  if (this.value.length===0) { this.value="1"; }
+  let v= parseInt(this.value);
+  if (!(v > 0)) {
+    throw new Error("Bad lambda-arg: " + name);
+  }
+  //zero based arg so minus 1
+  --v;
+  this.value= "" + v;
+  return this;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function Keyword(name) {
   this.value = name.slice(1);
   return this;
@@ -178,6 +192,13 @@ function keyword(name) { return new Keyword(name); }
 function keyword_p(obj) { return obj instanceof Keyword; }
 function keyword_s(k) {
   return keyword_p(k) ? k.value : k ? k.toString() :""; }
+//
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+LambdaArg.prototype.toString = function() { return this.value; }
+function lambda_arg(name) { return new LambdaArg(name); }
+function lambda_arg_p(obj) { return obj instanceof LambdaArg; }
+function lambda_arg_s(k) {
+  return lambda_arg_p(k) ? k.value : k ? k.toString() :""; }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function fn_wrap(run, Env, ast, env, params) {
@@ -289,6 +310,9 @@ module.exports= {
   keyword: keyword,
   keyword_p: keyword_p,
   keyword_s: keyword_s,
+  lambda_arg: lambda_arg,
+  lambda_arg_p: lambda_arg_p,
+  lambda_arg_s: lambda_arg_s,
   list: list,
   list_p: list_p,
   map_p: map_p,

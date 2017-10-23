@@ -228,6 +228,9 @@ function transpileSingle(a) {
   if (types.keyword_p(a)) {
     return "\"" + types.keyword_s(a) + "\"";
   }
+  if (types.lambda_arg_p(a)) {
+    return "arguments[" + types.lambda_arg_s(a) + "]";
+  }
   if (std.string_p(a)) {
     return a;
   }
@@ -306,6 +309,15 @@ function transpileList(ast, env) {
   }
   return nodeTag(ret,ast);
 }
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_lambda(ast,env) {
+  let body=ast.slice(1);
+  let a=[types.symbol("fn"),
+         types.vector()].concat(body);
+  return sf_fn(a,env);
+}
+SPEC_OPS["lambda"]=sf_lambda;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_apply(ast,env) {
@@ -676,7 +688,7 @@ SPEC_OPS["aset"]=sf_set;
 SPEC_OPS["set!"]=sf_set;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_lambda(ast,env) {
+function sf_fn(ast,env) {
   let args=ast[1],
       body= ast.slice(2),
       ret= nodeTag(tnode(),ast),
@@ -689,7 +701,7 @@ function sf_lambda(ast,env) {
            pad(indent), "}"]);
   return ret;
 }
-SPEC_OPS["fn"]=sf_lambda;
+SPEC_OPS["fn"]=sf_fn;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function parseFuncArgs(args) {
@@ -761,7 +773,8 @@ function handleFuncArgs(fargs,env) {
   });
 
   let knode=tnode();
-  knode.add(keys.map(function(k) { return ""+k; }).join(","));
+  knode.add(keys.map(function(k) {
+    return rdr.jsid(""+k); }).join(","));
   return [knode,ret];
 }
 

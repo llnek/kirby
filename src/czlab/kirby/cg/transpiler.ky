@@ -204,6 +204,8 @@
     (.jsid rdr (types.symbol-s a))
     (types.keyword? a)
     (str "\"" (types.keyword-s a) "\"")
+    (types.lambda-arg? a)
+    (str "arguments[" (types.lambda-arg-s a) "]")
     (std.string? a)
     a
     (nil? a)
@@ -262,6 +264,17 @@
                                (.join ",")) ")"]))
             (.add ret cmd))))
     (set! ret (nodeTag ret ast))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-lambda "" [ast env]
+  (var body (.slice ast 1)
+       a (std.concat [(types.symbol "fn")
+                      (types.vector)]
+                     body))
+  (sf-fn a env))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC-OPS "lambda" sf-lambda)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-apply "" [ast env]
@@ -640,12 +653,12 @@
                              "=Array.prototype.slice.call(arguments," pos ");\n"]))
                 (.add ret (destruct0 "let" a2 name env))))) misc)
 
-    (.add knode (-> (map (fn [k] (str k)) keys) (.join ",")))
+    (.add knode (-> (map (fn [k] (rdr.jsid (str k))) keys) (.join ",")))
     (.push out knode);
     (.push out ret)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-lambda "" [ast env]
+(defn- sf-fn "" [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
     (var args (nth ast 1)
          body (.slice ast 2)
@@ -659,7 +672,7 @@
                (pad indent) "}"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "fn" sf-lambda)
+(set! SPEC-OPS "fn" sf-fn)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]

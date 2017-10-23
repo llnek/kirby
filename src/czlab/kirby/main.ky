@@ -9,24 +9,25 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kalaso.main
+  czlab.kirby.main
 
-  (require ["./cg/transpiler" :as kalaso]
+  (require ["./cg/transpiler" :as kirby]
            ["./bl/macros" :as macros]
            ["./bl/stdlib" :as std]
-           ["./rt/runtime" :as rt]
-           ["node-getopt" :as gopt]
+           ["./rt/runtime" :as rt])
+
+  (require ["node-getopt" :as gopt]
            ["watch" :as watcher]
            ["path" :as path]
            ["fs" :as fs]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- validFlag? (regex "-h\\b|-r\\b|-v\\b|-b\\b|-s\\b|-t\\b"))
+(def- validFlag? /-h\b|-r\b|-v\b|-b\b|-s\b|-t\b/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- error (fn [e]
               (std.println e)
-              (.exit process 1)))
+              (process.exit 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- opt
@@ -39,10 +40,10 @@
                 ["m" "map" "generate source maps"]
                 ["t" "tree" "show AST"]
                 ["i" "include-dir=ARG+" "add directory to include search path"]])
-      (.setHelp (str "kalaso [OPTION] [<infile>] [<outfile>]\n\n"
+      (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
                      "<outfile> default to <infile> with \".js\" extension\n\n"
                      "Also compile stdin to stdout\n"
-                     "eg. $ echo '(console.log \"hello\")' | kalaso\n\n"
+                     "eg. $ echo '(console.log \"hello\")' | kirby\n\n"
                      "[[OPTIONS]]\n\n"))
       (.bindHelp)
       (.parseSystem)))
@@ -64,7 +65,7 @@
        "end"
        (fn []
          (try
-           (.write pout (.transpile kalaso source (.cwd process)))
+           (.write pout (.transpile kirby source (.cwd process)))
            (catch e
              (error! e)))))
   (.on pout "error" error)
@@ -94,15 +95,15 @@
          source nil
          dirs (get opt.options "include-dir"))
     (if-not dbgAST?
-      (std.println "kalaso v1.0.0"
+      (std.println "kirby v1.0.0"
                    ": compiling: " fin " -> " fout))
     (set! source (.readFileSync fs fin "utf8"))
     (if dbgAST?
-      (.dbgAST kalaso source fin dirs)
+      (.dbgAST kirby source fin dirs)
       (let [out
             (if wantMap?
-              (.transpileWithSrcMap kalaso source fin dirs)
-              (.transpile kalaso source fin dirs))]
+              (.transpileWithSrcMap kirby source fin dirs)
+              (.transpile kirby source fin dirs))]
         (.writeFileSync fs fout out "utf8")))
     (catch e
       (error! e))))
