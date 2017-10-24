@@ -7,6 +7,13 @@
 ;; You must not remove this notice, or any other, from this software.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.kirby.bl.monads
+
+  (require ["./stdlib" :as std]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def identity
   {:bind (fn [mv mf] (mf mv))
@@ -35,10 +42,8 @@
 (def state
   {:bind (fn [mv mf]
            (fn [s]
-             (var x (mv s)
-                  v (get 0 x)
-                  ss (get 1 x)) ((mf v) ss)))
-   :result (fn [v] (fn [s] (.concat [] [v, s])))})
+             (var x (mv s)) ((mf (get 0 x)) (get 1 x))))
+   :result (fn [v] (fn [s] (.concat [] [v s])))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def continuation
@@ -50,7 +55,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resultWrapperFunc [monad & body]
   (if (and monad.zero
-           (empty? body))
+           (std/empty? body))
     monad.zero
     (.apply monad.result this body)))
 

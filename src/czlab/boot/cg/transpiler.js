@@ -249,10 +249,16 @@ function transpileList(ast, env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_lambda(ast,env) {
-  let body=ast.slice(1);
-  let a=[types.symbol("fn"),
-         types.vector()].concat(body);
-  return sf_fn(a,env);
+  let x=[types.symbol("fn"), types.vector()];
+  let body=ast[1];
+  if (body.length===0) { body=[null]; }
+  if (body.length===1 &&
+      types.value_p(body[0])) {
+      x=x.concat(body);
+  } else {
+    x=x.concat(ast.slice(1));
+  }
+  return sf_fn(x,env);
 }
 SPEC_OPS["lambda"]=sf_lambda;
 

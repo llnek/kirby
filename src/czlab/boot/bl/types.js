@@ -84,6 +84,17 @@ function obj_type(obj) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function value_p(obj) {
+  return (std.nil_p(obj) ||
+          std.true_p(obj) ||
+          vector_p(obj) ||
+          map_p(obj) ||
+          std.false_p(obj) ||
+          std.string_p(obj) ||
+          std.number_p(obj));
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sequential_p(arr) {
   return list_p(arr) || vector_p(arr); }
 
@@ -327,6 +338,7 @@ module.exports= {
   unwrap_str: unwrap_str,
   vector: vector,
   vector_p: vector_p,
+  value_p : value_p,
   wrap_str: unwrap_str
 
 };

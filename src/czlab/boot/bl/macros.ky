@@ -7,8 +7,16 @@
 ;; You must not remove this notice, or any other, from this software.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.kirby.bl.macros)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro delay [f t] `(setTimeout ~f ~t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro break! [] `(set! ____break true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro last-index [x] `(- (alen ~x) 1))
@@ -190,7 +198,10 @@
          otherwise (nth* xs 0)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (if-not (empty? ~tst) ~then ~otherwise))))
+       (if (or (undef? ~tst)
+               (nil? ~tst)
+               (= 0 (alen ~tst))
+               (= 0 (Object.keys ~tst))) ~otherwise ~then))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-some [binding then &xs]
@@ -198,7 +209,8 @@
          otherwise (nth* xs 0)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (if-not (nil? ~tst) ~then ~otherwise))))
+       (if-not (or (undef? ~tst)
+                   (nil? ~tst)) ~then ~otherwise))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-let [binding then &xs]
@@ -213,14 +225,18 @@
   (let* [tst (gensym*)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (when-not (empty? ~tst) ~@xs))))
+       (when-not (or (undef? ~tst)
+                     (nil? ~tst)
+                     (= 0 (alen ~tst))
+                     (= 0 (Object.keys ~tst))) ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some [binding &xs]
   (let* [tst (gensym*)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (when-not (nil? ~tst) ~@xs))))
+       (when-not (or (undef? ~tst)
+                     (nil? ~tst)) ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-let [binding &xs]
@@ -240,10 +256,10 @@
 (defmacro map [f coll] `(.map ~coll ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro reduce [f start coll]
-  (if* ~start
-    `(.reduce ~coll ~f ~start)
-    `(.reduce ~coll ~f)))
+(defmacro reduce [f start coll] `(.reduce ~coll ~f ~start))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro reduce2 [f coll] `(.reduce ~coll ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each [func coll] `(.forEach ~coll ~func))
@@ -298,4 +314,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 

@@ -296,11 +296,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-lambda "" [ast env]
-  (var body (.slice ast 1)
-       a (std.concat [(types.symbol "fn")
-                      (types.vector)]
-                     body))
-  (sf-fn a env))
+  (var x [(types/symbol "fn") (types/vector)]
+       body (nth ast 1))
+  (if (= (alen body) 0) (set! body [nil]))
+  (if (and (= 1 (alen body))
+           (types/value? (nth body 0)))
+    (set! x (.concat x body))
+    (set! x (.concat x (.slice ast 1))))
+  (sf-fn x env))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS "lambda" sf-lambda)

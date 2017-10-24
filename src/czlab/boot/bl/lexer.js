@@ -20,9 +20,9 @@ var REGEX= {
   //noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
   noret: /^def\b|^var\b|^set!\b|^throw\b/,
   //id: regex("^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$"),
-  id: /^[a-zA-Z_$][.?\-*!0-9a-zA-Z_'<>#@$]*$/,
+  id: /^[a-zA-Z_$][/.?\-*!0-9a-zA-Z_'<>#@$]*$/,
   //id2: regex("^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$"),
-  id2: /^[*\-][.?\-*!0-9a-zA-Z_'<>#@$]+$/,
+  id2: /^[*\-][/.?\-*!0-9a-zA-Z_'<>#@$]+$/,
   //float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
   float: /^[-+]?[0-9]+\.[0-9]+$/,
   //int: regex("^[-+]?[0-9]+$"),
@@ -41,10 +41,12 @@ var REGEX= {
   bang: /!/g,
   //dash: regex( "-", "g"),
   dash: /-/g,
+  push: /\+/g,
   //quote: regex( "'", "g"),
   quote: /'/g,
   //hash: regex( "#", "g"),
   hash: /#/g,
+  slash: /\//g,
   //at: regex( "@", "g"),
   at: /@/g,
   //less: regex( "<", "g"),
@@ -73,9 +75,11 @@ function normalizeId (name) {
   if (testid_Q(name)) {
     return (pfx+name).replace(REGEX.query, "_QUERY").
         replace(REGEX.bang, "_BANG").
+        replace(REGEX.slash, ".").
         replace(REGEX.dash, "_").
         replace(REGEX.quote, "_QTE").
         replace(REGEX.hash, "_HASH").
+        replace(REGEX.plus, "_PUSH").
         replace(REGEX.at, "_AT").
         replace(REGEX.less, "_LT").
         replace(REGEX.greater, "_GT").

@@ -8,27 +8,27 @@
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-  czlab.kirby.lexer
+
+  czlab.kirby.bl.lexer
+
   (require ["./tnode" :as tn]
            ["./stdlib" :as std]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- tnode tn.tnode
-      tnodeEx tn.tnodeEx)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
   noret /^def\b|^var\b|^set!\b|^throw\b/
-  id /^[a-zA-Z_$][.?\-*!0-9a-zA-Z_'<>#@$]*$/
-  id2 /^[*\-][.?\-*!0-9a-zA-Z_'<>#@$]+$/
+  id /^[a-zA-Z_$][/.?\-*!0-9a-zA-Z_'<>#@$]*$/
+  id2 /^[*\-][/.?\-*!0-9a-zA-Z_'<>#@$]+$/
   float /^[-+]?[0-9]+\.[0-9]+$/
   int /^[-+]?[0-9]+$/
   hex /^[-+]?0x/
   dquoteHat /^"/
   dquoteEnd /"$/
   func /^function\b/
+  slash /\//g
   query /\?/g
   bang /!/g
+  plus /\+/g
   dash /-/g
   quote /'/g
   hash /#/g
@@ -45,17 +45,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsid "" [name]
   (var pfx "")
-  (when (and (std.string? name)
+  (when (and (string? name)
              (= "-" (.charAt name 0)))
     (set! pfx "-")
     (set! name (.slice name 1)))
   (if (testid? name)
     (-> (str pfx name)
         (.replace REGEX.query "_QUERY")
+        (.replace REGEX.slash ".")
         (.replace REGEX.bang "_BANG")
-        (.replace REGEX.dash "_")
+        (.replace REGEX.dash "_DASH")
         (.replace REGEX.quote "_QTE")
         (.replace REGEX.hash "_HASH")
+        (.replace REGEX.plus "_PLUS")
         (.replace REGEX.at "_AT")
         (.replace REGEX.less "_LT")
         (.replace REGEX.greater "_GT")
@@ -78,8 +80,8 @@
        comment? false)
   (do-with [tree []]
     (var toke (fn [ln col s s?]
-                (if (or s? (std.not-empty s))
-                  (.push tree (tnode fname ln col s s))) ""))
+                (if (or s? (std/not-empty s))
+                  (tree.push (tn/tnode fname ln col s s))) ""))
     (while (< pos len)
       (set! ch (.charAt source pos))
       (++ col)
@@ -119,18 +121,18 @@
             (= ch "`")
             (= ch "@")
             (= ch "^"))
-        (if (and (std.empty? token)
+        (if (and (std/empty? token)
                  (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (toke line tcol ch))
           (+= token ch))
         (and (= ch "&")
              (= nx "&"))
-        (do (if (std.empty? token) (set! tcol col))
+        (do (if (std/empty? token) (set! tcol col))
             (+= token (str ch nx))
             (++ pos))
         (= ch "~")
-        (if (and (std.empty? token)
+        (if (and (std/empty? token)
                  (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (if (= nx "@")
@@ -139,7 +141,7 @@
                 (toke line tcol ch)))
           (+= token ch))
         (and (= ch "/")
-             (empty? token))
+             (std/empty? token))
         (do (set! regex? true)
             (set! tcol col)
             (+= token ch))
@@ -155,12 +157,11 @@
             (set! comment? true))
         (or (= ch ",")
             (REGEX.wspace.test ch))
-        (let [n line]
-          (if (= ch "\n") (set! n (dec line)))
-          (set! token (toke n tcol token)))
+        (->> (-> (if (= ch "\n") (- line 1) line)
+                 (toke tcol token))
+             (set! token))
         :else
-        (do (if (std.empty? token) (set! tcol col))
-            (+= token ch))))))
+        (do (if (std/empty? token) (set! tcol col)) (+= token ch))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
