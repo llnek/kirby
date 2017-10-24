@@ -9,16 +9,9 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kalaso.stdlib)
+  czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn slice "" [arr start end]
-  (if end
-    (Array.prototype.slice.call arr start end)
-    (Array.prototype.slice.call arr start)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn raise! "" [&xs] (throw (new Error (.join xs ""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn trap! "" [&xs] (throw (.join xs "")))

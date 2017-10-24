@@ -314,5 +314,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defmacro  trap! [&msgs] `(throw (.join (vec ~@msgs) "")))
+(defmacro raise! [& msgs]
+  `(throw (new Error (.join (vec ~@msgs) ""))))
+
+(defmacro slice [arr start end]
+  (if* end
+       `(Array.prototype.slice.call ~arr ~start ~end)
+       (if* start
+        `(Array.prototype.slice.call ~arr ~start)
+        `(Array.prototype.slice.call ~arr))))
 
 
