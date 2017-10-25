@@ -234,7 +234,7 @@
     (types.keyword? a)
     (str "\"" (types.keyword-s a) "\"")
     (types.lambda-arg? a)
-    (str "arguments[" (types.lambda-arg-s a) "]")
+    (str "____args[" (types.lambda-arg-s a) "]")
     (std.string? a)
     a
     (nil? a)
@@ -295,15 +295,28 @@
     (set! ret (nodeTag ret ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- _lambdaFuncCount 0)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-lambda "" [ast env]
-  (var x [(types/symbol "fn") (types/vector)]
+  (if (not= 0 _lambdaFuncCount)
+    (raise! "Cant nest lambdas")
+    (++ _lambdaFuncCount))
+  (var x [(types/symbol "fn")
+          (types/vector)
+          (map (fn [s] (types.symbol s))
+               ["var", "____args",
+                "Array.prototype.slice.call(arguments)"])]
        body (nth ast 1))
   (if (= (alen body) 0) (set! body [nil]))
   (if (and (= 1 (alen body))
            (types/value? (nth body 0)))
-    (set! x (.concat x body))
-    (set! x (.concat x (.slice ast 1))))
-  (sf-fn x env))
+    nil
+    (set! body (ast.slice 1)))
+  (set! x (.concat x body))
+  (try
+    (sf-fn x env)
+    (finally (-- _lambdaFuncCount))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS "lambda" sf-lambda)
@@ -419,11 +432,11 @@
       (if (types.list? e)
         (forlet ((j 0)
                  (< j (alen e)) (i (inc)))
-          (.add ret ["case " (nth e j) ":\n"])
+          (.add ret ["case " (transpileSingle (nth e j)) ":\n"])
           (if (= j (eindex e))
             (.add ret ["____x= "
                        (transpile* c env) ";\nbreak;\n"])))
-        (do (.add ret ["case " e ":\n"])
+        (do (.add ret ["case " (transpileSingle e) ":\n"])
             (.add ret ["____x= "
                        (transpile* c env) ";\nbreak;\n"]))))
     (when dft
@@ -529,7 +542,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-delete "" [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
-    (.add ret ["delete " (transpile* (nth st 1) env)])))
+    (ret.add ["delete " (transpile* (nth ast 1) env)])
+    (if (> (alen ast) 2)
+      (ret.add ["[" (transpile* (nth ast 2)) "]"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :delete! sf-delete)

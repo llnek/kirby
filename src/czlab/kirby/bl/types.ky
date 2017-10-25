@@ -8,79 +8,72 @@
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-  czlab.kirby.types
+
+  czlab.kirby.bl.types
+
   (require ["./stdlib" :as std]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn wrap-str "" [s]
   (str "\""
-       (-> (.replace s (regex "\\\\" "g") "\\\\")
-           (.replace (regex "\"" "g") "\\\"")
-           (.replace (regex "\n" "g") "\\n")) "\""))
+       (-> (.replace s /\\/g "\\\\")
+           (.replace /"/g "\\\"")
+           (.replace /\n/g "\\n")) "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unwrap-str "" [s]
-  (if (and (.startsWith s "\"")
-           (.endsWith s "\""))
-    (-> (.slice s 1 (eindex s))
-        (.replace (regex "\\\\\"" "g") "\"")
-        (.replace (regex "\\\\n" "g") "\n")
-        (.replace (regex "\\\\\\\\" "g") "\\")) s))
+  (if (and (s.startsWith "\"")
+           (s.endsWith "\""))
+    (-> (s.slice 1 (last-index s))
+        (.replace /\\"/g "\"")
+        (.replace /\\n/g "\n")
+        (.replace /\\\\/g "\\")) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pr-obj "" [obj readable?]
-  (var _r (or readable? true)
-       ot (obj-type obj))
-  (case ot
-    "list"
-    (str "("
-         (-> (std.map (fn [e]
-                        (pr-obj e _r)) obj)(.join " ")) ")")
-    "vector"
-    (str "["
-         (-> (std.map (fn [e]
-                        (pr-obj e _r)) obj)(.join " ")) "]")
-    "hash-map"
+(defn pr-obj "" [obj & [readable?]]
+  (var _r (if (isdef? readable?) readable? true))
+  (var pa #(-> (map #(pr-obj % _r) obj)(.join " ")))
+
+  (case (obj-type obj)
+    :list (str "(" (pa) ")")
+    :vector (str "[" (pa) "]")
+    :hash-map (str "{" (pa) "}")
+    :object
     (str "{"
-         (-> (std.map (fn [e]
-                        (pr-obj e _r)) obj)(.join " ")) "}")
-    "object"
-    (str "{"
-         (std.reduce
+         (reduce
            (fn [acc k]
-             (.push acc
-                    (pr-obj k _r)
-                    (pr-obj (nth obj k) _r)) acc)
+             (acc.push (pr-obj k _r)
+                       (pr-obj (nth obj k) _r)) acc)
            []
-           (std.keys obj)) "}")
-    "string"
+           (obj-keys obj)) "}")
+    :string
     (if (and false _r) (wrap-str obj) obj)
-    ("null" "nil") "null"
-    "atom"
+    (:null :nil) "null"
+    :atom
     (str "(atom " (pr-obj (.-value obj) _r)  ")")
-    "keyword"
+    :keyword
     (str ":" (.-value obj))
-    ;else
+    ;;else
     (.toString obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn obj-type "" [obj]
   (cond
-    (keyword? obj) "keyword"
-    (symbol? obj) "symbol"
-    (list? obj) "list"
-    (vector? obj) "vector"
-    (object? obj) "object"
-    (map? obj) "hash-map"
-    (std.nil? obj) "null"
-    (std.true? obj) "true"
-    (std.false? obj) "false"
-    (atom? obj) "atom"
-    (std.fn? obj) "function"
-    (std.string? obj) "string"
-    (std.number? obj) "number"
+    (keyword? obj) :keyword
+    (symbol? obj) :symbol
+    (list? obj) :list
+    (vector? obj) :vector
+    (object? obj) :object
+    (map? obj) :hash-map
+    (nil? obj) :null
+    (true? obj) :true
+    (false? obj) :false
+    (atom? obj) :atom
+    (fn? obj) :function
+    (string? obj) :string
+    (number? obj) :number
     :else
-    (std.raise "Unknown type '" (type obj) "'")))
+    (raise! "Unknown type '" (type obj) "'")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value? "" [obj]
@@ -97,66 +90,73 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "" [a b]
-  (var ota (obj-type a)
-       otb (obj-type b))
-  (if-not (or (= ota otb)
+  (var ta (obj-type a)
+       tb (obj-type b))
+  (if-not (or (= ta tb)
               (and (sequential? a) (sequential? b)))
     false
-    (case ota
-      "symbol" (= (.-value a)(.-value b))
-      ("hash-map" "list" "vector")
-      (let [i 0 ok? true]
-        (if (not= (alen a) (alen b)) (set! ok? false))
-        (for ((i 0) (and ok?
-                         (< i (alen a))) (i (inc i)))
-          (if-not (eq? (nth a i) (nth b i)) (set! ok? false)))
-        ok?)
-    "object"
-    (let [ks (std.keys a) ok? true]
-      (if-not (= (count a) (count b)) (set! ok? false))
-      (forlet ((i 0 k nil)
-               (and ok?
-                    (< i (alen ks))) (i (inc i)))
-        (set! k (nth ks i))
-        (if-not (eq? (get a k) (get b k))
-          (set! ok? false)))
-      ok?)
-    ;else
-    (= a b))))
+    (case ta
+      :symbol (= (.-value a)(.-value b))
+      (:hash-map :list :vector)
+      (do-with [ok? true]
+        (if (not= (alen a)
+                  (alen b))
+          (set! ok? false)
+          (forlet ((i 0)
+                   (< i (alen a)) (i (inc i)))
+            (when-not (eq? (nth a i)
+                           (nth b i))
+              (set! ok? false)
+              (set! ____break true)))))
+      :object
+      (do-with [ok? true]
+        (if-not (= (count a)
+                   (count b))
+          (set! ok? false)
+          (forlet ((i 0
+                    k nil
+                    ks (obj-keys a))
+                   (< i (alen ks)) (i (inc i)))
+            (set! k (nth ks i))
+            (when-not (eq? (get a k)
+                           (get b k))
+              (set! ok? false)
+              (set! ____break true)))))
+      ;else
+      (= a b))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn clone "" [obj]
   (do-with [ret nil]
     (case (obj-type obj)
-      "list"
-      (set! ret (std.slice obj))
-      "vector"
-      (do (set! ret (std.slice obj))
+      :list
+      (set! ret (slice obj))
+      :vector
+      (do (set! ret (slice obj))
           (set! ret :__isvector__ true))
-      "hash-map"
-      (do (set! ret (std.slice obj))
+      :hash-map
+      (do (set! ret (slice obj))
           (set! ret :__ismap__ true))
-      "object"
+      :object
       (do (set! ret {})
-          (std.reduce
+          (reduce
             (fn [acc n] (set! acc n (get obj n)) acc)
-            ret (std.keys obj)))
-      "function"
-      (set! ret (.clone obj))
+            ret (obj-keys obj)))
+      :function
+      (set! ret (obj.clone))
       ;else
-      (std.raise "clone of non-collection: " (obj-type obj)))
+      (raise! "clone of non-collection: " (obj-type obj)))
     (Object.defineProperty ret
                            "__meta__"
-                           { :enumerable false
-                            :writable true })))
+                           {:enumerable false :writable true })))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn LambdaArg "" [arg]
-  (var name (.slice arg 1)
+  (var name (arg.slice 1)
        v (parseInt name))
   (if (empty? name) (set! name "1"))
   (if-not (> v 0)
-    (std.raise! "Bad lambda-arg: " arg))
+    (raise! "Bad lambda-arg: " arg))
   ;;zero based arg so minus 1
   (-- v)
   (set! this.value (str v))
@@ -164,7 +164,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Keyword "" [name]
-  (set! this.value (.slice name 1)) this)
+  (set! this.value (name.slice 1)) this)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Symbol "" [name] (set! this.value name) this)
@@ -182,7 +182,7 @@
 (defn symbol-s "" [s]
   (if (symbol? s)
     (.-value s)
-    (if s (.toString s) "")))
+    (if s (s.toString) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Keyword.prototype.toString "" [] (.-value this))
@@ -197,8 +197,7 @@
 (defn keyword-s "" [k]
   (if (keyword? k)
     (.-value k)
-    (if k
-      (.toString k) "")))
+    (if k (k.toString) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn LambdaArg.prototype.toString "" [] (.-value this))
@@ -211,24 +210,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg-s "" [k]
-  (if (lambda-arg? k) (.-value k) (if k (.toString k) "")))
+  (if (lambda-arg? k) (.-value k) (if k (k.toString) "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fn-wrap "" [run Env ast env params]
-  (do-with [f (fn []
-                (run ast (new Env env params arguments)))]
+  (do-with [f #(run ast (new Env env params arguments))]
     (set! f :_ismacro_ false)
     (set! f :__meta__ nil)
     (set! f :__ast__ ast)
-    (set! f :__gen_env__  (fn [args]
-                            (new Env env params args)))))
+    (set! f :__gen_env__  (fn [args] (new Env env params args)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
   (var that this)
-  (do-with [tmp (fn []
-                  (.apply that this arguments))]
-    (std.each-key
+  (do-with [tmp #(.apply that this arguments)]
+    (each-key
       (fn [k] (set! tmp k (get that k))) that)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -236,7 +232,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "" [obj]
-  (and (std.array? obj)
+  (and (array? obj)
        (not obj.__isvector__) (not obj.__ismap__)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -245,45 +241,45 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "" [obj]
-  (and (std.array? obj)
+  (and (array? obj)
        (true? obj.__isvector__)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "" [obj]
-  (and (std.array? obj)
+  (and (array? obj)
        (true? obj.__ismap__)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hashmap "" [&xs]
   (if (= 1 (mod (alen xs) 2))
-    (std.raise "Odd number of hash map arguments"))
-  (->> (concat [{}] xs)
-       (.apply assoc this )))
+    (raise! "Odd number of hash map arguments"))
+  (assoc.apply this (concat [ {} ] xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn object? "" [m]
-  (and (std.object? m)
+(defn isObject? "" [m]
+  (and (object? m)
+       (not (inst? LambdaArg m))
        (not (inst? Atom m))
        (not (inst? Symbol m))
        (not (inst? Keyword m))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc "" [m]
-  (if (not= 1 (mod (alen arguments) 2))
-    (std.raise "Odd number of assoc arguments"))
-  (forlet ((i 1 k nil v nil)
-           (< i (alen arguments)) (i (+ i 2)))
-    (set! k (str "" (nth arguments i)))
-    (set! v (nth arguments (inc i)))
-    (if-not (std.string? k)
-      (std.raise "expected string, got: " (type k)))
+(defn assoc "" [m & xs]
+  (if (not= 0 (mod (alen xs) 2))
+    (raise! "Odd number of assoc arguments"))
+  (forlet ((i 0 k nil v nil)
+           (< i (alen xs)) (i (+ i 2)))
+    (set! k (str "" (nth xs i)))
+    (set! v (nth xs (+ i 1)))
+    (if-not (string? k)
+      (raise! "expected string, got: " (type k)))
     (set! m k v))
   m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc "" [m]
-  (forlet ((i 1) (< i (alen arguments)) (i (inc i)))
-    (delete! m (str "" (nth arguments i))))
+(defn dissoc "" [m & xs]
+  (forlet ((i 0) (< i (alen xs)) (i (+ i 1)))
+    (delete! m (str "\"" (nth xs i) "\"")))
   m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

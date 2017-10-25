@@ -41,7 +41,7 @@ var REGEX= {
   bang: /!/g,
   //dash: regex( "-", "g"),
   dash: /-/g,
-  push: /\+/g,
+  plus: /\+/g,
   //quote: regex( "'", "g"),
   quote: /'/g,
   //hash: regex( "#", "g"),
@@ -79,7 +79,7 @@ function normalizeId (name) {
         replace(REGEX.dash, "_").
         replace(REGEX.quote, "_QTE").
         replace(REGEX.hash, "_HASH").
-        replace(REGEX.plus, "_PUSH").
+        replace(REGEX.plus, "_PLUS").
         replace(REGEX.at, "_AT").
         replace(REGEX.less, "_LT").
         replace(REGEX.greater, "_GT").

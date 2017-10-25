@@ -166,7 +166,7 @@ function transpileSingle(a) {
     return "\"" + types.keyword_s(a) + "\"";
   }
   if (types.lambda_arg_p(a)) {
-    return "arguments[" + types.lambda_arg_s(a) + "]";
+    return "____args[" + types.lambda_arg_s(a) + "]";
   }
   if (std.string_p(a)) {
     return a;
@@ -247,18 +247,33 @@ function transpileList(ast, env) {
   return nodeTag(ret,ast);
 }
 
+var _lambdaFuncCount=0;
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_lambda(ast,env) {
-  let x=[types.symbol("fn"), types.vector()];
+  if (_lambdaFuncCount !== 0) {
+    throw new Error("Cant nest lambdas");
+  }
+  ++_lambdaFuncCount;
+  let x=[types.symbol("fn"),
+         types.vector(),
+         ["var", "____args",
+           "Array.prototype.slice.call(arguments)"].map(function(s) {
+             return types.symbol(s);
+           })];
   let body=ast[1];
   if (body.length===0) { body=[null]; }
   if (body.length===1 &&
       types.value_p(body[0])) {
-      x=x.concat(body);
   } else {
-    x=x.concat(ast.slice(1));
+    body= ast.slice(1);
   }
-  return sf_fn(x,env);
+  x=x.concat(body);
+  try {
+    return sf_fn(x,env);
+  } finally {
+    --_lambdaFuncCount;
+  }
 }
 SPEC_OPS["lambda"]=sf_lambda;
 
@@ -390,13 +405,13 @@ function sf_case(ast, env) {
     if (types.list_p(e)) {
       for (var j=0;
            j < e.length; ++j) {
-        ret.add(["case ", e[j], ":\n"]);
+        ret.add(["case ", transpileSingle(e[j]), ":\n"]);
         if (j === (e.length-1))
           ret.add(["____x= ",
                    eval_QQ(c,env), ";\nbreak;\n"]);
       }
     } else {
-      ret.add(["case ", e, ":\n"]);
+      ret.add(["case ", transpileSingle(e), ":\n"]);
       ret.add(["____x= ",
                eval_QQ(c), ";\nbreak;\n"]);
     }
@@ -512,7 +527,13 @@ SPEC_OPS["inst?"]=sf_inst_Q;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_delete(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  ret.add(["delete ", eval_QQ(ast[1])]);
+  if (ast.length === 2) {
+    ret.add(["delete ", eval_QQ(ast[1])]);
+  } else if (ast.length === 3) {
+    ret.add(["delete ",
+             eval_QQ(ast[1]),
+             "[", eval_QQ(ast[2]), "]"]);
+  }
   return ret;
 }
 SPEC_OPS["delete!"]=sf_delete;

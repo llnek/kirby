@@ -12,101 +12,53 @@
   czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn object? [obj]
+  (if-not (or (nil? obj)
+              (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn trap! "" [&xs] (throw (.join xs "")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn println "" [&xs]
-  (if console (console.log.apply console xs)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn get "" [m key]
-  (if (contains? m key) (get m key) undefined))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isa? "" [x] (type x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn undef? "" [x] (= (type x) "undefined"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn array? "" [x] (Array.isArray x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn values "" [x] (Object.values x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn keys "" [x] (Object.keys x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn object? "" [m]
-  (and (= (type m) "object")
-       (not (Array.isArray m))
-       (not (= m null))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn even? "" [n] (= 0 (mod n 2)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odd? "" [n] (not (even? n)))
+(defn last [arr] (nth arr (last-index arr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "" [c x]
   (cond
     (or (array? c)
-        (string? c)) (.includes c x)
-    (object? c) (.hasOwnProperty c x)
-    :else false))
+        (string? c)) (c.includes x)
+    (object? c) (c.hasOwnProperty x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn last "" [arr] (nth arr (last-index arr)))
+(defn nichts? "" [arr] (or (undef? arr) (nil? arr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn nichts? "" [arr]
-  (or (undef? arr) (nil? arr)))
+(defn some? "" [x] (and (isdef? x) (not (nil? x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn empty? "" [arr]
-  (or (nichts? arr) (= 0 (alen arr))))
+(defn empty? "" [arr] (= 0 (count arr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn count "" [s]
-  (cond
-    (or (Array.isArray s)
-        (= (type s) "string")) (alen s)
-    (= s null)  0
-    :else
-    (alen (Object.keys s))))
+(defn count "" [obj]
+  (if obj (alen (if (string? obj) obj (obj-keys obj))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn not-empty "" [s] (if (empty? s) null s))
+(defn not-empty "" [s] (if (empty? s) nil s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn concat "" [arr]
-  (var a (or arr []))
-  (.concat.apply a a (slice arguments 1)))
+(defn concat "" [arr & xs]
+  (var a (or arr [])) (a.concat.apply a xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn evens "" [arr]
+(defn every "" [arr start step]
   (do-with [ret []]
     (var a (or arr []))
-    (forlet ((i 0)
-             (< i (alen a)) (i (+ i 2)))
-      (.push ret (nth arr i)))))
+    (forlet ((i start)
+             (< i (alen a)) (i (+ i step)))
+      (ret.push (nth arr i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odds "" [arr]
-  (do-with [ret []]
-    (var a (or arr []))
-    (forlet ((i 1)
-             (< i (alen a)) (i (+ i 2)))
-      (.push ret (nth arr i)))))
+(defn evens "" [arr] (every arr 0 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn some? "" [x]
-  (and (not (undef? x))
-       (not= x null)))
+(defn odds "" [arr] (every arr 1 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

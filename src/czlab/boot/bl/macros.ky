@@ -325,4 +325,9 @@
         `(Array.prototype.slice.call ~arr ~start)
         `(Array.prototype.slice.call ~arr))))
 
+(defmacro println [&xs]
+  `(if console (console.log.apply console (vec ~@xs))))
+
+(defmacro prn [&xs]
+  `(if console (console.log (.join (vec ~@xs) ""))))
 

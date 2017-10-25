@@ -9,24 +9,26 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.bl.macros
-
-  (require ["./stdlib" :as std]))
+  czlab.kirby.bl.macros)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- CACHE {}
       loaded? false)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cacheLoaded? "" [] loaded?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn load "" []
-  (set! loaded? true)
-  (require "./defmacros.ky"))
+  (when-not loaded?
+    (set! loaded? true)
+    (require "./defmacros.ky")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set "" [cmd func]
-  (when (and (string? cmd)
-             (fn? func))
-    ;;(std/println "adding macro ==== " cmd)
+  (when (and (typeof cmd === "string")
+             (typeof func === "function"))
+    ;;(console.log "adding macro ==== " + cmd)
     (set! CACHE cmd func)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

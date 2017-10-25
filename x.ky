@@ -1,4 +1,7 @@
 
-(trap! "a" "b" (poo 3))
+#(do
+     (poo 3)
+     (str 4 %)
+     (fn [] 22))
 
 

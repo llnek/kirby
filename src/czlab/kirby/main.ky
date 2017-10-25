@@ -14,6 +14,7 @@
   (require ["./cg/transpiler" :as kirby]
            ["./bl/macros" :as macros]
            ["./bl/stdlib" :as std]
+           ["./bl/lexer" :as rdr]
            ["./rt/runtime" :as rt])
 
   (require ["node-getopt" :as gopt]
@@ -25,18 +26,18 @@
 (def- validFlag? /-h\b|-r\b|-v\b|-b\b|-s\b|-t\b/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- error #(do (std.println %) (process.exit 1)))
+(def- error! #(do (println %) (process.exit 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- opt
-  (-> (gopt.create
+  (-> (gopt/create
         [[:h "help" "display this help"]
          [:v "version" "show version"]
-         [:r "run" "run .kl files"]
+         [:r "run" "run .ky files"]
          [:w "watch" "auto-compile changed files"]
-         [:b "browser-bundle" "bundle for browser"]
-         [:m "map" "generate source maps"]
-         [:t "tree" "show AST"]])
+         [:b (rdr.jsid "browser-bundle") "bundle for browser"]
+         [:m (rdr.jsid "source-map") "generate source maps"]
+         [:t (rdr.jsid "show-ast") "show AST"]])
       (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
                      "<outfile> default to <infile> with \".js\" extension\n\n"
                      "Also compile stdin to stdout\n"
@@ -46,50 +47,47 @@
       (.parseSystem)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;when no args do stdin -> stdout compile or run repl and return null to
-;;halt operations.
-(defn- handleNoArgs "" []
+(defn- handleNoArgs
+  "when no args do stdin -> stdout compile or run repl and return null to
+  halt operations."
+  []
   (var pout (.-stdout process)
        source ""
        pin (.-stdin process))
-  (pin.resume)
-  (pin.setEncoding "utf8")
-  (pin.on :data
-          #(+= source (.toString %)))
-  (pin.on :end
-          #(try
-             (->> (process.cwd)
-                  (kirby.transpile source)
-                  (pout.write))
-             (catch e (error! e))))
-  (pout.on :error error)
-  (pin.on :error error)
+  (pout.on :error error!)
+  (doto pin
+    (.setEncoding "utf8")
+    (.resume)
+    (.on :data #(+= source (.toString %)))
+    (.on :end #(try
+                 (->> (process.cwd)
+                      (kirby.transpile source)
+                      (pout.write)) (catch e (error! e))))
+    (.on :error error!))
   (delay #(when (= 0 pin.bytesRead)
-            (pin.removeAllListeners :data)
-            (runrepl)) 20))
+            (pin.removeAllListeners :data) (runrepl)) 20))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compileFiles "" []
-  (var fin nil fout nil)
-  (if (first opt.argv)
-    (set! fin (first opt.argv))
-    (error! "No Input file"))
-  (set! fout (nth opt.argv 1))
+  (var fin
+       (if (first opt.argv)
+         (first opt.argv)
+         (error! "No Input file"))
+       fout (second opt.argv))
   (when-not fout
-    (set! fout (fin.replace /\.kl$/ ".js"))
+    (set! fout (fin.replace /\.ky$/ ".js"))
     (if (= fout fin)
-      (error! "Input file must have extension \".kl\"")))
+      (error! "Input file must have extension \".ky\"")))
   (try
-    (var wantMap? (get opt.options :map)
-         source nil
-         dbgAST? (get opt.options :tree))
-    (if-not dbgAST?
-      (std.println "kirby v1.0.0"
-                   ": compiling: " fin " -> " fout))
+    (var {:keys [source-map show-ast]} opt.options)
+    (var source nil)
+    (if-not show-ast
+      (prn "kirby v1.0.0"
+           ": compiling: " fin " -> " fout))
     (set! source (fs.readFileSync fin "utf8"))
-    (if dbgAST?
+    (if show-ast
       (kirby.dbgAST source fin dirs)
-      (let [out (if wantMap?
+      (let [out (if source-map
                   (kirby.transpileWithSrcMap source fin)
                   (kirby.transpile source fin))]
         (fs.writeFileSync fout out "utf8")))
@@ -99,15 +97,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
   (set! require.extensions
-        ".kl"
+        ".ky"
         (fn [module fname]
-          (var kb (require "./cg/transpiler")
-               code (fs.readFileSync fname "utf8"))
           (module._compile
-            (kb.transpile code
-                          (path.relative
-                            (process.cwd) fname))
-            fname)))
+            (.transpile (require "./cg/transpiler")
+                        (fs.readFileSync fname "utf8")
+                        (path.relative (process.cwd) fname)) fname)))
   (rt.init)
   (macros.load))
 
