@@ -177,18 +177,19 @@
   (if (empty? as) (set! as (gensym)))
   (set! as (rdr.jsid as))
   (each (fn [x]
-          (var n (nth x 0)
+          (var name (nth x 0)
+               n nil
                pos nil
                rest false)
-          (when (.startsWith n "&")
+          (when (.startsWith name "&")
             (set! rest true)
-            (set! n (.slice n 1)))
-          (set! n (rdr.jsid n))
+            (set! name (.slice name 1)))
+          (set! n (rdr.jsid name))
           (.push kdefs n)
           (set! pos (nth x 1))
           (cond
             (nil? pos)
-            (set! ka (str n "=" as "[\"" n "\"];\n"))
+            (set! ka (str n "=" as "[\"" name "\"];\n"))
             rest
             (set! ka (str n "=" as ".slice(" pos ");\n"))
             :else

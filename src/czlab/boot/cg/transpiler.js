@@ -1327,16 +1327,16 @@ function destruct0(cmd, lhs,rhs,env) {
   as=rdr.jsid(as);
   let kdefs=[], ka,kvals=tnode();
   Object.entries(keys).forEach(function(x) {
-    let n= x[0]; let rest=false;
-    if (n.startsWith("&")) {
+    let n,name= x[0]; let rest=false;
+    if (name.startsWith("&")) {
       rest=true;
-      n=n.slice(1);
+      name=name.slice(1);
     }
-    n= rdr.jsid(n);
+    n= rdr.jsid(name);
     kdefs.push(n);
     let pos=x[1];
     if (pos===null) {
-      ka=n + "=" + as + "[\"" + n + "\"];\n";
+      ka=n + "=" + as + "[\"" + name + "\"];\n";
     } else if (rest) {
       ka= n + "=" + as + ".slice(" + pos + ");\n";
     } else {
