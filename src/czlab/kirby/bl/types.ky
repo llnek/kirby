@@ -45,13 +45,10 @@
                        (pr-obj (nth obj k) _r)) acc)
            []
            (obj-keys obj)) "}")
-    :string
-    (if (and false _r) (wrap-str obj) obj)
+    :atom (str "(atom " (pr-obj (.-value obj) _r) ")")
+    :keyword (str ":" (.-value obj))
+    :string (if (and false _r) (wrap-str obj) obj)
     (:null :nil) "null"
-    :atom
-    (str "(atom " (pr-obj (.-value obj) _r) ")")
-    :keyword
-    (str ":" (.-value obj))
     ;;else
     (obj.toString)))
 

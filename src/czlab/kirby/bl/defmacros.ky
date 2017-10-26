@@ -196,6 +196,9 @@
 (defmacro join [sep coll] `(.join ~coll ~sep))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro concat [coll x] `(.concat ~coll ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-with [binding & xs]
   `(let [~(first* binding) ~(nth* binding 1)]
     ~@xs

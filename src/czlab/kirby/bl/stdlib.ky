@@ -12,57 +12,64 @@
   czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn object? [obj]
+(defn object? "" [obj]
   (if-not (or (nil? obj)
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn last [arr] (nth arr (last-index arr)))
+(defn last "" [coll] (nth coll (last-index coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn contains? "" [c x]
+(defn contains? "" [coll x]
   (cond
-    (or (array? c)
-        (string? c)) (c.includes x)
-    (object? c) (c.hasOwnProperty x)))
+    (or (array? coll)
+        (string? coll)) (coll.includes x)
+    (object? coll) (coll.hasOwnProperty x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn nichts? "" [arr] (or (undef? arr) (nil? arr)))
+(defn nichts? "" [obj] (or (undef? obj) (nil? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn some? "" [x] (and (isdef? x) (not (nil? x))))
+(defn some? "" [obj] (and (def? obj) (not= nil obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn empty? "" [arr] (= 0 (count arr)))
+(defn empty? "" [coll] (= 0 (count coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn count "" [obj]
-  (if obj (alen (if (string? obj) obj (obj-keys obj))) 0))
+(defn count "" [coll]
+  (if coll
+    (alen (if (or (string? coll)
+                  (array? coll)) coll (obj-keys coll))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn not-empty "" [s] (if (empty? s) nil s))
+(defn not-empty "" [coll] (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn maybe "" [cur other]
-  (if (isdef? cur) cur other))
+(defn concat* "" [coll & xs] (coll.concat.apply coll xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn concat "" [arr & xs]
-  (var a (or arr [])) (a.concat.apply a xs))
+(defn maybe "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn every "" [arr start step]
+(defn- every "" [coll start step]
   (do-with [ret []]
-    (var a (or arr []))
     (forlet ((i start)
-             (< i (alen a)) (i (+ i step)))
+             (< i (alen coll)) (i (+ i step)))
       (ret.push (nth arr i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn evens "" [arr] (every arr 0 2))
+(defn evens "" [coll] (every coll 0 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn odds "" [arr] (every arr 1 2))
+(defn odds "" [coll] (every coll 1 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn interleave "" [c1 c2]
+  (var cz (if (< (alen c2)
+                 (alen c1)) (alen c2) (alen c1)))
+  (do-with [ret []]
+    (forlet ((i 0)(< i cz)(i (inc i)))
+      (ret.push (nth c1 i) (nth c2 i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
