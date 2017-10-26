@@ -13,11 +13,11 @@
   czlab.kirby.bl.defmacros)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro  trap! [&msgs] `(throw (.join (vec ~@msgs) "")))
+(defmacro  trap! [&msgs] `(throw (join "" (vec ~@msgs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro raise! [& msgs]
-  `(throw (new Error (.join (vec ~@msgs) ""))))
+  `(throw (new Error (join "" (vec ~@msgs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro slice [arr start end]
@@ -28,12 +28,8 @@
         `(Array.prototype.slice.call ~arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro println [obj]
-  `(if console (console.log.apply console (.concat [] ~obj))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro println* [&xs]
-  `(if console (console.log (.join (vec ~@xs) ""))))
+(defmacro println [&msgs]
+  `(if console (console.log (join "" [~@msgs]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro delay [f t] `(setTimeout ~f ~t))
