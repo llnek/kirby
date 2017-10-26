@@ -1058,7 +1058,7 @@
     (set! a2 (nth ast 2))
     (set! a1 (.toString (nth ast 1)))
     (set! func (.eval rt a2 env))
-    (set! func :_ismacro_ true)
+    (set! func :____macro true)
     (.set macros a1func)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

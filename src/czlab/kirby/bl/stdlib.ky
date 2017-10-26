@@ -43,6 +43,10 @@
 (defn not-empty "" [s] (if (empty? s) nil s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn maybe "" [cur other]
+  (if (isdef? cur) cur other))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat "" [arr & xs]
   (var a (or arr [])) (a.concat.apply a xs))
 

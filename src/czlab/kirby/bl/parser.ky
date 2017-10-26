@@ -95,12 +95,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "" [cur tokens]
   (do-with [v (readBlock tokens "[" "]")]
-    (set! v :__isvector__ true)))
+    (set! v :____vec true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readObject "" [cur tokens]
   (do-with [v (readBlock tokens "{" "}")]
-    (set! v :__ismap__ true)))
+    (set! v :____map true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipAndParse "" [tokens func]

@@ -16,7 +16,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn wrap-str "" [s]
   (str "\""
-       (-> (.replace s /\\/g "\\\\")
+       (-> (s.replace /\\/g "\\\\")
            (.replace /"/g "\\\"")
            (.replace /\n/g "\\n")) "\""))
 
@@ -31,13 +31,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pr-obj "" [obj & [readable?]]
-  (var _r (if (isdef? readable?) readable? true))
-  (var pa #(-> (map #(pr-obj % _r) obj)(.join " ")))
-
+  (var _r (std/maybe readable? true)
+       pa #(join (map #(pr-obj % _r) obj) " "))
   (case (obj-type obj)
-    :list (str "(" (pa) ")")
     :vector (str "[" (pa) "]")
-    :hash-map (str "{" (pa) "}")
+    :list (str "(" (pa) ")")
+    :map (str "{" (pa) "}")
     :object
     (str "{"
          (reduce
@@ -50,21 +49,22 @@
     (if (and false _r) (wrap-str obj) obj)
     (:null :nil) "null"
     :atom
-    (str "(atom " (pr-obj (.-value obj) _r)  ")")
+    (str "(atom " (pr-obj (.-value obj) _r) ")")
     :keyword
     (str ":" (.-value obj))
     ;;else
-    (.toString obj)))
+    (obj.toString)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn obj-type "" [obj]
   (cond
+    (lambda-arg? obj) :lambda-arg
     (keyword? obj) :keyword
     (symbol? obj) :symbol
     (list? obj) :list
     (vector? obj) :vector
     (object? obj) :object
-    (map? obj) :hash-map
+    (map? obj) :map
     (nil? obj) :null
     (true? obj) :true
     (false? obj) :false
@@ -86,7 +86,8 @@
       (number? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sequential? "" [arr] (or (list? arr) (vector? arr)))
+(defn sequential? "" [arr]
+  (or (list? arr) (vector? arr)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "" [a b]
@@ -97,7 +98,7 @@
     false
     (case ta
       :symbol (= (.-value a)(.-value b))
-      (:hash-map :list :vector)
+      (:map :list :vector)
       (do-with [ok? true]
         (if (not= (alen a)
                   (alen b))
@@ -126,35 +127,11 @@
       (= a b))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn clone "" [obj]
-  (do-with [ret nil]
-    (case (obj-type obj)
-      :list
-      (set! ret (slice obj))
-      :vector
-      (do (set! ret (slice obj))
-          (set! ret :__isvector__ true))
-      :hash-map
-      (do (set! ret (slice obj))
-          (set! ret :__ismap__ true))
-      :object
-      (do (set! ret {})
-          (reduce
-            (fn [acc n] (set! acc n (get obj n)) acc)
-            ret (obj-keys obj)))
-      :function
-      (set! ret (obj.clone))
-      ;else
-      (raise! "clone of non-collection: " (obj-type obj)))
-    (Object.defineProperty ret
-                           "__meta__"
-                           {:enumerable false :writable true })))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn LambdaArg "" [arg]
-  (var name (arg.slice 1)
-       v (parseInt name))
-  (if (empty? name) (set! name "1"))
+  (var v 0 name (arg.slice 1))
+  (if (empty? name)
+    (set! name "1"))
+  (set! v (parseInt name))
   (if-not (> v 0)
     (raise! "Bad lambda-arg: " arg))
   ;;zero based arg so minus 1
@@ -180,9 +157,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol-s "" [s]
-  (if (symbol? s)
-    (.-value s)
-    (if s (s.toString) "")))
+  (if (symbol? s) (.-value s) (str s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Keyword.prototype.toString "" [] (.-value this))
@@ -195,9 +170,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword-s "" [k]
-  (if (keyword? k)
-    (.-value k)
-    (if k (k.toString) "")))
+  (if (keyword? k) (.-value k) (str k)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn LambdaArg.prototype.toString "" [] (.-value this))
@@ -210,20 +183,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg-s "" [k]
-  (if (lambda-arg? k) (.-value k) (if k (k.toString) "")))
+  (if (lambda-arg? k) (.-value k) (str k)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fn-wrap "" [run Env ast env params]
   (do-with [f #(run ast (new Env env params arguments))]
-    (set! f :_ismacro_ false)
-    (set! f :__meta__ nil)
-    (set! f :__ast__ ast)
-    (set! f :__gen_env__  (fn [args] (new Env env params args)))))
+    (set! f :____macro false)
+    (set! f :____meta nil)
+    (set! f :____ast ast)
+    (set! f :____genenv (fn [args] (new Env env params args)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
   (var that this)
-  (do-with [tmp #(.apply that this arguments)]
+  (do-with [tmp #(that.apply this arguments)]
     (each-key
       (fn [k] (set! tmp k (get that k))) that)))
 
@@ -233,54 +206,35 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "" [obj]
   (and (array? obj)
-       (not obj.__isvector__) (not obj.__ismap__)))
+       (not obj.____vec) (not obj.____map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector "" [&xs]
-  (set! xs :__isvector__ true) xs)
+  (set! xs :____vec true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "" [obj]
   (and (array? obj)
-       (true? obj.__isvector__)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn map? "" [obj]
-  (and (array? obj)
-       (true? obj.__ismap__)))
+       (true? obj.____vec)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hashmap "" [&xs]
   (if (= 1 (mod (alen xs) 2))
     (raise! "Odd number of hash map arguments"))
-  (assoc.apply this (concat [ {} ] xs)))
+  (set! xs :____map true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn isObject? "" [m]
+(defn map? "" [obj]
+  (and (array? obj)
+       (true? obj.____map)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsObject? "" [m]
   (and (object? m)
        (not (inst? LambdaArg m))
        (not (inst? Atom m))
        (not (inst? Symbol m))
        (not (inst? Keyword m))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc "" [m & xs]
-  (if (not= 0 (mod (alen xs) 2))
-    (raise! "Odd number of assoc arguments"))
-  (forlet ((i 0 k nil v nil)
-           (< i (alen xs)) (i (+ i 2)))
-    (set! k (str "" (nth xs i)))
-    (set! v (nth xs (+ i 1)))
-    (if-not (string? k)
-      (raise! "expected string, got: " (type k)))
-    (set! m k v))
-  m)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc "" [m & xs]
-  (forlet ((i 0) (< i (alen xs)) (i (+ i 1)))
-    (delete! m (str "\"" (nth xs i) "\"")))
-  m)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Atom "" [val] (set! this.value val))

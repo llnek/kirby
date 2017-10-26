@@ -28,11 +28,11 @@
         `(Array.prototype.slice.call ~arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro println [&xs]
-  `(if console (console.log.apply console (vec ~@xs))))
+(defmacro println [obj]
+  `(if console (console.log.apply console (.concat [] ~obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prn [&xs]
+(defmacro println* [&xs]
   `(if console (console.log (.join (vec ~@xs) ""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -40,6 +40,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro break! [] `(set! ____break true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro undef! [x] `(set! ~x undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro last-index [x] `(- (alen ~x) 1))
@@ -97,7 +100,7 @@
 (defmacro undef? [obj] `(= (typeof ~obj) "undefined"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro isdef? [obj] `(not (undef? ~obj)))
+(defmacro def? [obj] `(not (undef? ~obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro nil? [obj] `(= ~obj null))
@@ -176,7 +179,7 @@
         (set! recur
               (fn []
                 (set! ~xs arguments)
-                (if (isdef? ~ret)
+                (if (def? ~ret)
                   (do (for ((~ret undefined)
                             (= ~ret undefined) nil)
                         (set! ~ret (.apply ~f this ~xs))) ~ret)
@@ -188,6 +191,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro or [&xs] `(|| ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro join [sep coll] `(.join ~coll ~sep))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-with [binding & xs]

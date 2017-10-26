@@ -91,7 +91,7 @@
     (std.map (fn [a] (compute a env)) ast)
     (types.vector? ast)
     (do-with [v (std.map (fn [a] (compute a env)) ast)]
-      (set! v :__isvector__ true))
+      (set! v :____vec true))
     (and false
          (types.hashmap? ast))
     (do-with [m {}]
@@ -148,7 +148,7 @@
        a2 (nth rc 2)
        a1 (nth rc 1)
        func (compute  a2 env))
-  (set! func :_ismacro_ true)
+  (set! func :____macro true)
   (.set env a1 func))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -179,10 +179,10 @@
 (defn- handleForm "" [ast env]
   (var el (evalAst ast env)
        f (nth el 0))
-  (if (.-__ast__ f)
+  (if (.-____ast f)
     [true
-     (.-__ast__ f)
-     (.__gen_env__ f (.slice el 1))]
+     (.-____ast f)
+     (.____genenv f (.slice el 1))]
     [false (.apply f this (.slice el 1)) env]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

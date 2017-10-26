@@ -1,4 +1,4 @@
 
-(fn [{:keys [a? b-c]}] )
+(println* 1 2)
 
 

@@ -70,7 +70,7 @@
 (defmacro undef? [obj] `(= (typeof ~obj) "undefined"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro isdef? [obj] `(not (undef? ~obj)))
+(defmacro def? [obj] `(not (undef? ~obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro nil? [obj] `(= ~obj null))
@@ -142,7 +142,7 @@
         (set! recur
               (fn []
                 (set! ~xs arguments)
-                (if (isdef? ~ret)
+                (if (def? ~ret)
                   (do (for ((~ret undefined)
                             (= ~ret undefined) nil)
                         (set! ~ret (.apply ~f this ~xs))) ~ret)
@@ -325,9 +325,14 @@
         `(Array.prototype.slice.call ~arr ~start)
         `(Array.prototype.slice.call ~arr))))
 
-(defmacro println [&xs]
-  `(if console (console.log.apply console (vec ~@xs))))
+(defmacro println [obj]
+  `(if console (console.log.apply console (.concat [] ~obj))))
 
-(defmacro prn [&xs]
+(defmacro println* [&xs]
   `(if console (console.log (.join (vec ~@xs) ""))))
+
+(defmacro undef! [x] `(set! ~x undefined))
+
+
+
 
