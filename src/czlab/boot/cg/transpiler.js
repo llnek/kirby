@@ -1101,15 +1101,52 @@ SPEC_OPS["js#"]=sf_jscode;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_macro(ast,env) {
-  let p2=ast[2],
-      p3=ast.slice(3);
+  let doc,args,body;
+  if (typeof ast[2] === "string") {
+    doc=ast[2];
+    args=ast[3];
+    body=ast.slice(4);
+  } else {
+    args=ast[2],
+    body=ast.slice(3);
+  }
+
+  let pms=types.vector();
+  for (let i=0,e=null; i < args.length; ++i) {
+    e=args[i];
+    if (e == "&") {
+      if (Array.isArray(args[i+1])) {
+        e=args[i+1];
+        ++i;
+        for (let j=0,x=null;j<e.length;++j) {
+          x=e[j];
+          if (! types.symbol_p(x)) {
+            throw new Error("Bad optional arg for macro");
+          }
+          pms.push(x);
+        }
+      } else {
+        pms.push(e, args[i+1]);
+        ++i;
+      }
+    }
+    else if (!types.symbol_p(e)) {
+      throw new Error("Bad optional arg for macro");
+    } else {
+      pms.push(e);
+    }
+  }
+
   ast=[ast[0], ast[1],
-       [types.symbol("fn*"), p2].concat(p3)];
+       [types.symbol("fn*"), pms].concat(body)];
 
   let a2=ast[2];
   let a1=ast[1].toString();
   let func = rt.eval(a2, env);
   func._ismacro_ = true;
+  if (doc) {
+    func.____doc=doc;
+  }
   macros.set(a1,func);
   return nodeTag(tnode(),ast);
 }

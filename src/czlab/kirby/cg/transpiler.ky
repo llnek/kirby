@@ -1049,20 +1049,48 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro "" [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
-    (var a2 nil a1 nil func nil
-         p2 (nth ast 2) p3 (.slice ast 3))
-    (set! ast [(first ast)
-               (second ast)
-               (std.concat [(types.symbol "fn*") p2] p3)])
-    (set! a2 (nth ast 2))
-    (set! a1 (.toString (nth ast 1)))
-    (set! func (.eval rt a2 env))
-    (set! func :____macro true)
-    (.set macros a1func)))
+  (var pms (types/vector)
+       args (nth ast 2)
+       body (ast.slice 3))
+  (when (string? args)
+    (set! doc args)
+    (set! args (nth ast 3))
+    (set! body (ast.slice 4)))
+  (forlet ((i 0 e nil)
+           (< i (alen args)) (i (inc i)))
+    (set! e (nth args i))
+    (cond
+      (== e "&")
+      (if (array? (nth args (+ i 1)))
+        (do (set! e (nth args (+ i 1)))
+            (++ i)
+            (forlet ((j 0 x nil)
+                     (< j (alen e)) (j (inc j)))
+              (set! x (nth e j))
+              (if-not (types/symbol? x)
+                (raise! "Bad optional arg for macro"))
+              (pms.push x)))
+        (do (pms.push e (nth args (+ i 1)))
+            (++ i)))
+      (not (types/symbol? e))
+      (raise! "Bad optional arg for macro")
+      :else
+      (pms.push e)))
+  (set! ast
+        [(first ast)
+         (second ast)
+         (.concat [(types/symbol "fn*") pms] body)])
+  (var a2 (nth ast 2)
+       a1 (str (nth ast 1))
+       func (rt/eval a2 env))
+  (set! func :____macro true)
+  (if doc
+    (set! func :____doc doc))
+  (macros/set a1 func)
+  (nodeTag (tnode) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :defmacro sf-macro)
+(set! SPEC-OPS "defmacro" sf-macro)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary "" [ast env]

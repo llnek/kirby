@@ -20,7 +20,7 @@
   `(throw (new Error (join "" (vec ~@msgs)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro slice [arr start end]
+(defmacro slice [arr & [start end]]
   (if* end
        `(Array.prototype.slice.call ~arr ~start ~end)
        (if* start
