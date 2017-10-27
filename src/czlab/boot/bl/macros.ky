@@ -157,9 +157,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-with [binding & xs]
-  `(let [~(first* binding) ~(nth* binding 1)]
-    ~@xs
-    ~(first* binding)))
+  (let* [z (first* binding)]
+    `(let [~z ~(nth* binding 1)]
+      ~@xs
+      ~z)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->false [&xs]

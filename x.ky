@@ -1,4 +1,4 @@
 
-(println* 1 2)
+(do-with [poo (foo 44)] (* 3 4))
 
 
