@@ -82,8 +82,8 @@
     (var {:keys [source-map show-ast]} opt.options)
     (var source nil)
     (if-not show-ast
-      (prn "kirby v1.0.0"
-           ": compiling: " fin " -> " fout))
+      (println "kirby v1.0.0"
+               ": compiling: " fin " -> " fout))
     (set! source (fs.readFileSync fin "utf8"))
     (if show-ast
       (kirby.dbgAST source fin dirs)
