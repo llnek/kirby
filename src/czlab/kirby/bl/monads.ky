@@ -32,17 +32,16 @@
              (fn [acc v] (.concat acc v)) [] (map mf mv)))
    :result (fn [v] (.concat [] v))
    :zero []
-   :plus (fn []
-           (reduce
-             (fn [acc v] (.concat acc v))
-             []
-             (Array.prototype.slice.call arguments)))})
+   :plus #(reduce
+            (fn [acc v] (.concat acc v))
+            []
+            (Array.prototype.slice.call arguments))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def state
   {:bind (fn [mv mf]
            (fn [s]
-             (var x (mv s)) ((mf (get 0 x)) (get 1 x))))
+             (var x (mv s)) ((mf (nth x 0)) (nth x 1))))
    :result (fn [v] (fn [s] (.concat [] [v s])))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -52,12 +51,6 @@
              (mv (fn [v] ((mf v) c)))))
    :result (fn [v] (fn [c] (c v)))})
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn resultWrapperFunc [monad & body]
-  (if (and monad.zero
-           (std/empty? body))
-    monad.zero
-    (.apply monad.result this body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

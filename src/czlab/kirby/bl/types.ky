@@ -32,7 +32,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pr-obj "" [obj & [readable?]]
   (var _r (std/maybe readable? true)
-       pa #(join (map #(pr-obj % _r) obj) " "))
+       pa (fn [] (join " " (map #(pr-obj % _r) obj))))
   (case (obj-type obj)
     :vector (str "[" (pa) "]")
     :list (str "(" (pa) ")")
@@ -44,7 +44,7 @@
              (acc.push (pr-obj k _r)
                        (pr-obj (nth obj k) _r)) acc)
            []
-           (obj-keys obj)) "}")
+           (keys obj)) "}")
     :atom (str "(atom " (pr-obj (.-value obj) _r) ")")
     :keyword (str ":" (.-value obj))
     :string (if (and false _r) (wrap-str obj) obj)
@@ -105,21 +105,21 @@
             (when-not (eq? (nth a i)
                            (nth b i))
               (set! ok? false)
-              (set! ____break true)))))
+              (break!)))))
       :object
       (do-with [ok? true]
-        (if-not (= (count a)
-                   (count b))
+        (if-not (= (std/count a)
+                   (std/count b))
           (set! ok? false)
           (forlet ((i 0
                     k nil
-                    ks (obj-keys a))
+                    ks (keys a))
                    (< i (alen ks)) (i (inc i)))
             (set! k (nth ks i))
             (when-not (eq? (get a k)
                            (get b k))
               (set! ok? false)
-              (set! ____break true)))))
+              (break!)))))
       ;else
       (= a b))))
 
@@ -206,13 +206,10 @@
        (not obj.____vec) (not obj.____map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vector "" [&xs]
-  (set! xs :____vec true) xs)
+(defn vector "" [&xs] (set! xs :____vec true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn vector? "" [obj]
-  (and (array? obj)
-       (true? obj.____vec)))
+(defn vector? "" [obj] (and (array? obj) (true? obj.____vec)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hashmap "" [&xs]
@@ -221,9 +218,7 @@
   (set! xs :____map true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn map? "" [obj]
-  (and (array? obj)
-       (true? obj.____map)))
+(defn map? "" [obj] (and (array? obj) (true? obj.____map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsObject? "" [m]

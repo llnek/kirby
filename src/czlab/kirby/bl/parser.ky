@@ -17,12 +17,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- throwE "" [token msg]
-  (-> (if token
-        (str msg
-             "\nnear line " token.line
-             "\nin file " token.source)
-        (str msg "\nnear EOF "))
-      (std/raise! )))
+  (if token
+    (raise! msg
+            "\nnear line " token.line
+            "\nin file " token.source)
+    (raise! msg "\nnear EOF ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nextToken "" [tokens]
@@ -51,13 +50,13 @@
     (or (rdr.REGEX.hex.test tn)
         (rdr.REGEX.int.test tn))
     (set! ret (parseInt tn))
-    (and (.startsWith tn "\"")
-         (.endsWith tn "\""))
+    (and (tn.startsWith "\"")
+         (tn.endsWith "\""))
     (set! ret tn)
-    (.startsWith tn ":")
-    (set! ret (types.keyword tn))
-    (.startsWith tn "%")
-    (set! ret (types.lambda-arg tn))
+    (tn.startsWith ":")
+    (set! ret (types/keyword tn))
+    (tn.startsWith "%")
+    (set! ret (types/lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
     (set! ret nil)
@@ -65,7 +64,7 @@
     (set! ret true)
     (= "false" tn)
     (set! ret false)
-    :else (set! ret (types.symbol tn)))
+    :else (set! ret (types/symbol tn)))
   (copyTokenData token ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -149,25 +148,25 @@
 (defn- addAst "" [ast f] (if-not (undef? f) (ast.push f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn parser "" [source fname]
+(defn parser "" [source & [fname]]
   (var tokens (rdr/lexer source
-                         (or fname "**adhoc**"))
+                         (std/maybe fname "**adhoc**"))
        f nil ast [] tlen (alen tokens))
   (set! tokens.pos 0)
   (do-with [ast []]
     (comment
     (forlet ((i 0)
              (< i tlen)(i (inc i)))
-      (std/println "token=" (.-name (nth tokens i)))))
+      (println "token=" (.-name (nth tokens i)))))
     (while (< tokens.pos tlen)
       (addAst ast (readTokens tokens)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "" [tree & [indent]]
-  (var pad (.repeat " " (or indent 0)))
+  (var pad (.repeat " " (std/maybe indent 0)))
   (forlet ((i 0)
            (< i (alen tree)) (i (inc i)))
-    (std/println (types/pr-obj (nth tree i)))))
+    (println (types/pr-obj (nth tree i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

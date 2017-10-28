@@ -24,10 +24,11 @@
 (defmacro prstr-F [arr] `(prstr-X false ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prn-str "" [&xs] (-> (prstr-T xs)(.join " ")))
+(defn- prn-str "" [&xs] (join " " (prstr-T xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnice "" [&xs] (println (prstr-T xs)))
+(defn- prnice "" [&xs]
+  (each (fn [s] (println s)) (prstr-T xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- slurp "" [f]
@@ -38,8 +39,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- object "" [&xs]
-  (if (empty? xs)
-    {} (assoc.apply this (concat [ {} ] xs))))
+  (if (std/empty? xs)
+    {}
+    (assoc.apply this (concat [ {} ] xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assoc "" [src & xs]
@@ -57,7 +59,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dissoc "" [src & xs]
   (do-with [ret (clone src)]
-    (forlet ((i 0) (< i (alen xs)) (i (+ i 1)))
+    (forlet ((i 0) (< i (alen xs)) (i (inc i)))
       (delete! ret (nth xs i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -80,7 +82,7 @@
               (fn [acc n]
                 (set! acc n (get obj n)) acc)
               {}
-              (obj-keys obj)))
+              (keys obj)))
       :function
       (set! ret (obj.clone))
       ;else
@@ -89,8 +91,9 @@
     (Object.defineProperty ret
                            :____meta
                            {:enumerable false :writable true })))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cons "" [a b] (std/concat [a] b))
+(defn- cons "" [a b] (concat [a] b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- conj "" [arr & xs]
@@ -98,7 +101,7 @@
     (types/list? arr)
     (-> (xs.reverse)(.concat arr))
     (std/some? arr)
-    (do-with [v (std/concat arr xs)]
+    (do-with [v (concat arr xs)]
       (set! v :____vec true))
     :else arr))
 
@@ -151,7 +154,7 @@
 (defn- meta "" [obj]
   (if (and (not (types/sequential? obj))
            (not (types/hashmap? obj))
-           (not (types/obj? obj))
+           (not (types/jsObject? obj))
            (not (fn? obj)))
     (raise! "can't get metadata from: "
             (types/obj-type obj)))
@@ -165,7 +168,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- swap! "" [a f &xs]
-  (->> (std/concat [(.-value a)] xs)
+  (->> (concat [(.-value a)] xs)
        (f.apply this )
        (set! a :value )) (get a :value))
 
@@ -201,7 +204,7 @@
 
   "is-nil?"  (fn [x] (nil? x))
 
-  "is-some?"  (fn [x] (and (def? x) (not= x nil)))
+  "is-some?"  std/some?
 
   "slice*"  (fn [arr &xs]
               (Array.prototype.slice.apply arr xs))
@@ -230,7 +233,7 @@
   "+"   (fn [a b] (+ a b))
   "-"   (fn [a b] (- a b))
   "*"   (fn [a b] (* a b))
-  "/"   (fn [a b] (/ a b))
+  "/"   (fn [a b] (div a b))
 
   "time*"  timeMillis
 
@@ -246,12 +249,7 @@
   "dissoc*"  dissoc
   "assoc*"  assoc
 
-  "is-contains?" (fn [c x]
-                      (cond
-                        (or (array? c)
-                            (string? c)) (c.includes x)
-                        (object? c) (c.hasOwnProperty x)
-                        :else false))
+  "is-contains?" std/contains?
 
   "get*"  (fn [m k] (get m k))
   "keys*"  (fn [x] (Object.keys x))
@@ -268,42 +266,24 @@
   "is-sequential?"  types/sequential?
   "cons*"  cons
 
-  "concat*"  (fn [arr]
-                (set! arr (or arr []))
-                (arr.concat.apply arr
-                        (slice arguments 1)))
+  "concat*"  std/concat*
 
   "nth*"  (fn [arr i] (get arr i))
   "first*"  (fn [arr] (get arr 0))
   "rest*"  (fn [arr] (if arr (arr.slice 1) []))
 
-  "is-empty?"  (fn [arr] (or (nil? arr) (= 0 (alen arr))))
+  "is-empty?"  std/empty?
 
-  "not-empty*" (fn [arr] (if (or (nil? arr)
-                                 (= 0 (alen arr))) nil arr))
+  "not-empty*" std/not-empty
 
-  "count*"  (fn [s]
-               (cond
-                 (or (array? s)
-                     (string? s)) (alen s)
-                 (nil? s) 0
-                 (object? s) (alen (Object.keys s))
-                 :else 0))
+  "count*"  std/count
 
   "apply*"  apply
   "map*"  map
 
   "type*"  (fn [x] (typeof x))
-  "evens*"  (fn [arr]
-               (do-with [ret []]
-                 (set! arr (or arr []))
-                 (forlet ((i 0) (< i (alen arr)) (i (+ i 2)))
-                   (ret.push (nth arr i)))))
-  "odds*"  (fn [arr]
-               (do-with [ret []]
-                 (set! arr (or arr []))
-                 (forlet ((i 1) (< i (alen arr)) (i (+ i 2)))
-                   (ret.push (nth arr i)))))
+  "evens*" std/evens
+  "odds*"  std/odds
 
   "conj*"  conj
   "seq*"  seq

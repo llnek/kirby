@@ -18,7 +18,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnode "" [source line col chunk name type]
-  (if (> (.-length arguments) 0)
+  (if (> (alen arguments) 0)
     (if name
       (new TreeNode line col source chunk name)
       (new TreeNode line col source chunk))

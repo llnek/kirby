@@ -17,8 +17,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
   noret /^def\b|^var\b|^set!\b|^throw\b/
-  id /^[a-zA-Z_$][/.?\-*!0-9a-zA-Z_'<>#@$]*$/
-  id2 /^[*\-][/.?\-*!0-9a-zA-Z_'<>#@$]+$/
+  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>#@$]*$/
+  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>#@$]+$/
   float /^[-+]?[0-9]+\.[0-9]+$/
   int /^[-+]?[0-9]+$/
   hex /^[-+]?0x/
@@ -48,7 +48,7 @@
   (when (and (string? name)
              (= "-" (.charAt name 0)))
     (set! pfx "-")
-    (set! name (.slice name 1)))
+    (set! name (name.slice 1)))
   (if (testid? name)
     (-> (str pfx name)
         (.replace REGEX.query "_QUERY")
@@ -80,13 +80,13 @@
        comment? false)
   (do-with [tree []]
     (var toke (fn [ln col s s?]
-                (if (or s? (std/not-empty s))
+                (if (std/maybe s? (std/not-empty s))
                   (tree.push (tn/tnode fname ln col s s))) ""))
     (while (< pos len)
-      (set! ch (.charAt source pos))
+      (set! ch (source.charAt pos))
       (++ col)
       (++ pos)
-      (set! nx (.charAt source pos))
+      (set! nx (source.charAt pos))
       (when (= ch "\n")
         (set! col 0)
         (++ line)

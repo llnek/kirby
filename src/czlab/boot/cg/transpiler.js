@@ -52,7 +52,7 @@ var ERRORS_MAP= {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var RESERVED= {
 "compare": ["not=","!=","==","=",">",">=","<","<="],
-"arith": ["+","-","*","/","%", "mod"],
+"arith": ["+","-","*","div","%", "mod"],
 "logic": ["||","&&"],
 "bitwise": ["^","&","|","<<",">>",">>>"],
 "incdec": ["++","--"],
@@ -325,7 +325,8 @@ function sf_arithOp(ast,env) {
       e1= ast.shift(),
       cmd= types.symbol_s(e1);
 
-  if(cmd == "mod") cmd="%";
+  if (cmd == "mod") cmd="%";
+  if (cmd == "div") cmd="/";
 
   if (1 === ast.length) {
     if ("-" == cmd) { ret.add("-"); }

@@ -46,7 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- RESERVED {
   :compare ["not=" "!=" "==" "=" ">" ">=" "<" "<="]
-  :arith ["+" "-" "*" "/" "%"  "mod"]
+  :arith ["+" "-" "*" "div" "%"  "mod"]
   :logic ["||" "&&"]
   :bitwise ["^" "&" "|" "<<" ">>" ">>>"]
   :incdec ["++" "--"]
@@ -365,6 +365,7 @@
          e1 (.shift ast)
          cmd (types.symbol-s e1))
     (if (= cmd "mod") (set! cmd "%"))
+    (if (= cmd "div") (set! cmd "/"))
     (if (= 1 (alen ast))
       (if (= "-" cmd) (.add ret "-"))
       (.add op [""  cmd  ""]))
