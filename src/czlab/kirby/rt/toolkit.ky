@@ -213,7 +213,7 @@
               (Array.prototype.slice.apply arr xs))
 
   "throw*"  (fn [&xs]
-              (throw (new (Error (.join xs "")))))
+              (throw (new Error (.join xs ""))))
 
   "#f?"  (fn [x] (false? x))
   "#t?"  (fn [x] (true? x))

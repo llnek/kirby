@@ -238,7 +238,7 @@
                       (set! ast (nth ast (last-index ast))))
             (= "if*"
                (.-value (nth ast 0)))
-            (do->true (handleIf ast env))
+            (do->true (set! ast (handleIf ast env)))
             (= "fn*"
                (.-value (nth ast 0)))
             (do->false (set! ret
