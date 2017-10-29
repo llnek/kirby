@@ -13,6 +13,7 @@ var macros=require("../bl/macros"),
     tn=require("../bl/tnode"),
     rdr=require("../bl/lexer"),
     path=require("path"),
+    esfmt = require('esformatter'),
     fs=require("fs"),
     psr=require("../bl/parser"),
     rt=require("../rt/runtime");
@@ -1253,8 +1254,10 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   EXTERNS= {};
   NSPACES = [];
 
+  let options={};
   let outNode= transpileTree(
                 psr.parser(codeStr, fname),rt.globalEnv()),
+      cstr,
       extra= spitExterns();
   outNode.prepend(banner());
 
@@ -1264,13 +1267,14 @@ function transpileCode(codeStr, fname, srcMap_Q) {
         output= outNode.toStringWithSourceMap(
                                          {file: outFile });
     fs.writeFileSync(srcMap, output.map);
-    return output.code +
-           extra +
+    cstr= esfmt.format(output.code + extra) +
            "\n//# sourceMappingURL=" +
            path.relative(path.dirname(fname), srcMap);
   } else {
-    return outNode + extra;
+    cstr= outNode + extra;
+    cstr= esfmt.format(cstr, options);
   }
+  return cstr;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

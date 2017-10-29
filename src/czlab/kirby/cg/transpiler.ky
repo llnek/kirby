@@ -19,7 +19,8 @@
            ["../bl/parser" :as psr]
            ["../rt/runtime" :as rt])
   (require ["fs" :as fs]
-           ["path" :as path]))
+           ["path" :as path]
+           ["esformatter" :as esfmt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- gensym-counter 1)
@@ -348,9 +349,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp "" [ast env]
   (var cmd (first ast))
-  (if (or (= cmd "not=")
-          (= cmd "!=")) (set! ast 0 (types/symbol "!==")))
-  (if (= cmd "=") (set! ast 0 (types/symbol "===")))
+  (if (or (== cmd "not=")
+          (== cmd "!=")) (set! ast 0 (types/symbol "!==")))
+  (if (== cmd "=") (set! ast 0 (types/symbol "===")))
   (do-with [ret (nodeTag (tn/tnode) ast)]
     (transpileAtoms ast env)
     (forlet ((i 0
@@ -372,10 +373,10 @@
     (var op (tn/tnode)
          e1 (ast.shift)
          cmd (types/symbol-s e1))
-    (if (= cmd "mod") (set! cmd "%"))
-    (if (= cmd "div") (set! cmd "/"))
+    (if (== cmd "mod") (set! cmd "%"))
+    (if (== cmd "div") (set! cmd "/"))
     (if (= 1 (alen ast))
-      (if (= "-" cmd) (ret.add "-"))
+      (if (== "-" cmd) (ret.add "-"))
       (op.add [""  cmd  ""]))
     (ret.add ast)
     (if (> (alen ast) 1) (join op ret))
@@ -416,7 +417,7 @@
       (set! e (transpile* (nth ast end) env))
       (if-not return?
         (ret.add [p e ";\n"])
-        (ret.add [p "poopoo " e ";\n"])))))
+        (ret.add [p "return " e ";\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do "" [ast env]
@@ -1200,18 +1201,23 @@
   (var outNode (transpileTree (psr/parser codeStr
                                           fname)
                               (rt/globalEnv))
+       options {}
+       cstr ""
        extra (spitExterns))
   (outNode.prepend (banner))
-  (if srcMap?
-    (let [outFile (str (path/basename fname ".ky") ".js")
-          srcMap (str outFile ".map")
-          output (outNode.toStringWithSourceMap {:file outFile})]
-      (fs/writeFileSync srcMap output.map)
-      (str output.code
-           extra
-           "\n//# sourceMappingURL="
-           (path/relative (path/dirname fname) srcMap)))
-    (str outNode extra)))
+  (set! cstr
+        (if srcMap?
+          (let [outFile (str (path/basename fname ".ky") ".js")
+                srcMap (str outFile ".map")
+                output (outNode.toStringWithSourceMap {:file outFile})]
+            (fs/writeFileSync srcMap output.map)
+            (str output.code
+                 extra
+                 "\n//# sourceMappingURL="
+                 (path/relative (path/dirname fname) srcMap)))
+          (str outNode extra)))
+  ;(println cstr)
+  (if true (esfmt/format cstr options) cstr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileXXX "" [code file smap?]
