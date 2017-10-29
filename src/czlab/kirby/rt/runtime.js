@@ -257,6 +257,7 @@ let ok_QUERY,ret;
 ok_QUERY= true;
 ret= null;
 ;
+  console.log("sdfkdskflds= " + types.pr_obj(ast));
 (function () {let ____break=false;
 for (; (!____break && ok_QUERY) ;) {
     ast = macroexpand(ast,env);
@@ -482,6 +483,7 @@ return rl.prompt();
 ;
 let rep;
 rep= function (s) {
+  console.log("sss= " + s);
 return show(compute(readAST(s)));
 };
 ;
