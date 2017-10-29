@@ -60,7 +60,7 @@
     (symbol? obj) :symbol
     (list? obj) :list
     (vector? obj) :vector
-    (object? obj) :object
+    (std/object? obj) :object
     (map? obj) :map
     (nil? obj) :null
     (true? obj) :true
@@ -222,7 +222,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsObject? "" [m]
-  (and (object? m)
+  (and (std/object? m)
        (not (inst? LambdaArg m))
        (not (inst? Atom m))
        (not (inst? Symbol m))

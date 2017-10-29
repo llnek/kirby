@@ -470,7 +470,7 @@ function sf_var (ast, env, cmd) {
   if (publicQ ||
           ("local" == cmd)) cmd="var";
 
-  let keys=[];
+  let kks={}, keys=[];
   for(var i=0;i<ast.length;i+=2) {
     if (types.symbol_p(ast[i])) {
       keys.push(ast[i]);
@@ -479,7 +479,9 @@ function sf_var (ast, env, cmd) {
   if (keys.length > 0) {
     ret.add(["let ",
              keys.map(function(s) {
-               return transpileSingle(s); }).join(","), ";\n"]);
+               let ss= transpileSingle(s);
+               kks[ss]=null;
+               return ss; }).join(","), ";\n"]);
   }
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
@@ -489,9 +491,16 @@ function sf_var (ast, env, cmd) {
     } else {
       rc=destruct0(cmd,lhs,rhs,env);
       ret.add(rc[0]);
-      ret.add(rc[1]);
+      rc[1].map(function(s) {
+        kks[rdr.jsid(s)]=null;
+      });
     }
   }
+  if (publicQ &&
+             (1=== NSPACES.length))
+    Object.keys(kks).forEach(function(s){
+      EXTERNS[s]=s;
+    });
 
   return ret;
 }
@@ -675,7 +684,7 @@ function handleFuncArgs(fargs,env) {
       if (varg_p) {
         ret.add(["let ", name, "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
       }
-      ret.add(destruct0("let",a2,name,env));
+      ret.add(destruct0("let",a2,name,env)[0]);
     }
   });
 
@@ -852,7 +861,7 @@ function sf_str(ast,env) {
     ret.prepend("[");
     ret.add("].join(\"\")");
   } else if (args.length > 0) {
-    ret.add(args[0].toString());
+    ret.add(["", args[0], ".toString()"]);
   }
   return ret;
 }
@@ -1384,7 +1393,9 @@ function destruct0(cmd, lhs,rhs,env) {
   });
   kvals.prepend(cmd + " " + kdefs.join(",") + ";\n");
 
-  return [tnodeEx([cmd, " ", rdr.jsid(as), "= ", eval_QQ(rhs,env),";\n"]),
-          kvals];
+  return [[tnodeEx([cmd, " ",
+                   rdr.jsid(as), "= ",
+                   eval_QQ(rhs,env),";\n"]), kvals],
+          kdefs];
 }
 

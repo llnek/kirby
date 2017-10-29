@@ -269,8 +269,7 @@
 (defn newEnv "" []
   (do-with [ret (new Env)]
     (each-key (fn [v k]
-                ;;(std.println "k===== " k)
-                (ret.set (types/symbol n) v)) rt)
+                (ret.set (types/symbol k) v)) rt)
     (ret.set (types/symbol "eval")
              (fn [ast] (compute ast ret)))
     (ret.set (types/symbol "*ARGV*") [])
@@ -325,7 +324,7 @@
             (cons* 'cond* (rest* (rest* xs))))))")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- init "" []
+(defn init "" []
   (set! global_env (newEnv))
   (global_env.set (types/symbol "*host-language*") "javascript")
   (rep macro_cond)

@@ -1,9 +1,7 @@
-(div 3 0)
+(var xxx%ppp 3)
 
-(when-some+ [poo (foo 3333)] (* 2 3) (div 22 11 ))
-
-(if-some+ [poo (foo 3333)] (then 2 3) (else 22 11 ))
-
-(if-some+ [poo (foo 3333)] (then 2 3))
-
+(defn- gensym "" [& [pfx]]
+  (var x gensym-counter)
+  (++ gensym-counter)
+  (str (std/maybe pfx "G____") x))
 

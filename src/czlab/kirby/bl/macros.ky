@@ -26,8 +26,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set "" [cmd func]
-  (when (and (typeof cmd === "string")
-             (typeof func === "function"))
+  (when (and (string? cmd)
+             (fn? func))
     ;;(console.log "adding macro ==== " + cmd)
     (set! CACHE cmd func)))
 

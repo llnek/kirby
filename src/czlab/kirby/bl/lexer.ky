@@ -17,8 +17,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
   noret /^def\b|^var\b|^set!\b|^throw\b/
-  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>#@$]*$/
-  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>#@$]+$/
+  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$]*$/
+  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$]+$/
   float /^[-+]?[0-9]+\.[0-9]+$/
   int /^[-+]?[0-9]+$/
   hex /^[-+]?0x/
@@ -27,6 +27,7 @@
   func /^function\b/
   slash /\//g
   query /\?/g
+  perc /%/g
   bang /!/g
   plus /\+/g
   dash /-/g
@@ -51,21 +52,22 @@
     (set! name (name.slice 1)))
   (if (testid? name)
     (-> (str pfx name)
-        (.replace REGEX.query "_QUERY")
+        (.replace REGEX.query "_query")
         (.replace REGEX.slash ".")
-        (.replace REGEX.bang "_BANG")
-        (.replace REGEX.dash "_DASH")
-        (.replace REGEX.quote "_QTE")
-        (.replace REGEX.hash "_HASH")
-        (.replace REGEX.plus "_PLUS")
-        (.replace REGEX.at "_AT")
-        (.replace REGEX.less "_LT")
-        (.replace REGEX.greater "_GT")
-        (.replace REGEX.star "_STAR"))
+        (.replace REGEX.bang "_bang")
+        (.replace REGEX.dash "_dash")
+        (.replace REGEX.quote "_quote")
+        (.replace REGEX.hash "_hash")
+        (.replace REGEX.plus "_plus")
+        (.replace REGEX.perc "_perc")
+        (.replace REGEX.at "_at")
+        (.replace REGEX.less "_lt")
+        (.replace REGEX.greater "_gt")
+        (.replace REGEX.star "_star"))
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tokenize "" [source fname]
+(defn lexer "" [source fname]
   (var len (alen source)
        token ""
        line 1

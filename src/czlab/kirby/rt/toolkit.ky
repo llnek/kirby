@@ -120,7 +120,10 @@
     (raise! "seq: called on non-sequence")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- apply "" [f & xs] (f.apply this xs))
+(defn- fapply "" [f & xs] (f.apply this xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fmap "" [f arr] (map f arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- GLOBAL (if (undef? window) undefined  window))
@@ -278,8 +281,8 @@
 
   "count*"  std/count
 
-  "apply*"  apply
-  "map*"  map
+  "apply*"  fapply
+  "map*"  fmap
 
   "type*"  (fn [x] (typeof x))
   "evens*" std/evens
@@ -293,8 +296,8 @@
   "atom*"  types/atom
   "is-atom?"  types/atom?
   "deref*"  deref
-  "reset*"  reset
-  "swap*"  swap
+  "reset*"  reset!
+  "swap*"  swap!
 
   "js-eval*"  evalJS
   "js*"  invokeJS

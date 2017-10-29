@@ -20,9 +20,9 @@ var REGEX= {
   //noret: regex("^def\\b|^var\\b|^set!\\b|^throw\\b"),
   noret: /^def\b|^var\b|^set!\b|^throw\b/,
   //id: regex("^[a-zA-Z_$][.?\\-*!0-9a-zA-Z_'<>#@$]*$"),
-  id: /^[a-zA-Z_$][/.?\-*!0-9a-zA-Z_'<>#@$]*$/,
+  id: /^[a-zA-Z_$][/.?\-*!0-9a-zA-Z_'<>%#@$]*$/,
   //id2: regex("^[*\\-][.?\\-*!0-9a-zA-Z_'<>#@$]+$"),
-  id2: /^[*\-][/.?\-*!0-9a-zA-Z_'<>#@$]+$/,
+  id2: /^[*\-][/.?\-*!0-9a-zA-Z_'<>%#@$]+$/,
   //float: regex("^[-+]?[0-9]+\\.[0-9]+$"),
   float: /^[-+]?[0-9]+\.[0-9]+$/,
   //int: regex("^[-+]?[0-9]+$"),
@@ -33,6 +33,7 @@ var REGEX= {
   dquoteHat: /^"/,
   //dquoteEnd: regex("\"$"),
   dquoteEnd: /"$/,
+  perc: /%/g,
   //func: regex("^function\\b"),
   func: /^function\b/,
   //query: regex( "\\?" ,"g"),
@@ -80,6 +81,7 @@ function normalizeId (name) {
         replace(REGEX.quote, "_QTE").
         replace(REGEX.hash, "_HASH").
         replace(REGEX.plus, "_PLUS").
+        replace(REGEX.perc, "_PERC").
         replace(REGEX.at, "_AT").
         replace(REGEX.less, "_LT").
         replace(REGEX.greater, "_GT").

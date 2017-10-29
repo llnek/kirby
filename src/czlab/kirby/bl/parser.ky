@@ -32,7 +32,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- copyTokenData "" [token node]
-  (when (object? node)
+  (when (std/object? node)
     (set! node.source token.source)
     (set! node.line token.line)
     (set! node.column token.column)) node)
@@ -77,7 +77,7 @@
   (do-with [ast []]
     (set! cur (peekToken tokens))
     (while ok?
-      (if (or (std/nichts? cur)
+      (when (or (std/nichts? cur)
               (= tail cur.name))
         (if cur
           (copyTokenData token ast)
