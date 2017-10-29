@@ -239,7 +239,8 @@
     (types/keyword? a)
     (str "\"" (types/keyword-s a) "\"")
     (types/lambda-arg? a)
-    (str "____args[" (types/lambda-arg-s a) "]")
+    (do
+      (str "____args[" (types/lambda-arg-s a) "]"))
     (string? a)
     a
     (nil? a)
@@ -256,8 +257,8 @@
 (defn- findCmd "" [ast]
   (do-with [cmd ""]
     (cond
-      (types/vector? ast) (set! cmd "[")
-      (types/map? ast) (set! cmd "{")
+      (types/vector? ast) (set! cmd "vec")
+      (types/map? ast) (set! cmd "hash-map")
       (types/list? ast) (set! cmd (types/symbol-s (first ast))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -309,9 +310,10 @@
     (++ _lambdaFuncCount))
   (var x [(types/symbol "fn")
           (types/vector)
-          (map (fn [s] (types/symbol s))
-               ["let", "____args",
-                "Array.prototype.slice.call(arguments)"])]
+          [(types/symbol "var")
+           (types/symbol "____args")
+           [(types/symbol "Array.prototype.slice.call")
+            (types/symbol "arguments")]]]
        body (nth ast 1))
   (if (= (alen body) 0) (set! body [nil]))
   (if (and (= 1 (alen body))
@@ -414,7 +416,7 @@
       (set! e (transpile* (nth ast end) env))
       (if-not return?
         (ret.add [p e ";\n"])
-        (ret.add [p "return " e ";\n"])))))
+        (ret.add [p "poopoo " e ";\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do "" [ast env]
@@ -805,7 +807,7 @@
                 (str ";\n" ind "}\n")]))
     (when f
       (ret.add ["finally {\n",
-                (transpileDo (rest f) env)
+                (transpileDo (rest f) env false)
                 (str ";\n" ind "}\n")]))
     (ret.add (str ind "}).call(this)"))))
 

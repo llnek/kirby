@@ -1,7 +1,5 @@
-(var xxx%ppp 3)
 
-(defn- gensym "" [& [pfx]]
-  (var x gensym-counter)
-  (++ gensym-counter)
-  (str (std/maybe pfx "G____") x))
+#(str "aa" %)
+
+;(defn- regoBuiltins "" [f group] (each #(set! SPEC-OPS % f) (get RESERVED group)))
 

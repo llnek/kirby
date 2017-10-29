@@ -141,7 +141,7 @@
     (.set e
           (nth a1 i)
           (compute (nth a1 (inc i)) e)))
-  [true a2 e])
+  [true (nth ast 2) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleMacro "" [ast env]

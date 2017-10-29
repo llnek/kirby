@@ -802,7 +802,7 @@ function sf_try(ast,env) {
 
   if (f) {
     ret.add(["finally {\n",
-             transpileDo(f.slice(1),env),
+             transpileDo(f.slice(1),env,false),
              ";\n"+ ind + "}\n"]);
   }
 

@@ -126,7 +126,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn LambdaArg "" [arg]
   (var v 0 name (arg.slice 1))
-  (if (empty? name)
+  (if (std/empty? name)
     (set! name "1"))
   (set! v (parseInt name))
   (if-not (> v 0)

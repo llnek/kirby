@@ -126,7 +126,8 @@
 (defmacro unless "" [tst & xs] `(when-not ~tst ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro if-not "" [tst then & [else]] `(if ~tst ~else ~then))
+(defmacro if-not "" [tst then & [else]]
+  `(if (not ~tst) ~then ~else))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when "" [tst & xs] `(if ~tst (do ~@xs)))
