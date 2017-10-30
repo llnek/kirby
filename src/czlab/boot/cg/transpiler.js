@@ -139,7 +139,8 @@ function transpileTree(root, env) {
     if (tmp) {
       ret.add([pstr,
                tmp,
-               nosemi_Q ? "" : ";", "\n"]);
+               nosemi_Q ? "" : "", "\n"]);
+               //nosemi_Q ? "" : ";", "\n"]);
       nosemi_Q=false;
     }
   });
@@ -680,10 +681,14 @@ function handleFuncArgs(fargs,env) {
     if (varg_p) { name=name.slice(1); }
     name=rdr.jsid(name);
     if (types.symbol_p(a0) && types.symbol_p(a2)) {
-      ret.add(["let ", name, "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
+      ret.add(["let ",
+               name,
+               "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
     } else if (std.array_p(a2)) {
       if (varg_p) {
-        ret.add(["let ", name, "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
+        ret.add(["let ",
+                 name,
+                 "=Array.prototype.slice.call(arguments,", pos, ");\n"]);
       }
       ret.add(destruct0("let",a2,name,env)[0]);
     }
@@ -692,6 +697,7 @@ function handleFuncArgs(fargs,env) {
   let knode=tnode();
   knode.add(keys.map(function(k) {
     return rdr.jsid(""+k); }).join(","));
+
   return [knode,ret];
 }
 
@@ -1063,7 +1069,7 @@ function sf_floop(ast,env,hint) {
   if (ast.length > 2) {
     ret.add([ind,
              pad(tabspace),
-             transpileDo(ast.slice(2),env,false), ";"]);
+             transpileDo(ast.slice(2),env,false), ""]);
   }
   ret.add("\n"+ ind+ "}\n");
   ret.prepend("(function () {let ____break=false;\n");
@@ -1267,11 +1273,13 @@ function transpileCode(codeStr, fname, srcMap_Q) {
         output= outNode.toStringWithSourceMap(
                                          {file: outFile });
     fs.writeFileSync(srcMap, output.map);
-    cstr= esfmt.format(output.code + extra) +
+    cstr= output.code + extra +
            "\n//# sourceMappingURL=" +
            path.relative(path.dirname(fname), srcMap);
   } else {
     cstr= outNode + extra;
+  }
+  if (false) {
     cstr= esfmt.format(cstr, options);
   }
   return cstr;

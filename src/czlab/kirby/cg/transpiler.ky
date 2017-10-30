@@ -1032,7 +1032,7 @@
     (ret.add ") {\n")
     (if (> (alen ast) 2)
       (ret.add [ind (pad tabspace)
-                (transpileDo (ast.slice 2) env false) ";"]))
+                (transpileDo (ast.slice 2) env false) ""]))
     (ret.add (str "\n" ind "}\n"))
     (ret.prepend "(function () {let ____break=false;\n")
     (ret.add "}).call(this)")
