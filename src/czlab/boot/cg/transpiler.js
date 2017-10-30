@@ -1279,10 +1279,20 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   } else {
     cstr= outNode + extra;
   }
+  cstr=cleanCode(cstr);
   if (false) {
     cstr= esfmt.format(cstr, options);
   }
   return cstr;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function cleanCode(code) {
+
+  return code.split("\n").map(function(s) {
+    s=s.trim();
+    return (s === ";") ? "" : s;
+  }).join("\n");
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

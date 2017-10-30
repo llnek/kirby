@@ -1033,7 +1033,7 @@
     (if (> (alen ast) 2)
       (ret.add [ind (pad tabspace)
                 (transpileDo (ast.slice 2) env false) ""]))
-    (ret.add (str "\n" ind "}\n"))
+    (ret.add (str "" ind "}\n"))
     (ret.prepend "(function () {let ____break=false;\n")
     (ret.add "}).call(this)")
     (-= indent tabspace)))
@@ -1194,6 +1194,14 @@
        (first NSPACES) " - " (new Date) "*/\n\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- cleanCode "" [code]
+  (var arr [])
+  (each (fn [s]
+          (set! s (s.trim))
+          (if (not= s ";") (arr.push s))) (code.split "\n"))
+  (join "\n" arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileCode "" [codeStr fname srcMap?]
   (set! indent (- tabspace))
   (set! EXTERNS {})
@@ -1216,6 +1224,7 @@
                  "\n//# sourceMappingURL="
                  (path/relative (path/dirname fname) srcMap)))
           (str outNode extra)))
+  (set! cstr (cleanCode cstr))
   ;(println cstr)
   (if true (esfmt/format cstr options) cstr))
 
