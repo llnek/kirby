@@ -1046,9 +1046,9 @@
 (set! SPEC-OPS :comment sf-comment)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" [ast env hint]
+(defn- sf-floop "" [ast env]
   (do-with [ret (nodeTag (tn/tnodeEx "for (") ast)]
-    (var c1 nil c2 nil c3 nil
+    (var c1 nil c2 nil c3 nil t nil hint ""
          c (nth ast 1) ind (pad indent))
     (if (or (not (array? c))
             (not= 3 (alen c))) (syntax! :e0 ast))
@@ -1056,9 +1056,15 @@
     (set! c2 (second c))
     (set! c3 (nth c 2))
     (+= indent tabspace)
-    (if (array? c1)
-      (forlet ((i 0) (< i (alen c1)) (i (+ i 2)))
-        (if (= i 0) (ret.add (str hint " ")))
+    (when (array? c1)
+      (set! t (first c1))
+      (when (and (types/keyword? t)
+               (== t "let"))
+        (set! c1 (rest c1))
+        (set! hint "let "))
+      (for ((:let i 0)
+            (< i (alen c1)) (i (+ i 2)))
+        (if (= i 0) (ret.add hint))
         (if (> i 0) (ret.add ","))
         (ret.add [(transpileSingle (nth c1 i) env)
                   " = "
@@ -1086,8 +1092,7 @@
     (-= indent tabspace)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :forlet (fn [ast env] (sf-floop ast env "let")))
-(set! SPEC-OPS :for (fn [ast env] (sf-floop ast env "")))
+(set! SPEC-OPS :for (fn [ast env] (sf-floop ast env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" [ast env]

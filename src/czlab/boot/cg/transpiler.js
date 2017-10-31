@@ -21,6 +21,7 @@ var macros=require("../bl/macros"),
 var tnodeEx=tn.tnodeEx;
 var tnode=tn.tnode;
 var gensym_counter=1;
+var MATH_OP_REGEX = /^[-+/*][0-9]+$/;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function gensym(pfx) {
@@ -199,12 +200,12 @@ function transpileList(ast, env) {
   cmd=findCmd(ast);
   mc= macros.get(cmd);
 
+  console.log("CMD===" + cmd)
   let ret=tnode();
   if (mc) {
     ast=rt.expandMacro(ast, env, mc);
     cmd= findCmd(ast);
   }
-
   if (cmd.startsWith(".-")) {
     let c= transpileSingle(types.symbol(cmd.slice(2)));
     ret.add([eval_QQ(ast[1],env), ".",c]);
@@ -220,6 +221,15 @@ function transpileList(ast, env) {
     ret.add(")");
   }
   else if (SPEC_OPS.hasOwnProperty(cmd)) {
+    ret = (SPEC_OPS[cmd])(ast, env);
+  }
+  else if (rdr.REGEX.int.test(cmd)) {
+    let c0=cmd.charAt(0);
+    //if (c0 == "-")
+    ast= [types.symbol(cmd.charAt(0)),
+          ast[1],
+          parseInt(cmd.slice(1))];
+    cmd=""+ast[0];
     ret = (SPEC_OPS[cmd])(ast, env);
   }
   else {
@@ -1072,14 +1082,19 @@ function sf_floop(ast,env,hint) {
   c3=c[2];
   indent += tabspace;
 
-  if (std.array_p(c1))
+  if (std.array_p(c1)) {
+    if (types.keyword_p(c1[0]) && c1[0] == "let") {
+      c1=c1.slice(1);
+      hint="let ";
+    }
     for (var i= 0; i < c1.length; i += 2) {
-      if (i === 0) ret.add(hint+" ");
+      if (i === 0) ret.add(hint);
       if (i > 0) ret.add(",");
       ret.add([transpileSingle(c1[i]),
                " = ",
                eval_QQ(c1[i+1],env)]);
     }
+  }
   ret.add("; ");
   if (std.array_p(c2)) {
     ret.add(["(!____break && ", transpileList(c2,env), ")"]);
@@ -1090,6 +1105,7 @@ function sf_floop(ast,env,hint) {
   if (std.array_p(c3))
     for (var i= 0; i < c3.length; i += 2) {
       if (i > 0) ret.add(",");
+      console.log("c3i+1=== "+ types.pr_obj(c3[i+1]));
       ret.add([transpileSingle(c3[i]),
                " = ",
                eval_QQ(c3[i+1],env)]);
