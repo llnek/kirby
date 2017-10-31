@@ -200,7 +200,6 @@ function transpileList(ast, env) {
   cmd=findCmd(ast);
   mc= macros.get(cmd);
 
-  console.log("CMD===" + cmd)
   let ret=tnode();
   if (mc) {
     ast=rt.expandMacro(ast, env, mc);
@@ -225,7 +224,9 @@ function transpileList(ast, env) {
   }
   else if (rdr.REGEX.int.test(cmd)) {
     let c0=cmd.charAt(0);
-    //if (c0 == "-")
+    if (c0 != "-" && c0 != "+") {
+      cmd="+"+cmd;
+    }
     ast= [types.symbol(cmd.charAt(0)),
           ast[1],
           parseInt(cmd.slice(1))];
@@ -1099,13 +1100,12 @@ function sf_floop(ast,env,hint) {
   if (std.array_p(c2)) {
     ret.add(["(!____break && ", transpileList(c2,env), ")"]);
   } else {
-    ret.add(" !___break ");
+    ret.add(["(!____break && ", transpileSingle(c2,env), ")"]);
   }
   ret.add("; ");
   if (std.array_p(c3))
     for (var i= 0; i < c3.length; i += 2) {
       if (i > 0) ret.add(",");
-      console.log("c3i+1=== "+ types.pr_obj(c3[i+1]));
       ret.add([transpileSingle(c3[i]),
                " = ",
                eval_QQ(c3[i+1],env)]);

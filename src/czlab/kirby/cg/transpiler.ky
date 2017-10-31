@@ -283,6 +283,16 @@
           (ret.add ")"))
       (SPEC-OPS.hasOwnProperty cmd)
       (set! ret ((get SPEC_OPS cmd) ast env))
+      (rdr/REGEX.int.test cmd)
+      (let [c0 (cmd.charAt 0)]
+        (if (and (not= c0 "-")
+                 (not= c0 "+"))
+          (set! cmd (str "+" cmd)))
+        (set! ast [(types/symbol (cmd.charAt 0))
+                   (nth ast 1)
+                   (parseInt (cmd.slice 1))])
+        (set! cmd (str (first ast)))
+        (set! ret ((get SPEC-OPS cmd) ast env)))
       :else
       (do (if (types/list? ast)
             (do (transpileAtoms ast env)

@@ -1,6 +1,6 @@
 
-(defn xxx []
-  (-1 z))
+(for ((i 0) true (i (+1 i)))
+  (-10 z))
 
 
 
