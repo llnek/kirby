@@ -73,7 +73,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- MODULE-VERSION "1.0.0"
-      nosemi? false
       tabspace 2
       indent (- tabspace)
       EXTERNS nil
@@ -219,8 +218,7 @@
             (if (array? ast)
               (set! tmp (transpileList ast env)))
             (when tmp
-              (ret.add [pstr tmp (if nosemi? ""  ";") "\n"])
-              (set! nosemi? false))) root)
+              (ret.add [pstr tmp "\n"]))) root)
     (-= indent tabspace)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -488,6 +486,32 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :range sf-range)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-vardefs "" [ast env cmd]
+  (do-with [ret (nodeTag (tn/tnode) ast)]
+    (var kks {}
+         public? (== "global" cmd))
+    (if-not (== "let" cmd) (set! cmd "var"))
+    (forlet ((i 1 s nil) (< i (alen ast)) (i (inc i)))
+      (set! s (transpileSingle (nth ast i)))
+      (ret.add (str s "=undefined"))
+      (set! kks s nil))
+    (doto ret
+      (.join ",")
+      (.prepend (str cmd " "))
+      (.add ";\n"))
+    (if (and public?
+             (= 1 (alen NSPACES)))
+      (each-key (fn [v k] (set! EXTERNS k k)) kks))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set! SPEC-OPS "def~-"
+      (fn [ast env]  (sf-vardefs ast env "local")))
+(set! SPEC-OPS "def~"
+      (fn [ast env] (sf-vardefs ast env "global")))
+(set! SPEC-OPS "var~"
+      (fn [ast env] (sf-vardefs ast env "let")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var "" [ast env cmd]
@@ -761,8 +785,7 @@
     (if (and public?
              (not dot?)
              (= 1 (alen NSPACES)))
-      (set! EXTERNS fname fname))
-    (set! nosemi? true)))
+      (set! EXTERNS fname fname))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func-private "" [ast env] (sf-func ast env false))
@@ -954,18 +977,42 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require "" [ast env]
   (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var path nil v nil e nil)
+    (var~  path v e refers renames)
+    (var as (gensym))
     (forlet ((i 1)
              (< i (alen ast)) (i (inc i)))
       (set! e (nth ast i))
       (if (or (not (array? e))
-              (not= 3 (alen e))) (syntax! :e0 ast))
+              (< (alen e) 3)) (syntax! :e0 ast))
       (set! path (first e))
-      (set! v (nth e 2))
+      (forlet ((j 1)
+               (< j (alen e)) (j (inc j)))
+        (set! v (nth e j))
+        (cond
+          (== v "as")
+          (do (set! as (str (nth e (+ j 1))))
+              (++ j))
+          (== v "refer")
+          (do (set! refers (nth e (+ j 1)))
+              (++ j))
+          (== v "rename")
+          (do (set! renames (nth e (+ j 1)))
+              (++ j))))
       (ret.add ["var "
-                (transpileSingle v env)
+                (rdr/jsid as)
                 "= require("
-                (transpileSingle path env) ");\n"]))))
+                (transpileSingle path) ");\n"])
+      (forlet ((i 0)
+               (and refers
+                    (< i (alen refers))) (i (inc i)))
+        (set! v (transpileSingle (nth refers i)))
+        (ret.add ["var " v "=" as "[\"" v "\"];\n"]))
+      (forlet ((i 0)
+               (and renames
+                    (< i (alen renames))) (i (+ i 2)))
+        (set! e (transpileSingle (nth renames i)))
+        (set! v (transpileSingle (nth renames (+ i 1))))
+        (ret.add ["var " v "=" as "[\"" e "\"];\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns "" [ast env]
@@ -1043,28 +1090,7 @@
 (set! SPEC-OPS :for (fn [ast env] (sf-floop ast env "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-wloop "" [ast env]
-  (do-with [ret (nodeTag (tn/tnodeEx "for (;") ast)]
-    (var cond (second ast)
-         ind (pad indent))
-    (ret.add [" (!____break && " (transpile* cond env) ") "])
-    (ret.add ";) {\n")
-    (+= indent tabspace)
-    (if (> (alen ast) 2)
-      (ret.add [ind
-                (pad tabspace)
-                (transpileDo (ast.slice 2) env false) ";"]))
-    (ret.add (str "\n" ind "}\n"))
-    (ret.prepend "(function () {let ____break=false;\n")
-    (ret.add "}).call(this)")
-    (-= indent tabspace)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :while sf-wloop)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" [ast env]
-  (set! nosemi? true)
   (nodeTag (tn/tnodeEx (-> (.toString (second ast))
                            (.replace rdr/REGEX.dquoteHat "")
                            (.replace rdr/REGEX.dquoteEnd ""))) ast))

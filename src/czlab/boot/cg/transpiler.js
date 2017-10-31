@@ -77,7 +77,6 @@ var RESERVED= {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var MODULE_VERSION= "1.0.0",
-    nosemi_Q= false,
     tabspace= 2,
     indent= -tabspace,
     EXTERNS=null,
@@ -137,11 +136,7 @@ function transpileTree(root, env) {
       tmp= transpileList(ast, env);
     }
     if (tmp) {
-      ret.add([pstr,
-               tmp,
-               nosemi_Q ? "" : "", "\n"]);
-               //nosemi_Q ? "" : ";", "\n"]);
-      nosemi_Q=false;
+      ret.add([pstr, tmp, "\n"]);
     }
   });
   indent -= tabspace;
@@ -463,6 +458,32 @@ function sf_range (ast,env) {
 SPEC_OPS["range"]=sf_range;
 
 
+function sf_vardefs(ast,env,cmd) {
+  let s, kks={}, ret=nodeTag(tnode(),ast);
+  let publicQ=("global" == cmd);
+  if ("let" == cmd) {}  else { cmd="var"; }
+  for (var i=1; i<ast.length;++i) {
+    s= transpileSingle(ast[i]);
+    ret.add(s + "=undefined");
+    kks[s]=null;
+  }
+  ret.join(",");
+  ret.prepend(cmd + " ");
+  ret.add(";\n");
+
+  if (publicQ &&
+             (1=== NSPACES.length))
+    Object.keys(kks).forEach(function(s){
+      EXTERNS[s]=s;
+    });
+
+  return ret;
+}
+
+SPEC_OPS["def~-"]= function (ast,env) { return sf_vardefs(ast, env, "local"); };
+SPEC_OPS["def~"]= function (ast,env) { return sf_vardefs(ast,env, "global"); };
+SPEC_OPS["var~"]= function (ast,env) { return sf_vardefs(ast,env, "let"); };
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_var (ast, env, cmd) {
   let vname=null, publicQ= ("global" == cmd);
@@ -508,22 +529,9 @@ function sf_var (ast, env, cmd) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_var_local(ast,env) {
-  return sf_var(ast, env, "local");
-}
-SPEC_OPS["def-"]=sf_var_local;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_var_global(ast,env) {
-  return sf_var(ast,env, "global");
-}
-SPEC_OPS["def"]=sf_var_global;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_var_let (ast,env) {
-  return sf_var(ast,env, "let");
-}
-SPEC_OPS["var"]=sf_var_let;
+SPEC_OPS["def-"]= function (ast,env) { return sf_var(ast, env, "local"); };
+SPEC_OPS["def"]= function (ast,env) { return sf_var(ast,env, "global"); };
+SPEC_OPS["var"]= function (ast,env) { return sf_var(ast,env, "let"); };
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_inst_Q (ast,env) {
@@ -751,7 +759,6 @@ function sf_func(ast,env,publicQ) {
   }
   if (publicQ && !dotQ &&
              (1=== NSPACES.length)) EXTERNS[fname]=fname;
-  nosemi_Q=true;
   return ret;
 }
 
@@ -971,21 +978,43 @@ function sf_include (expr) {
   return ret.length > 0 ? ret : "";
 }
 
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_require(ast,env) {
   let ret= nodeTag(tnode(),ast);
-  let path=null,v= null, e=null;
+  let refers,renames;
+  let path=null,as=gensym(),v= null, e=null;
   for (var i= 1;
        i < ast.length; ++i) {
     e= ast[i];
-    if (!std.array_p(e) ||
-           3 !== e.length) syntax_E("e0",ast);
+    if (!std.array_p(e) || e.length < 3) syntax_E("e0",ast);
     path=e[0];
-    v= e[2];
+    for (var j=1;j<e.length;++j) {
+      v= e[j];
+      if (v == "as") {
+        as=""+e[j+1];
+        ++j;
+      } else if (v== "refer") {
+        refers=e[j+1]; ++j;
+      } else if (v == "rename") {
+        renames= e[j+1]; ++j;
+      }
+    }
     ret.add(["var ",
-             transpileSingle(v),
+             rdr.jsid(as),
              "= require(",
              transpileSingle(path), ");\n"]);
+    refers= refers || [];
+    renames= renames || [];
+    for (let i=0; i< refers.length;++i) {
+      v=transpileSingle(refers[i]);
+      ret.add(["var ", v,"=",as,"[\"",v,"\"];\n"]);
+    }
+    for (let i=0; i< renames.length; i += 2) {
+      e=transpileSingle(renames[i]);
+      v=transpileSingle(renames[i+1]);
+      ret.add(["var ", v,"=",as,"[\"",e,"\"];\n"]);
+    }
   }
   return ret;
 }
@@ -1104,11 +1133,10 @@ function sf_wloop(ast,env) {
   indent -= tabspace;
   return ret;
 }
-SPEC_OPS["while"]=sf_wloop;
+SPEC_OPS["xwhile"]=sf_wloop;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_jscode(ast,env) {
-  nosemi_Q= true;
   return nodeTag(tnodeEx(
     ast[1].toString().
     replace(rdr.REGEX.dquoteHat,"").

@@ -1,7 +1,8 @@
 
 (defn xxx []
-  (var a 1
-       b (if a 1 2)) nil)
+  (while (< x 0)
+       (if a 1 2)
+       (+ 2 3)))
 
 
 
