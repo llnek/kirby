@@ -284,10 +284,10 @@ function assoc(m) {
   for (var i=1; i<arguments.length; i+=2) {
     let ktoken = arguments[i],
         vtoken = arguments[i+1];
-    if (std.string_p(ktoken)) {
+    if (!std.string_p(ktoken)) {
       std.raise("expected object key string, got: ", typeof(ktoken));
     }
-    m[""+ktoken] = vtoken;
+    m[ktoken] = vtoken;
   }
   return m;
 }

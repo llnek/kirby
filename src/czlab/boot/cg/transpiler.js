@@ -208,7 +208,6 @@ function transpileList(ast, env) {
   if (cmd.startsWith(".-")) {
     let c= transpileSingle(types.symbol(cmd.slice(2)));
     ret.add([eval_QQ(ast[1],env), ".",c]);
-    //ret.add(["[\"", c "\"]"]);
   }
   else if ("." === cmd.charAt(0)) {
     ret.add(eval_QQ(ast[1],env));
@@ -258,13 +257,13 @@ function transpileList(ast, env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_deftype(ast,env) {
   let ret=nodeTag(tnode(),ast),
-      cz=transpileSingle(ast[1]),
+      cz=eval_QQ(ast[1],env),
       par=ast[2][0],
       args=ast[3],
       mtds=ast.slice(4);
   ret.add(["class ", cz]);
   if (par) {
-    ret.add([" extends ", transpileSingle(par)]);
+    ret.add([" extends ", eval_QQ(par,env)]);
   }
   ret.add(" {\n");
   for (let i=0,n=null,m=null; i < mtds.length; ++i) {
@@ -748,7 +747,8 @@ function handleFuncArgs(fargs,env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
-  let fname= transpileSingle(ast[1]),
+  let fname = eval_QQ(getMetaTarget(ast[1]),env),
+      fnameMeta= (getMeta(ast[1],env) || {}),
       mtdQ= (ast[0] == "method"),
       dotQ= fname.includes("."),
       e3= ast[3],
@@ -774,6 +774,7 @@ function sf_func(ast,env,publicQ) {
   let ret=nodeTag(tnode(),ast),
       fargs= handleFuncArgs(parseFuncArgs(args),env);
   if (mtdQ) {
+    if (fnameMeta["static"]) { ret.add("static "); }
     ret.add([fname, " ("]);
   }
   else if (dotQ) {
@@ -1062,7 +1063,44 @@ function sf_require(ast,env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_withMeta(ast,env) {
+  let target=ast[1];
+  let v=getMeta(ast,env);
+  target.____meta=v;
+  return eval_QQ(target);
+}
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function getMetaTarget(ast) {
+  if (Array.isArray(ast) &&
+      ast[0] == "with-meta") {
+    return ast[1];
+  } else {
+    return ast;
+  }
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function getMeta(ast,env) {
+  if (Array.isArray(ast) &&
+      ast[0] == "with-meta") {
+    let r, v={}, mv= ast[2];
+    if (Array.isArray(mv)) {
+      v=JSON.parse("" + eval_QQ(mv,env));
+    } else if (types.keyword_p(mv)) {
+      r=[mv, true];
+      r.__ismap__=true;
+      v=JSON.parse("" + eval_QQ(r,env));
+    } else if (types.symbol_p(mv)) {
+      r=[types.symbol("tag"), mv];
+      r.__ismap__=true;
+      v=JSON.parse("" + eval_QQ(r,env));
+    } else {
+      throw new Error("Bad meta value" + types.pr_obj(mv));
+    }
+    return v;
+  } else {
+    return {};
+  }
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1413,7 +1451,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
     cstr= outNode + extra;
   }
   cstr=cleanCode(cstr);
-  if (false) {
+  if (true) {
     cstr= esfmt.format(cstr, options);
   }
   return cstr;

@@ -13,11 +13,22 @@
   czlab.kirby.bl.defmacros)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro trap! "" [&msgs] `(throw (join "" (vec ~@msgs))))
+(defmacro trap! "" [& msgs]
+  (let* [z (count* msgs)]
+    (if* (> z 1)
+      `(throw (join "" (vec ~@msgs)))
+      (if* (> z 0)
+        `(throw ~(nth* msgs 0))
+        `(throw "error!")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro raise! "" [& msgs]
-  `(throw (new Error (join "" (vec ~@msgs)))))
+  (let* [z (count* msgs)]
+    (if* (> z 1)
+      `(throw (new Error (join "" (vec ~@msgs))))
+      (if* (> z 0)
+        `(throw (new Error ~(nth* msgs 0)))
+        `(throw (new Error "error!"))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro slice "" [arr & [start end]]
