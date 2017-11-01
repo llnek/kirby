@@ -1058,112 +1058,60 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for "" [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
-    (var a1 (nth ast 1)
-         tst nil
-         vars [] recurs []
-         body (ast.slice 2))
-    (for [i 0 e nil
-          :while (< i (alen a1)) :recur (+1 i)]
-      (set! e (nth a1 i))
-      (cond
-        (== e "while")
-        (do (set! tst (nth a1 (+ i 1)))
-            (++ i))
-    }  else if (e == "recur") {
-      recurs=a1.slice(i+1);
-      i=a1.length;
-    }  else if (types.symbol_p(e)) {
-      vars.push(e,a1[i+1]);
-      ++i;
-    }
-  }
-  if (body.length===0) {return "";}
-  ret.add("for (");
-  for (let i=0; i < vars.length;  i += 2) {
-    if (i===0) { ret.add("let ");  }
-    else if (i !== 0) { ret.add(","); }
-    ret.add([transpileSingle(vars[i]),"=", eval_QQ(vars[i+1],env)]);
-  }
-  if (vars.length > 0) {
-    ret.add(",____break=false");
-  } else {
-    ret.add("let ____break=false");
-  }
-  ret.add("; ");
-
-  let nb= [types.symbol("not"), types.symbol("____break")];
-  if (tst) {
-    tst= [types.symbol("and"), nb, tst];
-  } else {
-    tst=nb;
-  }
-  ret.add(eval_QQ(tst,env));
-  ret.add("; ");
-  for (let i=0,k=0; i < recurs.length; ++i, k+= 2) {
-    if (i !== 0) { ret.add(","); }
-    ret.add([transpileSingle(vars[k]),"=", eval_QQ(recurs[i],env)]);
-  }
-  ret.add("){\n");
-  ret.add(transpileDo(body,env,false));
-  ret.add("}\n");
-
-  ret.prepend("(function() {\n");
-  ret.add("})(this);\n");
-
-  return ret;
-}
-SPEC_OPS["for"]=function (ast,env) {
-  return sf_for(ast,env);
-}
+    (var body (ast.slice 2))
+    (if (not-empty body)
+      (sf-floop ret (nth ast 1) body env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" [ast env]
-  (do-with [ret (nodeTag (tn/tnodeEx "for (") ast)]
-    (var c1 nil c2 nil c3 nil t nil hint ""
-         c (nth ast 1) ind (pad indent))
-    (if (or (not (array? c))
-            (not= 3 (alen c))) (syntax! :e0 ast))
-    (set! c1 (first c))
-    (set! c2 (second c))
-    (set! c3 (nth c 2))
-    (+= indent tabspace)
-    (when (array? c1)
-      (set! t (first c1))
-      (when (and (types/keyword? t)
-               (== t "let"))
-        (set! c1 (rest c1))
-        (set! hint "let "))
-      (for ((:let i 0)
-            (< i (alen c1)) (i (+ i 2)))
-        (if (= i 0) (ret.add hint))
-        (if (> i 0) (ret.add ","))
-        (ret.add [(transpileSingle (nth c1 i) env)
-                  " = "
-                  (transpile* (nth c1 (inc i)) env)])))
-    (ret.add "; ")
-
-    (if (array? c2)
-      (ret.add ["(!____break && " (transpileList c2 env) ")"])
-      (ret.add " !___break "))
-
-    (ret.add "; ")
-    (if (array? c3)
-      (forlet ((i 0) (< i (alen c3)) (i (+ i 2)))
-        (if (> i 0) (ret.add ","))
-        (ret.add [(transpileSingle (nth c3 i) env)
-                  " = "
-                  (transpile* (nth c3 (inc i)) env)])))
-    (ret.add ") {\n")
-    (if (> (alen ast) 2)
-      (ret.add [ind (pad tabspace)
-                (transpileDo (ast.slice 2) env false) ""]))
-    (ret.add (str "" ind "}\n"))
-    (ret.prepend "(function () {let ____break=false;\n")
-    (ret.add "}).call(this)")
-    (-= indent tabspace)))
+(defn- sf-floop "" [ret args body env]
+  (var vars [] recurs [])
+  (var~ tst nb)
+  (for [i 0 e nil
+        :while (< i (alen args)) :recur (+1 i)]
+    (set! e (nth args i))
+    (cond
+      (== e "while")
+      (do (set! tst (nth args (+1 i)))
+          (++ i))
+      (== e "recur")
+      (do (set! recurs (args.slice (+1 i)))
+          (set! i (alen a1)))
+      (types/symbol? e)
+      (do (vars.push e (nth args (+1 i)))
+          (++ i))))
+  (ret.add "for (")
+  (for [i 0 :while (< i (alen vars)) :recur (+2 i)]
+    (if (= i 0) (ret.add "let "))
+    (if (not= i 0) (ret.add ","))
+    (ret.add [(transpileSingle (nth vars i))
+              "="
+              (transpile* (nth vars (+1 i)) env)]))
+  (if (not-empty vars)
+    (ret.add ",____break=false")
+    (ret.add "let ____break=false"))
+  (ret.add "; ")
+  (set! nb [(types/symbol "not")
+            (types/symbol "____break")])
+  (if tst
+    (set! tst [(types/symbol "and") nb tst])
+    (set! tst nb))
+  (ret.add (transpile* tst env))
+  (ret.add "; ")
+  (for [i 0 k 0 :while (< i (alen recurs))
+                :recur (+1 i) (+2 k)]
+    (if (not= i 0) (ret.add ","))
+    (ret.add [(transpileSingle (nth vars k))
+              "="
+              (transpile* (nth recurs i) env)]))
+  (doto ret
+    (.add "){\n")
+    (.add (transpileDo body env false))
+    (.add "}\n")
+    (.prepend "(function() {\n")
+    (.add "})(this);\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :for (fn [ast env] (sf-floop ast env)))
+(set! SPEC-OPS "for" sf-for)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" [ast env]
