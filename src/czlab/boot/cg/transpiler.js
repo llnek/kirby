@@ -1067,6 +1067,64 @@ function sf_comment(ast,env) {
 SPEC_OPS["comment"]=sf_comment;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_for(ast,env) {
+  let ret=nodeTag(tnode(),ast),
+      a1=ast[1],
+      vars=[], tst, recurs=[],
+      body=ast.slice(2);
+  for (let i=0,e=null; i<a1.length; ++i) {
+    e=a1[i];
+    if (e == "while") {
+      tst=a1[i+1];
+      ++i;
+    }  else if (e == "recur") {
+      recurs=a1.slice(i+1);
+      i=a1.length;
+    }  else if (types.symbol_p(e)) {
+      vars.push(e,a1[i+1]);
+      ++i;
+    }
+  }
+  if (body.length===0) {return "";}
+  ret.add("for (");
+  for (let i=0; i < vars.length;  i += 2) {
+    if (i===0) { ret.add("let ");  }
+    else if (i !== 0) { ret.add(","); }
+    ret.add([transpileSingle(vars[i]),"=", eval_QQ(vars[i+1],env)]);
+  }
+  if (vars.length > 0) {
+    ret.add(",____break=false");
+  } else {
+    ret.add("let ____break=false");
+  }
+  ret.add("; ");
+
+  let nb= [types.symbol("not"), types.symbol("____break")];
+  if (tst) {
+    tst= [types.symbol("and"), nb, tst];
+  } else {
+    tst=nb;
+  }
+  ret.add(eval_QQ(tst,env));
+  ret.add("; ");
+  for (let i=0,k=0; i < recurs.length; ++i, k+= 2) {
+    if (i !== 0) { ret.add(","); }
+    ret.add([transpileSingle(vars[k]),"=", eval_QQ(recurs[i],env)]);
+  }
+  ret.add("){\n");
+  ret.add(transpileDo(body,env,false));
+  ret.add("}\n");
+
+  ret.prepend("(function() {\n");
+  ret.add("})(this);\n");
+
+  return ret;
+}
+SPEC_OPS["for"]=function (ast,env) {
+  return sf_for(ast,env);
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_floop(ast,env,hint) {
   let ret= nodeTag(tnodeEx("for ("),ast);
   let c1=null,
@@ -1122,12 +1180,8 @@ function sf_floop(ast,env,hint) {
   indent -= tabspace;
   return ret;
 }
-SPEC_OPS["for"]=function (ast,env) {
-  return sf_floop(ast,env,"");
-}
-SPEC_OPS["forlet"]=function (ast,env) {
-  return sf_floop(ast,env,"let");
-}
+//SPEC_OPS["for"]=function (ast,env) { return sf_floop(ast,env,""); }
+//SPEC_OPS["forlet"]=function (ast,env) { return sf_floop(ast,env,"let"); }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_wloop(ast,env) {
