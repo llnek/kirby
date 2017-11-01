@@ -1,4 +1,7 @@
 
-
+(deftype ABC [][a b c]
+  (constructor [x y] (this 6))
+  (a [t v] (* 2 3))
+  (b [] (+ 6 5)))
 
 

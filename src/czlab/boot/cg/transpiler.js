@@ -255,6 +255,32 @@ function transpileList(ast, env) {
   return nodeTag(ret,ast);
 }
 
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_deftype(ast,env) {
+  let ret=nodeTag(tnode(),ast),
+      cz=transpileSingle(ast[1]),
+      par=ast[2][0],
+      args=ast[3],
+      mtds=ast.slice(4);
+  ret.add(["class ", cz]);
+  if (par) {
+    ret.add([" extends ", transpileSingle(par)]);
+  }
+  ret.add(" {\n");
+  for (let i=0,n=null,m=null; i < mtds.length; ++i) {
+    m=mtds[i];
+    m.unshift(types.symbol("method"));
+    ret.add(sf_func(m,env,false));
+    ret.add("\n");
+  }
+  ret.add("}\n");
+  return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SPEC_OPS["deftype"]=sf_deftype;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var _lambdaFuncCount=0;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -723,6 +749,7 @@ function handleFuncArgs(fargs,env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
   let fname= transpileSingle(ast[1]),
+      mtdQ= (ast[0] == "method"),
       dotQ= fname.includes("."),
       e3= ast[3],
       e2= ast[2],
@@ -746,7 +773,10 @@ function sf_func(ast,env,publicQ) {
   body= ast.slice(body);
   let ret=nodeTag(tnode(),ast),
       fargs= handleFuncArgs(parseFuncArgs(args),env);
-  if (dotQ) {
+  if (mtdQ) {
+    ret.add([fname, " ("]);
+  }
+  else if (dotQ) {
     ret.add([fname, " = function ("]);
   } else {
     ret.add("function "+ fname+ "(");
@@ -1028,6 +1058,11 @@ function sf_require(ast,env) {
     }
   }
   return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_withMeta(ast,env) {
+
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
