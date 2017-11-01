@@ -69,7 +69,7 @@ var RESERVED= {
   "range", "def-", "def", "var", "forlet",
   "new", "throw", "while", "lambda",
   "inst?", "delete!",
-  "aset", "set!", "fn", "def!",
+  "aset", "set!", "fn", "set-in!",
   "defn-", "defn",
   "try", "if", "get", "aget", "str",
   "list", "[", "vec", "{", "hash-map",
@@ -631,22 +631,39 @@ function sf_x_eq(ast,env) {
 regoBuiltins(sf_x_eq,"assign");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_set(ast,env) {
+function sf_set_in(ast,env) {
+  assert(std.even_p(ast.length), "set-in: bad arg count");
   let ret= nodeTag(tnode(),ast),
-      e1= eval_QQ(ast[1],env);
-
-  if (4 === ast.length) {
-    ret.add(e1);
-    ret.add("[");
-    ret.add(eval_QQ(ast[2],env));
-    ret.add("]");
-  } else {
-    ret.add(e1);
+      obj= eval_QQ(ast[1],env);
+  for (let i=2; i < ast.length; i += 2) {
+    if (i > 2) { ret.add(","); }
+    ret.add([obj, "[", eval_QQ(ast[i],env), "]",
+             "=", eval_QQ(ast[i+1],env)]);
   }
-  ret.add([" = ", eval_QQ(ast[ast.length-1],env)]);
   return ret;
 }
-SPEC_OPS["aset"]=sf_set;
+
+SPEC_OPS["set-in!"]=sf_set_in;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function assert(tst) {
+  if (! tst) throw new Error(
+    Array.prototype.slice.call(arguments,1).join("")
+  );
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_set(ast,env) {
+  assert(std.odd_p(ast.length), "set: bad arg count");
+  let ret= nodeTag(tnode(),ast);
+  for (let i=1; i < ast.length; i += 2) {
+    if (i > 1) { ret.add(","); }
+    ret.add([eval_QQ(ast[i],env),
+             "=",
+             eval_QQ(ast[i+1],env)]);
+  }
+  return ret;
+}
 SPEC_OPS["set!"]=sf_set;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

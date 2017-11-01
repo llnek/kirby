@@ -61,10 +61,10 @@
   ["quote" "syntax-quote" "quasi-quote"
   "backtick"  "unquote" "unquote-splice"
   "repeat-n"  "do"  "doto"  "case" "apply"
-  "range"  "def-"  "def"  "var"  "forlet"
+  "range"  "def-"  "def"  "var"  "for"
   "new"  "throw"  "while"  "lambda"
   "inst?"  "delete!"
-  "aset"  "set!"  "fn"  "def!"
+  "aset"  "set!"  "fn"  "set-in!"
   "defn-"  "defn"
   "try"  "if"  "get"  "aget"  "str"
   "list"  "["  "vec"  "{"  "hash-map"
@@ -662,23 +662,30 @@
 (regoBuiltins sf-x-eq "assign")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-set "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var e1 (transpile* (nth ast 1) env))
-    (if (= 4 (alen ast))
-      (doto ret
-        (.add e1)
-        (.add "[")
-        (.add (transpile* (nth ast 2) env))
-        (.add "]"))
-      (ret.add e1))
-    (ret.add [" = "
-              (transpile* (nth ast
-                               (last-index ast)) env)])))
+(defn- sf-set-in "" [ast env]
+  (assert (std/even? (alen ast)) "set-in: bad arg count")
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var obj (transpile* (nth ast 1) env))
+    (for [i 2 :while (< i (alen ast)) :recur (+2 i)]
+      (if (> i 2) (ret.add ","))
+      (ret.add [obj "[" (transpile* (nth ast i) env) "]"
+                "=" (transpile* (nth ast (+1 i)) env)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :aset sf-set)
-(set! SPEC-OPS :set! sf-set)
+(set-in! SPEC-OPS "set-in!" sf-set-in)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-set "" [ast env]
+  (assert (std/odd? (alen ast)) "set: bad arg count")
+  (do-with [ret (nodeTag (tnode) ast)]
+    (for [i 1 :while (< i (alen ast)) :recur (+2 i)]
+      (if (> i 1) (ret.add ","))
+      (ret.add [(transpile* (nth ast i) env)
+                "="
+                (transpile* (nth ast (+1 i)) env)]))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set-in! SPEC-OPS "set!" sf-set)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- parseFuncArgs "" [args]

@@ -48,7 +48,7 @@
 (defn concat* "" [coll & xs] (coll.concat.apply coll xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn maybe "" [cur other] (if (def? cur) cur other))
+(defn opt "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" [coll start step]

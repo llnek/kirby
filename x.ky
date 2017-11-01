@@ -1,7 +1,7 @@
 
-(deftype ABC [][a b c]
-  (constructor [x y] (this 6))
-  (^{:static true} a [t v] (* 2 3))
-  (b [] (+ 6 5)))
+(defn xxx "" []
+  (nexth poo i)
+(set! a 2 b 3)
+(set-in! a :hello 44))
 
 
