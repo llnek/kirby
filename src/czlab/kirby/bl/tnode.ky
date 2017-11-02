@@ -11,10 +11,7 @@
 
   czlab.kirby.bl.tnode
 
-  (require ["source-map" :as smap]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- TreeNode (.-SourceNode smap))
+  (require ["source-map" :rename {SourceNode TreeNode} ]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnode "" [source line col chunk name type]

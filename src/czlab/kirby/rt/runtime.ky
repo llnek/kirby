@@ -16,12 +16,24 @@
            ["../bl/types" :as types]
            ["../bl/stdlib" :as std]
            ["../rt/toolkit" :as rt]
-           ["../bl/env" :as env])
+           ["../bl/env" :refer [LEXEnv]])
 
   (require ["readline" :as readline]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def Env env/Env)
+(defn- wrap-str "" [s]
+  (str "\"" (-> (s.replace /\\/g "\\\\")
+                (.replace /"/g "\\\"")
+                (.replace /\n/g "\\n")) "\""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- unwrap-str "" [s]
+  (if (and (s.startsWith "\"")
+           (s.endsWith "\""))
+    (-> (s.slice 1 (last-index s))
+        (.replace /\\"/g "\"")
+        (.replace /\\n/g "\n")
+        (.replace /\\\\/g "\\")) s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [obj]
@@ -58,7 +70,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" [ast env]
-  (and (types/list? ast)
+  (and (std/list? ast)
        (types/symbol? (first ast))
        (macros/get (types/symbol-s (first ast)))))
 
@@ -90,19 +102,19 @@
     (types/unwrap-str ast)
     (types/symbol? ast)
     (env.get ast)
-    (types/list? ast)
+    (std/list? ast)
     (map (fn [a] (compute a env)) ast)
-    (types/vector? ast)
+    (std/vector? ast)
     (do-with [v (map (fn [a] (compute a env)) ast)]
       (set! v :____vec true))
     (and false
-         (types/map? ast))
+         (std/map? ast))
     (do-with [m {}]
       (forkeys [k ast]
         (set! m
               (compute k env)
               (compute (get ast k) env))))
-    (types/map? ast)
+    (std/map? ast)
     (do-with [m {}]
       (forlet ((i 0)
                (< i (alen ast)) (i (+ i 2)))
@@ -189,6 +201,15 @@
     [false (f.apply this (el.slice 1)) env]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fn-wrap "" [run ast env params]
+  (do-with [f #(run ast (new LEXEnv env params arguments))]
+    (set-in! f
+             :____macro false
+             :____meta nil
+             :____ast ast
+             :____genenv #(new LEXEnv env params %))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- computeLoop "" [ast env]
 ;;(.println rt "EVAL:" (types.pr-obj ast))
   (var ok? true ret nil)
@@ -196,7 +217,7 @@
     (set! ast (macroexpand ast env))
     (set! ok?
           (cond
-            (not (types/list? ast))
+            (not (std/list? ast))
             (do->false (set! ret (evalAst ast env)))
             (= 0 (alen ast))
             (do->false (set! ret ast))
@@ -242,11 +263,10 @@
             (= "fn*"
                (.-value (nth ast 0)))
             (do->false (set! ret
-                             (types/fn-wrap compute
-                                            Env
-                                            (nth ast 2)
-                                            env
-                                            (nth ast 1))))
+                             (fn-wrap compute
+                                      (nth ast 2)
+                                      env
+                                      (nth ast 1))))
             :else
             (let [rc (handleForm ast env)]
               (if (first rc)

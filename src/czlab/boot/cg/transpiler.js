@@ -194,17 +194,28 @@ function findCmd(ast) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileList(ast, env) {
+  let ret=tnode();
   let cmd= "",
       mc= null,
       tmp= null;
   cmd=findCmd(ast);
   mc= macros.get(cmd);
 
-  let ret=tnode();
   if (mc) {
     ast=rt.expandMacro(ast, env, mc);
     cmd= findCmd(ast);
   }
+
+  if (cmd == "with-meta") {
+    let a1=ast[1];
+    if (! simpleton(a1)) {
+      a1.____meta=resolveMeta(ast[2],env);
+      return eval_QQ(a1,env);
+    } else {
+      throw new Error("cant with-meta simple value");
+    }
+  }
+
   if (cmd.startsWith(".-")) {
     let c= transpileSingle(types.symbol(cmd.slice(2)));
     ret.add([eval_QQ(ast[1],env), ".",c]);
@@ -255,7 +266,7 @@ function transpileList(ast, env) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_deftype(ast,env) {
+function sf_deftype(ast,env,publicQ) {
   let ret=nodeTag(tnode(),ast),
       cz=eval_QQ(ast[1],env),
       par=ast[2][0],
@@ -273,11 +284,16 @@ function sf_deftype(ast,env) {
     ret.add("\n");
   }
   ret.add("}\n");
+  if (publicQ &&
+    (1=== NSPACES.length)) {
+      EXTERNS[cz]=cz;
+  }
   return ret;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-SPEC_OPS["deftype"]=sf_deftype;
+SPEC_OPS["deftype-"]=function(ast,env) { return sf_deftype(ast,env,false); }
+SPEC_OPS["deftype"]=function(ast,env) { return sf_deftype(ast,env,true); }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var _lambdaFuncCount=0;
@@ -668,11 +684,18 @@ SPEC_OPS["set!"]=sf_set;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_fn(ast,env) {
-  let args=ast[1],
+  let fargs, args=ast[1],
+      hints={},
       body= ast.slice(2),
-      ret= nodeTag(tnode(),ast),
-      fargs=handleFuncArgs(parseFuncArgs(args),env);
+      ret= nodeTag(tnode(),ast);
 
+  if (args.length===3 &&
+    args[0]=="with-meta" && Array.isArray(args[1])) {
+    hints=resolveMeta(args[2],env);
+    args=args[1];
+  }
+
+  fargs=handleFuncArgs(parseFuncArgs(args),env);
   ret.add("function (");
   ret.add(fargs[0]);
   ret.add([") {\n", fargs[1],
@@ -764,10 +787,10 @@ function handleFuncArgs(fargs,env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
-  let fname = eval_QQ(getMetaTarget(ast[1]),env),
-      fnameMeta= (getMeta(ast[1],env) || {}),
+  let fname = eval_QQ(ast[1],env),
       mtdQ= (ast[0] == "method"),
       dotQ= fname.includes("."),
+      hints={},
       e3= ast[3],
       e2= ast[2],
       doc=null, attrs=null, args= 2, body= 3;
@@ -788,10 +811,17 @@ function sf_func(ast,env,publicQ) {
   if (attrs) attrs= ast[attrs];
   args= ast[args];
   body= ast.slice(body);
+
+  if (args.length===3 &&
+    args[0]=="with-meta" && Array.isArray(args[1])) {
+    hints=resolveMeta(args[2],env);
+    args=args[1];
+  }
+
   let ret=nodeTag(tnode(),ast),
       fargs= handleFuncArgs(parseFuncArgs(args),env);
   if (mtdQ) {
-    if (fnameMeta["static"]) { ret.add("static "); }
+    if (hints["static"]) { ret.add("static "); }
     ret.add([fname, " ("]);
   }
   else if (dotQ) {
@@ -1079,65 +1109,42 @@ function sf_require(ast,env) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_withMeta(ast,env) {
-  let target=ast[1];
-  let v=getMeta(ast,env);
-  target.____meta=v;
-  return eval_QQ(target);
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function getMetaTarget(ast) {
-  if (Array.isArray(ast) &&
-      ast[0] == "with-meta") {
-    return ast[1];
+function resolveMeta(ast,env) {
+  let r, v={};
+  if (Array.isArray(ast)) {
+    v=JSON.parse("" + eval_QQ(ast,env));
+  } else if (types.keyword_p(ast)) {
+    r=[ast, true];
+    r.__ismap__=true;
+    v=JSON.parse("" + eval_QQ(r,env));
+  } else if (types.symbol_p(ast)) {
+    r=[types.symbol("tag"), ast];
+    r.__ismap__=true;
+    v=JSON.parse("" + eval_QQ(r,env));
   } else {
-    return ast;
+    throw new Error("Bad meta value" + types.pr_obj(ast));
   }
-}
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function getMeta(ast,env) {
-  if (Array.isArray(ast) &&
-      ast[0] == "with-meta") {
-    let r, v={}, mv= ast[2];
-    if (Array.isArray(mv)) {
-      v=JSON.parse("" + eval_QQ(mv,env));
-    } else if (types.keyword_p(mv)) {
-      r=[mv, true];
-      r.__ismap__=true;
-      v=JSON.parse("" + eval_QQ(r,env));
-    } else if (types.symbol_p(mv)) {
-      r=[types.symbol("tag"), mv];
-      r.__ismap__=true;
-      v=JSON.parse("" + eval_QQ(r,env));
-    } else {
-      throw new Error("Bad meta value" + types.pr_obj(mv));
-    }
-    return v;
-  } else {
-    return {};
-  }
+  return v;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_ns(ast,env) {
-  let nsp, ret= [];
-  //look for symbol or with-meta, symbol for namespace
-  for (var i= 1; i < ast.length; ++i) {
+  let ret= [];
+  let hints={};
+  let nsp=ast[1];
+
+  if (Array.isArray(nsp) && nsp.length===3 &&
+      (nsp[0] == "with-meta") &&
+      types.symbol_p(nsp[1])) {
+    hints=resolveMeta(nsp[2],env);
+    nsp=nsp[1];
+  }
+
+  NSPACES.push(types.symbol_s(nsp));
+  ast=ast.slice(2);
+  for (var i= 0; i < ast.length; ++i) {
     let e= ast[i];
-    if (types.symbol_p(e)) {
-      if (nsp) syntax_E("e0",ast);
-      NSPACES.push(nsp=e.toString());
-    }
-    else
     if (types.list_p(e) &&
-        e[0] == "with-meta" &&
-        types.symbol_p(e[1])) {
-      if (nsp) syntax_E("e0",ast);
-      NSPACES.push(nsp=e[1].toString());
-    }
-    else if (types.list_p(e) &&
              "include"== e[0]) {
       ret.push(sf_include(e));
     }

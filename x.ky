@@ -1,7 +1,5 @@
 
-(defn xxx "" []
-  (nexth poo i)
-(set! a 2 b 3)
-(set-in! a :hello 44))
+(defn XXX ^:poo [s]
+  (b 5))
 
 

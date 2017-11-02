@@ -15,6 +15,12 @@
            ["../bl/stdlib" :as std]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Function.prototype.clone "" []
+  (var that this)
+  (do-with [tmp #(that.apply this arguments)]
+    (each-key (fn [v k] (set-in! tmp k v)) that)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prstr-X [b arr] `(map #(types/pr-obj % ~b) ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -98,7 +104,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- conj "" [arr & xs]
   (cond
-    (types/list? arr)
+    (std/list? arr)
     (-> (xs.reverse)(.concat arr))
     (std/some? arr)
     (do-with [v (concat arr xs)]
@@ -108,9 +114,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- seq "" [obj]
   (cond
-    (types/list? obj)
+    (std/list? obj)
     (if (std/not-empty obj) obj)
-    (types/vector? obj)
+    (std/vector? obj)
     (if (std/not-empty obj) (slice obj))
     (string? obj)
     (if (std/not-empty obj) (obj.split ""))
@@ -154,26 +160,24 @@
            (set! ret :____meta m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- jsObject? "" [m]
+  (and (std/object? m)
+       (not (inst? LambdaArg m))
+       (not (inst? Atom m))
+       (not (inst? Symbol m))
+       (not (inst? Keyword m))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" [obj]
-  (if (and (not (types/sequential? obj))
-           (not (types/hashmap? obj))
-           (not (types/jsObject? obj))
+  (if (and (not (std/sequential? obj))
+           (not (std/map? obj))
+           (not (jsObject? obj))
            (not (fn? obj)))
     (raise! "can't get metadata from: "
             (types/obj-type obj)))
   (get obj :____meta))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- deref "" [a] (.-value a))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- reset! "" [a v] (set! a :value v))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- swap! "" [a f &xs]
-  (->> (concat [(.-value a)] xs)
-       (f.apply this )
-       (set! a :value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- evalJS "" [s]
@@ -240,14 +244,14 @@
 
   "time*"  timeMillis
 
-  "list*"  types/list
-  "is-list?"  types/list?
+  "list*"  std/list
+  "is-list?"  std/list?
 
-  "vector*"  types/vector
-  "is-vector?"  types/vector?
+  "vector*"  std/vector
+  "is-vector?"  std/vector?
 
-  "hash-map*"  types/hashmap
-  "is-map?"  types/hashmap?
+  "hash-map*"  std/hashmap
+  "is-map?"  std/map?
 
   "dissoc*"  dissoc
   "assoc*"  assoc

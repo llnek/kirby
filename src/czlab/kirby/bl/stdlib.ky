@@ -12,12 +12,193 @@
   czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn prn "" [obj & [readable?]]
+  (var _r (opt readable? true)
+       pa (fn [a b] (str a (join " " (map #(prn % _r) obj)) b)))
+  (case (isa obj)
+    :lambda-arg (str "%" (+1 (parseInt obj.value)))
+    :atom (str "(atom " (prn obj.value _r) ")")
+    :keyword (str ":" obj.value)
+    :symbol obj.value
+    :object (JSON/stringify obj)
+    :vector (pa "[" "]")
+    :map (pa "{" "}")
+    :list (pa "(" ")")
+    :string obj
+    (:null :nil) "null"
+    (obj.toString)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype LambdaArg [][]
+  (constructor [arg]
+    (var name (if (= arg "%")
+                "1" (rest arg))
+         v (parseInt name))
+    (if-not (> v 0)
+      (raise! "Bad lambda-arg: " arg))
+    ;;zero based arg so minus 1
+    (-- v)
+    (set! this.value (str v))
+    this)
+  (toString [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Keyword [][]
+  (constructor [name]
+    (set! this.value (rest name)) this)
+  (toString [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Symbol [][]
+  (constructor [name]
+    (set! this.value name) this)
+  (toString [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol "" [name] (new Symbol name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol? "" [obj] (inst? Symbol obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol-s "" [s]
+  (if (symbol? s) (.-value s) (str s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword "" [name] (new Keyword name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword? "" [obj] (inst? Keyword obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword-s "" [k]
+  (if (keyword? k) (.-value k) (str k)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg "" [name] (new LambdaArg name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg? "" [obj] (inst? LambdaArg obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg-s "" [k]
+  (if (lambda-arg? k) (.-value k) (str k)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Atom [][]
+  (constructor [val] (set! this.value val) this))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn atom "" [val] (new Atom val))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn atom? "" [atm] (inst? Atom atm))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deref "" [a] (.-value a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn reset! "" [a v] (set! a.value v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn swap! "" [a f &xs]
+  (->> (concat [a.value] xs)
+       (f.apply this )
+       (set! a.value )) (get a :value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- isa "" [obj]
+  (cond
+    (lambda-arg? obj) :lambda-arg
+    (keyword? obj) :keyword
+    (symbol? obj) :symbol
+    (vector? obj) :vector
+    (atom? obj) :atom
+    (list? obj) :list
+    (map? obj) :map
+    (nil? obj) :null
+    (true? obj) :true
+    (false? obj) :false
+    (fn? obj) :function
+    (string? obj) :string
+    (number? obj) :number
+    (object? obj) :object
+    :else
+    (raise! "Unknown type [" (type obj) "]")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn value? "" [obj]
+  (or (nil? obj)
+      (vector? obj)
+      (list? obj)
+      (map? obj)
+      (false? obj)
+      (true? obj)
+      (string? obj)
+      (number? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sequential? "" [arr] (and (array? arr) (not (map? arr))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eq? "" [a b]
+  (var ta (isa a)
+       tb (isa b))
+  (if-not (or (= ta tb)
+              (and (sequential? a) (sequential? b)))
+    false
+    (case ta
+      (:map :list :vector)
+      (do-with [ok? true]
+        (if (not= (alen a)
+                  (alen b))
+          (set! ok? false)
+          (for [i 0
+                :recur (+1 i)
+                :while (< i (alen a))]
+            (when-not (eq? (nth a i)
+                           (nth b i))
+              (set! ok? false)
+              (break!)))))
+      :object
+      (do-with [ok? true]
+        (if-not (= (count a)
+                   (count b))
+          (set! ok? false)
+          (for [i 0 k nil ks (keys a)
+                :recur (+1 i)
+                :while (< i (alen ks))]
+            (set! k (nth ks i))
+            (when-not (eq? (get a k)
+                           (get b k))
+              (set! ok? false)
+              (break!)))))
+      ;else
+      (= a b))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object? "" [obj]
   (if-not (or (nil? obj)
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn last "" [coll] (nth coll (last-index coll)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn list? "" [obj]
+  (and (array? obj) (not obj.____vec) (not obj.____map)))
+(defn list "" [&xs] xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vector? "" [obj] (and (array? obj) obj.____vec))
+(defn vector "" [&xs] (set! xs :____vec true) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn map? "" [obj] (and (array? obj) obj.____map))
+(defn hashmap "" [&xs]
+  (if (= 1 (mod (alen xs) 2))
+    (raise! "Odd number of hash map arguments"))
+  (set! xs :____map true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "" [obj x]
@@ -33,16 +214,10 @@
 (defn some? "" [obj] (and (def? obj) (not= nil obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn empty? "" [coll] (= 0 (count coll)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn count "" [coll]
   (if coll
     (alen (if (or (string? coll)
                   (array? coll)) coll (keys coll))) 0))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn not-empty "" [coll] (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat* "" [coll & xs] (coll.concat.apply coll xs))
@@ -53,8 +228,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" [coll start step]
   (do-with [ret []]
-    (forlet ((i start)
-             (< i (alen coll)) (i (+ i step)))
+    (for [i start
+          :while (< i (alen coll)) :recur (+ i step)]
       (ret.push (nth arr i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -68,7 +243,9 @@
   (var cz (if (< (alen c2)
                  (alen c1)) (alen c2) (alen c1)))
   (do-with [ret []]
-    (forlet ((i 0)(< i cz)(i (inc i)))
+    (for [i 0
+          :recur (+1 i)
+          :while (< i cz) ]
       (ret.push (nth c1 i) (nth c2 i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

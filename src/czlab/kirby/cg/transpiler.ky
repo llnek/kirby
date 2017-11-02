@@ -310,7 +310,7 @@
     (set! ret (nodeTag ret ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-deftype "" [ast env]
+(defn- sf-deftype "" [ast env public?]
   (do-with [ret (nodeTag (tnode) ast)]
     (var cz (transpile* (nth ast 1) env)
          par (first (nth ast 2))
@@ -326,10 +326,13 @@
       (m.unshift (types/symbol "method"))
       (ret.add (sf-func m env false))
       (ret.add "\n"))
-    (ret.add "}\n")))
+    (ret.add "}\n")
+    (if (and public? (= 1 (alen NSPACES)))
+      (set-in! EXTERNS cz cz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "deftype" sf-deftype)
+(set-in! SPEC-OPS "deftype-" (fn [a e] (sf-deftype a e false)))
+(set-in! SPEC-OPS "deftype" (fn [a e] (sf-deftype a e true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- _lambdaFuncCount 0)
@@ -764,8 +767,15 @@
 (defn- sf-fn "" [ast env]
   (do-with [ret (nodeTag (tn/tnode) ast)]
     (var args (nth ast 1)
-         body (.slice ast 2)
-         fargs (handleFuncArgs
+         fargs nil
+         hints {}
+         body (ast.slice 2))
+    (when (and (= 3 (alen args))
+               (== "with-meta" (car args))
+               (array? (nth args 1)))
+      (set! hints (resolveMeta (nth args 2) env))
+      (set! args (nth args 1)))
+    (set! fargs (handleFuncArgs
                  (parseFuncArgs args) env))
     (ret.add "function (")
     (ret.add (first fargs))
@@ -775,15 +785,15 @@
               (pad indent) "}"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "fn" sf-fn)
+(set-in! SPEC-OPS "fn" sf-fn)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var fname (transpile* (getMetaTarget (nth ast 1)) env)
-         fnameMeta (or (getMeta (nth ast 1) env) {})
+    (var fname (transpile* (nth ast 1) env)
          mtd? (== (first ast) "method")
          dot? (fname.includes ".")
+         hints {}
          fargs nil
          e3 (nth ast 3)
          e2 (nth ast 2)
@@ -802,12 +812,17 @@
     (if doc (set! doc (nth ast doc)))
     (if attrs (set! attrs (nth ast attrs)))
     (set! args (nth ast args))
+    (set! body (ast.slice body))
+    (when (and (= 3 (alen args))
+               (== "with-meta" (car args))
+               (array? (nth args 1)))
+      (set! hints (resolveMeta (nth args 2) env))
+      (set! args (nth args 1)))
     (set! fargs (handleFuncArgs
                   (parseFuncArgs args) env))
-    (set! body (ast.slice body))
     (cond
       mtd?
-      (do (if (.-static fnameMeta) (ret.add "static "))
+      (do (if (.-static hints) (ret.add "static "))
           (ret.add [fname " ("]))
       dot?
       (ret.add [fname " = function ("])
@@ -1061,63 +1076,44 @@
         (ret.add ["var " v "=" as "[\"" e "\"];\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-withMeta "" [ast env]
-  (var target (nth ast 1)
-       v (getMeta ast env))
-  (set! target :____meta v)
-  (transpile* target env))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- getMetaTarget "" [ast]
-  (if (and (array? ast)
-           (== "with-meta" (first ast)))
-    (nth ast 1)
-    ast))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- getMeta "" [ast env]
-  (if (and (array? ast)
-           (== "with-meta" (nth ast 0)))
-    (let [r nil
-          v nil mv (nth ast 2)]
-      (cond
-        (array? mv)
-        (JSON.parse (str "" (transpile* mv env)))
-        (types/keyword? mv)
-        (do (set! r [mv true])
-            (set! r :____map true)
-            (JSON.parse (str "" (transpile* r env))))
-        (types/symbol? mv)
-        (do (set! r [(types/symbol "tag") mv])
-            (set! r :____map true)
-            (JSON.parse (str "" (transpile* r env))))
-        :else
-        (raise! "Bad meta value" (types/pr-obj mv))))
-    (hash-map)))
+(defn- resolveMeta "" [ast env]
+  (cond
+    (Array/isArray ast)
+    (JSON/parse (str "" (transpile* ast env)))
+    (std/keyword? ast)
+    (->> (transpile* (std/hashmap ast true) env)
+         (str "" )
+         (JSON/parse ))
+    (std/symbol? ast)
+    (->> (transpile* (std/hashmap (std/symbol "tag") ast) env)
+         (str "")
+         (JSON/parse ))
+    :else
+    (raise! "Bad meta value" (std/prn ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns "" [ast env]
   (do-with [ret []]
-    (forlet ((i 1 e nil nsp nil)
-             (< i (alen ast)) (i (inc i)))
+    (var hints {} nsp (nth ast 1))
+    (when (and (Array/isArray nsp)
+               (= 3 (alen nsp))
+               (== "with-meta" (car nsp))
+               (std/symbol? (nth nsp 1)))
+      (set! hints (resolveMeta (nth nsp 2) env))
+      (set! nsp (nth nsp 1)))
+    (NSPACES.push (std/symbol-s nsp))
+    (set! ast (ast.slice 2))
+    (for [i  0 e nil
+          :recur (+1 i)
+          :while (< i (alen ast))]
       (set! e (nth ast i))
       (cond
-        (types/symbol? e)
-        (if nsp
-          (syntax! :e0 ast)
-          (NSPACES.push (e.toString)))
-        (and (types/list? e)
-             (== "with-meta" (nth e 0))
-             (types/symbol? (nth e 1)))
-        (if nsp
-          (syntax! :e0 ast)
-          (NSPACES.push (str (second e))))
-        (and (types/list? e)
-             (== "include" (first e)))
-        (ret.push (sf_include e))
-        (and (types/list? e)
-             (== "require" (first e)))
-        (ret.push (sf_require e))))))
+        (and (std/list? e)
+             (== "include" (car e)))
+        (ret.push (sf-include e))
+        (and (std/list? e)
+             (== "require" (car e)))
+        (ret.push (sf-require e))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :ns sf-ns)
