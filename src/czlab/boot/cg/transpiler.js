@@ -193,6 +193,19 @@ function findCmd(ast) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_quote(ast,env) {
+  let ret=tnode();
+  ast=ast.slice(1);
+  if (Array.isArray(ast)) {
+
+  } else {
+  }
+
+  return ret;
+}
+SPEC_OPS["quote"]=sf_quote;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileList(ast, env) {
   let ret=tnode();
   let cmd= "",

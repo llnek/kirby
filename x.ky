@@ -1,5 +1,4 @@
 
-(defn XXX ^:poo [s]
-  (b 5))
+(set! x '())
 
 

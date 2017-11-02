@@ -146,11 +146,10 @@ function readTokens (tokens) {
 
   if (! token) { return undefined; }
   switch (token.name) {
-    case "'": return skipAndParse(tokens,
+    case "'":
+      return skipAndParse(tokens,
                         function () {
-                          return
-                          [types.symbol("quote"),
-                           readTokens(tokens)];});
+                          return [types.symbol("quote"), readTokens(tokens)];});
     case "`": return skipAndParse(tokens,
                         function () {
                           return [types.symbol("quasiquote"),
