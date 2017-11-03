@@ -841,29 +841,34 @@ function handleFuncArgs(fargs,env) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function fmtRegoSpecOps(alias,fname) {
+  return "SPEC_OPS[\"" + alias + "\"] = " + fname;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function fmtSpecOps(fname, attrs) {
+  let ks= attrs["opcode"] || [];
+  let out=ks.map(function(s) {
+    return fmtRegoSpecOps(""+s, fname);
+  }).join(";\n");
+  return (ks.length > 0) ? out + ";\n" : out;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
   let fname = eval_QQ(ast[1],env),
       mtdQ= (ast[0] == "method"),
       dotQ= fname.includes("."),
       hints={},
-      e3= ast[3],
       e2= ast[2],
-      doc=null, attrs=null, args= 2, body= 3;
+      doc=null, args= 2, body= 3;
   if (types.list_p(e2)) {}
   else if (std.string_p(e2)) {
     doc= 2;
     args= 3;
-    if (types.map_p(e3)) {
-      attrs= 3;
-      args= 4;
-    }
-  } else if (types.map_p(e2)) {
-    attrs= 2;
-    args= 3;
   }
   body= args+1;
   if (doc) doc= ast[doc];
-  if (attrs) attrs= ast[attrs];
   args= ast[args];
   body= ast.slice(body);
 
@@ -872,7 +877,7 @@ function sf_func(ast,env,publicQ) {
     hints=resolveMeta(args[2],env);
     args=args[1];
   }
-
+console.log("hint = " + types.pr_obj(hints))
   let ret=nodeTag(tnode(),ast),
       fargs= handleFuncArgs(parseFuncArgs(args),env);
   if (mtdQ) {
@@ -889,8 +894,8 @@ function sf_func(ast,env,publicQ) {
            fargs[1],
            transpileDo(body,env),
            pad(indent), "}\n"]);
-  if (false && attrs) {
-    //ret.add(fmtSpecOps(fname, attrs));
+  if (true ) {
+    ret.add(fmtSpecOps(fname, hints));
     //ret.add(";");
   }
   if (doc) {

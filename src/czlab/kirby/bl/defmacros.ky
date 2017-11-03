@@ -321,12 +321,6 @@
 (defmacro each [func coll] `(.forEach ~coll ~func))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro empty? "" [coll] `(= 0 (count ~coll)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro not-empty [coll] `(not (empty? ~coll)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each-key [func obj]
   (let* [tmp (gensym*)]
     `(let [~tmp ~obj]

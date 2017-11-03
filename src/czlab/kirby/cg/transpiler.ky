@@ -828,6 +828,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set-in! SPEC-OPS "fn" sf-fn)
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fmtRegoSpecOps "" [alias fname]
+  (str "SPEC_OPS[\"" alias "\"] = " fname))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fmtSpecOps "" [fname attrs]
+  (var ks (or (get attrs "opcode") [])
+       out (->> (map #(fmtRegoSpecOps
+                        (str %1) fname) ks)
+                (join ";\n")))
+  (if (> (alen ks) 0) (str out ";\n") out))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tn/tnode) ast)]
@@ -874,10 +887,10 @@
               (second fargs)
               (transpileDo body env)
               (pad indent) "}\n"])
-    (when (and false attrs)
-      ;;//ret.add(fmtSpecOps(fname, attrs));
-      ;;//ret.add(";");
-      nil)
+
+    (if-not (std/empty? hints)
+      (ret.add (fmtSpecOps fname attrs)))
+
     (when doc
       (set! doc (doc.replace rdr.REGEX.dquoteHat ""))
       (set! doc (doc.replace rdr.REGEX.dquoteEnd ""))

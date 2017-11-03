@@ -1,4 +1,7 @@
 
-(set! x '(1 2 [ 3 4 ] { :a 0 :b (poo 8) }))
+(defn aaa ""
+  ;^{:opcode ["do"] }
+  [a] nil)
+
 
 
