@@ -261,6 +261,47 @@
       (types/list? ast) (set! cmd (types/symbol-s (first ast))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- quoteSingle "" [a]
+  (cond
+    (std/keyword? a) (str "\"" a "\"")
+    (std/symbol? a) (rdr/jsid (str a))
+    (string? a) a
+    (nil? a) "null"
+    :else (str a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- quote! [a env]
+  (if (array? a)
+    (if (std/map? a) (quoteMap a env) (quoteBlock a env))
+    (quoteSingle a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- quoteMap "" [a env]
+  (do-with [ret (tnode)]
+    (for [i 0 :while (< i (alen a)) :recur (+2 i)]
+      (if (> i 0) (ret.add ","))
+      (ret.add [(quote! (nth a i) env) " : " (quote! (nexth a i) env)]))
+    (ret.prepend "{")
+    (ret.add "}")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- quoteBlock "" [a env]
+  (do-with [ret (tnode)]
+    (for [i 0 :while (< i (alen a)) :recur (+1 i)]
+      (if (> i 0) (ret.add ","))
+      (ret.add (quote! (nth a i) env)))
+    (ret.prepend "[")
+    (ret.add "]")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-quote "" [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (ret.add (quote! (nth ast 1) env))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(set-in! SPEC-OPS "quote"  sf-quote)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileList "" [ast env]
   (var cmd (findCmd ast)
        mc (macros/get cmd) tmp nil)
