@@ -193,14 +193,56 @@ function findCmd(ast) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_quote(ast,env) {
-  let ret=tnode();
-  ast=ast.slice(1);
-  if (Array.isArray(ast)) {
-
-  } else {
+function quoteSingle(a) {
+  if (types.keyword_p(a)) {
+    return "\"" + types.keyword_s(a) + "\"";
   }
+  if (types.symbol_p(a)) {
+    return rdr.jsid(types.symbol_s(a));
+  }
+  if (std.string_p(a)) {
+    return a;
+  }
+  if (a===null) {
+    return "null";
+  }
+  return ""+a;
+}
 
+function quote_QQ(a,env) {
+  if (Array.isArray(a))  {
+    return types.map_p(a) ? quoteMap(a,env) : quoteBlock(a,env);
+  } else {
+    return quoteSingle(a);
+  }
+}
+
+function quoteMap(a,env) {
+  let ret=tnode();
+  for (let i=0; i < a.length; i+=2) {
+    if (i > 0) { ret.add(","); }
+    ret.add([quote_QQ(a[i],env), " : ", quote_QQ(a[i+1],env)]);
+  }
+  ret.prepend("{");
+  ret.add("}");
+  return ret;
+}
+
+function quoteBlock(a,env) {
+  let ret=tnode();
+  for (let i=0; i < a.length; ++i) {
+    if (i > 0) { ret.add(","); }
+    ret.add(quote_QQ(a[i],env));
+  }
+  ret.prepend("[");
+  ret.add("]");
+  return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_quote(ast,env) {
+  let ret=nodeTag(tnode(),ast);
+  ret.add(quote_QQ(ast[1], env));
   return ret;
 }
 SPEC_OPS["quote"]=sf_quote;
@@ -1488,7 +1530,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
     cstr= outNode + extra;
   }
   cstr=cleanCode(cstr);
-  if (true) {
+  if (false) {
     cstr= esfmt.format(cstr, options);
   }
   return cstr;
