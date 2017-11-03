@@ -12,10 +12,43 @@
   czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- stringify "" [obj]
+  (var cache [])
+  (if obj
+    (JSON/stringify obj
+                    (fn [k v]
+                      (if (object? v)
+                        (if (contains? cache v)
+                          (undef! v)
+                          (conj! cache v))) v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn opt "" [cur other] (if (def? cur) cur other))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn conj! "" [coll x]
+  (if (list? coll) (coll.unshift x) (coll.push x)) coll)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn conj "" [coll x]
+  (if (list? coll) (.concat [x] coll) (.concat coll x)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pop! "" [coll]
+  (var r (if (list? coll) (coll.shift) (coll.pop)))
+  [r coll])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pop "" [coll]
+  (var r (if (list? coll) (car coll) (last coll)))
+  [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn "" [obj & [readable?]]
   (var _r (opt readable? true)
-       pa (fn [a b] (str a (join " " (map #(prn % _r) obj)) b)))
-  (case (isa obj)
+       pa (fn [arr s e](str s (join " "
+                                    (map #(prn % _r) arr)) e)))
+  (case (typeid obj)
     :lambda-arg (str "%" (+1 (parseInt obj.value)))
     :atom (str "(atom " (prn obj.value _r) ")")
     :keyword (str ":" obj.value)
@@ -107,7 +140,7 @@
        (set! a.value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- isa "" [obj]
+(defn typeid "" [obj]
   (cond
     (lambda-arg? obj) :lambda-arg
     (keyword? obj) :keyword
@@ -185,9 +218,11 @@
 (defn last "" [coll] (nth coll (last-index coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn list "" [&xs] (set-in! xs :____list true) xs)
 (defn list? "" [obj]
-  (and (array? obj) (not obj.____vec) (not obj.____map)))
-(defn list "" [&xs] xs)
+  (and (array? obj)
+       (or obj.____list
+           (and (not obj.____vec) (not obj.____map)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "" [obj] (and (array? obj) obj.____vec))
@@ -204,7 +239,15 @@
 (defn empty? "" [coll] (= 0 (count coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn not-empty [coll] (if (empty? coll) nil coll))
+(defn not-empty "" [coll] (if (empty? coll) nil coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+(defn seq "" [obj]
+  (cond
+    (string? obj) (obj.split "")
+    (array? obj) (obj.slice 0)
+    (object? obj) (Object.entries obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "" [obj x]
@@ -227,9 +270,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat* "" [coll & xs] (coll.concat.apply coll xs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn opt "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" [coll start step]

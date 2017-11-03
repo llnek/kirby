@@ -143,15 +143,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- filterJS "" [obj]
-  (var cache []
-       s (if obj
-           (JSON/stringify obj
-                           (fn [k v]
-                             (if (object? v)
-                               (if (std/contains? cache v)
-                                 (undef! v)
-                                 (cache.push v)))
-                             v))))
+  (var s (std/stringify obj))
   (if (std/not-empty s) (JSON/parse s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
