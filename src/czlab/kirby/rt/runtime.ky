@@ -12,13 +12,44 @@
   czlab.kirby.rt.runtime
 
   (require ["../bl/parser" :as parser]
-           ["../bl/macros" :as macros]
            ["../bl/types" :as types]
            ["../bl/stdlib" :as std]
            ["../rt/toolkit" :as rt]
            ["../bl/env" :refer [LEXEnv]])
 
   (require ["readline" :as readline]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- loadedMacros? false)
+(def- CACHE {})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- loadMacros []
+  (when-not loadedMacros?
+    (set! loadedMacros? true)
+    (require "../bl/defmacros.ky")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setMacro "" [cmd func]
+  (when (and cmd func)
+    (when-not (cmd.includes "/")
+      (var c (global_env.peekNSP))
+      (if-not c (raise! "missing namespace"))
+      (set! cmd (str c "/" cmd)))
+    ;;(println "adding macro ==== " cmd)
+    (set-in! CACHE cmd func)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getMacro "" [cmd]
+  (do-with [ret nil]
+    (if (cmd.includes "/")
+      (set! ret (get CACHE cmd))
+      (let [nsp (global_env.peekNSP)]
+        (if nsp (set! ret (get CACHE
+                               (str nsp "/" cmd))))
+        (if-not ret
+          (set! ret (get CACHE
+                         (str "czlab.kirby.bl.defmacros/" cmd))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- wrap-str "" [s]
@@ -146,7 +177,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleLet "" [ast env]
-  (var e (new Env env)
+  (var e (new LEXEnv env)
        a1 (nth ast 1))
   (forlet ((i 0)
            (< i (alen a1)) (i (+ i 2)))
@@ -178,7 +209,7 @@
         (if (inst? Error ex)
           (set! ex (.-message ex)))
         (compute (nth a2 2)
-                 (new Env env [(nth a2 1)] [ex]))
+                 (new LEXEnv env [(nth a2 1)] [ex]))
         (throw ex)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -287,7 +318,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn newEnv "" []
-  (do-with [ret (new Env)]
+  (do-with [ret (new LEXEnv)]
     (each-key (fn [v k]
                 (ret.set (types/symbol k) v)) rt)
     (ret.set (types/symbol "eval")
@@ -323,7 +354,7 @@
 (def-  rep (fn [s] (show (compute (readAST s)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def-  global_env (new Env))
+(def-  global_env (new LEXEnv))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runRepl "" []
@@ -348,7 +379,8 @@
   (set! global_env (newEnv))
   (global_env.set (types/symbol "*host-language*") "javascript")
   (rep macro_cond)
-  (rep macro_assert))
+  (rep macro_assert)
+  (loadMacros))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn globalEnv "" [] global_env)

@@ -9,12 +9,50 @@
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var parser = require('../bl/parser');
 var readline = require("readline");
-var macros=require("../bl/macros");
 var types = require("../bl/types");
 var std = require("../bl/stdlib");
 var rt = require("../rt/toolkit");
 var env = require("../bl/env");
 var Env=env.Env;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+var loadedMacros_Q=false;
+var CACHE= {};
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function loadMacros() {
+  if (!loadedMacros_Q) {
+    loadedMacros_Q=true;
+    require("../bl/macros.ky");
+  }
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function setMacro(cmd, func) {
+  if (cmd && func) {
+    if (!cmd.includes("/")) {
+      let c=global_env.peekNSP();
+      if (!c) throw new Error("missing namespace");
+      cmd=c+"/"+cmd;
+    }
+    //console.log("adding macro ==== " + cmd);
+    CACHE[cmd]=func;
+  }
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function getMacro(x) {
+  if (x.includes("/")) {
+    return CACHE[x];
+  }
+  let nsp=global_env.peekNSP();
+  let ret;
+  if (nsp) {
+    ret= CACHE[nsp+"/"+x];
+  }
+  if (!ret) ret = CACHE["czlab.kirby.bl.defmacros/"+x];
+  return ret;
+}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function dbg(obj) {
@@ -55,7 +93,7 @@ function quasiquote(ast) {
 function isMacroCall(ast, env) {
   return types.list_p(ast) &&
          types.symbol_p(ast[0]) &&
-         macros.get(types.symbol_s(ast[0]));
+         getMacro(types.symbol_s(ast[0]));
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -74,7 +112,7 @@ function macroexpand(ast, env) {
   }
   while (isMacroCall(ast, env)) {
     var cmd= types.symbol_s(ast[0]),
-        mac = macros.get(cmd);
+        mac = getMacro(cmd);
 //core.println("macro(before-"+cmd+":", core.pr_obj(ast, true));
         ast = mac.apply(mac, ast.slice(1));
 //core.println("macro(after-"+cmd+":", core.pr_obj(ast, true));
@@ -307,6 +345,7 @@ function init() {
   global_env.set(types.symbol("*host-language*"), "javascript");
   rep(macro_cond);
   rep(macro_assert);
+  loadMacros();
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -314,6 +353,8 @@ module.exports= {
   expandMacro: expandMacro,
   eval: compute,
   init: init,
+  getMacro: getMacro,
+  setMacro: setMacro,
   globalEnv: function() { return global_env; },
   repl: runRepl,
   newEnv: newEnv

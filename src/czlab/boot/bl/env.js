@@ -13,6 +13,7 @@ var std=require("./stdlib");
 function Env(outer, binds, exprs) {
   this.outer = outer || null;
   this.data = {};
+  this.nspaces=[];
 
   if (binds && exprs) {
     for (var i=0; i<binds.length; ++i) {
@@ -28,6 +29,26 @@ function Env(outer, binds, exprs) {
     }
   }
   return this;
+}
+
+//var STAR_NS_STAR= types.symbol("*ns*");
+Env.prototype.pushNSP=function(nsp) {
+  this.nspaces.push(""+nsp);
+}
+Env.prototype.peekNSP=function() {
+  return this.nspaces[this.nspaces.length-1];
+}
+Env.prototype.popNSP=function() {
+  return this.nspaces.pop();
+}
+Env.prototype.firstNSP=function() {
+  return this.nspaces[0];
+}
+Env.prototype.resetNSPCache=function() {
+  this.nspaces=[];
+}
+Env.prototype.countNSPCache=function() {
+  return this.nspaces.length;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

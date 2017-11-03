@@ -8,7 +8,6 @@
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var kirby=require("./cg/transpiler"),
-    macros=require("./bl/macros"),
     rt=require("./rt/runtime"),
     gopt=require("node-getopt"),
     watcher=require("watch"),
@@ -119,7 +118,6 @@ function init() {
       kb.transpile(code, path.relative(process.cwd(), fname)), fname);
   };
   rt.init();
-  macros.load();
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

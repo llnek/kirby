@@ -12,7 +12,6 @@
   czlab.kirby.main
 
   (require ["./cg/transpiler" :as kirby]
-           ["./bl/macros" :as macros]
            ["./bl/stdlib" :as std]
            ["./bl/lexer" :as rdr]
            ["./rt/runtime" :as rt])
@@ -103,8 +102,7 @@
             (.transpile (require "./cg/transpiler")
                         (fs.readFileSync fname "utf8")
                         (path.relative (process.cwd) fname)) fname)))
-  (rt.init)
-  (macros.load))
+  (rt.init))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn main "" []

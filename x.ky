@@ -1,7 +1,7 @@
+(ns abc.hello)
 
-(defn aaa ""
-  ;^{:opcode ["do"] }
-  [a] nil)
+(defmacro nil? [x] `(poo ~x))
 
 
+(nil? 44)
 
