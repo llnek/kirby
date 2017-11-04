@@ -305,6 +305,7 @@ function transpileList(ast, env) {
       cmd=transpileSingle(ast);
     }
     if (!cmd) syntax_E("e1", ast);
+    cmd=maybeStripStdlib(cmd);
     if (types.list_p(ast)) {
       if (testre_Q(rdr.REGEX.func, cmd)) {
         cmd = tnodeEx(["(", cmd, ")"]);
@@ -317,6 +318,19 @@ function transpileList(ast, env) {
     }
   }
   return nodeTag(ret,ast);
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function maybeStripStdlib(cmd) {
+  let nsp=rt.globalEnv().peekNSP(),
+      lib="kirbystdlibref",
+      cnt=lib.length;
+  if (nsp == "czlab.kirby.bl.stdlib" &&
+      (cmd.startsWith(lib+"/") ||
+       cmd.startsWith(lib+"."))) {
+    cmd=cmd.slice(cnt+1);
+  }
+  return cmd;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1211,6 +1225,16 @@ function sf_ns(ast,env) {
              "require"==e[0]) {
       ret.push(sf_require(e));
     }
+  }
+  //force a internal reference to stdlib for
+  //user files
+  nsp= rt.globalEnv().peekNSP();
+  if (!nsp.startsWith("czlab.kirby.")) {
+    ast=[types.symbol("require"),
+         ["\"kirby\"",
+          types.keyword(":as"),
+          types.symbol("kirbystdlibref")]];
+    ret.push(sf_require(ast));
   }
   return ret;
 }

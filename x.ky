@@ -1,7 +1,4 @@
-(ns abc.hello)
+(ns hello.world)
 
-(defmacro nil? [x] `(poo ~x))
-
-
-(nil? 44)
+(if (empty? poo) xxx)
 

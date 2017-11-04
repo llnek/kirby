@@ -12,6 +12,9 @@
 
   czlab.kirby.bl.defmacros)
 
+(defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))
+(defmacro not-empty "" [coll] `(not (empty? ~coll)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trap! "" [& msgs]
   (let* [z (count* msgs)]
@@ -321,8 +324,8 @@
 (defmacro each [func coll] `(.forEach ~coll ~func))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro empty? "" [coll] `(= 0 (count ~coll)))
-(defmacro not-empty [coll] `(not (empty? ~coll)))
+;(defmacro empty? "" [coll] `(= 0 (count ~coll)))
+;(defmacro not-empty [coll] `(not (empty? ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each-key [func obj]

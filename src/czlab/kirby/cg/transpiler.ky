@@ -338,6 +338,7 @@
                 (set! cmd (first ast)))
             (set! cmd (transpileSingle ast)))
           (if-not cmd (syntax! :e1 ast))
+          (set! cmd (maybeStripStdlib cmd))
           (if (types/list? ast)
             (do (if (testre? rdr/REGEX.func cmd)
                   (set! cmd (tn/tnodeEx ["(" cmd ")"])))
@@ -1165,10 +1166,28 @@
         (ret.push (sf-include e))
         (and (std/list? e)
              (== "require" (car e)))
-        (ret.push (sf-require e))))))
+        (ret.push (sf-require e))))
+    ;;force a internal reference to stdlib for
+    ;;user files
+    (set! nsp (.peekNSP (rt/globalEnv)))
+    (when-not (.startsWith nsp "czlab.kirby.")
+      (set! ast [(std/symbol "require")
+                 ["\"kirby\""
+                  (std/keyword ":as")
+                  (std/symbol "kirbystdlibref")]])
+      (ret.push (sf-require ast)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :ns sf-ns)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- maybeStripStdlib "" [cmd]
+  (var nsp (.peekNSP (rt/globalEnv))
+       lib "kirbystdlibref.")
+  (if (and (cmd.startsWith lib)
+           (= nsp "czlab.kirby.bl.stdlib"))
+    (cmd.slice (alen lib))
+    cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-comment "" [ast env] (nodeTag (tn/tnode) ast))
