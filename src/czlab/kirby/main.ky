@@ -11,11 +11,10 @@
 
   czlab.kirby.main
 
-  (require ["./cg/transpiler" :as kirby]
+  (require ["./cg/transpiler" :as tx]
            ["./bl/stdlib" :as std]
            ["./bl/lexer" :as rdr]
            ["./rt/runtime" :as rt])
-
   (require ["node-getopt" :as gopt]
            ["watch" :as watcher]
            ["path" :as path]
@@ -59,8 +58,8 @@
     (.resume)
     (.on :data #(+= source (.toString %)))
     (.on :end #(try
-                 (->> (process.cwd)
-                      (kirby.transpile source)
+                 (->> (process/cwd)
+                      (tx/transpile source)
                       (pout.write)) (catch e (error! e))))
     (.on :error error!))
   (delay #(when (= 0 pin.bytesRead)
@@ -83,31 +82,29 @@
     (if-not show-ast
       (println "kirby v1.0.0"
                ": compiling: " fin " -> " fout))
-    (set! source (fs.readFileSync fin "utf8"))
+    (set! source (fs/readFileSync fin "utf8"))
     (if show-ast
-      (kirby.dbgAST source fin dirs)
+      (tx/dbgAST source fin dirs)
       (let [out (if source-map
-                  (kirby.transpileWithSrcMap source fin)
-                  (kirby.transpile source fin))]
-        (fs.writeFileSync fout out "utf8")))
+                  (tx/transpileWithSrcMap source fin)
+                  (tx/transpile source fin))]
+        (fs/writeFileSync fout out "utf8")))
     (catch e
       (error! e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
-  (set! require.extensions
+  (set-in! require.extensions
         ".ky"
         (fn [module fname]
           (module._compile
             (.transpile (require "./cg/transpiler")
-                        (fs.readFileSync fname "utf8")
-                        (path.relative (process.cwd) fname)) fname)))
+                        (fs/readFileSync fname "utf8")
+                        (path/relative (process/cwd) fname)) fname)))
   (rt.init))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn main "" []
-  (init)
-  (compileFiles))
+(defn main "" [] (init) (compileFiles))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main)

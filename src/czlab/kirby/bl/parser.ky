@@ -11,16 +11,13 @@
 
   czlab.kirby.bl.parser
 
-  (require ["./types" :as types]
-           ["./stdlib" :as std]
-           ["./lexer" :as rdr]))
+  (require ["./stdlib" :as std]
+           ["./lexer" :as rdr :refer [tnode tnodeEx]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- throwE "" [token msg]
   (if token
-    (raise! msg
-            "\nnear line " token.line
-            "\nin file " token.source)
+    (raise! msg "\nnear line " token.line "\nin file " token.source)
     (raise! msg "\nnear EOF ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,7 +41,8 @@
   (if token
     (set! tn token.name))
   (cond
-    (std/empty? tn) (set! ret undefined)
+    (empty? tn)
+    (set! ret undefined)
     (rdr.REGEX.float.test tn)
     (set! ret (parseFloat tn))
     (or (rdr.REGEX.hex.test tn)
@@ -64,7 +62,7 @@
     (set! ret true)
     (= "false" tn)
     (set! ret false)
-    :else (set! ret (types/symbol tn)))
+    :else (set! ret (std/symbol tn)))
   (copyTokenData token ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -74,17 +72,17 @@
   (if token (set! tn token.name))
   (if (not= tn head)
     (throwE token (str "expected '" head "'")))
-  (do-with [ast []]
+  (do-with [ast (std/vector)]
     (set! cur (peekToken tokens))
     (while ok?
       (when (or (std/nichts? cur)
-              (= tail cur.name))
+                (= tail cur.name))
         (if cur
           (copyTokenData token ast)
           (throwE cur (str "expected '" tail "', got EOF")))
         (set! ok? false))
       (when ok?
-        (addAst ast (readTokens tokens))
+        (addAst ast (read* tokens))
         (set! cur (peekToken tokens))))
     (nextToken tokens)))
 
@@ -94,79 +92,71 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "" [cur tokens]
   (do-with [v (readBlock tokens "[" "]")]
-    (set! v :____vec true)))
+    (set-in! v :____vec true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readObject "" [cur tokens]
+(defn- readMap "" [cur tokens]
   (do-with [v (readBlock tokens "{" "}")]
-    (set! v :____map true)))
+    (set-in! v :____map true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- skipAndParse "" [tokens func]
+(defn- skip+parse "" [tokens func]
   (copyTokenData (nextToken tokens) (func tokens)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readTokens "" [tokens]
+(defn- read* "" [tokens]
   (var tmp nil token (peekToken tokens))
   (if (std/nichts? token)
     undefined
     (case token.name
-      "'" (skipAndParse tokens
-                        #([(types/symbol "quote")
-                           (readTokens tokens)]))
-      "`" (skipAndParse tokens
-                        #([(types/symbol "quasiquote")
-                           (readTokens tokens)]))
-      "~" (skipAndParse tokens
-                        #([(types/symbol "unquote")
-                           (readTokens tokens)]))
-      "~@" (skipAndParse tokens
-                         #([(types/symbol "splice-unquote")
-                            (readTokens tokens)]))
-      "^" (skipAndParse tokens
-                        (fn []
-                          (set! tmp (readTokens tokens))
-                          [(types/symbol "with-meta")
-                           (readTokens tokens) tmp]))
-      "@" (skipAndParse tokens
-                        #([(types/symbol "deref")
-                           (readTokens tokens)]))
-      "#" (skipAndParse tokens
-                        #([(types/symbol "lambda")
-                           (readTokens tokens)]))
+      "'" (skip+parse tokens
+                      #(std/vector (std/symbol "quote") (read* tokens)))
+      "`" (skip+parse tokens
+                      #(std/vector (std/symbol "quasiquote") (read* tokens)))
+      "~" (skip+parse tokens
+                      #(std/vector (std/symbol "unquote") (read* tokens)))
+      "~@" (skip+parse tokens
+                       #(std/vector (std/symbol "splice-unquote") (read* tokens)))
+      "^" (skip+parse tokens
+                      (fn []
+                        (set! tmp (read* tokens))
+                        (std/vector (std/symbol "with-meta")
+                                    (read* tokens) tmp)))
+      "@" (skip+parse tokens
+                      #(std/vector (std/symbol "deref") (read* tokens)))
+      "#" (skip+parse tokens
+                      #(std/vector (std/symbol "lambda") (read* tokens)))
       ")" (throwE token "unexpected ')'")
       "(" (readList token tokens)
       "]" (throwE token "unexpected ']'")
       "[" (readVector token tokens)
       "}" (throwE token "unexpected '}'")
-      "{" (readObject token tokens)
+      "{" (readMap token tokens)
       (";" ",") (do->undef (nextToken tokens))
       ;else
       (readAtom tokens))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addAst "" [ast f] (if-not (undef? f) (ast.push f)) ast)
+(defn- addAst "" [ast f] (if-not (undef? f) (conj! ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parser "" [source & [fname]]
   (var tokens (rdr/lexer source
-                         (std/maybe fname "**adhoc**"))
+                         (std/opt fname "**adhoc**"))
        f nil ast [] tlen (alen tokens))
   (set! tokens.pos 0)
-  (do-with [ast []]
+  (do-with [ast (std/vector)]
     (comment
-    (forlet ((i 0)
-             (< i tlen)(i (inc i)))
-      (println "token=" (.-name (nth tokens i)))))
+      (for [i 0 :while (< i tlen) :recur (+1 i)]
+        (println "token=" (.-name (nth tokens i)))))
     (while (< tokens.pos tlen)
-      (addAst ast (readTokens tokens)))))
+      (addAst ast (read* tokens)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "" [tree & [indent]]
-  (var pad (.repeat " " (std/maybe indent 0)))
-  (forlet ((i 0)
-           (< i (alen tree)) (i (inc i)))
-    (println (types/pr-obj (nth tree i)))))
+  (var pad (.repeat " " (std/opt indent 0)))
+  (for [i 0 :while (< i (alen tree)) :recur (+1 i)]
+    (println (prn (nth tree i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

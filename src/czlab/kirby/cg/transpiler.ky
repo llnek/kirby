@@ -11,9 +11,7 @@
 
   czlab.kirby.cg.transpiler
 
-  (require ["../bl/types" :as types]
-           ["../bl/stdlib" :as std]
-           ["../bl/tnode" :as tn]
+  (require ["../bl/stdlib" :as std]
            ["../bl/lexer" :as rdr]
            ["../bl/parser" :as psr]
            ["../rt/runtime" :as rt])
@@ -1092,10 +1090,11 @@
 (defn- sf-require "" [ast env]
   (do-with [ret (nodeTag (tn/tnode) ast)]
     (var~  path v e refers renames)
-    (var as (gensym))
+    (var as nil)
     (forlet ((i 1)
              (< i (alen ast)) (i (inc i)))
       (set! e (nth ast i))
+      (set! as (gensym))
       (if (or (not (array? e))
               (< (alen e) 3)) (syntax! :e0 ast))
       (set! path (first e))
@@ -1170,12 +1169,18 @@
     ;;force a internal reference to stdlib for
     ;;user files
     (set! nsp (.peekNSP (rt/globalEnv)))
-    (when-not (.startsWith nsp "czlab.kirby.")
-      (set! ast [(std/symbol "require")
-                 ["\"kirby\""
-                  (std/keyword ":as")
-                  (std/symbol "kirbystdlibref")]])
-      (ret.push (sf-require ast)))))
+    (cond
+      (or (= nsp "czlab.kirby.bl.defmacros")
+          (= nsp "czlab.kirby.bl.stdlib"))
+      nil
+      (nsp.startsWith "czlab.kirby.")
+      (ret.add "var kirbystdlibref=std;\n")
+      :else
+      (-> [(std/symbol "require")
+           ["\"kirby\""
+            (std/keyword ":as") (std/symbol "kirbystdlibref")]]
+          (sf-require )
+          (ret.push )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! SPEC-OPS :ns sf-ns)
@@ -1184,6 +1189,7 @@
 (defn- maybeStripStdlib "" [cmd]
   (var nsp (.peekNSP (rt/globalEnv))
        lib "kirbystdlibref.")
+  (set! cmd (str cmd))
   (if (and (cmd.startsWith lib)
            (= nsp "czlab.kirby.bl.stdlib"))
     (cmd.slice (alen lib))

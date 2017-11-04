@@ -325,6 +325,7 @@ function maybeStripStdlib(cmd) {
   let nsp=rt.globalEnv().peekNSP(),
       lib="kirbystdlibref",
       cnt=lib.length;
+  cmd=""+cmd;
   if (nsp == "czlab.kirby.bl.stdlib" &&
       (cmd.startsWith(lib+"/") ||
        cmd.startsWith(lib+"."))) {
@@ -1144,9 +1145,10 @@ function sf_include (expr) {
 function sf_require(ast,env) {
   let ret= nodeTag(tnode(),ast);
   let refers,renames;
-  let path=null,as=gensym(),v= null, e=null;
+  let path=null,as,v= null, e=null;
   for (var i= 1;
        i < ast.length; ++i) {
+    as=gensym();
     e= ast[i];
     if (!std.array_p(e) || e.length < 3) syntax_E("e0",ast);
     path=e[0];
@@ -1226,16 +1228,22 @@ function sf_ns(ast,env) {
       ret.push(sf_require(e));
     }
   }
+
   //force a internal reference to stdlib for
   //user files
   nsp= rt.globalEnv().peekNSP();
-  if (!nsp.startsWith("czlab.kirby.")) {
-    ast=[types.symbol("require"),
-         ["\"kirby\"",
-          types.keyword(":as"),
-          types.symbol("kirbystdlibref")]];
-    ret.push(sf_require(ast));
+  if ((nsp == "czlab.kirby.bl.defmacros") ||
+      (nsp == "czlab.kirby.bl.stdlib")) {}
+  else if (nsp.startsWith("czlab.kirby.")) {
+    ret.push("var kirbystdlibref=std;\n");
   }
+  else {
+    let form=[types.symbol("require"),
+              ["\"kirby\"",
+               types.keyword(":as"), types.symbol("kirbystdlibref")]];
+    ret.push(sf_require(form));
+  }
+
   return ret;
 }
 SPEC_OPS["ns"]=sf_ns;

@@ -11,23 +11,25 @@
 
   czlab.kirby.rt.toolkit
 
-  (require ["../bl/types" :as types]
-           ["../bl/stdlib" :as std]))
+  (require ["fs" :as fs])
+  (require ["../bl/stdlib"
+            :as std
+            :refer [LambdaArg Keyword Symbol Atom]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro prstr-X "" [b arr] `(map #(std/prn % ~b) ~arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro prstr-T "" [arr] `(prstr-X true ~arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro prstr-F "" [arr] `(prstr-X false ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
   (var that this)
   (do-with [tmp #(that.apply this arguments)]
     (each-key (fn [v k] (set-in! tmp k v)) that)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstr-X [b arr] `(map #(types/pr-obj % ~b) ~arr))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstr-T [arr] `(prstr-X true ~arr))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstr-F [arr] `(prstr-X false ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prn-str "" [&xs] (join " " (prstr-T xs)))
@@ -37,63 +39,62 @@
   (each (fn [s] (println s)) (prstr-T xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- slurp "" [f]
-  (-> (require "fs")(.readFileSync f "utf-8")))
+(defn- slurp "" [f] (fs/readFileSync f "utf-8"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- timeMillis "" [] (-> (new Date)(.getTime )))
+(defn- timeMillis "" [] (.getTime (new Date)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- object "" [&xs]
-  (if (std/empty? xs)
+  (if (empty? xs)
     {}
     (assoc.apply this (concat [ {} ] xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assoc "" [src & xs]
-  (if (not= 0 (mod (alen xs) 2))
+  (if (odd? (alen xs))
     (raise! "Odd number of assoc arguments"))
   (do-with [ret (clone src)]
-    (forlet ((i 0 k nil v nil)
-             (< i (alen xs)) (i (+ i 2)))
+    (for [i 0 k nil v nil
+          :while (< i (alen xs)) :recur (+2 i)]
       (set! k (str "" (nth xs i)))
-      (set! v (nth xs (+ i 1)))
+      (set! v (nexth xs i))
       (if-not (string? k)
         (raise! "expected string, got: " (type k)))
-      (set! ret k v))))
+      (set-in! ret k v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dissoc "" [src & xs]
   (do-with [ret (clone src)]
-    (forlet ((i 0) (< i (alen xs)) (i (inc i)))
+    (for [i 0 :while (< i (alen xs)) :recur (+1 i)]
       (delete! ret (nth xs i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clone "" [obj]
   (do-with [ret nil]
-    (case (types/obj-type obj)
+    (case (std/typeid obj)
       :list
       (set! ret (slice obj))
       :vector
       (doto ret
         (set! (slice obj))
-        (set! :____vec true))
+        (set-in! :____vec true))
       :hash-map
       (doto ret
         (set! (slice obj))
-        (set! :____map true))
+        (set-in! :____map true))
       :object
       (set! ret
             (reduce
               (fn [acc n]
-                (set! acc n (get obj n)) acc)
+                (set-in! acc n (get obj n)) acc)
               {}
               (keys obj)))
       :function
       (set! ret (obj.clone))
       ;else
       (raise! "clone of non-collection: "
-              (types/obj-type obj)))
+              (std/typeid obj)))
     (Object.defineProperty ret
                            :____meta
                            {:enumerable false :writable true })))
@@ -105,10 +106,10 @@
 (defn- conj "" [arr & xs]
   (cond
     (std/list? arr)
-    (-> (xs.reverse)(.concat arr))
+    (.concat (xs.reverse) arr)
     (std/some? arr)
     (do-with [v (concat arr xs)]
-      (set! v :____vec true))
+      (set-in! v :____vec true))
     :else arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -148,8 +149,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" [obj m]
-  (do-with [ret (types/clone obj)]
-           (set! ret :____meta m)))
+  (do-with [ret (clone obj)]
+           (set-in! ret :____meta m)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- jsObject? "" [m]
@@ -166,7 +167,7 @@
            (not (jsObject? obj))
            (not (fn? obj)))
     (raise! "can't get metadata from: "
-            (types/obj-type obj)))
+            (std/typeid obj)))
   (get obj :____meta))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

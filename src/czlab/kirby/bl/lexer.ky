@@ -11,14 +11,21 @@
 
   czlab.kirby.bl.lexer
 
-  (require ["./tnode" :as tn]
-           ["./stdlib" :as std]))
+  (require ["./stdlib" :as std]
+           ["source-map" :rename {SourceNode TreeNode}]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tnodeEx "" [chunk name] (tnode nil nil nil chunk name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tnode "" [&[source line col chunk name]]
+  (new TreeNode line col source chunk (std/opt name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
-  noret /^def\b|^var\b|^set!\b|^throw\b/
-  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$]*$/
-  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$]+$/
+  noret /^def\b|^var\b|^set!\b|^set-in!\b|^throw\b/
+  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
+  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
   float /^[-+]?[0-9]+\.[0-9]+$/
   int /^[-+]?[0-9]+$/
   hex /^[-+]?0x/
@@ -47,23 +54,23 @@
 (defn jsid "" [name]
   (var pfx "")
   (when (and (string? name)
-             (= "-" (.charAt name 0)))
+             (= "-" (name.charAt 0)))
     (set! pfx "-")
-    (set! name (name.slice 1)))
+    (set! name (rest name)))
   (if (testid? name)
     (-> (str pfx name)
-        (.replace REGEX.query "_query")
+        (.replace REGEX.query "_QUERY")
         (.replace REGEX.slash ".")
-        (.replace REGEX.bang "_bang")
-        (.replace REGEX.dash "_dash")
-        (.replace REGEX.quote "_quote")
-        (.replace REGEX.hash "_hash")
-        (.replace REGEX.plus "_plus")
-        (.replace REGEX.perc "_perc")
-        (.replace REGEX.at "_at")
-        (.replace REGEX.less "_lt")
-        (.replace REGEX.greater "_gt")
-        (.replace REGEX.star "_star"))
+        (.replace REGEX.bang "_BANG")
+        (.replace REGEX.dash "_DASH")
+        (.replace REGEX.quote "_QUOTE")
+        (.replace REGEX.hash "_HASH")
+        (.replace REGEX.plus "_PLUS")
+        (.replace REGEX.perc "_PERC")
+        (.replace REGEX.at "_AT")
+        (.replace REGEX.less "_LT")
+        (.replace REGEX.greater "_GT")
+        (.replace REGEX.star "_STAR"))
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -80,10 +87,10 @@
        str? false
        regex? false
        comment? false)
-  (do-with [tree []]
+  (do-with [tree (std/vector)]
     (var toke (fn [ln col s s?]
-                (if (std/maybe s? (std/not-empty s))
-                  (tree.push (tn/tnode fname ln col s s))) ""))
+                (if (std/opt s? (std/not-empty s))
+                  (conj! tree (tnode fname ln col s s))) ""))
     (while (< pos len)
       (set! ch (source.charAt pos))
       (++ col)
@@ -123,18 +130,18 @@
             (= ch "`")
             (= ch "@")
             (= ch "^"))
-        (if (and (std/empty? token)
+        (if (and (empty? token)
                  (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (toke line tcol ch))
           (+= token ch))
         (and (= ch "&")
              (= nx "&"))
-        (do (if (std/empty? token) (set! tcol col))
+        (do (if (empty? token) (set! tcol col))
             (+= token (str ch nx))
             (++ pos))
         (= ch "~")
-        (if (and (std/empty? token)
+        (if (and (empty? token)
                  (not (REGEX.wspace.test nx)))
           (do (set! tcol col)
               (if (= nx "@")
@@ -143,7 +150,7 @@
                 (toke line tcol ch)))
           (+= token ch))
         (and (= ch "/")
-             (std/empty? token))
+             (empty? token))
         (do (set! regex? true)
             (set! tcol col)
             (+= token ch))
@@ -159,11 +166,11 @@
             (set! comment? true))
         (or (= ch ",")
             (REGEX.wspace.test ch))
-        (->> (-> (if (= ch "\n") (- line 1) line)
+        (->> (-> (if (= ch "\n") (-1 line) line)
                  (toke tcol token))
              (set! token))
         :else
-        (do (if (std/empty? token) (set! tcol col)) (+= token ch))))))
+        (do (if (empty? token) (set! tcol col)) (+= token ch))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

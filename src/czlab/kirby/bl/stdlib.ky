@@ -12,6 +12,9 @@
   czlab.kirby.bl.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn not-empty "" [coll] (if (empty? coll) nil coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- stringify "" [obj]
   (var cache [])
   (if obj
@@ -53,7 +56,7 @@
     :atom (str "(atom " (prn obj.value _r) ")")
     :keyword (str ":" obj.value)
     :symbol obj.value
-    :object (JSON/stringify obj)
+    :object (stringify obj)
     :vector (pa "[" "]")
     :map (pa "{" "}")
     :list (pa "(" ")")
@@ -94,28 +97,16 @@
 (defn symbol? "" [obj] (inst? Symbol obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn symbol-s "" [s]
-  (if (symbol? s) (.-value s) (str s)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword "" [name] (new Keyword name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword? "" [obj] (inst? Keyword obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn keyword-s "" [k]
-  (if (keyword? k) (.-value k) (str k)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg "" [name] (new LambdaArg name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg? "" [obj] (inst? LambdaArg obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lambda-arg-s "" [k]
-  (if (lambda-arg? k) (.-value k) (str k)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom [][]
@@ -226,15 +217,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "" [obj] (and (array? obj) obj.____vec))
-(defn vector "" [&xs] (set! xs :____vec true) xs)
+(defn vector "" [&xs] (set-in! xs :____vec true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "" [obj] (and (array? obj) obj.____map))
 (defn hashmap "" [&xs]
   (if (= 1 (mod (alen xs) 2))
     (raise! "Odd number of hash map arguments"))
-  (set! xs :____map true) xs)
-
+  (set-in! xs :____map true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -288,6 +278,45 @@
           :recur (+1 i)
           :while (< i cz) ]
       (ret.push (nth c1 i) (nth c2 i)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;monads
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def identity
+  {:bind (fn [mv mf] (mf mv))
+   :result (fn [v] v)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def maybe
+  {:bind (fn [mv mf] (if (nil? mv) nil (mf mv)))
+   :result (fn [v] v)
+   :zero nil})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def array
+  {:bind (fn [mv mf]
+           (reduce
+             (fn [acc v] (.concat acc v)) [] (map mf mv)))
+   :result (fn [v] (.concat [] v))
+   :zero []
+   :plus #(reduce
+            (fn [acc v] (.concat acc v))
+            []
+            (Array.prototype.slice.call arguments))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def state
+  {:bind (fn [mv mf]
+           (fn [s]
+             (var x (mv s)) ((mf (nth x 0)) (nth x 1))))
+   :result (fn [v] (fn [s] (.concat [] [v s])))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def continuation
+  {:bind (fn [mv mf]
+           (fn [c]
+             (mv (fn [v] ((mf v) c)))))
+   :result (fn [v] (fn [c] (c v)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
