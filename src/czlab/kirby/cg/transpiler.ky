@@ -12,7 +12,7 @@
   czlab.kirby.cg.transpiler
 
   (require ["../bl/stdlib" :as std]
-           ["../bl/lexer" :as rdr]
+           ["../bl/lexer" :as rdr :refer [tnode tnodeEx]]
            ["../bl/parser" :as psr]
            ["../rt/runtime" :as rt])
   (require ["fs" :as fs]
@@ -70,8 +70,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- MODULE-VERSION "1.0.0"
-      tabspace 2
-      indent (- tabspace)
       EXTERNS nil
       SPEC-OPS {})
 
@@ -79,21 +77,21 @@
 (defn- gensym "" [& [pfx]]
   (var x gensym-counter)
   (++ gensym-counter)
-  (str (std/maybe pfx "G____") x))
+  (str (std/opt pfx "G____") x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- regoBuiltins "" [f group]
   (each #(set! SPEC-OPS % f) (get RESERVED group)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- error! "" [e line file msg]
+(defn- error! "" [e &[line file msg]]
   (raise! (get ERRORS-MAP e)
-          (if msg (str " : " msg) "")
-          (if line (str "\nLine no " line) "")
-          (if file (str "\nFile " file) "")))
+          (if msg (str " : " msg))
+          (if line (str "\nLine no " line))
+          (if file (str "\nFile " file))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- syntax! "" [ecode ast cmd]
+(defn- syntax! "" [ecode &[ast cmd]]
   (error! ecode
           (if ast ast.line 0)
           (if ast ast.source 0) cmd))
@@ -116,145 +114,122 @@
   obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct1 "" [lhs]
-  (var as "" out [] keys {})
-  (cond
-    (types/vector? lhs)
-    (forlet ((i 0 e nil ev nil)
-             (< i (alen lhs)) (i (inc i)))
-      (set! e (nth lhs i))
-      (set! ev (.-value e))
+(defn- destructVec "" [lhs keys]
+  (do-with [as nil]
+    (for [i 0 e nil ev nil
+          :while (< i (alen lhs)) (+1 i)]
+      (set! e (nth lhs i) ev (str e))
       (cond
-        (types/symbol? e)
+        (std/symbol? e)
         (cond
           (= ev "_") nil
           (= ev "&") (do (set! keys
-                               (str "&" (nth lhs (inc i))) i)
+                               (str "&" (nth lhs (+1 i))) i)
                          (++ i))
           (ev.startsWith "&")
-          (set! keys ev i)
+          (set-in! keys ev i)
           :else
-          (set! keys ev i))
-        (types/keyword? e)
+          (set-in! keys ev i))
+        (std/keyword? e)
         (if (= ev "as")
           (do (++ i)
               (set! as (str (nth lhs i))))
-          (raise! "bad keyword: :" ev))))
-    (types/map? lhs)
-    (forlet ((i 0 e nil ev nil)
-             (< i (alen lhs)) (i (inc i)))
-      (set! e (nth lhs i))
-      (set! ev (.-value e))
-      (if (types/keyword? e)
+          (raise! "bad keyword: :" ev))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destructMap "" [lhs keys]
+  (do-with [as nil]
+    (for [i 0 e nil ev nil
+          :while (< i (alen lhs)) :recur (+1 i)]
+      (set! e (nth lhs i) ev (str e))
+      (if (std/keyword? e)
         (cond
           (or (= ev "keys")
               (= ev "strs"))
-          (let [ks (nth lhs (inc i))]
+          (let [ks (nexth lhs i)]
             (++ i)
-            (forlet ((j 0)
-                     (< j (alen ks)) (j (inc j)))
-              (set! keys (str (nth ks j)) nil)))
+            (for [j 0
+                  :while (< j (alen ks)) :recur (+1 j)]
+              (set-in! keys (str (nth ks j)) nil)))
           (= ev "as")
           (do (++ i)
               (set! as (str (nth lhs i)))))
-        (raise! "bad destruct field: "
-                (types/obj-type e))))
-    (types/symbol? lhs)
-    (set! keys (str lhs) nil)
+        (raise! "bad destruct field: " (std/typeid e))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct1 "" [lhs]
+  (var as nil out [] keys {})
+  (cond
+    (std/vector? lhs) (set! as (destructVec lhs keys))
+    (std/map? lhs) (set! as (destructMap lhs keys))
+    (std/symbol? lhs) (set! keys (str lhs) nil)
     :else
-    (raise! "cant destruct with: " (types/obj-type lhs)))
-  ;;return
-  [as keys])
+    (raise! "cant destruct with: " (std/typeid lhs)))
+  (std/vector as keys))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destruct0 "" [cmd lhs rhs env]
-  (var d (destruct1 lhs)
-       as (nth d 0)
-       kdefs []
-       ka nil
-       kvals (tn/tnode)
-       keys (nth d 1))
-  (if (std/empty? as) (set! as (gensym)))
+  (var [as keys] (destruct1 lhs)
+       kdefs [] ka nil kvals (tnode))
+  (if (empty? as) (set! as (gensym)))
   (set! as (rdr/jsid as))
-  (each (fn [x]
-          (var name (nth x 0)
-               n nil
-               pos nil
-               rest? false)
-          (when (name.startsWith "&")
-            (set! rest? true)
-            (set! name (name.slice 1)))
-          (set! n (rdr/jsid name))
-          (kdefs.push n)
-          (set! pos (nth x 1))
-          (cond
-            (nil? pos)
-            (set! ka (str n "=" as "[\"" name "\"];\n"))
-            rest?
-            (set! ka (str n "=" as ".slice(" pos ");\n"))
-            :else
-            (set! ka (str n "=" as "[" pos "];\n")))
-          (kvals.add ka))
-        (Object.entries keys))
+  (each-key (fn [v k]
+              (var rest? false)
+              (if (k.startsWith "&")
+                (set! rest? true k (rest k)))
+              (set! k (rdr/jsid k))
+              (conj! kdefs k)
+              (-> (cond
+                    (nil? v)
+                    (str "[\"" k "\"];\n")
+                    rest?
+                    (str ".slice(" v ");\n")
+                    :else
+                    (str "[" v "];\n"))
+                  (str n "=" as )
+                  (kvals.add ))) keys)
   (kvals.prepend (str cmd " " (join "," kdefs) ";\n"))
-  [[(tn/tnodeEx [cmd " "
-                (rdr/jsid as) "= "
-                (transpile* rhs env) ";\n"]) kvals] kdefs])
+  [[(tnodeEx [cmd " "
+              (rdr/jsid as) "= "
+              (transpile* rhs env) ";\n"]) kvals] kdefs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileTree "" [root env]
-  (do-with [ret (nodeTag (tn/tnode) root)]
-    (var pstr ""
-         treeSize (alen root)
+  (do-with [ret (nodeTag (tnode) root)]
+    (var treeSize (alen root)
          endx (last-index root))
-    (+= indent tabspace)
-    (set! pstr (pad indent))
     (each (fn [ast]
             (var tmp ast)
             (if (array? ast)
               (set! tmp (transpileList ast env)))
             (when tmp
-              (ret.add [pstr tmp "\n"]))) root)
-    (-= indent tabspace)))
+              (ret.add [tmp "\n"]))) root)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileAtoms "" [atoms env]
-  (each (fn [a i arr]
-          (set! arr
-                i
-                (if (array? a)
-                  (transpileList a env)
-                  (transpileSingle a)))) atoms))
+  (each (fn [a i arr] (set-in! arr i (transpile* a env))) atoms))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileSingle "" [a]
   (cond
-    (types/symbol? a)
-    (rdr/jsid (types/symbol-s a))
-    (types/keyword? a)
-    (str "\"" (types/keyword-s a) "\"")
-    (types/lambda-arg? a)
-    (do
-      (str "____args[" (types/lambda-arg-s a) "]"))
-    (string? a)
-    a
-    (nil? a)
-    "null"
-    :else
-    (str "" a)))
+    (std/lambda-arg? a) (str "____args[" (str a) "]")
+    (std/keyword? a) (str "\"" (str a) "\"")
+    (std/symbol? a) (rdr/jsid (str a))
+    (string? a) a
+    (nil? a) "null"
+    :else (str "" a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpile* "" [x env]
-  (if (array? x)
-    (transpileList x env) (transpileSingle x)))
+  (if (array? x) (transpileList x env) (transpileSingle x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findCmd "" [ast]
   (do-with [cmd ""]
     (cond
-      (types/vector? ast) (set! cmd "vec")
-      (types/map? ast) (set! cmd "hash-map")
-      (types/list? ast) (set! cmd (types/symbol-s (first ast))))))
+      (std/vector? ast) (set! cmd "vec")
+      (std/map? ast) (set! cmd "hashmap")
+      (std/list? ast) (set! cmd (str (first ast))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" [a]
@@ -276,7 +251,8 @@
   (do-with [ret (tnode)]
     (for [i 0 :while (< i (alen a)) :recur (+2 i)]
       (if (> i 0) (ret.add ","))
-      (ret.add [(quote! (nth a i) env) " : " (quote! (nexth a i) env)]))
+      (ret.add [(quote! (nth a i) env)
+                " : " (quote! (nexth a i) env)]))
     (ret.prepend "{")
     (ret.add "}")))
 
@@ -290,18 +266,15 @@
     (ret.add "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-quote "" [ast env]
+(defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
     (ret.add (quote! (nth ast 1) env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set-in! SPEC-OPS "quote"  sf-quote)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileList "" [ast env]
   (var cmd (findCmd ast)
-       mc (rt.getMacro cmd) tmp nil)
-  (do-with [ret (tn/tnode)]
+       mc (rt/getMacro cmd) tmp nil)
+  (do-with [ret (tnode)]
     (when mc
       (set! ast (rt/expandMacro ast env mc))
       (set! cmd (findCmd ast)))
@@ -309,41 +282,41 @@
       (cmd.startsWith ".-")
       (ret.add [(transpile* (second ast) env)
                 "."
-                (transpileSingle (types/symbol (cmd.slice 2)))])
+                (transpileSingle (std/symbol (cmd.slice 2)))])
       (= "." (cmd.charAt 0))
       (do (ret.add (transpile* (second ast) env))
           (ret.add [cmd "("])
-          (forlet ((n 2)
-                   (< n (alen ast)) (n (inc n)))
+          (for [n 2
+                :while (< n (alen ast)) :recur (+1 n)]
             (if (not= n 2) (ret.add ","))
             (ret.add (transpile* (nth ast n) env)))
           (ret.add ")"))
-      (SPEC-OPS.hasOwnProperty cmd)
+      (std/contains? SPEC-OPS cmd)
       (set! ret ((get SPEC_OPS cmd) ast env))
       (rdr/REGEX.int.test cmd)
       (let [c0 (cmd.charAt 0)]
         (if (and (not= c0 "-")
                  (not= c0 "+"))
           (set! cmd (str "+" cmd)))
-        (set! ast [(types/symbol (cmd.charAt 0))
+        (set! ast [(std/symbol (cmd.charAt 0))
                    (nth ast 1)
-                   (parseInt (cmd.slice 1))])
+                   (parseInt (rest cmd))])
         (set! cmd (str (first ast)))
         (set! ret ((get SPEC-OPS cmd) ast env)))
       :else
-      (do (if (types/list? ast)
+      (do (if (std/list? ast)
             (do (transpileAtoms ast env)
                 (set! cmd (first ast)))
             (set! cmd (transpileSingle ast)))
           (if-not cmd (syntax! :e1 ast))
           (set! cmd (maybeStripStdlib cmd))
-          (if (types/list? ast)
+          (if (std/list? ast)
             (do (if (testre? rdr/REGEX.func cmd)
-                  (set! cmd (tn/tnodeEx ["(" cmd ")"])))
+                  (set! cmd (tnodeEx ["(" cmd ")"])))
                 (ret.add [cmd
                           "("
                           (join ","
-                                (tn/tnodeEx (ast.slice 1))) ")"]))
+                                (tnodeEx (rest ast))) ")"]))
             (ret.add cmd))))
     (set! ret (nodeTag ret ast))))
 
@@ -361,7 +334,7 @@
     (for [i 0 n nil m nil
           :while (< i (alen mtds)) :recur (+1 i)]
       (set! m (nth mtds i))
-      (m.unshift (types/symbol "method"))
+      (m.unshift (std/symbol "method"))
       (ret.add (sf-func m env false))
       (ret.add "\n"))
     (ret.add "}\n")
@@ -369,8 +342,10 @@
       (set-in! EXTERNS cz cz))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set-in! SPEC-OPS "deftype-" (fn [a e] (sf-deftype a e false)))
-(set-in! SPEC-OPS "deftype" (fn [a e] (sf-deftype a e true)))
+(defn- prv-deftype
+  "" ^{:opcode ["deftype-"]} [a e] (sf-deftype a e false))
+(defn- pub-deftype
+  "" ^{:opcode ["deftype"]} [a e] (sf-deftype a e true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- _lambdaFuncCount 0)
