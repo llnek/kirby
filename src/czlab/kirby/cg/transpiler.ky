@@ -44,31 +44,6 @@
   :e17 "Invalid arity (args < expected) to "})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- RESERVED {
-  :compare ["not=" "!=" "==" "=" ">" ">=" "<" "<="]
-  :arith ["+" "-" "*" "div" "%"  "mod"]
-  :logic ["||" "&&"]
-  :bitwise ["^" "&" "|" "<<" ">>" ">>>"]
-  :incdec ["++" "--"]
-  :unary ["not"  "~" "!"]
-  :assign ["+=" "-=" "*="
-         "/=" "%=" "<<="
-         ">>=" ">>>=" "&=" "|=" "^="]
-  :builtin
-  ["quote" "syntax-quote" "quasi-quote"
-  "backtick"  "unquote" "unquote-splice"
-  "repeat-n"  "do"  "doto"  "case" "apply"
-  "range"  "def-"  "def"  "var"  "for"
-  "new"  "throw"  "while"  "lambda"
-  "inst?"  "delete!"
-  "aset"  "set!"  "fn"  "set-in!"
-  "defn-"  "defn"
-  "try"  "if"  "get"  "aget"  "str"
-  "list"  "["  "vec"  "{"  "hash-map"
-  "ns"  "comment"  "for"  "cons"
-  "js#"  "macro"  "defmacro"]})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- MODULE-VERSION "1.0.0"
       EXTERNS nil
       SPEC-OPS {})
@@ -78,10 +53,6 @@
   (var x gensym-counter)
   (++ gensym-counter)
   (str (std/opt pfx "G____") x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- regoBuiltins "" [f group]
-  (each #(set! SPEC-OPS % f) (get RESERVED group)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- error! "" [e &[line file msg]]
@@ -123,8 +94,7 @@
         (std/symbol? e)
         (cond
           (= ev "_") nil
-          (= ev "&") (do (set! keys
-                               (str "&" (nth lhs (+1 i))) i)
+          (= ev "&") (do (set-in! keys (str "&" (nexth lhs i)) i)
                          (++ i))
           (ev.startsWith "&")
           (set-in! keys ev i)
@@ -162,7 +132,7 @@
   (cond
     (std/vector? lhs) (set! as (destructVec lhs keys))
     (std/map? lhs) (set! as (destructMap lhs keys))
-    (std/symbol? lhs) (set! keys (str lhs) nil)
+    (std/symbol? lhs) (set-in! keys (str lhs) nil)
     :else
     (raise! "cant destruct with: " (std/typeid lhs)))
   (std/vector as keys))
@@ -351,74 +321,69 @@
 (def- _lambdaFuncCount 0)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-lambda "" [ast env]
+(defn- sf-lambda "" ^{:opcode ["lambda"]} [ast env]
   (if (not= 0 _lambdaFuncCount)
-    (raise! "Cant nest lambdas")
+    (raise! "Can't nest lambdas")
     (++ _lambdaFuncCount))
-  (var x [(types/symbol "fn")
-          (types/vector)
-          [(types/symbol "var")
-           (types/symbol "____args")
-           [(types/symbol "Array.prototype.slice.call")
-            (types/symbol "arguments")]]]
+  (var x [(std/symbol "fn") (std/vector)
+          [(std/symbol "var")
+           (std/symbol "____args")
+           [(std/symbol "slice") (std/symbol "arguments")]]]
        body (nth ast 1))
-  (if (= (alen body) 0) (set! body [nil]))
-  (if (and (= 1 (alen body))
-           (types/value? (nth body 0)))
-    nil
-    (set! body (ast.slice 1)))
+  (if (zlen? body) (set! body [nil]))
+  (if-not (and (= 1 (alen body))
+               (std/value? (car body)))
+    (set! body (rest ast)))
   (set! x (x.concat body))
   (try
     (sf-fn x env)
     (finally (-- _lambdaFuncCount))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "lambda" sf-lambda)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-apply "" [ast env]
+(defn- sf-apply "" ^{:opcode ["apply"]} [ast env]
   (var args (ast.slice 2)
        f (second ast)
-       ret (nodeTag (tn/tnode) ast))
-  (forlet ((i 0) (< i (alen args)) (i (inc i)))
+       ret (nodeTag (tnode) ast))
+  (for [i 0 :while (< i (alen args)) :recur (+1 i)]
     (ret.add (transpile* (nth args i) env)))
   (if (> (alen args) 1) (join "," ret))
   (doto ret
     (.prepend "[")
     (.add "]")
     (.prepend [(transpile* f env) ".apply(this,"])
-    (.add ret ")")))
+    (.add ")")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :apply sf-apply)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-compOp "" [ast env]
+(defn- sf-compOp ""
+  ^{:opcode ["not=" "!=" "=="
+             "=" ">" ">=" "<" "<="]} [ast env]
   (var cmd (first ast))
   (if (or (== cmd "not=")
-          (== cmd "!=")) (set! ast 0 (types/symbol "!==")))
-  (if (== cmd "=") (set! ast 0 (types/symbol "===")))
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+          (== cmd "!=")) (set-in! ast 0 (std/symbol "!==")))
+  (if (== cmd "=") (set-in! ast 0 (std/symbol "===")))
+  (do-with [ret (nodeTag (tnode) ast)]
     (transpileAtoms ast env)
-    (forlet ((i 0
-              op (ast.shift))
-             (< i (last-index ast)) (i (inc i)))
-      (ret.add (tn/tnodeEx [(nth ast i)
-                            " " op " " (nth ast (inc i))])))
+    (for [i 0
+          op (ast.shift)
+          :while (< i (last-index ast)) :recur (+1 i)]
+      (ret.add (tnodeEx [(nth ast i)
+                         " " op " " (nexth ast i)])))
     (join " && " ret)
     (ret.prepend "(")
     (ret.add ")")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(regoBuiltins sf-compOp "compare")
+(defn- sf-arithOp
+  ""
+  ^{:opcode ["+" "-" "*" "div" "%"  "mod"
+             "||" "&&"
+             "^" "&" "|" "<<" ">>" ">>>"]}
+  [ast env]
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-arithOp "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+  (do-with [ret (nodeTag (tnode) ast)]
     (transpileAtoms ast env)
-    (var op (tn/tnode)
-         e1 (ast.shift)
-         cmd (types/symbol-s e1))
+    (var op (tnode)
+         e1 (ast.shift) cmd (str e1))
     (if (== cmd "mod") (set! cmd "%"))
     (if (== cmd "div") (set! cmd "/"))
     (if (= 1 (alen ast))
@@ -430,326 +395,284 @@
     (ret.add ")")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(regoBuiltins sf-arithOp "bitwise")
-(regoBuiltins sf-arithOp "logic")
-(regoBuiltins sf-arithOp "arith")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-repeat "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-repeat
+  "" ^{:opcode ["repeat-n"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (transpileAtoms ast env)
-    (forlet ((i 0
-              end (parseInt (second ast)))
-             (< i end) (i (inc i)))
+    (for [i 0
+          end (parseInt (second ast))
+          :while (< i end) :recur (+1 i)]
       (if (not= i 0) (ret.add ","))
       (ret.add (nth ast 2)))
     (ret.prepend "[")
     (ret.add "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :repeat-n sf-repeat)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileDo "" [ast env & [return?]]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (set! return? (std.maybe return? true))
-    (var p (pad indent)
-         e nil
-         end (last-index ast))
-    (forlet ((i 0) (< i end) (i (inc i)))
+  (do-with [ret (nodeTag (tnode) ast)]
+    (set! return? (std/opt return? true))
+    (var e nil end (last-index ast))
+    (for [i 0 :while (< i end) (+1 i)]
       (set! e (nth ast i))
-      (ret.add [p (transpileList e env) ";\n"]))
-    (when  (>= end 0)
+      (ret.add [(transpileList e env) ";\n"]))
+    (when (>= end 0)
       (set! e (transpile* (nth ast end) env))
       (if-not return?
-        (ret.add [p e ";\n"])
-        (ret.add [p "return " e ";\n"])))))
+        (ret.add [e ";\n"])
+        (ret.add ["return " e ";\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-do "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var p (pad indent))
-    (ret.add (str p "(function() {\n"))
-    (ret.add (transpileDo (ast.slice 1) env))
-    (ret.add (str p "}).call(this)"))))
+(defn- sf-do
+  "" ^{:opcode ["do"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (ret.add (str "(function() {\n"))
+    (ret.add (transpileDo (rest ast) env))
+    (ret.add (str "}).call(this)"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :do sf-do)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-case "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-case
+  "" ^{:opcode ["case"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var tst (second ast)
+         _x (gensym)
          e nil t nil c nil dft nil)
     (if (odd? (alen ast))
       (set! dft (ast.pop)))
-    (forlet ((i 2)
-             (< i (alen ast)) (i (+ i 2)))
-      (set! c (nth ast (+ i 1)))
+    (for [i 2
+          :while (< i (alen ast)) (+2 i)]
+      (set! c (nexth ast i))
       (set! e (nth ast i))
-      (if (types/list? e)
-        (forlet ((j 0)
-                 (< j (alen e)) (i (inc)))
+      (if (std/list? e)
+        (for [j 0
+              :while (< j (alen e)) :recur (+1 i)]
           (ret.add ["case "
                     (transpileSingle (nth e j)) ":\n"])
           (if (= j (last-index e))
-            (ret.add ["____x= "
+            (ret.add [_x "="
                       (transpile* c env) ";\nbreak;\n"])))
         (do (ret.add ["case " (transpileSingle e) ":\n"])
-            (ret.add ["____x= "
+            (ret.add [_x "="
                       (transpile* c env) ";\nbreak;\n"]))))
     (when dft
       (ret.add "default:\n")
-      (ret.add ["____x= "
-                (transpile* dft env) ";\nbreak;\n"]))
+      (ret.add [_x "=" (transpile* dft env) ";\nbreak;\n"]))
 
-    (ret.prepend ["switch (",
-                  (transpile* tst env) ") {\n"])
+    (ret.prepend ["switch (" (transpile* tst env) ") {\n"])
     (ret.add "}\n")
-    (ret.prepend "(function() { let ____x;\n")
-    (ret.add "return ____x;}).call(this)")))
+    (ret.prepend ["(function() { let " _x ";\n"])
+    (ret.add ["return " _x ";}).call(this)"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :case sf-case)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-range "" [ast env]
-  ;;if (ast.length < 2 || ast.length > 4) syntax_E("e0",ast);
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-  (var len 0 start 0 step 1 end 0)
-  (transpileAtoms ast env)
-  (set! len (alen ast))
-  (set! end (parseInt (second ast)))
-  (when (> len 2)
-    (set! start (parseInt (second ast)))
-    (set! end (parseInt (nth ast 2))))
-  (if (> len 3)
-    (set! step (parseInt (nth ast 3))))
-
-  (forlet ((i start) (< i end) (i (+ i step)))
-    (if (not= i start) (ret.add ","))
-    (ret.add (str i)))
-  (ret.prepend "[")
-  (ret.add "]")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :range sf-range)
+(defn- sf-range
+  "" ^{:opcode ["range"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var len 0 start 0 step 1 end 0)
+    (transpileAtoms ast env)
+    (set! len (alen ast))
+    (set! end (parseInt (second ast)))
+    (when (> len 2)
+      (set! start (parseInt (second ast)))
+      (set! end (parseInt (nth ast 2))))
+    (if (> len 3)
+      (set! step (parseInt (nth ast 3))))
+    (for [i start :while (< i end) :recur (+ i step)]
+      (if (not= i start) (ret.add ","))
+      (ret.add (str i)))
+    (ret.prepend "[")
+    (ret.add "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-vardefs "" [ast env cmd]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var kks {}
          public? (== "global" cmd))
     (if-not (== "let" cmd) (set! cmd "var"))
-    (forlet ((i 1 s nil) (< i (alen ast)) (i (inc i)))
+    (for [i 1 s nil
+          :while (< i (alen ast)) :recur (+ 1 i)]
       (set! s (transpileSingle (nth ast i)))
       (ret.add (str s "=undefined"))
-      (set! kks s nil))
+      (set-in! kks s nil))
     (doto ret
       (.join ",")
       (.prepend (str cmd " "))
       (.add ";\n"))
     (if (and public?
              (= 1 (.countNSPCache (rt/globalEnv))))
-      (each-key (fn [v k] (set! EXTERNS k k)) kks))))
+      (each-key (fn [v k] (set-in! EXTERNS k k)) kks))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "def~-"
-      (fn [ast env]  (sf-vardefs ast env "local")))
-(set! SPEC-OPS "def~"
-      (fn [ast env] (sf-vardefs ast env "global")))
-(set! SPEC-OPS "var~"
-      (fn [ast env] (sf-vardefs ast env "let")))
+(defn- local-vardefs
+  "" ^{:opcode ["def~-"]} [ast env] (sf-vardefs ast env "local"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- global-vardefs
+  "" ^{:opcode ["def~"]} [ast env] (sf-vardefs ast env "global"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- let-vardefs
+  "" ^{:opcode ["var~"]} [ast env] (sf-vardefs ast env "let"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var "" [ast env cmd]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var vname nil
-         keys [] kks {}
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var vname nil keys [] kks {}
          public? (== "global" cmd))
     (set! ast (rest ast))
     (if (or public?
             (== "local" cmd)) (set! cmd "var"))
-
-    (forlet ((i 0)
-             (< i (alen ast)) (i (+ i 2)))
-      (if (types/symbol? (nth ast i))
-        (keys.push (nth ast i))))
+    (for [i 0
+          :while (< i (alen ast)) :recur (+2 i)]
+      (if (std/symbol? (nth ast i))
+        (conj! keys (nth ast i))))
     (if (std/not-empty keys)
       (ret.add ["let "
                 (join ","
                       (map (fn [s]
                              (var ss (transpileSingle s))
-                             (set! kks ss nil)
-                             ss)
-                           keys)) ";\n"]))
-    (forlet ((rc nil i 0
-              lhs nil rhs nil)
-             (< i (alen ast)) (i (+ i 2)))
-      (set! rhs (nth ast (+ i 1)))
-      (set! lhs (nth ast i))
-      (if (types/symbol? lhs)
+                             (set-in! kks ss nil) ss) keys)) ";\n"]))
+    (for [rc nil i 0
+          lhs nil rhs nil
+          :while (< i (alen ast)) :recur (+2 i)]
+      (set! lhs (nth ast i)
+            rhs (nexth ast i))
+      (if (std/symbol? lhs)
         (ret.add [(transpileSingle lhs) "= "
                   (transpile* rhs env) ";\n"])
         (do (set! rc (destruct0 cmd lhs rhs env))
             (ret.add (nth rc 0))
             (map (fn [s]
-                   (set! kks (rdr/jsid s) nil))
-                 (nth rc 1)))))
+                   (set-in! kks (rdr/jsid s) nil)) (nth rc 1)))))
     (when (and public?
                (= 1 (.countNSPCache (rt/glbalEnv))))
       (each-key (fn [v k]
-                  (set! EXTERNS k k)) kks))))
+                  (set-in! EXTERNS k k)) kks))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-var-local "" [ast env] (sf-var ast env "local"))
+(defn- sf-var-local
+  "" ^{:opcode ["def-"]} [ast env] (sf-var ast env "local"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :def- sf-var-local)
+(defn- sf-var-global
+  "" ^{:opcode ["def"]} [ast env] (sf-var ast env  "global"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-var-global "" [ast env] (sf-var ast env  "global"))
+(defn- sf-var-let
+  "" ^{:opcode ["var"]} [ast env] (sf-var ast env "let"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :def sf-var-global)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-var-let "" [ast env] (sf-var ast env "let"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :var sf-var-let)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-inst? "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-inst?
+  "" ^{:opcode ["inst?"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (ret.add ["("
               (transpile* (nth ast 2) env)
               " instanceof "
               (transpile* (nth ast 1) env) ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :inst? sf-inst?)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-delete "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-delete
+  "" ^{:opcode ["delete!"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (ret.add ["delete " (transpile* (nth ast 1) env)])
     (if (> (alen ast) 2)
       (ret.add ["[" (transpile* (nth ast 2)) "]"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :delete! sf-delete)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-new "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-new
+  "" ^{:opcode ["new"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (ret.add (transpileList (rest ast) env))
     (ret.prepend "new ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :new sf-new)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-throw "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-throw
+  "" ^{:opcode ["throw"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (ret.add ["throw " (transpile* (nth ast 1) env) ";"])
     (ret.prepend "(function (){ ")
     (ret.add " }).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :throw sf-throw)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-x-opop "" [ast env]
+(defn- sf-x-opop
+  "" ^{:opcode ["++" "--"]} [ast env]
   (transpileAtoms ast env)
-  (nodeTag (tn/tnodeEx [(first ast)
-                        (second ast)]) ast))
+  (nodeTag (tnodeEx [(first ast)
+                     (second ast)]) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(regoBuiltins sf-x-opop "incdec")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-x-eq "" [ast env]
+(defn- sf-x-eq
+  "" ^{:opcode ["+=" "-=" "*="
+                "/=" "%=" "<<="
+                ">>=" ">>>=" "&=" "|=" "^="]} [ast env]
   (transpileAtoms ast env)
   (nodeTag (tn/tnodeEx [(second ast)
                         " " (first ast) " " (nth ast 2)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(regoBuiltins sf-x-eq "assign")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-set-in "" [ast env]
-  (assert (std/even? (alen ast)) "set-in: bad arg count")
+(defn- sf-set-in
+  "" ^{:opcode ["set-in!"]} [ast env]
+  (assert (even? (alen ast)) "set-in: bad arg count")
   (do-with [ret (nodeTag (tnode) ast)]
     (var obj (transpile* (nth ast 1) env))
     (for [i 2 :while (< i (alen ast)) :recur (+2 i)]
       (if (> i 2) (ret.add ","))
       (ret.add [obj "[" (transpile* (nth ast i) env) "]"
-                "=" (transpile* (nth ast (+1 i)) env)]))))
+                "=" (transpile* (nexth ast i) env)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set-in! SPEC-OPS "set-in!" sf-set-in)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-set "" [ast env]
-  (assert (std/odd? (alen ast)) "set: bad arg count")
+(defn- sf-set
+  "" ^{:opcode ["set!"]} [ast env]
+  (assert (odd? (alen ast)) "set: bad arg count")
   (do-with [ret (nodeTag (tnode) ast)]
     (for [i 1 :while (< i (alen ast)) :recur (+2 i)]
       (if (> i 1) (ret.add ","))
       (ret.add [(transpile* (nth ast i) env)
                 "="
-                (transpile* (nth ast (+1 i)) env)]))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set-in! SPEC-OPS "set!" sf-set)
+                (transpile* (nexth ast i) env)]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- parseFuncArgs "" [args]
-  (do-with [ret []]
-    (forlet ((i 0 e nil ev nil)
-             (< i (alen args)) (i (inc i)))
-      (set! e (nth args i))
-      (set! ev (.-value e))
+  (do-with [ret (std/vector)]
+    (for [i 0 e nil ev nil
+          :while (< i (alen args)) :recur (+1 i)]
+      (set! e (nth args i) ev (str e))
       (cond
-        (types/symbol? e)
+        (std/symbol? e)
         (cond
           (= ev "_")
-          (ret.push (types/symbol (gensym "_")))
+          (std/conj! ret (std/symbol (gensym "_")))
           (= ev "&")
-          (do (set! e (nth args (+ i 1)))
-              (if (types/symbol? e)
-                (ret.push [e i e])
-                (ret.push [(types/symbol
-                             (str "&" (gensym))) i e]))
+          (do (set! e (nexth args i))
+              (if (std/symbol? e)
+                (std/conj! ret [e i e])
+                (std/conj! ret [(std/symbol (str "&" (gensym))) i e]))
               (++ i))
           (ev.startsWith "&")
-          (do (set! e (types/symbol (rest ev)))
-              (ret.push [e, i, e]))
+          (do (set! e (std/symbol (rest ev)))
+              (std/conj! ret [e i e]))
           :else
-          (ret.push e))
-        (types/keyword? e)
-        (raise! "bad function args destructure: "
-                (types/obj-type e))
+          (std/conj! ret e))
+        (std/keyword? e)
+        (raise! "bad function args destructure: " (std/typeid e))
         (array? e)
-        (ret.push [(types/symbol (gensym)) i e])
+        (std/conj! ret [(std/symbol (gensym)) i e])
         :else
-        (raise! "bad function args destructure: "
-                (types/obj-type e))))))
+        (raise! "bad function args destructure: " (std/typeid e))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleFuncArgs "" [fargs env]
-  (do-with [out []]
-    (var misc [] keys []
-         ret (tn/tnode) knode (tn/tnode))
+  (do-with [out (std/vector)]
+    (var misc (std/vector)
+         keys (std/vector)
+         ret (tnode) knode (tnode))
     (each (fn [arg]
             (cond
-              (types/symbol? arg) (keys.push arg)
-              (and (types/symbol? (first arg))
+              (std/symbol? arg) (std/conj! keys arg)
+              (and (std/symbol? (first arg))
                    (not (.startsWith (str (first arg)) "&"))
                    (array? (nth arg 2)))
-              (do (keys.push (first arg))
-                  (misc.push arg))
-              :else (misc.push arg))) fargs)
+              (do (std/conj! keys (first arg))
+                  (std/conj! misc arg))
+              :else (std/conj! misc arg))) fargs)
     (each (fn [arr]
             (var a0 (first arr)
                  name (str a0)
@@ -759,8 +682,8 @@
             (if varg? (set! name (rest name)))
             (set! name (rdr/jsid name))
             (cond
-              (and (types/symbol? a0)
-                   (types/symbol? a2))
+              (and (std/symbol? a0)
+                   (std/symbol? a2))
               (ret.add ["let " name
                         "=Array.prototype.slice.call(arguments," pos ");\n"])
               (array? a2)
@@ -770,15 +693,14 @@
                             "=Array.prototype.slice.call(arguments," pos ");\n"]))
                 (ret.add
                   (first (destruct0 "let" a2 name env)))))) misc)
-
     (knode.add (join ","
                      (map #(rdr/jsid (str %)) keys)))
-    (out.push knode)
-    (out.push ret)))
+    (std/conj! out knode ret)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-fn "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-fn
+  "" ^{:opcode ["fn"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var args (nth ast 1)
          fargs nil
          hints {}
@@ -788,34 +710,28 @@
                (array? (nth args 1)))
       (set! hints (resolveMeta (nth args 2) env))
       (set! args (nth args 1)))
-    (set! fargs (handleFuncArgs
-                 (parseFuncArgs args) env))
+    (set! fargs (handleFuncArgs (parseFuncArgs args) env))
     (ret.add "function (")
     (ret.add (first fargs))
     (ret.add [") {\n"
               (second fargs)
-              (transpileDo body env)
-              (pad indent) "}"])))
+              (transpileDo body env) "}"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set-in! SPEC-OPS "fn" sf-fn)
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fmtRegoSpecOps "" [alias fname]
-  (str "SPEC_OPS[\"" alias "\"] = " fname))
+(defn- fmtRegoSpecOps
+  "" [alias fname] (str "SPEC_OPS[\"" alias "\"] = " fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" [fname attrs]
-  (var ks (or (get attrs "opcode") [])
+  (var ks (or (get attrs "opcode") (std/vector))
        out (->> (map #(fmtRegoSpecOps
                         (str %1) fname) ks)
                 (join ";\n")))
-  (if (> (alen ks) 0) (str out ";\n") out))
+  (if (std/not-empty ks) (str out ";\n") out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var fname (transpile* (nth ast 1) env)
          mtd? (== (first ast) "method")
          dot? (fname.includes ".")
@@ -826,26 +742,22 @@
          doc nil attrs nil args 2 body 3)
     (cond
       (string? e2)
-      (do (set! doc 2)
-          (set! args 3)
-          (when (types/map? e3)
-            (set! attrs 3)
-            (set! args 4)))
-      (types/map? e2)
-      (do (set! attrs 2)
-          (set! args 3)))
-    (set! body (+ args 1))
+      (do (set! doc 2 args 3)
+          (when (std/map? e3)
+            (set! attrs 3 args 4)))
+      (std/map? e2)
+      (do (set! attrs 2 args 3)))
+    (set! body (+1 args))
     (if doc (set! doc (nth ast doc)))
     (if attrs (set! attrs (nth ast attrs)))
-    (set! args (nth ast args))
-    (set! body (ast.slice body))
+    (set! args (nth ast args)
+          body (ast.slice body))
     (when (and (= 3 (alen args))
                (== "with-meta" (car args))
                (array? (nth args 1)))
-      (set! hints (resolveMeta (nth args 2) env))
-      (set! args (nth args 1)))
-    (set! fargs (handleFuncArgs
-                  (parseFuncArgs args) env))
+      (set! hints (resolveMeta (nth args 2) env)
+            args (nth args 1)))
+    (set! fargs (handleFuncArgs (parseFuncArgs args) env))
     (cond
       mtd?
       (do (if (.-static hints) (ret.add "static "))
@@ -857,114 +769,88 @@
     (ret.add (first fargs))
     (ret.add [") {\n"
               (second fargs)
-              (transpileDo body env)
-              (pad indent) "}\n"])
-
-    (if-not (std/empty? hints)
+              (transpileDo body env) "}\n"])
+    (if (not-empty hints)
       (ret.add (fmtSpecOps fname attrs)))
-
     (when doc
-      (set! doc (doc.replace rdr.REGEX.dquoteHat ""))
-      (set! doc (doc.replace rdr.REGEX.dquoteEnd ""))
-      (ret.prepend
-                (map #(str "//" % "\n")
-                     (doc.split "\\n"))))
+      (set! doc (-> (doc.replace rdr.REGEX.dquoteHat "")
+                    (.replace rdr.REGEX.dquoteEnd "")))
+      (ret.prepend (map #(str "//" % "\n") (doc.split "\\n"))))
     (if (and public?
              (not dot?)
              (= 1 (.countNSPCache (rt/globalEnv))))
-      (set! EXTERNS fname fname))))
+      (set-in! EXTERNS fname fname))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-func-private "" [ast env] (sf-func ast env false))
-(set! SPEC-OPS :defn- sf-func-private)
+(defn- sf-func-private
+  "" ^{:opcode ["defn-"]} [ast env] (sf-func ast env false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-func-public "" [ast env] (sf-func ast env true))
-(set! SPEC-OPS :defn sf-func-public)
+(defn- sf-func-public
+  "" ^{:opcode ["defn"]} [ast env] (sf-func ast env true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-try "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-try
+  "" ^{:opcode ["try"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var sz (alen ast)
-         t nil
-         f nil
-         c nil
-         ind (pad indent))
+         t nil f nil c nil)
     ;;look for finally
     (set! f (std/last ast))
     (if (and (array? f)
              (== "finally" (first f)))
-      (do (set! f (ast.pop))
-          (set! sz (alen ast)))
+      (set! f (ast.pop) sz (alen ast))
       (set! f nil))
     ;;look for catch
     (set! c nil)
-    (if (> sz 1) (set! c (nth ast (- sz 1))))
+    (if (> sz 1) (set! c (nth ast (-1 sz))))
     (if (and (array? c)
              (== "catch" (first c)))
       (do (if (or (< (alen c) 2)
-                  (not (types/symbol? (second c)))) (syntax! :e0 ast))
-          (set! c (.pop ast)))
+                  (not (std/symbol? (second c)))) (syntax! :e0 ast))
+          (set! c (ast.pop)))
       (set! c nil))
     ;;try needs either a catch or finally or both
     (if (and (nil? f) (nil? c)) (syntax! :e0 ast))
-    (ret.add [(str "(function() {\n" ind "try {\n")
-              (transpileDo (rest ast) env)
-              (str "\n" ind "} ")])
+    (ret.add ["(function() {\ntry {\n"
+              (transpileDo (rest ast) env) "\n}"])
     (when c
       (set! t (second c))
       (ret.add [(str "catch (" t ") {\n")
-                (transpileDo (c.slice 2) env)
-                (str ";\n" ind "}\n")]))
+                (transpileDo (c.slice 2) env) ";\n}\n"]))
     (when f
       (ret.add ["finally {\n",
-                (transpileDo (rest f) env false)
-                (str ";\n" ind "}\n")]))
-    (ret.add (str ind "}).call(this)"))))
+                (transpileDo (rest f) env false) ";\n}\n"]))
+    (ret.add "}).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :try sf-try)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-if "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-if
+  "" ^{:opcode ["if"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var a1 (nth ast 1)
          a2 (nth ast 2)
          a3 (if (> (alen ast) 3) (nth ast 3)))
-    (+= indent tabspace)
-    (ret.add ["("
-              (transpile* a1 env)
-              (str " ?\n" (pad indent))
-              (transpile* a2 env)
-              (str " :\n" (pad indent))
-              (or (transpile* a3 env) "null") ")"])
-    (-= indent tabspace)))
+    (ret.add ["(" (transpile* a1 env)
+              " ?\n" (transpile* a2 env) " :\n"
+              (or (transpile* a3 env) "null") ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :if sf-if)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-nth "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-nth "" ^{:opcode ["nth"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (transpileAtoms ast env)
     (ret.add [(nth ast 1) "[" (nth ast 2) "]"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :nth sf-nth)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-get "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-get
+  "" ^{:opcode ["aget" "get"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (transpileAtoms ast env)
     (ret.add [(nth ast 1) "[" (nth ast 2) "]"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :aget sf-get)
-(set! SPEC-OPS :get sf-get)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-str "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-str
+  "" ^{:opcode ["str"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var args (rest ast))
     (transpileAtoms args env)
     (if (> (alen args) 1)
@@ -973,76 +859,59 @@
         (.join ",")
         (.prepend "[")
         (.add "].join(\"\")"))
-      (if (> (alen args) 0)
+      (if (std/not-empty args)
         (ret.add ["" (first args) ".toString()"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :str sf-str)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-array "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var p (pad indent)
-         epilog (str "\n" p "]"))
-    (if (std/empty? ast)
+(defn- sf-array
+  "" ^{:opcode ["vec"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var epilog "\n]")
+    (if (empty? ast)
       (ret.add "[]")
-      (do (if-not (types/vector? ast)
+      (do (if-not (std/vector? ast)
             (ast.splice 0 1))
-          (+= indent tabspace)
           (transpileAtoms ast env)
-          (set! p (pad indent))
-          (ret.add (str "[\n" p))
-          (forlet ((i 0) (< i (alen ast)) (i (inc i)))
-            (if (> i 0) (ret.add (str ",\n" p)))
+          (ret.add "[\n")
+          (for [i 0 :while (< i (alen ast)) :recur (+1 i)]
+            (if (> i 0) (ret.add ",\n"))
             (ret.add (nth ast i)))
-          (ret.add epilog)
-          (-= indent tabspace)))))
+          (ret.add epilog)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :vec sf-array)
-;(set! SPEC-OPS "[" sf-array)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-object "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
-    (var p (pad indent)
-         epilog (str "\n" p "}"))
-    (if (std/empty? ast)
+(defn- sf-object
+  "" ^{:opcode ["hashmap"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
+    (var epilog "\n}")
+    (if (empty? ast)
       (ret.add "{}")
-      (do (if-not (types/map? ast)
+      (do (if-not (std/map? ast)
             (ast.splice 0 1))
-          (+= indent tabspace)
           (transpileAtoms ast env)
-          (set! p (pad indent))
-          (ret.add (str "{\n" p))
-          (forlet ((i 0) (< i (alen ast)) (i (+ i 2)))
-            (if (> i 0) (ret.add (str ",\n" p)))
-            (ret.add [(nth ast i)
-                      ": "
-                      (nth ast (+ i 1))]))
-          (ret.add epilog)
-          (-= indent tabspace)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :hash-map sf-object)
+          (ret.add "{\n")
+          (for [i 0 :while (< i (alen ast)) (+2 i)]
+            (if (> i 0) (ret.add ",\n"))
+            (ret.add [(nth ast i) ": " (nexth ast i)]))
+          (ret.add epilog)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- includeFile
   ((fn []
-     (var icache [])
+     (var icache (std/vector))
      (fn [fname]
        (if (std/contains? icache fname)
-         (tn/tnode)
-         (let [src (fs.readFileSync fname "utf-8")]
-           (icache.push fname)
+         (tnode)
+         (let [src (fs/readFileSync fname "utf-8")]
+           (std/conj! icache fname)
            (transpileTree (psr/parser src fname)
                           (rt/globalEnv ))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
-  (var ret [] fname nil dir (path/dirname ast.source))
-  (forlet ((i 1 e nil)
-           (< i (alen ast)) (i (inc i)))
+  (var ret [] fname nil
+       dir (path/dirname ast.source))
+  (for [i 1 e nil
+        :while (< i (alen ast)) (+1 i)]
     (set! e (nth ast i))
     (if (or (not (array? e))
             (not= 1 (alen e))) (syntax! :e0 ast))
@@ -1054,58 +923,57 @@
       (catch e
         (syntax! :e11 ast)))
     (try
-      (-= indent tabspace)
-      (ret.push (includeFile fname))
+      (std/conj! ret (includeFile fname))
       (finally
-        (.popNSP (rt/globalEnv))
-        (+= indent tabspace))))
-  (if (std/empty? ret) (tn/tnode) ret))
+        (.popNSP (rt/globalEnv)))))
+  (if (empty? ret) (tnode) ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var~  path v e refers renames)
     (var as nil)
-    (forlet ((i 1)
-             (< i (alen ast)) (i (inc i)))
-      (set! e (nth ast i))
-      (set! as (gensym))
+    (for [i 1
+          :while (< i (alen ast)) (+1 i)]
+      (set! e (nth ast i) as (gensym))
       (if (or (not (array? e))
               (< (alen e) 3)) (syntax! :e0 ast))
       (set! path (first e))
-      (forlet ((j 1)
-               (< j (alen e)) (j (inc j)))
+      (for [j 1
+            :while (< j (alen e)) :recur (+1 j)]
         (set! v (nth e j))
         (cond
           (== v "as")
-          (do (set! as (str (nth e (+ j 1))))
+          (do (set! as (str (nexth e j)))
               (++ j))
           (== v "refer")
-          (do (set! refers (nth e (+ j 1)))
+          (do (set! refers (nexth e j))
               (++ j))
           (== v "rename")
-          (do (set! renames (nth e (+ j 1)))
+          (do (set! renames (nexth e j))
               (++ j))))
       (ret.add ["var "
                 (rdr/jsid as)
                 "= require("
                 (transpileSingle path) ");\n"])
-      (forlet ((i 0)
-               (and refers
-                    (< i (alen refers))) (i (inc i)))
+      (for [i 0
+            :while (and refers
+                        (< i (alen refers)))
+            :recur (+1 i)]
         (set! v (transpileSingle (nth refers i)))
         (ret.add ["var " v "=" as "[\"" v "\"];\n"]))
-      (forlet ((i 0)
-               (and renames
-                    (< i (alen renames))) (i (+ i 2)))
+      (for [i 0
+            :while (and renames
+                        (< i (alen renames)))
+            :recur (+2 i)]
         (set! e (transpileSingle (nth renames i)))
-        (set! v (transpileSingle (nth renames (+ i 1))))
+        (set! v (transpileSingle (nexth renames i)))
         (ret.add ["var " v "=" as "[\"" e "\"];\n"])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveMeta "" [ast env]
   (cond
-    (Array/isArray ast)
+    (array? ast)
     (JSON/parse (str "" (transpile* ast env)))
     (std/keyword? ast)
     (->> (transpile* (std/hashmap ast true) env)
@@ -1119,16 +987,17 @@
     (raise! "Bad meta value" (std/prn ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-ns "" [ast env]
-  (do-with [ret []]
+(defn- sf-ns
+  "" ^{:opcode ["ns"]} [ast env]
+  (do-with [ret (std/vector)]
     (var hints {} nsp (nth ast 1))
-    (when (and (Array/isArray nsp)
+    (when (and (array? nsp)
                (= 3 (alen nsp))
                (== "with-meta" (car nsp))
                (std/symbol? (nth nsp 1)))
       (set! hints (resolveMeta (nth nsp 2) env))
       (set! nsp (nth nsp 1)))
-    (.pushNSP (rt/globalEnv) (std/symbol-s nsp))
+    (.pushNSP (rt/globalEnv) (str nsp))
     (set! ast (ast.slice 2))
     (for [i  0 e nil
           :recur (+1 i)
@@ -1137,28 +1006,24 @@
       (cond
         (and (std/list? e)
              (== "include" (car e)))
-        (ret.push (sf-include e))
+        (std/conj! ret (sf-include e))
         (and (std/list? e)
              (== "require" (car e)))
-        (ret.push (sf-require e))))
-    ;;force a internal reference to stdlib for
-    ;;user files
+        (std/conj! ret (sf-require e))))
+    ;;force a internal reference to stdlib for user files
     (set! nsp (.peekNSP (rt/globalEnv)))
     (cond
       (or (= nsp "czlab.kirby.bl.defmacros")
           (= nsp "czlab.kirby.bl.stdlib"))
       nil
       (nsp.startsWith "czlab.kirby.")
-      (ret.add "var kirbystdlibref=std;\n")
+      (ret.add "const kirbystdlibref=std;\n")
       :else
-      (-> [(std/symbol "require")
-           ["\"kirby\""
-            (std/keyword ":as") (std/symbol "kirbystdlibref")]]
-          (sf-require )
-          (ret.push )))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS :ns sf-ns)
+      (->> [(std/symbol "require")
+            ["\"kirby\""
+             (std/keyword ":as") (std/symbol "kirbystdlibref")]]
+           (sf-require )
+           (std/conj! ret )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" [cmd]
@@ -1171,32 +1036,33 @@
     cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-comment "" [ast env] (nodeTag (tn/tnode) ast))
-(set! SPEC-OPS :comment sf-comment)
+(defn- sf-comment
+  "" ^{:opcode ["comment"]} [ast env] (nodeTag (tnode) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-for "" [ast env]
+(defn- sf-for
+  "" ^{:opcode ["for"]} [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
     (var body (ast.slice 2))
-    (if (not-empty body)
+    (if (std/not-empty body)
       (sf-floop ret (nth ast 1) body env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-floop "" [ret args body env]
-  (var vars [] recurs [])
+  (var vars (std/vector) recurs (std/vector))
   (var~ tst nb)
   (for [i 0 e nil
         :while (< i (alen args)) :recur (+1 i)]
     (set! e (nth args i))
     (cond
       (== e "while")
-      (do (set! tst (nth args (+1 i)))
+      (do (set! tst (nexth args i))
           (++ i))
       (== e "recur")
       (do (set! recurs (args.slice (+1 i)))
           (set! i (alen a1)))
-      (types/symbol? e)
-      (do (vars.push e (nth args (+1 i)))
+      (std/symbol? e)
+      (do (std/conj! vars e (nexth args i))
           (++ i))))
   (ret.add "for (")
   (for [i 0 :while (< i (alen vars)) :recur (+2 i)]
@@ -1204,15 +1070,14 @@
     (if (not= i 0) (ret.add ","))
     (ret.add [(transpileSingle (nth vars i))
               "="
-              (transpile* (nth vars (+1 i)) env)]))
-  (if (not-empty vars)
+              (transpile* (nexth vars i) env)]))
+  (if (std/not-empty vars)
     (ret.add ",____break=false")
     (ret.add "let ____break=false"))
   (ret.add "; ")
-  (set! nb [(types/symbol "not")
-            (types/symbol "____break")])
+  (set! nb [(std/symbol "not") (std/symbol "____break")])
   (if tst
-    (set! tst [(types/symbol "and") nb tst])
+    (set! tst [(std/symbol "and") nb tst])
     (set! tst nb))
   (ret.add (transpile* tst env))
   (ret.add "; ")
@@ -1230,129 +1095,112 @@
     (.add "})(this);\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "for" sf-for)
+(defn- sf-jscode
+  "" ^{:opcode ["js#"]} [ast env]
+  (nodeTag (tnodeEx (-> (str (second ast))
+                        (.replace rdr/REGEX.dquoteHat "")
+                        (.replace rdr/REGEX.dquoteEnd ""))) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-jscode "" [ast env]
-  (nodeTag (tn/tnodeEx (-> (.toString (second ast))
-                           (.replace rdr/REGEX.dquoteHat "")
-                           (.replace rdr/REGEX.dquoteEnd ""))) ast))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "js#" sf-jscode)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-macro "" [ast env]
-  (var pms (types/vector)
+(defn- sf-macro
+  "" ^{:opcode ["defmacro"]} [ast env]
+  (var pms (std/vector)
        args (nth ast 2)
        body (ast.slice 3))
   (when (string? args)
-    (set! doc args)
-    (set! args (nth ast 3))
-    (set! body (ast.slice 4)))
-  (forlet ((i 0 e nil ev nil)
-           (< i (alen args)) (i (inc i)))
-    (set! e (nth args i))
-    (set! ev (.-value e))
+    (set! doc args
+          args (nth ast 3)
+          body (ast.slice 4)))
+  (for [i 0 e nil ev nil
+        :while (< i (alen args)) (+1 i)]
+    (set! e (nth args i) ev (str e))
     (cond
       (= ev "&")
-      (if (array? (nth args (+ i 1)))
-        (do (set! e (nth args (+ i 1)))
+      (if (array? (nexth args i))
+        (do (set! e (nexth args i))
             (++ i)
-            (forlet ((j 0 x nil)
-                     (< j (alen e)) (j (inc j)))
+            (for [j 0 x nil
+                  :while (< j (alen e)) :recur (+1 j)]
               (set! x (nth e j))
-              (if-not (types/symbol? x)
+              (if-not (std/symbol? x)
                 (raise! "Bad optional arg for macro"))
-              (pms.push x)))
-        (do (pms.push e (nth args (+ i 1)))
+              (std/conj! pms x)))
+        (do (std/conj! pms e (nexth args i))
             (++ i)))
-      (not (types/symbol? e))
+      (not (std/symbol? e))
       (raise! "Bad optional arg for macro")
       :else
-      (pms.push e)))
+      (std/conj! pms e)))
   (set! ast
         [(first ast)
          (second ast)
-         (.concat [(types/symbol "fn*") pms] body)])
+         (.concat [(std/symbol "fn*") pms] body)])
   (var a2 (nth ast 2)
        a1 (str (nth ast 1))
        func (rt/compute a2 env))
-  (set! func :____macro true)
+  (set-in! func :____macro true)
   (if doc
-    (set! func :____doc doc))
+    (set-in! func :____doc doc))
   (rt/setMacro a1 func)
-  (nodeTag (tn/tnode) ast))
+  (nodeTag (tnode) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "defmacro" sf-macro)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-unary "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-unary
+  "" ^{:opcode ["not" "~" "!"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var [a0 a1] ast)
-    (if (== a0 "not") (set! a0 (types/symbol "!")))
+    (if (== a0 "not") (set! a0 (std/symbol "!")))
     (ret.add ["("
               (transpile* a0 env)
               (transpile* a1 env) ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(regoBuiltins sf-unary "unary")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-doseq "" [ast env]
-  (do-with [ret (nodeTag (tn/tnode) ast)]
+(defn- sf-doseq
+  "" ^{:opcode ["doseq"]} [ast env]
+  (do-with [ret (nodeTag (tnode) ast)]
     (var args (nth ast 1)
          body (ast.slice 2)
-         loopvar (nth args 0)
-         loopexpr (nth args 1)
-         escvar (gensym)
-         idxvar (gensym)
-         exprvar (gensym))
+         [loopvar loopexpr] args
+         escvar (gensym) idxvar (gensym) exprvar (gensym))
     (ret.add ["let " (transpileSingle loopvar)
               "= " exprvar "[" idxvar "];\n"])
-    (forlet ((i 2 v nil ev nil)
-             (< i (alen args)) (i (inc i)))
-      (set! v (nth args i))
-      (set! ev (.-value v))
+    (for [i 2 v nil ev nil
+          :while (< i (alen args)) :recur (+1 i)]
+      (set! v (nth args i) ev (str v))
       (cond
         (= ev "while")
         (ret.add ["if (! "
-                  (transpile* (nth args (+ i 1)) env)
+                  (transpile* (nexth args i) env)
                   ") {" escvar "=true;}\n"])
         (= ev "when")
         (doto ret
           (.add ["if (!" escvar ") {\n"])
           (.add ["if (! "
-                     (transpile* (nth args (+ i 1)) env)
+                     (transpile* (nexth args i) env)
                      ") {continue;}\n"])
           (.add "}\n"))
         (= ev "let")
         (ret.add (sf-var-let
-                   (concat [(types/symbol "var")]
-                           (nth args (+ i 1))) env))))
-    (ret.add ["if (!" escvar ") {\n"])
-    (ret.add (transpileDo body env false))
-    (ret.add "}\n")
-    (ret.add "}\n")
-    (ret.prepend ["for(var " escvar "=false," idxvar "=0; "
-                  "(!" escvar " && " idxvar
-                  " < " exprvar ".length); ++" idxvar ") {\n"])
-    (ret.prepend ["let " exprvar "= " (transpile* loopexpr env) ";\n"])
-    (ret.prepend "(function() {\n")
-    (ret.add "})(this);\n")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(set! SPEC-OPS "doseq" sf-doseq)
+                   (.concat [(std/symbol "var")] (nexth args i)) env))))
+    (doto ret
+      (.add ["if (!" escvar ") {\n"])
+      (.add (transpileDo body env false))
+      (.add "}\n")
+      (.add "}\n")
+      (.prepend ["for(let " escvar "=false," idxvar "=0; "
+                    "(!" escvar " && " idxvar
+                    " < " exprvar ".length); ++" idxvar ") {\n"])
+      (.prepend ["let " exprvar "= " (transpile* loopexpr env) ";\n"])
+      (.prepend "(function() {\n")
+      (.add "})(this);\n"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "" []
   (do-with [s ""]
-    (var ks (keys EXTERNS)
-         p (pad tabspace))
-    (when (> (alen ks) 0)
+    (var ks (keys EXTERNS))
+    (when (std/not-empty ks)
       (set! s (join ",\n"
-                    (map #(str p  %  ": " %) ks)))
+                    (map #(str % ": " %) ks)))
       (set! s (str "\n\nmodule.exports = {\n" s "\n};\n\n")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1364,19 +1212,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cleanCode "" [code]
-  (var arr [])
+  (var arr (std/vector))
   (each (fn [s]
           (set! s (s.trim))
-          (if (not= s ";") (arr.push s))) (code.split "\n"))
+          (if (not= s ";") (std/conj! arr s))) (code.split "\n"))
   (join "\n" arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileCode "" [codeStr fname srcMap?]
-  (set! indent (- tabspace))
-  (set! EXTERNS {})
   (.resetNSPCache (rt/globalEnv))
-  (var outNode (transpileTree (psr/parser codeStr
-                                          fname)
+  (set! EXTERNS {})
+  (var outNode (transpileTree (psr/parser codeStr fname)
                               (rt/globalEnv))
        options {}
        cstr ""
