@@ -1056,19 +1056,20 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for
-  "" ^{:opcode ["for"]} [ast env]
+  "" ^{:opcode ["for" "floop"]} [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
-    (var body (ast.slice 2))
+    (var body (ast.slice 2)
+         internal? (== "floop" (car ast)))
     (if (empty? body)
       (tnode)
-      (floop ret (nth ast 1) body env))))
+      (sf-floop ret (nth ast 1) body env internal?))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- floop "" [ret args body env]
+(defn- sf-floop "" [ret args body env internal?]
   (var vars [] recurs [])
   (var~ tst nb)
-  (for [i 0 e nil
-        :while (< i (alen args)) :recur (+1 i)]
+  (floop [i 0 e nil
+          :while (< i (alen args)) :recur (+1 i)]
     (set! e (nth args i))
     (cond
       (== e "while")
@@ -1080,10 +1081,8 @@
       (std/symbol? e)
       (do (std/conj! vars e (nexth args i))
           (++ i))))
-  (if (= CUR-FUNC-NAME "floop") (ret.add ";"))
-  (ret.add ";")
   (ret.add "for (")
-  (for [i 0 :while (< i (alen vars)) :recur (+2 i)]
+  (floop [i 0 :while (< i (alen vars)) :recur (+2 i)]
     (if (= i 0) (ret.add "let "))
     (if (not= i 0) (ret.add ","))
     (ret.add [(transpileSingle (nth vars i))
@@ -1099,7 +1098,7 @@
     (set! tst nb))
   (ret.add (transpile* tst env))
   (ret.add "; ")
-  (for [i 0 k 0 :while (< i (alen recurs))
+  (floop [i 0 k 0 :while (< i (alen recurs))
                 :recur (+1 i) (+2 k)]
     (if (not= i 0) (ret.add ","))
     (ret.add [(transpileSingle (nth vars k))
@@ -1109,8 +1108,10 @@
     (.add "){\n")
     (.add (transpileDo body env false))
     (.add "}\n")
-    (.prepend "(function() {\n")
-    (.add "})(this)\n")))
+    (.prepend "(function() {\n"))
+  (if internal?
+    (.add ret "})(this);\n")
+    (.add ret "})(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode

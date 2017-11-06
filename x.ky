@@ -1,4 +1,7 @@
-(ns hello.world)
 
-(if (empty? poo) xxx)
+(defn xxx []
+  (for [i 0 :while (< i 10) :recur (+1 i)]
+    (+ 2 3)
+    (poo 3))
+  (set! poo 5))
 

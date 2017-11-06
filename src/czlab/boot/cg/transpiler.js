@@ -1261,7 +1261,7 @@ function sf_comment(ast,env) {
 SPEC_OPS["comment"]=sf_comment;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_for(ast,env) {
+function sf_for(ast,env, internalQ) {
   let ret=nodeTag(tnode(),ast),
       a1=ast[1],
       vars=[], tst, recurs=[],
@@ -1310,14 +1310,15 @@ function sf_for(ast,env) {
   ret.add("}\n");
 
   ret.prepend("(function() {\n");
-  ret.add("}).call(this)\n");
-
+  if (internalQ) {
+    ret.add("}).call(this);\n");
+  } else {
+    ret.add("}).call(this)\n");
+  }
   return ret;
 }
-SPEC_OPS["for"]=function (ast,env) {
-  return sf_for(ast,env);
-}
-
+SPEC_OPS["for"]=function (ast,env) { return sf_for(ast,env); }
+SPEC_OPS["floop"]=function (ast,env) { return sf_for(ast,env, true); }
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_floop(ast,env,hint) {
   let ret= nodeTag(tnodeEx("for ("),ast);
