@@ -333,7 +333,7 @@ let f;
 f= function () {
 let ____args;
 ____args= Array.prototype.slice.call(arguments);
-
+console.log("wrap====" + std.prn(____args));
 return run(ast,new LEXEnv(env,params,arguments));
 };
 

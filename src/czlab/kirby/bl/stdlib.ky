@@ -29,8 +29,8 @@
 (defn opt "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn conj! "" [coll x]
-  (coll.push x)
+(defn conj! "" [coll & xs]
+  (coll.push.apply coll xs)
   coll)
   ;(if (list? coll) (coll.unshift x) (coll.push x)) coll)
 

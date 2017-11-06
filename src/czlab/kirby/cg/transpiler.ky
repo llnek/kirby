@@ -148,7 +148,7 @@
               (when (k.startsWith "&")
                 (set! rest? true k (rest k)))
               (set! k (rdr/jsid k))
-              (conj! kdefs k)
+              (std/conj! kdefs k)
               (-> (cond
                     (nil? v)
                     (str "[\"" k "\"];\n")
@@ -156,7 +156,7 @@
                     (str ".slice(" v ");\n")
                     :else
                     (str "[" v "];\n"))
-                  (str n "=" as )
+                  (str k "=" as )
                   (kvals.add ))) keys)
   (kvals.prepend (str cmd " " (join "," kdefs) ";\n"))
   [[(tnodeEx [cmd " "
@@ -415,6 +415,7 @@
     (for [i 0 :while (< i end) :recur (+1 i)]
       (set! e (nth ast i))
       (ret.add [(transpileList e env) ";\n"]))
+    (ret.add ";")
     (when (>= end 0)
       (set! e (transpile* (nth ast end) env))
       (if-not return?
@@ -491,6 +492,7 @@
       (set! s (transpileSingle (nth ast i)))
       (ret.add (str s "=undefined"))
       (set-in! kks s nil))
+    (ret.add ";")
     (doto ret
       (.join ",")
       (.prepend (str cmd " "))
@@ -522,14 +524,15 @@
     (for [i 0
           :while (< i (alen ast)) :recur (+2 i)]
       (if (std/symbol? (nth ast i))
-        (conj! keys (nth ast i))))
+        (std/conj! keys (nth ast i))))
+    (ret.add ";\n")
     (if (std/not-empty keys)
       (ret.add ["let "
                 (join ","
                       (map (fn [s]
                              (var ss (transpileSingle s))
                              (set-in! kks ss nil) ss) keys)) ";\n"]))
-    (for [rc nil i 0
+    (for [i 0 rc nil
           lhs nil rhs nil
           :while (< i (alen ast)) :recur (+2 i)]
       (set! lhs (nth ast i)
@@ -541,8 +544,9 @@
             (ret.add (nth rc 0))
             (map (fn [s]
                    (set-in! kks (rdr/jsid s) nil)) (nth rc 1)))))
+    (ret.add ";")
     (when (and public?
-               (= 1 (.countNSPCache (rt/glbalEnv))))
+               (= 1 (.countNSPCache (rt/globalEnv))))
       (each-key (fn [v k]
                   (set-in! EXTERNS k k)) kks))))
 
@@ -628,6 +632,7 @@
       (ret.add [(transpile* (nth ast i) env)
                 "="
                 (transpile* (nexth ast i) env)]))
+    (ret.add ";")
     (when more
       (.prepend ret "(")
       (.add ret ")"))))
@@ -698,7 +703,8 @@
                   (first (destruct0 "let" a2 name env)))))) misc)
     (knode.add (join ","
                      (map #(rdr/jsid (str %)) keys)))
-    (std/conj! out knode ret)))
+    (std/conj! out knode)
+    (std/conj! out ret)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
@@ -732,6 +738,7 @@
                 (join ";\n")))
   (if (std/not-empty ks) (str out ";\n") out))
 
+(def- CUR-FUNC-NAME nil)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tnode) ast)]
@@ -743,6 +750,7 @@
          e3 (nth ast 3)
          e2 (nth ast 2)
          doc nil attrs nil args 2 body 3)
+    (set! CUR-FUNC-NAME fname)
     (cond
       (string? e2)
       (do (set! doc 2 args 3)
@@ -774,7 +782,7 @@
               (second fargs)
               (transpileDo body env) "}\n"])
     (if (not-empty hints)
-      (ret.add (fmtSpecOps fname attrs)))
+      (ret.add (fmtSpecOps fname hints)))
     (when doc
       (set! doc (-> (doc.replace rdr.REGEX.dquoteHat "")
                     (.replace rdr.REGEX.dquoteEnd "")))
@@ -1024,7 +1032,7 @@
           (= nsp "czlab.kirby.bl.stdlib"))
       nil
       (nsp.startsWith "czlab.kirby.")
-      (ret.add "const kirbystdlibref=std;\n")
+      (std/conj! ret (tnodeEx "const kirbystdlibref=std;\n"))
       :else
       (->> [(std/symbol "require")
             ["\"kirby\""
@@ -1053,10 +1061,10 @@
     (var body (ast.slice 2))
     (if (empty? body)
       (tnode)
-      (sf-floop ret (nth ast 1) body env))))
+      (floop ret (nth ast 1) body env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" [ret args body env]
+(defn- floop "" [ret args body env]
   (var vars [] recurs [])
   (var~ tst nb)
   (for [i 0 e nil
@@ -1068,10 +1076,12 @@
           (++ i))
       (== e "recur")
       (do (set! recurs (args.slice (+1 i)))
-          (set! i (alen a1)))
+          (set! i (alen args)))
       (std/symbol? e)
       (do (std/conj! vars e (nexth args i))
           (++ i))))
+  (if (= CUR-FUNC-NAME "floop") (ret.add ";"))
+  (ret.add ";")
   (ret.add "for (")
   (for [i 0 :while (< i (alen vars)) :recur (+2 i)]
     (if (= i 0) (ret.add "let "))
@@ -1249,7 +1259,7 @@
           (str outNode extra)))
   (set! cstr (cleanCode cstr))
   ;(println cstr)
-  (if true (esfmt/format cstr options) cstr))
+  (if false (esfmt/format cstr options) cstr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileXXX "" [code file smap?]
