@@ -116,7 +116,7 @@
        cmd (if isM? (first ast) ""))
   (while (isMacroCall? ast env)
     (set! cmd (str (first ast)))
-    (set! mac (getMacros cmd))
+    (set! mac (getMacro cmd))
     (set! ast (mac.apply mac (rest ast))))
   ast)
 

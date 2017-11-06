@@ -693,7 +693,7 @@ function sf_throw(ast,env) {
   let ret= nodeTag(tnode(),ast);
   ret.add(["throw ", eval_QQ(ast[1]), ";"]);
   ret.prepend("(function (){ ");
-  ret.add(" }).call(this)");
+  ret.add(" })(this)");
   return ret;
 }
 SPEC_OPS["throw"]=sf_throw;
@@ -741,11 +741,16 @@ function assert(tst) {
 function sf_set(ast,env) {
   assert(std.odd_p(ast.length), "set: bad arg count");
   let ret= nodeTag(tnode(),ast);
+  let more=false;
   for (let i=1; i < ast.length; i += 2) {
-    if (i > 1) { ret.add(","); }
+    if (i > 1) { ret.add(","); more=true;}
     ret.add([eval_QQ(ast[i],env),
              "=",
              eval_QQ(ast[i+1],env)]);
+  }
+  if (more) {
+    ret.prepend("(");
+    ret.add(")");
   }
   return ret;
 }
@@ -1148,6 +1153,7 @@ function sf_require(ast,env) {
   let path=null,as,v= null, e=null;
   for (var i= 1;
        i < ast.length; ++i) {
+    refers=null; renames=null;
     as=gensym();
     e= ast[i];
     if (!std.array_p(e) || e.length < 3) syntax_E("e0",ast);
@@ -1304,7 +1310,7 @@ function sf_for(ast,env) {
   ret.add("}\n");
 
   ret.prepend("(function() {\n");
-  ret.add("})(this);\n");
+  ret.add("}).call(this)\n");
 
   return ret;
 }

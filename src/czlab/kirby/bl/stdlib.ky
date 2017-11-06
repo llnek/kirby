@@ -30,11 +30,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj! "" [coll x]
-  (if (list? coll) (coll.unshift x) (coll.push x)) coll)
+  (coll.push x)
+  coll)
+  ;(if (list? coll) (coll.unshift x) (coll.push x)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj "" [coll x]
-  (if (list? coll) (.concat [x] coll) (.concat coll x)))
+  (coll.concat x))
+  ;(if (list? coll) (.concat [x] coll) (.concat coll x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop! "" [coll]
@@ -57,9 +60,9 @@
     :keyword (str ":" obj.value)
     :symbol obj.value
     :object (stringify obj)
-    :vector (pa "[" "]")
-    :map (pa "{" "}")
-    :list (pa "(" ")")
+    :vector (pa obj "[" "]")
+    :map (pa obj "{" "}")
+    :list (pa obj "(" ")")
     :string obj
     (:null :nil) "null"
     (obj.toString)))
@@ -206,7 +209,7 @@
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn last "" [coll] (nth coll (last-index coll)))
+(defn last "" [coll] (if coll (nth coll (last-index coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list "" [&xs] (set-in! xs :____list true) xs)

@@ -87,10 +87,10 @@
        str? false
        regex? false
        comment? false)
-  (do-with [tree (std/vector)]
+  (do-with [tree (std/list)]
     (var toke (fn [ln col s s?]
                 (if (std/opt s? (std/not-empty s))
-                  (conj! tree (tnode fname ln col s s))) ""))
+                  (std/conj! tree (tnode fname ln col s s))) ""))
     (while (< pos len)
       (set! ch (source.charAt pos))
       (++ col)

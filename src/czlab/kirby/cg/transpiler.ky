@@ -88,7 +88,7 @@
 (defn- destructVec "" [lhs keys]
   (do-with [as nil]
     (for [i 0 e nil ev nil
-          :while (< i (alen lhs)) (+1 i)]
+          :while (< i (alen lhs)) :recur (+1 i)]
       (set! e (nth lhs i) ev (str e))
       (cond
         (std/symbol? e)
@@ -135,7 +135,7 @@
     (std/symbol? lhs) (set-in! keys (str lhs) nil)
     :else
     (raise! "cant destruct with: " (std/typeid lhs)))
-  (std/vector as keys))
+  [ as keys])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destruct0 "" [cmd lhs rhs env]
@@ -145,7 +145,7 @@
   (set! as (rdr/jsid as))
   (each-key (fn [v k]
               (var rest? false)
-              (if (k.startsWith "&")
+              (when (k.startsWith "&")
                 (set! rest? true k (rest k)))
               (set! k (rdr/jsid k))
               (conj! kdefs k)
@@ -325,7 +325,7 @@
   (if (not= 0 _lambdaFuncCount)
     (raise! "Can't nest lambdas")
     (++ _lambdaFuncCount))
-  (var x [(std/symbol "fn") (std/vector)
+  (var x [(std/symbol "fn") []
           [(std/symbol "var")
            (std/symbol "____args")
            [(std/symbol "slice") (std/symbol "arguments")]]]
@@ -412,7 +412,7 @@
   (do-with [ret (nodeTag (tnode) ast)]
     (set! return? (std/opt return? true))
     (var e nil end (last-index ast))
-    (for [i 0 :while (< i end) (+1 i)]
+    (for [i 0 :while (< i end) :recur (+1 i)]
       (set! e (nth ast i))
       (ret.add [(transpileList e env) ";\n"]))
     (when (>= end 0)
@@ -439,9 +439,8 @@
     (if (odd? (alen ast))
       (set! dft (ast.pop)))
     (for [i 2
-          :while (< i (alen ast)) (+2 i)]
-      (set! c (nexth ast i))
-      (set! e (nth ast i))
+          :while (< i (alen ast)) :recur (+2 i)]
+      (set! c (nexth ast i) e (nth ast i))
       (if (std/list? e)
         (for [j 0
               :while (< j (alen e)) :recur (+1 i)]
@@ -589,7 +588,7 @@
   (do-with [ret (nodeTag (tnode) ast)]
     (ret.add ["throw " (transpile* (nth ast 1) env) ";"])
     (ret.prepend "(function (){ ")
-    (ret.add " }).call(this)")))
+    (ret.add " })(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-opop
@@ -623,15 +622,19 @@
   "" ^{:opcode ["set!"]} [ast env]
   (assert (odd? (alen ast)) "set: bad arg count")
   (do-with [ret (nodeTag (tnode) ast)]
+    (var more false)
     (for [i 1 :while (< i (alen ast)) :recur (+2 i)]
-      (if (> i 1) (ret.add ","))
+      (when (> i 1) (ret.add ",") (set! more true))
       (ret.add [(transpile* (nth ast i) env)
                 "="
-                (transpile* (nexth ast i) env)]))))
+                (transpile* (nexth ast i) env)]))
+    (when more
+      (.prepend ret "(")
+      (.add ret ")"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- parseFuncArgs "" [args]
-  (do-with [ret (std/vector)]
+  (do-with [ret []]
     (for [i 0 e nil ev nil
           :while (< i (alen args)) :recur (+1 i)]
       (set! e (nth args i) ev (str e))
@@ -660,9 +663,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleFuncArgs "" [fargs env]
-  (do-with [out (std/vector)]
-    (var misc (std/vector)
-         keys (std/vector)
+  (do-with [out []]
+    (var misc []
+         keys []
          ret (tnode) knode (tnode))
     (each (fn [arg]
             (cond
@@ -723,7 +726,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" [fname attrs]
-  (var ks (or (get attrs "opcode") (std/vector))
+  (var ks (or (get attrs "opcode") [])
        out (->> (map #(fmtRegoSpecOps
                         (str %1) fname) ks)
                 (join ";\n")))
@@ -889,7 +892,7 @@
             (ast.splice 0 1))
           (transpileAtoms ast env)
           (ret.add "{\n")
-          (for [i 0 :while (< i (alen ast)) (+2 i)]
+          (for [i 0 :while (< i (alen ast)) :recur (+2 i)]
             (if (> i 0) (ret.add ",\n"))
             (ret.add [(nth ast i) ": " (nexth ast i)]))
           (ret.add epilog)))))
@@ -897,7 +900,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- includeFile
   ((fn []
-     (var icache (std/vector))
+     (var icache [])
      (fn [fname]
        (if (std/contains? icache fname)
          (tnode)
@@ -911,7 +914,7 @@
   (var ret [] fname nil
        dir (path/dirname ast.source))
   (for [i 1 e nil
-        :while (< i (alen ast)) (+1 i)]
+        :while (< i (alen ast)) :recur (+1 i)]
     (set! e (nth ast i))
     (if (or (not (array? e))
             (not= 1 (alen e))) (syntax! :e0 ast))
@@ -934,8 +937,9 @@
     (var~  path v e refers renames)
     (var as nil)
     (for [i 1
-          :while (< i (alen ast)) (+1 i)]
+          :while (< i (alen ast)) :recur (+1 i)]
       (set! e (nth ast i) as (gensym))
+      (set! refers nil renames nil)
       (if (or (not (array? e))
               (< (alen e) 3)) (syntax! :e0 ast))
       (set! path (first e))
@@ -952,6 +956,7 @@
           (== v "rename")
           (do (set! renames (nexth e j))
               (++ j))))
+      (ret.add ";")
       (ret.add ["var "
                 (rdr/jsid as)
                 "= require("
@@ -962,13 +967,15 @@
             :recur (+1 i)]
         (set! v (transpileSingle (nth refers i)))
         (ret.add ["var " v "=" as "[\"" v "\"];\n"]))
+      (ret.add ";")
       (for [i 0
             :while (and renames
                         (< i (alen renames)))
             :recur (+2 i)]
         (set! e (transpileSingle (nth renames i)))
         (set! v (transpileSingle (nexth renames i)))
-        (ret.add ["var " v "=" as "[\"" e "\"];\n"])))))
+        (ret.add ["var " v "=" as "[\"" e "\"];\n"]))
+      (ret.add ";"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveMeta "" [ast env]
@@ -989,7 +996,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns
   "" ^{:opcode ["ns"]} [ast env]
-  (do-with [ret (std/vector)]
+  (do-with [ret []]
     (var hints {} nsp (nth ast 1))
     (when (and (array? nsp)
                (= 3 (alen nsp))
@@ -1000,8 +1007,8 @@
     (.pushNSP (rt/globalEnv) (str nsp))
     (set! ast (ast.slice 2))
     (for [i  0 e nil
-          :recur (+1 i)
-          :while (< i (alen ast))]
+          :while (< i (alen ast))
+          :recur (+1 i)]
       (set! e (nth ast i))
       (cond
         (and (std/list? e)
@@ -1044,12 +1051,13 @@
   "" ^{:opcode ["for"]} [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
     (var body (ast.slice 2))
-    (if (std/not-empty body)
+    (if (empty? body)
+      (tnode)
       (sf-floop ret (nth ast 1) body env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-floop "" [ret args body env]
-  (var vars (std/vector) recurs (std/vector))
+  (var vars [] recurs [])
   (var~ tst nb)
   (for [i 0 e nil
         :while (< i (alen args)) :recur (+1 i)]
@@ -1092,7 +1100,7 @@
     (.add (transpileDo body env false))
     (.add "}\n")
     (.prepend "(function() {\n")
-    (.add "})(this);\n")))
+    (.add "})(this)\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode
@@ -1104,7 +1112,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro
   "" ^{:opcode ["defmacro"]} [ast env]
-  (var pms (std/vector)
+  (var pms []
        args (nth ast 2)
        body (ast.slice 3))
   (when (string? args)
@@ -1112,7 +1120,7 @@
           args (nth ast 3)
           body (ast.slice 4)))
   (for [i 0 e nil ev nil
-        :while (< i (alen args)) (+1 i)]
+        :while (< i (alen args)) :recur (+1 i)]
     (set! e (nth args i) ev (str e))
     (cond
       (= ev "&")
@@ -1212,7 +1220,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cleanCode "" [code]
-  (var arr (std/vector))
+  (var arr [])
   (each (fn [s]
           (set! s (s.trim))
           (if (not= s ";") (std/conj! arr s))) (code.split "\n"))

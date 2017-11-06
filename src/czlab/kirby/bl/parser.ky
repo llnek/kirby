@@ -12,7 +12,10 @@
   czlab.kirby.bl.parser
 
   (require ["./stdlib" :as std]
-           ["./lexer" :as rdr :refer [tnode tnodeEx]]))
+           ["./lexer" :as rdr]))
+
+(def- tnodeEx (rdr/tnodeEx))
+(def- tnode (rdr/tnode))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- throwE "" [token msg]
@@ -52,9 +55,9 @@
          (tn.endsWith "\""))
     (set! ret tn)
     (tn.startsWith ":")
-    (set! ret (types/keyword tn))
+    (set! ret (std/keyword tn))
     (tn.startsWith "%")
-    (set! ret (types/lambda-arg tn))
+    (set! ret (std/lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
     (set! ret nil)
@@ -72,7 +75,7 @@
   (if token (set! tn token.name))
   (if (not= tn head)
     (throwE token (str "expected '" head "'")))
-  (do-with [ast (std/vector)]
+  (do-with [ast []]
     (set! cur (peekToken tokens))
     (while ok?
       (when (or (std/nichts? cur)
@@ -110,22 +113,22 @@
     undefined
     (case token.name
       "'" (skip+parse tokens
-                      #(std/vector (std/symbol "quote") (read* tokens)))
+                      #([ (std/symbol "quote") (read* tokens)]))
       "`" (skip+parse tokens
-                      #(std/vector (std/symbol "quasiquote") (read* tokens)))
+                      #([ (std/symbol "quasiquote") (read* tokens)]))
       "~" (skip+parse tokens
-                      #(std/vector (std/symbol "unquote") (read* tokens)))
+                      #([ (std/symbol "unquote") (read* tokens)]))
       "~@" (skip+parse tokens
-                       #(std/vector (std/symbol "splice-unquote") (read* tokens)))
+                       #([ (std/symbol "splice-unquote") (read* tokens)]))
       "^" (skip+parse tokens
                       (fn []
                         (set! tmp (read* tokens))
-                        (std/vector (std/symbol "with-meta")
-                                    (read* tokens) tmp)))
+                        [(std/symbol "with-meta")
+                                    (read* tokens) tmp]))
       "@" (skip+parse tokens
-                      #(std/vector (std/symbol "deref") (read* tokens)))
+                      #([ (std/symbol "deref") (read* tokens)]))
       "#" (skip+parse tokens
-                      #(std/vector (std/symbol "lambda") (read* tokens)))
+                      #([ (std/symbol "lambda") (read* tokens)]))
       ")" (throwE token "unexpected ')'")
       "(" (readList token tokens)
       "]" (throwE token "unexpected ']'")
@@ -137,7 +140,7 @@
       (readAtom tokens))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addAst "" [ast f] (if-not (undef? f) (conj! ast f)) ast)
+(defn- addAst "" [ast f] (if-not (undef? f) (std/conj! ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parser "" [source & [fname]]
@@ -145,7 +148,7 @@
                          (std/opt fname "**adhoc**"))
        f nil ast [] tlen (alen tokens))
   (set! tokens.pos 0)
-  (do-with [ast (std/vector)]
+  (do-with [ast []]
     (comment
       (for [i 0 :while (< i tlen) :recur (+1 i)]
         (println "token=" (.-name (nth tokens i)))))

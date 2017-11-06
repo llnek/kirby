@@ -183,11 +183,11 @@
   (filterJS res))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- gensym-counter (types/atom 0))
+(def- gensym-counter (std/atom 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gensym "" [& [pfx]]
-  (types/symbol (str (or pfx "G__")
+  (std/symbol (str (or pfx "G__")
                      (swap! gensym-counter
                             (fn [x] (+ x 1))))))
 
@@ -196,11 +196,11 @@
 
   "is-same?"  (fn [a b] (== a b))
 
-  "obj-type*"  types/obj-type
+  "obj-type*"  std/typeid
 
   "gensym*"  gensym
 
-  "is-eq?"  types/eq?
+  "is-eq?"  std/eq?
 
   "is-nil?"  (fn [x] (nil? x))
 
@@ -216,10 +216,10 @@
   "#t?"  (fn [x] (true? x))
   "is-str?"  (fn [x] (string? x))
 
-  "symbol*"  types/symbol
-  "is-symbol?"  types/symbol?
-  "keyword*"  types/keyword
-  "is-keyword?"  types/keyword?
+  "symbol*"  std/symbol
+  "is-symbol?"  std/symbol?
+  "keyword*"  std/keyword
+  "is-keyword?"  std/keyword?
 
   "println*"  prnice
   "prn*"  prn-str
@@ -263,7 +263,7 @@
   "is-even?"  (fn [n] (= 0 (mod n 2)))
   "is-odd?"  (fn [n]  (= 1 (mod n 2)))
 
-  "is-sequential?"  types/sequential?
+  "is-sequential?"  std/sequential?
   "cons*"  cons
 
   "concat*"  std/concat*
@@ -290,11 +290,11 @@
 
   "with-meta*"  withMeta
   "meta*"  meta
-  "atom*"  types/atom
-  "is-atom?"  types/atom?
-  "deref*"  deref
-  "reset*"  reset!
-  "swap*"  swap!
+  "atom*"  std/atom
+  "is-atom?"  std/atom?
+  "deref*"  std/deref
+  "reset*"  std/reset!
+  "swap*"  std/swap!
 
   "js-eval*"  evalJS
   "js*"  invokeJS
