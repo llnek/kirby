@@ -1068,49 +1068,36 @@
 (defn- sf-floop "" [ret args body env]
   (var vars [] recurs [])
   (var~ tst nb e)
-  (loop [i 0]
-    (if-not (< i (alen args))
-      "done"
-      (do (set! e (nth args i))
-          (cond (== e "while")
-                (do (set! tst (nexth args i)) (recur (+1 i)))
-                (== e "recur")
-                (do (set! recurs (args.slice (+1 i)))
-                    (recur (alen args)))
-                (std/symbol? e)
-                (do (std/conj! vars e (nexth args i))
-                    (recur (+1 i)))))))
+  (for [i 0 :while (< i (alen args)) :recur (+1 i)]
+    (set! e (nth args i))
+    (cond (== e "while")
+          (do (set! tst (nexth args i)) (++ i))
+          (== e "recur")
+          (do (set! recurs (args.slice (+1 i)))
+              (break-out-of-loop!))
+          (std/symbol? e)
+          (do (std/conj! vars e (nexth args i))
+              (++ i))))
   (ret.add "for (")
-
-  (loop [i 0]
-    (if-not (< i (alen vars))
-      "done"
-      (do (if (= i 0) (ret.add "let "))
-          (if (not= i 0) (ret.add ","))
-          (ret.add [(transpileSingle (nth vars i))
-                    "=" (transpile* (nexth vars i) env)])
-          (recur (+2 i)))))
-
+  (for [i 0 :while (< i (alen vars)) :recur (+2 i)]
+    (if (= i 0) (ret.add "let "))
+    (if (not= i 0) (ret.add ","))
+    (ret.add [(transpileSingle (nth vars i))
+              "=" (transpile* (nexth vars i) env)]))
   (if (empty? vars)
     (ret.add "let ____break=false;")
     (ret.add ",____break=false;"))
-
   (set! nb [(std/symbol "not") (std/symbol "____break")])
   (if tst
     (set! tst [(std/symbol "and") nb tst])
     (set! tst nb))
-
   (ret.add (transpile* tst env))
   (ret.add "; ")
-
-  (loop [i 0 k 0]
-    (if-not (< i (alen recurs))
-      "done"
-      (do (if (not= i 0) (ret.add ","))
-          (ret.add [(transpileSingle (nth vars k))
-                    "=" (transpile* (nth recurs i) env)])
-          (recur (+1 i) (+2 k)))))
-
+  (for [i 0 k 0
+        :while (< i (alen recurs)) :recur (+1 i)(+2 k)]
+    (if (not= i 0) (ret.add ","))
+    (ret.add [(transpileSingle (nth vars k))
+              "=" (transpile* (nth recurs i) env)]))
   (doto ret
     (.add "){\n")
     (.add (transpileDo body env false))
