@@ -1,7 +1,8 @@
 
-(defn xxx []
-  (for [i 0 :while (< i 10) :recur (+1 i)]
-    (+ 2 3)
-    (poo 3))
-  (set! poo 5))
+(loop [a 1 b 1]
+  (if (> (+ a b) 10)
+    (do (console.log "done") 1)
+    (do
+        (console.log "a=" a ", b=" b)
+        (recur (+1 a) (+1 b)))))
 

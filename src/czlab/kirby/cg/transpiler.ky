@@ -409,26 +409,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileDo "" [ast env & [return?]]
-  (do-with [ret (nodeTag (tnode) ast)]
-    (set! return? (std/opt return? true))
-    (var e nil end (last-index ast))
-    (for [i 0 :while (< i end) :recur (+1 i)]
-      (set! e (nth ast i))
-      (ret.add [(transpileList e env) ";\n"]))
-    (ret.add ";")
-    (when (>= end 0)
-      (set! e (transpile* (nth ast end) env))
-      (if-not return?
-        (ret.add [e ";\n"])
-        (ret.add ["return " e ";\n"])))))
+  (set! return? (std/opt return? true))
+  (var ret (nodeTag (tnode) ast)
+       e nil end (last-index ast))
+  (for [i 0 :while (< i end) :recur (+1 i)]
+    (set! e (nth ast i))
+    (ret.add [(transpileList e env) ";\n"]))
+  (ret.add ";")
+  (when (>= end 0)
+    (set! e (transpile* (nth ast end) env))
+    (if-not return?
+      (ret.add [e ";\n"])
+      (ret.add ["return " e ";\n"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
   "" ^{:opcode ["do"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
-    (ret.add (str "(function() {\n"))
-    (ret.add (transpileDo (rest ast) env))
-    (ret.add (str "}).call(this)"))))
+  (var ret (nodeTag (tnode) ast))
+  (ret.add (str "(function() {\n"))
+  (ret.add (transpileDo (rest ast) env))
+  (ret.add (str "}).call(this)"))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
@@ -625,17 +626,17 @@
 (defn- sf-set
   "" ^{:opcode ["set!"]} [ast env]
   (assert (odd? (alen ast)) "set: bad arg count")
-  (do-with [ret (nodeTag (tnode) ast)]
-    (var more false)
-    (for [i 1 :while (< i (alen ast)) :recur (+2 i)]
-      (when (> i 1) (ret.add ",") (set! more true))
-      (ret.add [(transpile* (nth ast i) env)
-                "="
-                (transpile* (nexth ast i) env)]))
-    (ret.add ";")
-    (when more
-      (.prepend ret "(")
-      (.add ret ")"))))
+  (var more false
+       ret (nodeTag (tnode) ast))
+  (for [i 1 :while (< i (alen ast)) :recur (+2 i)]
+    (when (> i 1) (ret.add ",") (set! more true))
+    (ret.add [(transpile* (nth ast i) env)
+              "="
+              (transpile* (nexth ast i) env)]))
+  (when more
+    (.prepend ret "(")
+    (.add ret ")"))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- parseFuncArgs "" [args]
@@ -1056,62 +1057,66 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for
-  "" ^{:opcode ["for" "floop"]} [ast env]
+  "" ^{:opcode ["for"]} [ast env]
   (do-with [ret (nodeTag (tnode) ast)]
-    (var body (ast.slice 2)
-         internal? (== "floop" (car ast)))
+    (var body (ast.slice 2))
     (if (empty? body)
       (tnode)
-      (sf-floop ret (nth ast 1) body env internal?))))
+      (sf-floop ret (nth ast 1) body env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" [ret args body env internal?]
+(defn- sf-floop "" [ret args body env]
   (var vars [] recurs [])
-  (var~ tst nb)
-  (floop [i 0 e nil
-          :while (< i (alen args)) :recur (+1 i)]
-    (set! e (nth args i))
-    (cond
-      (== e "while")
-      (do (set! tst (nexth args i))
-          (++ i))
-      (== e "recur")
-      (do (set! recurs (args.slice (+1 i)))
-          (set! i (alen args)))
-      (std/symbol? e)
-      (do (std/conj! vars e (nexth args i))
-          (++ i))))
+  (var~ tst nb e)
+  (loop [i 0]
+    (if-not (< i (alen args))
+      "done"
+      (do (set! e (nth args i))
+          (cond (== e "while")
+                (do (set! tst (nexth args i)) (recur (+1 i)))
+                (== e "recur")
+                (do (set! recurs (args.slice (+1 i)))
+                    (recur (alen args)))
+                (std/symbol? e)
+                (do (std/conj! vars e (nexth args i))
+                    (recur (+1 i)))))))
   (ret.add "for (")
-  (floop [i 0 :while (< i (alen vars)) :recur (+2 i)]
-    (if (= i 0) (ret.add "let "))
-    (if (not= i 0) (ret.add ","))
-    (ret.add [(transpileSingle (nth vars i))
-              "="
-              (transpile* (nexth vars i) env)]))
-  (if (std/not-empty vars)
-    (ret.add ",____break=false")
-    (ret.add "let ____break=false"))
-  (ret.add "; ")
+
+  (loop [i 0]
+    (if-not (< i (alen vars))
+      "done"
+      (do (if (= i 0) (ret.add "let "))
+          (if (not= i 0) (ret.add ","))
+          (ret.add [(transpileSingle (nth vars i))
+                    "=" (transpile* (nexth vars i) env)])
+          (recur (+2 i)))))
+
+  (if (empty? vars)
+    (ret.add "let ____break=false;")
+    (ret.add ",____break=false;"))
+
   (set! nb [(std/symbol "not") (std/symbol "____break")])
   (if tst
     (set! tst [(std/symbol "and") nb tst])
     (set! tst nb))
+
   (ret.add (transpile* tst env))
   (ret.add "; ")
-  (floop [i 0 k 0 :while (< i (alen recurs))
-                :recur (+1 i) (+2 k)]
-    (if (not= i 0) (ret.add ","))
-    (ret.add [(transpileSingle (nth vars k))
-              "="
-              (transpile* (nth recurs i) env)]))
+
+  (loop [i 0 k 0]
+    (if-not (< i (alen recurs))
+      "done"
+      (do (if (not= i 0) (ret.add ","))
+          (ret.add [(transpileSingle (nth vars k))
+                    "=" (transpile* (nth recurs i) env)])
+          (recur (+1 i) (+2 k)))))
+
   (doto ret
     (.add "){\n")
     (.add (transpileDo body env false))
     (.add "}\n")
-    (.prepend "(function() {\n"))
-  (if internal?
-    (.add ret "})(this);\n")
-    (.add ret "})(this)")))
+    (.prepend "(function() {\n")
+    (.add "})(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode

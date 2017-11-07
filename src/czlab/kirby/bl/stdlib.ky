@@ -264,7 +264,7 @@
   (do-with [ret []]
     (for [i start
           :while (< i (alen coll)) :recur (+ i step)]
-      (ret.push (nth arr i)))))
+      (ret.push (nth coll i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "" [coll] (every coll 0 2))

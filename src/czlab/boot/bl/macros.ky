@@ -192,22 +192,16 @@
 ;;trampoline
 (defmacro loop "" [bindings & more]
   (let*
-    [ret (gensym*)
-     xs (gensym*)
-     f (gensym*)
-     es (evens* bindings)
+    [es (evens* bindings)
      os (odds* bindings)]
     `((fn []
-        (var recur nil ~xs nil
-             ~f (fn [~@es] ~@more) ~ret ~f)
+        (var recur nil ____f (fn [~@es] ~@more))
+        (var ____xs nil ____ret ____f)
         (set! recur
               (fn []
-                (set! ~xs arguments)
-                (if (def? ~ret)
-                  (do (for ((~ret undefined)
-                            (= ~ret undefined) nil)
-                        (set! ~ret (.apply ~f this ~xs))) ~ret)
-                  undefined)))
+                (set! ____xs arguments)
+                (js# "if (____ret) {for(____ret=undefined;____ret===undefined;){____ret=____f.apply(this,____xs);} return ____ret;}")
+                undefined))
         (recur ~@os)) this)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

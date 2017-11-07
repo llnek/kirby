@@ -1313,7 +1313,7 @@ function sf_for(ast,env, internalQ) {
   if (internalQ) {
     ret.add("}).call(this);\n");
   } else {
-    ret.add("}).call(this)\n");
+    ret.add("}).call(this)");
   }
   return ret;
 }
