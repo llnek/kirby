@@ -44,7 +44,7 @@
   :e17 "Invalid arity (args < expected) to "})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- MODULE-VERSION "1.0.0"
+(def- MODULE_VERSION "1.0.0"
       EXTERNS nil
       SPEC-OPS {})
 
@@ -262,7 +262,7 @@
             (ret.add (transpile* (nth ast n) env)))
           (ret.add ")"))
       (std/contains? SPEC-OPS cmd)
-      (set! ret ((get SPEC_OPS cmd) ast env))
+      (set! ret ((get SPEC-OPS cmd) ast env))
       (rdr/REGEX.int.test cmd)
       (let [c0 (cmd.charAt 0)]
         (if (and (not= c0 "-")
@@ -493,7 +493,6 @@
       (set! s (transpileSingle (nth ast i)))
       (ret.add (str s "=undefined"))
       (set-in! kks s nil))
-    (ret.add ";")
     (doto ret
       (.join ",")
       (.prepend (str cmd " "))
@@ -608,7 +607,7 @@
                 "/=" "%=" "<<="
                 ">>=" ">>>=" "&=" "|=" "^="]} [ast env]
   (transpileAtoms ast env)
-  (nodeTag (tn/tnodeEx [(second ast)
+  (nodeTag (tnodeEx [(second ast)
                         " " (first ast) " " (nth ast 2)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -729,7 +728,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtRegoSpecOps
-  "" [alias fname] (str "SPEC_OPS[\"" alias "\"] = " fname))
+  "" [alias fname]
+  (str (rdr/jsid :SPEC-OPS) "[\"" alias "\"] = " fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" [fname attrs]
@@ -739,7 +739,6 @@
                 (join ";\n")))
   (if (std/not-empty ks) (str out ";\n") out))
 
-(def- CUR-FUNC-NAME nil)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
   (do-with [ret (nodeTag (tnode) ast)]
@@ -751,7 +750,6 @@
          e3 (nth ast 3)
          e2 (nth ast 2)
          doc nil attrs nil args 2 body 3)
-    (set! CUR-FUNC-NAME fname)
     (cond
       (string? e2)
       (do (set! doc 2 args 3)
@@ -1029,7 +1027,7 @@
     ;;force a internal reference to stdlib for user files
     (set! nsp (.peekNSP (rt/globalEnv)))
     (cond
-      (or (= nsp "czlab.kirby.bl.defmacros")
+      (or (= nsp "czlab.kirby.bl.macros")
           (= nsp "czlab.kirby.bl.stdlib"))
       nil
       (nsp.startsWith "czlab.kirby.")

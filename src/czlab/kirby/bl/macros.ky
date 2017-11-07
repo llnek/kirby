@@ -10,7 +10,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.bl.defmacros)
+  czlab.kirby.bl.macros)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))

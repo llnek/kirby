@@ -25,7 +25,7 @@
 (defn- loadMacros []
   (when-not loadedMacros?
     (set! loadedMacros? true)
-    (require "../bl/defmacros.ky")))
+    (require "../bl/macros.ky")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setMacro "" [cmd func]
@@ -49,7 +49,7 @@
                                (str nsp "/" cmd))))
         (if-not ret
           (set! ret (get CACHE
-                         (str "czlab.kirby.bl.defmacros/" cmd))))))))
+                         (str "czlab.kirby.bl.macros/" cmd))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- wrap-str "" [s]

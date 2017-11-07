@@ -77,7 +77,7 @@ function normalizeId (name) {
     return (pfx+name).replace(REGEX.query, "_QUERY").
         replace(REGEX.bang, "_BANG").
         replace(REGEX.slash, ".").
-        replace(REGEX.dash, "_").
+        replace(REGEX.dash, "_DASH").
         replace(REGEX.quote, "_QTE").
         replace(REGEX.hash, "_HASH").
         replace(REGEX.plus, "_PLUS").

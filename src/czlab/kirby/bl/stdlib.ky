@@ -278,8 +278,7 @@
                  (alen c1)) (alen c2) (alen c1)))
   (do-with [ret []]
     (for [i 0
-          :recur (+1 i)
-          :while (< i cz) ]
+          :while (< i cz) :recur (+1 i)]
       (ret.push (nth c1 i) (nth c2 i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

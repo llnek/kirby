@@ -861,7 +861,7 @@ function handleFuncArgs(fargs,env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function fmtRegoSpecOps(alias,fname) {
-  return "SPEC_OPS[\"" + alias + "\"] = " + fname;
+  return rdr.jsid("SPEC-OPS") + "[\"" + alias + "\"] = " + fname;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
