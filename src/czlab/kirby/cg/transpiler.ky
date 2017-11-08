@@ -86,7 +86,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructVec "" [lhs keys]
-  (do-with [as nil]
+  (var as nil)
     (for [i 0 e nil ev nil
           :while (< i (alen lhs)) :recur (+1 i)]
       (set! e (nth lhs i) ev (str e))
@@ -104,11 +104,12 @@
         (if (= ev "as")
           (do (++ i)
               (set! as (str (nth lhs i))))
-          (raise! "bad keyword: :" ev))))))
+          (raise! "bad keyword: :" ev))))
+    as)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructMap "" [lhs keys]
-  (do-with [as nil]
+  (var as nil)
     (for [i 0 e nil ev nil
           :while (< i (alen lhs)) :recur (+1 i)]
       (set! e (nth lhs i) ev (str e))
@@ -124,7 +125,8 @@
           (= ev "as")
           (do (++ i)
               (set! as (str (nth lhs i)))))
-        (raise! "bad destruct field: " (std/typeid e))))))
+        (raise! "bad destruct field: " (std/typeid e))))
+    as)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destruct1 "" [lhs]
@@ -165,7 +167,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileTree "" [root env]
-  (do-with [ret (nodeTag (tnode) root)]
+  (var ret (nodeTag (tnode) root))
     (var treeSize (alen root)
          endx (last-index root))
     (each (fn [ast]
@@ -173,7 +175,8 @@
             (if (array? ast)
               (set! tmp (transpileList ast env)))
             (when tmp
-              (ret.add [tmp "\n"]))) root)))
+              (ret.add [tmp "\n"]))) root)
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileAtoms "" [atoms env]
@@ -181,13 +184,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileSingle "" [a]
-  (cond
-    (std/lambda-arg? a) (str "____args[" (str a) "]")
-    (std/keyword? a) (str "\"" (str a) "\"")
-    (std/symbol? a) (rdr/jsid (str a))
-    (string? a) a
-    (nil? a) "null"
-    :else (str "" a)))
+    (cond
+      (std/lambda-arg? a) (str "____args[" (str a) "]")
+      (std/keyword? a) (str "\"" (str a) "\"")
+      (std/symbol? a) (rdr/jsid (str a))
+      (string? a) a
+      (nil? a) "null"
+      :else (str "" a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpile* "" [x env]
@@ -195,11 +198,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findCmd "" [ast]
-  (do-with [cmd ""]
+  (var cmd "")
     (cond
       (std/vector? ast) (set! cmd "vec")
       (std/map? ast) (set! cmd "hashmap")
-      (std/list? ast) (set! cmd (str (first ast))))))
+      (std/list? ast) (set! cmd (str (first ast))))
+    cmd)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" [a]
@@ -218,33 +222,36 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteMap "" [a env]
-  (do-with [ret (tnode)]
+  (var ret (tnode))
     (for [i 0 :while (< i (alen a)) :recur (+2 i)]
       (if (> i 0) (ret.add ","))
       (ret.add [(quote! (nth a i) env)
                 " : " (quote! (nexth a i) env)]))
     (ret.prepend "{")
-    (ret.add "}")))
+    (ret.add "}")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" [a env]
-  (do-with [ret (tnode)]
+  (var ret (tnode))
     (for [i 0 :while (< i (alen a)) :recur (+1 i)]
       (if (> i 0) (ret.add ","))
       (ret.add (quote! (nth a i) env)))
     (ret.prepend "[")
-    (ret.add "]")))
+    (ret.add "]")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
-    (ret.add (quote! (nth ast 1) env))))
+  (var ret (nodeTag (tnode) ast))
+    (ret.add (quote! (nth ast 1) env))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileList "" [ast env]
   (var cmd (findCmd ast)
        mc (rt/getMacro cmd) tmp nil)
-  (do-with [ret (tnode)]
+  (var ret (tnode))
     (when mc
       (set! ast (rt/expandMacro ast env mc))
       (set! cmd (findCmd ast)))
@@ -288,11 +295,12 @@
                           (join ","
                                 (tnodeEx (rest ast))) ")"]))
             (ret.add cmd))))
-    (set! ret (nodeTag ret ast))))
+    (set! ret (nodeTag ret ast))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype "" [ast env public?]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var cz (transpile* (nth ast 1) env)
          par (first (nth ast 2))
          args (nth ast 3)
@@ -309,7 +317,8 @@
       (ret.add "\n"))
     (ret.add "}\n")
     (if (and public? (= 1 (.countNSPCache (rt/globalEnv))))
-      (set-in! EXTERNS cz cz))))
+      (set-in! EXTERNS cz cz))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prv-deftype
@@ -361,7 +370,7 @@
   (if (or (== cmd "not=")
           (== cmd "!=")) (set-in! ast 0 (std/symbol "!==")))
   (if (== cmd "=") (set-in! ast 0 (std/symbol "===")))
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (transpileAtoms ast env)
     (for [i 0
           op (ast.shift)
@@ -370,7 +379,8 @@
                          " " op " " (nexth ast i)])))
     (join " && " ret)
     (ret.prepend "(")
-    (ret.add ")")))
+    (ret.add ")")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-arithOp
@@ -380,7 +390,7 @@
              "^" "&" "|" "<<" ">>" ">>>"]}
   [ast env]
 
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (transpileAtoms ast env)
     (var op (tnode)
          e1 (ast.shift) cmd (str e1))
@@ -392,12 +402,13 @@
     (ret.add ast)
     (if (> (alen ast) 1) (join op ret))
     (ret.prepend "(")
-    (ret.add ")")))
+    (ret.add ")")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-repeat
   "" ^{:opcode ["repeat-n"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (transpileAtoms ast env)
     (for [i 0
           end (parseInt (second ast))
@@ -405,7 +416,8 @@
       (if (not= i 0) (ret.add ","))
       (ret.add (nth ast 2)))
     (ret.prepend "[")
-    (ret.add "]")))
+    (ret.add "]")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileDo "" [ast env & [return?]]
@@ -414,8 +426,8 @@
        e nil end (last-index ast))
   (for [i 0 :while (< i end) :recur (+1 i)]
     (set! e (nth ast i))
+    (set-in! e :____expr false)
     (ret.add [(transpileList e env) ";\n"]))
-  (ret.add ";")
   (when (>= end 0)
     (set! e (transpile* (nth ast end) env))
     (if-not return?
@@ -425,16 +437,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
   "" ^{:opcode ["do"]} [ast env]
-  (var ret (nodeTag (tnode) ast))
-  (ret.add (str "(function() {\n"))
-  (ret.add (transpileDo (rest ast) env))
-  (ret.add (str "}).call(this)"))
+  (var ret (nodeTag (tnode) ast)
+       stmt? (false? ast.____expr))
+  (ret.add (transpileDo (rest ast) env (not stmt?)))
+  (if-not stmt? (ret.prepend "{\n") (ret.prepend "(function() {\n"))
+  (if-not stmt? (ret.add "}") (ret.add "}).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
   "" ^{:opcode ["case"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var tst (second ast)
          _x (gensym)
          e nil t nil c nil dft nil)
@@ -461,12 +474,13 @@
     (ret.prepend ["switch (" (transpile* tst env) ") {\n"])
     (ret.add "}\n")
     (ret.prepend ["(function() { let " _x ";\n"])
-    (ret.add ["return " _x ";}).call(this)"])))
+    (ret.add ["return " _x ";}).call(this)"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-range
   "" ^{:opcode ["range"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var len 0 start 0 step 1 end 0)
     (transpileAtoms ast env)
     (set! len (alen ast))
@@ -480,11 +494,12 @@
       (if (not= i start) (ret.add ","))
       (ret.add (str i)))
     (ret.prepend "[")
-    (ret.add "]")))
+    (ret.add "]")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-vardefs "" [ast env cmd]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var kks {}
          public? (== "global" cmd))
     (if-not (== "let" cmd) (set! cmd "var"))
@@ -499,7 +514,8 @@
       (.add ";\n"))
     (if (and public?
              (= 1 (.countNSPCache (rt/globalEnv))))
-      (each-key (fn [v k] (set-in! EXTERNS k k)) kks))))
+      (each-key (fn [v k] (set-in! EXTERNS k k)) kks))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- local-vardefs
@@ -515,7 +531,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var "" [ast env cmd]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var vname nil keys [] kks {}
          public? (== "global" cmd))
     (set! ast (rest ast))
@@ -548,7 +564,8 @@
     (when (and public?
                (= 1 (.countNSPCache (rt/globalEnv))))
       (each-key (fn [v k]
-                  (set-in! EXTERNS k k)) kks))))
+                  (set-in! EXTERNS k k)) kks))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var-local
@@ -565,34 +582,38 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-inst?
   "" ^{:opcode ["inst?"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (ret.add ["("
               (transpile* (nth ast 2) env)
               " instanceof "
-              (transpile* (nth ast 1) env) ")"])))
+              (transpile* (nth ast 1) env) ")"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-delete
   "" ^{:opcode ["delete!"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (ret.add ["delete " (transpile* (nth ast 1) env)])
     (if (> (alen ast) 2)
-      (ret.add ["[" (transpile* (nth ast 2)) "]"]))))
+      (ret.add ["[" (transpile* (nth ast 2)) "]"]))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
   "" ^{:opcode ["new"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (ret.add (transpileList (rest ast) env))
-    (ret.prepend "new ")))
+    (ret.prepend "new ")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-throw
   "" ^{:opcode ["throw"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (ret.add ["throw " (transpile* (nth ast 1) env) ";"])
     (ret.prepend "(function (){ ")
-    (ret.add " })(this)")))
+    (ret.add " })(this)")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-opop
@@ -614,12 +635,13 @@
 (defn- sf-set-in
   "" ^{:opcode ["set-in!"]} [ast env]
   (assert (even? (alen ast)) "set-in: bad arg count")
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var obj (transpile* (nth ast 1) env))
     (for [i 2 :while (< i (alen ast)) :recur (+2 i)]
       (if (> i 2) (ret.add ","))
       (ret.add [obj "[" (transpile* (nth ast i) env) "]"
-                "=" (transpile* (nexth ast i) env)]))))
+                "=" (transpile* (nexth ast i) env)]))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set
@@ -639,7 +661,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- parseFuncArgs "" [args]
-  (do-with [ret []]
+  (var ret [])
     (for [i 0 e nil ev nil
           :while (< i (alen args)) :recur (+1 i)]
       (set! e (nth args i) ev (str e))
@@ -664,11 +686,12 @@
         (array? e)
         (std/conj! ret [(std/symbol (gensym)) i e])
         :else
-        (raise! "bad function args destructure: " (std/typeid e))))))
+        (raise! "bad function args destructure: " (std/typeid e))))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleFuncArgs "" [fargs env]
-  (do-with [out []]
+  (var out [])
     (var misc []
          keys []
          ret (tnode) knode (tnode))
@@ -704,12 +727,13 @@
     (knode.add (join ","
                      (map #(rdr/jsid (str %)) keys)))
     (std/conj! out knode)
-    (std/conj! out ret)))
+    (std/conj! out ret)
+    out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
   "" ^{:opcode ["fn"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var args (nth ast 1)
          fargs nil
          hints {}
@@ -724,7 +748,8 @@
     (ret.add (first fargs))
     (ret.add [") {\n"
               (second fargs)
-              (transpileDo body env) "}"])))
+              (transpileDo body env) "}"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtRegoSpecOps
@@ -741,7 +766,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" [ast env public?]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var fname (transpile* (nth ast 1) env)
          mtd? (== (first ast) "method")
          dot? (fname.includes ".")
@@ -789,7 +814,8 @@
     (if (and public?
              (not dot?)
              (= 1 (.countNSPCache (rt/globalEnv))))
-      (set-in! EXTERNS fname fname))))
+      (set-in! EXTERNS fname fname))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func-private
@@ -802,7 +828,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-try
   "" ^{:opcode ["try"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var sz (alen ast)
          t nil f nil c nil)
     ;;look for finally
@@ -831,36 +857,40 @@
     (when f
       (ret.add ["finally {\n",
                 (transpileDo (rest f) env false) ";\n}\n"]))
-    (ret.add "}).call(this)")))
+    (ret.add "}).call(this)")
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-if
   "" ^{:opcode ["if"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var a1 (nth ast 1)
          a2 (nth ast 2)
          a3 (if (> (alen ast) 3) (nth ast 3)))
     (ret.add ["(" (transpile* a1 env)
               " ?\n" (transpile* a2 env) " :\n"
-              (or (transpile* a3 env) "null") ")"])))
+              (or (transpile* a3 env) "null") ")"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-nth "" ^{:opcode ["nth"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (transpileAtoms ast env)
-    (ret.add [(nth ast 1) "[" (nth ast 2) "]"])))
+    (ret.add [(nth ast 1) "[" (nth ast 2) "]"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-get
   "" ^{:opcode ["aget" "get"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (transpileAtoms ast env)
-    (ret.add [(nth ast 1) "[" (nth ast 2) "]"])))
+    (ret.add [(nth ast 1) "[" (nth ast 2) "]"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-str
   "" ^{:opcode ["str"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var args (rest ast))
     (transpileAtoms args env)
     (if (> (alen args) 1)
@@ -870,12 +900,13 @@
         (.prepend "[")
         (.add "].join(\"\")"))
       (if (std/not-empty args)
-        (ret.add ["" (first args) ".toString()"])))))
+        (ret.add ["" (first args) ".toString()"])))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-array
   "" ^{:opcode ["vec"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var epilog "\n]")
     (if (empty? ast)
       (ret.add "[]")
@@ -886,12 +917,13 @@
           (for [i 0 :while (< i (alen ast)) :recur (+1 i)]
             (if (> i 0) (ret.add ",\n"))
             (ret.add (nth ast i)))
-          (ret.add epilog)))))
+          (ret.add epilog)))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-object
   "" ^{:opcode ["hashmap"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var epilog "\n}")
     (if (empty? ast)
       (ret.add "{}")
@@ -902,7 +934,8 @@
           (for [i 0 :while (< i (alen ast)) :recur (+2 i)]
             (if (> i 0) (ret.add ",\n"))
             (ret.add [(nth ast i) ": " (nexth ast i)]))
-          (ret.add epilog)))))
+          (ret.add epilog)))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- includeFile
@@ -940,7 +973,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require "" [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var~  path v e refers renames)
     (var as nil)
     (for [i 1
@@ -982,7 +1015,8 @@
         (set! e (transpileSingle (nth renames i)))
         (set! v (transpileSingle (nexth renames i)))
         (ret.add ["var " v "=" as "[\"" e "\"];\n"]))
-      (ret.add ";"))))
+      (ret.add ";"))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveMeta "" [ast env]
@@ -1003,7 +1037,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns
   "" ^{:opcode ["ns"]} [ast env]
-  (do-with [ret []]
+  (var ret [])
     (var hints {} nsp (nth ast 1))
     (when (and (array? nsp)
                (= 3 (alen nsp))
@@ -1037,7 +1071,8 @@
             ["\"kirby\""
              (std/keyword ":as") (std/symbol "kirbystdlibref")]]
            (sf-require )
-           (std/conj! ret )))))
+           (std/conj! ret )))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" [cmd]
@@ -1056,11 +1091,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for
   "" ^{:opcode ["for"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var body (ast.slice 2))
     (if (empty? body)
       (tnode)
-      (sf-floop ret (nth ast 1) body env))))
+      (sf-floop ret (nth ast 1) body env))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-floop "" [ret args body env]
@@ -1156,17 +1192,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary
   "" ^{:opcode ["not" "~" "!"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var [a0 a1] ast)
     (if (== a0 "not") (set! a0 (std/symbol "!")))
     (ret.add ["("
               (transpile* a0 env)
-              (transpile* a1 env) ")"])))
+              (transpile* a1 env) ")"])
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-doseq
   "" ^{:opcode ["doseq"]} [ast env]
-  (do-with [ret (nodeTag (tnode) ast)]
+  (var ret (nodeTag (tnode) ast))
     (var args (nth ast 1)
          body (ast.slice 2)
          [loopvar loopexpr] args
@@ -1201,16 +1238,18 @@
                     " < " exprvar ".length); ++" idxvar ") {\n"])
       (.prepend ["let " exprvar "= " (transpile* loopexpr env) ";\n"])
       (.prepend "(function() {\n")
-      (.add "})(this);\n"))))
+      (.add "})(this);\n"))
+    ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "" []
-  (do-with [s ""]
+  (var s "")
     (var ks (keys EXTERNS))
     (when (std/not-empty ks)
       (set! s (join ",\n"
                     (map #(str % ": " %) ks)))
-      (set! s (str "\n\nmodule.exports = {\n" s "\n};\n\n")))))
+      (set! s (str "\n\nmodule.exports = {\n" s "\n};\n\n")))
+    s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "" []

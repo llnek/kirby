@@ -22,6 +22,24 @@ var tnode=tn.tnode;
 var gensym_counter=1;
 var MATH_OP_REGEX = /^[-+/*][0-9]+$/;
 
+function simpleton(ast) {
+  return (typeof ast === "string" ||
+          typeof ast === "number" ||
+          typeof ast === "boolean" ||
+          ast === null);
+}
+
+function exprHint(ast,flag) {
+  let x=ast;
+  if (simpleton(ast)) { x= types.primitive(ast); }
+  x.____expr=flag;
+  return x;
+}
+function stmt_p(ast) {
+  if (simpleton(ast)) { throw new Error("Cant check expr on primitive"); }
+  return ast.____expr === false;
+}
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function gensym(pfx) {
   let x= gensym_counter;
@@ -130,13 +148,15 @@ function transpileTree(root, env) {
   pstr= pad(indent);
 
   root.forEach(function(ast) {
-    let tmp=ast;
+    let tmp=eval_QQ(ast,env);
+    /*
     if (std.array_p(ast)) {
       tmp= transpileList(ast, env);
     }
     if (tmp) {
       ret.add([pstr, tmp, "\n"]);
-    }
+    }*/
+    if (tmp) { ret.add([pstr, tmp, "\n"]);}
   });
   indent -= tabspace;
   return ret;
@@ -164,6 +184,7 @@ function transpileSingle(a) {
   if (types.lambda_arg_p(a)) {
     return "____args[" + types.lambda_arg_s(a) + "]";
   }
+  if (types.primitive_p(a)) { a=a.value; }
   if (std.string_p(a)) {
     return a;
   }
@@ -247,6 +268,7 @@ SPEC_OPS["quote"]=sf_quote;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileList(ast, env) {
+  let stmtQ= stmt_p(ast);
   let ret=tnode();
   let cmd= "",
       path,
@@ -257,6 +279,7 @@ function transpileList(ast, env) {
 
   if (mc) {
     ast=rt.expandMacro(ast, env, mc);
+    ast=exprHint(ast,!stmtQ);
     cmd= findCmd(ast);
   }
 
@@ -478,18 +501,24 @@ function sf_repeat(ast, env) {
 SPEC_OPS["repeat-n"]=sf_repeat;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileDo(ast,env,return_Q) {
-  let p= pad(indent),
+function transpileDo(ast,env,returnQ) {
+  let stmtQ= stmt_p(ast),
+      p= pad(indent),
       e=null,
       end= ast.length-1;
   let ret=nodeTag(tnode(),ast);
+
+  if (stmtQ) { returnQ=false; }
   for (var i= 0; i < end; ++i) {
     e= ast[i];
+    e=exprHint(e,false);
     ret.add([p, transpileList(e,env), ";\n"]);
   }
   if (end >= 0) {
-    e= eval_QQ(ast[end], env);
-    if (return_Q === false) {
+    e=ast[end];
+    e=exprHint(e, !stmtQ);
+    e= eval_QQ(e, env);
+    if (returnQ === false) {
       ret.add([p, e, ";\n"]);
     } else {
       ret.add([p, "return ", e, ";\n"]);
@@ -500,11 +529,19 @@ function transpileDo(ast,env,return_Q) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_do (ast,env) {
+  let stmtQ= stmt_p(ast);
   let ret=nodeTag(tnode(),ast);
   let p= pad(indent);
-  ret.add(p + "(function() {\n");
-  ret.add(transpileDo(ast.slice(1),env));
-  ret.add(""+ p + "}).call(this)");
+  let body=ast.slice(1);
+  body=exprHint(body, !stmtQ);
+  ret.add(transpileDo(body,env, !stmtQ));
+  if (stmtQ) {
+    ret.prepend("{\n");
+    ret.add("}");
+  } else {
+    ret.prepend("(function() {\n");
+    ret.add("}).call(this)");
+  }
   return ret;
 }
 SPEC_OPS["do"]=sf_do;
@@ -512,6 +549,7 @@ SPEC_OPS["do"]=sf_do;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_case(ast, env) {
   let ret= nodeTag(tnode(),ast);
+  let stmtQ= stmt_p(ast);
   let tst= ast[1],
       e =null, t= null, c=null, dft=null;
   if (std.odd_p(ast.length)) {
@@ -542,9 +580,14 @@ function sf_case(ast, env) {
   }
   ret.prepend(["switch (",
                eval_QQ(tst,env), ") {\n"]);
-  ret.add("}\n");
-  ret.prepend("(function() { let ____x;\n");
-  ret.add("return ____x;}).call(this)");
+  ret.add("}");
+  if (stmtQ) {
+    ret.prepend("{ let ____x;\n");
+    ret.add("}");
+  } else {
+    ret.prepend("(function() { let ____x;\n");
+    ret.add(" return ____x;}).call(this)");
+  }
   return ret;
 }
 SPEC_OPS["case"]=sf_case;
@@ -585,12 +628,11 @@ function sf_vardefs(ast,env,cmd) {
   if ("let" == cmd) {}  else { cmd="var"; }
   for (var i=1; i<ast.length;++i) {
     s= transpileSingle(ast[i]);
-    ret.add(s + "=undefined");
+    ret.add(s);
     kks[s]=null;
   }
   ret.join(",");
   ret.prepend(cmd + " ");
-  ret.add(";\n");
 
   if (publicQ &&
              (1=== rt.globalEnv().countNSPCache()))
@@ -690,10 +732,14 @@ SPEC_OPS["new"]=sf_new;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_throw(ast,env) {
-  let ret= nodeTag(tnode(),ast);
-  ret.add(["throw ", eval_QQ(ast[1]), ";"]);
-  ret.prepend("(function (){ ");
-  ret.add(" })(this)");
+  let ret= nodeTag(tnode(),ast),
+      stmtQ= stmt_p(ast);
+
+  ret.add(["throw ", eval_QQ(ast[1])]);
+  if (!stmtQ) {
+    ret.prepend("(function (){ ");
+    ret.add(" ;}).call(this)");
+  }
   return ret;
 }
 SPEC_OPS["throw"]=sf_throw;
@@ -943,11 +989,12 @@ SPEC_OPS["defn"]=sf_func_public;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_try(ast,env) {
-  let sz=ast.length,
-       t=null,
-       f=null,
-       c=null,
-       ind= pad(indent);
+  let stmtQ= stmt_p(ast),
+      sz=ast.length,
+      t=null,
+      f=null,
+      c=null,
+      ind= pad(indent);
   //look for finally
   f=ast[ast.length-1];
   if (std.array_p(f) &&
@@ -970,44 +1017,63 @@ function sf_try(ast,env) {
   }
   //try needs either a catch or finally or both
   if (f===null && c===null) syntax_E("e0", ast);
-  let ret= nodeTag(tnode(),ast);
-  ret.add(["(function() {\n"+ind + "try {\n",
-           transpileDo(ast.slice(1),env),
+  let ret= nodeTag(tnode(),ast),
+      tbody=ast.slice(1);
+  tbody= exprHint(tbody, stmtQ);
+  ret.add(["try {\n",
+           transpileDo(tbody,env, !stmtQ),
            "\n"+ ind +"} "]);
   if (c) {
+    let cbody=c.slice(2);
+    cbody= exprHint(cbody, !stmtQ);
     t= c[1];
     ret.add(["catch ("+ t+ ") {\n",
-             transpileDo(c.slice(2),env),
+             transpileDo(cbody,env,!stmtQ),
              ";\n"+ ind+ "}\n"]);
   }
 
   if (f) {
+    let fbody=f.slice(1);
+    fbody=exprHint(fbody,false);
     ret.add(["finally {\n",
-             transpileDo(f.slice(1),env,false),
+             transpileDo(fbody,env,false),
              ";\n"+ ind + "}\n"]);
   }
 
-  ret.add(ind +"}).call(this)");
+  if (stmtQ) {
+  } else {
+    ret.prepend("(function(){\n");
+    ret.add(ind +"}).call(this)");
+  }
   return ret;
 }
 SPEC_OPS["try"]=sf_try;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_if(ast,env) {
-  let ret=nodeTag(tnode(),ast),
+  let stmtQ= stmt_p(ast),
+    ret=nodeTag(tnode(),ast),
     a1=ast[1],
     a2=ast[2],
     a3=ast.length > 3 ? ast[3] : null;
 
-  indent += tabspace;
-  ret.add([
-      "(",
-      eval_QQ(a1,env),
-      " ?\n"+ pad(indent),
-      eval_QQ(a2,env),
-      " :\n"+ pad(indent),
-      (eval_QQ(a3,env) || "null"), ")"]);
-  indent -= tabspace;
+  a1= exprHint(a1, !stmtQ);
+  a2= exprHint(a2, !stmtQ);
+  if (a3) { a3=exprHint(a3, !stmtQ); }
+
+  let tst = eval_QQ(a1,env),
+      then = eval_QQ(a2,env),
+      elze = eval_QQ(a3,env);
+
+  if (stmtQ) {
+    ret.add(["if (", tst, ") {\n", then , ";\n}"]);
+    if (a3) {
+      ret.add([" else { \n", elze, ";\n}"]);
+    }
+  } else {
+    ret.add(["(", tst, " ?\n",
+             then , " :\n", (elze || "null"), ")"]);
+  }
   return ret;
 }
 SPEC_OPS["if"]=sf_if;
@@ -1261,8 +1327,9 @@ function sf_comment(ast,env) {
 SPEC_OPS["comment"]=sf_comment;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_for(ast,env, internalQ) {
+function sf_for(ast,env) {
   let ret=nodeTag(tnode(),ast),
+      stmtQ= stmt_p(ast),
       a1=ast[1],
       vars=[], tst, recurs=[],
       body=ast.slice(2);
@@ -1279,7 +1346,7 @@ function sf_for(ast,env, internalQ) {
       ++i;
     }
   }
-  if (body.length===0) {return "";}
+  if (body.length===0) {return stmtQ ? "" : "null";}
   ret.add("for (");
   for (let i=0; i < vars.length;  i += 2) {
     if (i===0) { ret.add("let ");  }
@@ -1287,11 +1354,10 @@ function sf_for(ast,env, internalQ) {
     ret.add([transpileSingle(vars[i]),"=", eval_QQ(vars[i+1],env)]);
   }
   if (vars.length > 0) {
-    ret.add(",____break=false");
+    ret.add(",____break=false;");
   } else {
-    ret.add("let ____break=false");
+    ret.add("let ____break=false;");
   }
-  ret.add("; ");
 
   let nb= [types.symbol("not"), types.symbol("____break")];
   if (tst) {
@@ -1306,13 +1372,12 @@ function sf_for(ast,env, internalQ) {
     ret.add([transpileSingle(vars[k]),"=", eval_QQ(recurs[i],env)]);
   }
   ret.add("){\n");
+  body= exprHint(body, false);
   ret.add(transpileDo(body,env,false));
-  ret.add("}\n");
+  ret.add("}");
 
-  ret.prepend("(function() {\n");
-  if (internalQ) {
-    ret.add("}).call(this);\n");
-  } else {
+  if (!stmtQ) {
+    ret.prepend("(function() {\n");
     ret.add("}).call(this)");
   }
   return ret;
@@ -1421,7 +1486,7 @@ function sf_macro(ast,env) {
     body=ast.slice(3);
   }
 
-  let pms=types.vector();
+  let pms=[];
   for (let i=0,e=null; i < args.length; ++i) {
     e=args[i];
     if (e == "&") {
@@ -1475,14 +1540,15 @@ regoBuiltins(sf_unary, "unary");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_doseq(ast,env) {
+  let stmtQ= stmt_p(ast);
   let whileexpr,whenexpr,letexpr;
   let ret=nodeTag(tnode(),ast),
       args= ast[1],
       body= ast.slice(2),
       loopvar= args[0],
       loopexpr= args[1],
-      escvar=gensym(),
-      idxvar=gensym(),
+      escvar=gensym("Q____"),
+      idxvar=gensym("I____"),
       exprvar=gensym();
 
   ret.add(["let ", transpileSingle(loopvar),
@@ -1505,14 +1571,18 @@ function sf_doseq(ast,env) {
       }
     }
   ret.add(["if (!", escvar,") {\n"])
+  body=exprHint(body, false);
   ret.add(transpileDo(body,env,false));
   ret.add("}\n");
   ret.add("}\n");
-  ret.prepend(["for(var ", escvar,"=false,", idxvar,"=0; ",
+  ret.prepend(["for(let ", escvar,"=false,", idxvar,"=0; ",
                "(!", escvar," && ", idxvar," < ", exprvar, ".length); ++", idxvar,") {\n"]);
   ret.prepend(["let ",exprvar,"= ", eval_QQ(loopexpr,env), ";\n"]);
-  ret.prepend("(function() {\n");
-  ret.add("})(this);\n");
+  if (stmtQ) {
+  } else {
+    ret.prepend("(function() {\n");
+    ret.add("}).call(this)");
+  }
   return ret;
 }
 SPEC_OPS["doseq"]=sf_doseq;
@@ -1571,8 +1641,11 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   } else {
     cstr= outNode + extra;
   }
+  if (true) {
+    cstr= esfmt.format(cstr, options);
+  }
   cstr=cleanCode(cstr);
-  if (false) {
+  if (true) {
     cstr= esfmt.format(cstr, options);
   }
   return cstr;
@@ -1580,11 +1653,12 @@ function transpileCode(codeStr, fname, srcMap_Q) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function cleanCode(code) {
-
-  return code.split("\n").map(function(s) {
+  let out=[];
+  code.split("\n").forEach(function(s) {
     s=s.trim();
-    return (s === ";") ? "" : s;
-  }).join("\n");
+    if (!(s === ";")) out.push(s);
+  });
+  return out.join("\n");
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

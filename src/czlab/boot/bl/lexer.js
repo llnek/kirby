@@ -74,18 +74,26 @@ function normalizeId (name) {
   }
 
   if (testid_Q(name)) {
-    return (pfx+name).replace(REGEX.query, "_QUERY").
-        replace(REGEX.bang, "_BANG").
+    name= (pfx+name).replace(REGEX.query, "_QUERY_").
+        replace(REGEX.bang, "_BANG_").
         replace(REGEX.slash, ".").
-        replace(REGEX.dash, "_DASH").
-        replace(REGEX.quote, "_QTE").
-        replace(REGEX.hash, "_HASH").
-        replace(REGEX.plus, "_PLUS").
-        replace(REGEX.perc, "_PERC").
-        replace(REGEX.at, "_AT").
-        replace(REGEX.less, "_LT").
-        replace(REGEX.greater, "_GT").
-        replace(REGEX.star, "_STAR");
+        replace(REGEX.dash, "_DASH_").
+        replace(REGEX.quote, "_QTE_").
+        replace(REGEX.hash, "_HASH_").
+        replace(REGEX.plus, "_PLUS_").
+        replace(REGEX.perc, "_PERC_").
+        replace(REGEX.at, "_AT_").
+        replace(REGEX.less, "_LT_").
+        replace(REGEX.greater, "_GT_").
+        replace(REGEX.star, "_STAR_");
+    ["_QUERY_" , "_BANG_" , "_DASH_" , "_QTE_" , "_HASH_" ,
+      "_PLUS_" , "_PERC_" , "_AT_" ,
+      "_LT_" , "_GT_" , "_STAR_"].forEach(function(s){
+        if (name.endsWith(s)) {
+          name=name.slice(0,-1);
+        }
+      });
+    return name;
   } else {
     return (pfx === "") ? name : pfx+ name;
   }

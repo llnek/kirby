@@ -128,9 +128,6 @@ function evalAst(ast, env) {
   if (types.keyword_p(ast)) {
     return "\"" + ast.value + "\"";
   }
-  if (std.string_p(ast)) {
-    return types.unwrap_str(ast);
-  }
   if (types.symbol_p(ast)) {
     return env.get(ast);
   }
@@ -155,6 +152,13 @@ function evalAst(ast, env) {
       new_hm[ compute(ast[i], env) ] = compute(ast[i+1], env);
     }
     return new_hm;
+  }
+  if (types.primitive_p(ast)) {
+
+  }
+
+  if (std.string_p(ast)) {
+    return types.unwrap_str(ast);
   }
 
   return ast;

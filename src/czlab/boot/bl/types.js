@@ -176,6 +176,19 @@ function LambdaArg(name) {
   this.value= "" + v;
   return this;
 }
+function primitive(obj) {
+  return new Primitive(obj);
+}
+function primitive_p(obj) {
+  return obj instanceof Primitive;
+}
+function Primitive(v) {
+  this.value = v;
+  return this;
+}
+Primitive.prototype.toString=function() {
+  return this.value.toString();
+}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function Keyword(name) {
@@ -318,6 +331,8 @@ module.exports= {
   eq_p: eq_p,
   fn_wrap: fn_wrap,
   hashmap: hashmap,
+  primitive: primitive,
+  primitive_p: primitive_p,
   keyword: keyword,
   keyword_p: keyword_p,
   keyword_s: keyword_s,

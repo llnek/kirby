@@ -83,6 +83,9 @@ function seq(obj) {
   if (types.vector_p(obj)) {
     return obj.length > 0 ? std.slice(obj) : null;
   }
+  if (types.primitive_p(obj)) {
+    obj=obj.value;
+  }
   if (typeof obj === "string") {
     return obj.length > 0 ? obj.split("") : null;
   }

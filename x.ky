@@ -1,8 +1,12 @@
 
-(loop [a 1 b 1]
-  (if (> (+ a b) 10)
-    (do (console.log "done") 1)
-    (do
-        (console.log "a=" a ", b=" b)
-        (recur (+1 a) (+1 b)))))
+(defn- nodeTag "" [obj src]
+  (when (and obj
+             src
+             (not (boolean? obj))
+             (not (number? obj)))
+    (set! obj.source src.source)
+    (set! obj.column src.column)
+    (set! obj.line src.line))
+  obj)
+
 
