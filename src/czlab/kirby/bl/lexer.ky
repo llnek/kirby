@@ -47,6 +47,20 @@
   wspace /\s/})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- REPLACERS
+  [[REGEX.query "_QUERY_"]
+        [REGEX.bang "_BANG_"]
+        [REGEX.dash "_DASH_"]
+        [REGEX.quote "_QUOTE_"]
+        [REGEX.hash "_HASH_"]
+        [REGEX.plus "_PLUS_"]
+        [REGEX.perc "_PERC_"]
+        [REGEX.at "_AT_"]
+        [REGEX.less "_LT_"]
+        [REGEX.greater "_GT_"]
+        [REGEX.star "_STAR_"]])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testid? "" [name]
   (or (REGEX.id.test name) (REGEX.id2.test name)))
 
@@ -58,19 +72,14 @@
     (set! pfx "-")
     (set! name (rest name)))
   (if (testid? name)
-    (-> (str pfx name)
-        (.replace REGEX.query "_QUERY")
-        (.replace REGEX.slash ".")
-        (.replace REGEX.bang "_BANG")
-        (.replace REGEX.dash "_DASH")
-        (.replace REGEX.quote "_QUOTE")
-        (.replace REGEX.hash "_HASH")
-        (.replace REGEX.plus "_PLUS")
-        (.replace REGEX.perc "_PERC")
-        (.replace REGEX.at "_AT")
-        (.replace REGEX.less "_LT")
-        (.replace REGEX.greater "_GT")
-        (.replace REGEX.star "_STAR"))
+    (reduce
+      (fn [acc x]
+        (set! acc
+              (.replace acc (first x) (second x)))
+        (if (acc.endsWith (second x))
+          (acc.slice 0 -1)
+          acc))
+      (.replace (str pfx name) REGEX.slash ".") REPLACERS)
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

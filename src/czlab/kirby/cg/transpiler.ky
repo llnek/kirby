@@ -12,9 +12,13 @@
   czlab.kirby.cg.transpiler
 
   (require ["../bl/stdlib" :as std]
-           ["../bl/lexer" :as rdr :refer [tnode tnodeEx]]
+           ["../bl/lexer"
+            :as rdr
+            :refer
+            [tnode tnodeEx]]
            ["../bl/parser" :as psr]
            ["../rt/runtime" :as rt])
+
   (require ["fs" :as fs]
            ["path" :as path]
            ["esformatter" :as esfmt]))
@@ -46,7 +50,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- MODULE_VERSION "1.0.0"
       EXTERNS nil
-      SPEC-OPS {})
+      SPEC-OPS {}
+      MATH_OP_REGEX /^[-+][0-9]+$/)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- simpleton? "" [ast]
+  (or (string? ast)
+      (number? ast)
+      (boolean? ast) (nil? ast)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- exprHint "" [ast flag]
+  (var x ast)
+  (if (simpleton? ast)
+    (set! x (std/primitive ast)))
+  (set-in! x :____expr flag)
+  x)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- stmt? "" [ast]
+  (if (simpleton? ast)
+    (raise! "Cant test expr? on primitive"))
+  (false? ast.____expr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gensym "" [& [pfx]]
@@ -71,62 +96,56 @@
 (defn- pad "" [z] (.repeat " " z))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- testre? "" [re x] (if x (re.test x) false))
+(defn- testre? "" [re x] (if x (re.test x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nodeTag "" [obj src]
   (when (and obj
              src
-             (not (boolean? obj))
-             (not (number? obj)))
-    (set! obj.source src.source)
-    (set! obj.column src.column)
-    (set! obj.line src.line))
-  obj)
+             (not (simpleton? obj)))
+    (set! obj.source src.source
+          obj.column src.column obj.line src.line)) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructVec "" [lhs keys]
-  (var as nil)
-    (for [i 0 e nil ev nil
-          :while (< i (alen lhs)) :recur (+1 i)]
-      (set! e (nth lhs i) ev (str e))
+  (var~ as e ev)
+  (for [i 0 :while (< i (alen lhs)) :recur (+1 i)]
+    (set! e (nth lhs i) ev (str e))
+    (cond
+      (std/symbol? e)
       (cond
-        (std/symbol? e)
-        (cond
-          (= ev "_") nil
-          (= ev "&") (do (set-in! keys (str "&" (nexth lhs i)) i)
-                         (++ i))
-          (ev.startsWith "&")
-          (set-in! keys ev i)
-          :else
-          (set-in! keys ev i))
-        (std/keyword? e)
-        (if (= ev "as")
-          (do (++ i)
-              (set! as (str (nth lhs i))))
-          (raise! "bad keyword: :" ev))))
-    as)
+        (= ev "_") nil
+        (= ev "&") (do (set-in! keys (str "&" (nexth lhs i)) i)
+                       (++ i))
+        (ev.startsWith "&")
+        (set-in! keys ev i)
+        :else
+        (set-in! keys ev i))
+      (std/keyword? e)
+      (if (= ev "as")
+        (do (++ i)
+            (set! as (str (nth lhs i))))
+        (raise! "bad keyword: :" ev))))
+  as)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructMap "" [lhs keys]
-  (var as nil)
-    (for [i 0 e nil ev nil
-          :while (< i (alen lhs)) :recur (+1 i)]
-      (set! e (nth lhs i) ev (str e))
-      (if (std/keyword? e)
-        (cond
-          (or (= ev "keys")
-              (= ev "strs"))
-          (let [ks (nexth lhs i)]
-            (++ i)
-            (for [j 0
-                  :while (< j (alen ks)) :recur (+1 j)]
-              (set-in! keys (str (nth ks j)) nil)))
-          (= ev "as")
-          (do (++ i)
-              (set! as (str (nth lhs i)))))
-        (raise! "bad destruct field: " (std/typeid e))))
-    as)
+  (var~ as e ev)
+  (for [i 0 :while (< i (alen lhs)) :recur (+1 i)]
+    (set! e (nth lhs i) ev (str e))
+    (if (std/keyword? e)
+      (cond
+        (or (= ev "keys")
+            (= ev "strs"))
+        (let [ks (nexth lhs i)]
+          (++ i)
+          (for [j 0 :while (< j (alen ks)) :recur (+1 j)]
+            (set-in! keys (str (nth ks j)) nil)))
+        (= ev "as")
+        (do (++ i)
+            (set! as (str (nth lhs i)))))
+      (raise! "bad destruct field: " (std/typeid e))))
+  as)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destruct1 "" [lhs]
@@ -137,7 +156,7 @@
     (std/symbol? lhs) (set-in! keys (str lhs) nil)
     :else
     (raise! "cant destruct with: " (std/typeid lhs)))
-  [ as keys])
+  [as keys])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destruct0 "" [cmd lhs rhs env]
@@ -151,15 +170,15 @@
                 (set! rest? true k (rest k)))
               (set! k (rdr/jsid k))
               (std/conj! kdefs k)
-              (-> (cond
-                    (nil? v)
-                    (str "[\"" k "\"];\n")
-                    rest?
-                    (str ".slice(" v ");\n")
-                    :else
-                    (str "[" v "];\n"))
-                  (str k "=" as )
-                  (kvals.add ))) keys)
+              (->> (cond
+                     (nil? v)
+                     (str "[\"" k "\"];\n")
+                     rest?
+                     (str ".slice(" v ");\n")
+                     :else
+                     (str "[" v "];\n"))
+                   (str k "=" as )
+                   (kvals.add ))) keys)
   (kvals.prepend (str cmd " " (join "," kdefs) ";\n"))
   [[(tnodeEx [cmd " "
               (rdr/jsid as) "= "
@@ -168,15 +187,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileTree "" [root env]
   (var ret (nodeTag (tnode) root))
-    (var treeSize (alen root)
-         endx (last-index root))
-    (each (fn [ast]
-            (var tmp ast)
-            (if (array? ast)
-              (set! tmp (transpileList ast env)))
-            (when tmp
-              (ret.add [tmp "\n"]))) root)
-    ret)
+  (each (fn [ast]
+          (if-some [tmp (transpile* ast env)]
+            (ret.add [tmp "\n"]))) root)
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileAtoms "" [atoms env]
@@ -188,8 +202,12 @@
       (std/lambda-arg? a) (str "____args[" (str a) "]")
       (std/keyword? a) (str "\"" (str a) "\"")
       (std/symbol? a) (rdr/jsid (str a))
-      (string? a) a
-      (nil? a) "null"
+      (std/primitive? a)
+      (do (set! a a.value)
+          (cond
+            (string? a) a
+            (nil? a) "null"
+            :else (str a)))
       :else (str "" a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -199,19 +217,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findCmd "" [ast]
   (var cmd "")
-    (cond
-      (std/vector? ast) (set! cmd "vec")
-      (std/map? ast) (set! cmd "hashmap")
-      (std/list? ast) (set! cmd (str (first ast))))
-    cmd)
+  (cond
+    (std/vector? ast) (set! cmd "vec")
+    (std/map? ast) (set! cmd "hashmap")
+    (std/list? ast) (set! cmd (str (first ast))))
+  cmd)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" [a]
   (cond
     (std/keyword? a) (str "\"" a "\"")
     (std/symbol? a) (rdr/jsid (str a))
-    (string? a) a
-    (nil? a) "null"
+    (std/primitive? a)
+    (do (set! a a.value)
+        (cond
+          (string? a) a
+          (nil? a) "null"
+          :else (str a)))
     :else (str a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -223,80 +245,87 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteMap "" [a env]
   (var ret (tnode))
-    (for [i 0 :while (< i (alen a)) :recur (+2 i)]
-      (if (> i 0) (ret.add ","))
-      (ret.add [(quote! (nth a i) env)
-                " : " (quote! (nexth a i) env)]))
-    (ret.prepend "{")
-    (ret.add "}")
-    ret)
+  (for [i 0 :while (< i (alen a)) :recur (+2 i)]
+    (if (> i 0) (ret.add ","))
+    (ret.add [(quote! (nth a i) env)
+              " : " (quote! (nexth a i) env)]))
+  (ret.prepend "{")
+  (ret.add "}")
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" [a env]
   (var ret (tnode))
-    (for [i 0 :while (< i (alen a)) :recur (+1 i)]
-      (if (> i 0) (ret.add ","))
-      (ret.add (quote! (nth a i) env)))
-    (ret.prepend "[")
-    (ret.add "]")
-    ret)
+  (for [i 0 :while (< i (alen a)) :recur (+1 i)]
+    (if (> i 0) (ret.add ","))
+    (ret.add (quote! (nth a i) env)))
+  (ret.prepend "[")
+  (ret.add "]")
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
   (var ret (nodeTag (tnode) ast))
-    (ret.add (quote! (nth ast 1) env))
-    ret)
+  (ret.add (quote! (nth ast 1) env))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileList "" [ast env]
-  (var cmd (findCmd ast)
-       mc (rt/getMacro cmd) tmp nil)
-  (var ret (tnode))
-    (when mc
-      (set! ast (rt/expandMacro ast env mc))
-      (set! cmd (findCmd ast)))
-    (cond
-      (cmd.startsWith ".-")
-      (ret.add [(transpile* (second ast) env)
-                "."
-                (transpileSingle (std/symbol (cmd.slice 2)))])
-      (= "." (cmd.charAt 0))
-      (do (ret.add (transpile* (second ast) env))
-          (ret.add [cmd "("])
-          (for [n 2
-                :while (< n (alen ast)) :recur (+1 n)]
-            (if (not= n 2) (ret.add ","))
-            (ret.add (transpile* (nth ast n) env)))
-          (ret.add ")"))
-      (std/contains? SPEC-OPS cmd)
-      (set! ret ((get SPEC-OPS cmd) ast env))
-      (rdr/REGEX.int.test cmd)
-      (let [c0 (cmd.charAt 0)]
-        (if (and (not= c0 "-")
-                 (not= c0 "+"))
-          (set! cmd (str "+" cmd)))
-        (set! ast [(std/symbol (cmd.charAt 0))
-                   (nth ast 1)
-                   (parseInt (rest cmd))])
-        (set! cmd (str (first ast)))
-        (set! ret ((get SPEC-OPS cmd) ast env)))
-      :else
-      (do (if (std/list? ast)
-            (do (transpileAtoms ast env)
-                (set! cmd (first ast)))
-            (set! cmd (transpileSingle ast)))
-          (if-not cmd (syntax! :e1 ast))
-          (set! cmd (maybeStripStdlib cmd))
-          (if (std/list? ast)
-            (do (if (testre? rdr/REGEX.func cmd)
-                  (set! cmd (tnodeEx ["(" cmd ")"])))
-                (ret.add [cmd
-                          "("
-                          (join ","
-                                (tnodeEx (rest ast))) ")"]))
-            (ret.add cmd))))
-    (set! ret (nodeTag ret ast))
-    ret)
+  (var stmtQ (stmt? ast)
+       cmd (findCmd ast)
+       ret (tnode)
+       tmp nil
+       mc (rt/getMacro cmd))
+  (when mc
+    (set! ast (rt/expandMacro ast env mc)
+          ast (exprHint ast (not stmtQ))
+          cmd (findCmd ast)))
+  (cond
+    (== cmd "with-meta")
+    (do (set! tmp (nth ast 1))
+        (if-not (simpleton? tmp)
+          (do (set-in! tmp :____meta (resolveMeta (nth ast 2) env))
+              (ret.add (transpile* tmp env)))
+          (raise! "cant with-meta simple value")))
+    (cmd.startsWith ".-")
+    (ret.add [(transpile* (second ast) env)
+              "."
+              (transpileSingle (std/symbol (cmd.slice 2)))])
+    (= "." (cmd.charAt 0))
+    (do (ret.add (transpile* (second ast) env))
+        (ret.add [cmd "("])
+        (for [n 2 :while (< n (alen ast)) :recur (+1 n)]
+          (if (not= n 2) (ret.add ","))
+          (ret.add (transpile* (nth ast n) env)))
+        (ret.add ")"))
+    (std/contains? SPEC-OPS cmd)
+    (set! ret ((get SPEC-OPS cmd) ast env))
+    (rdr/REGEX.int.test cmd)
+    (let [c0 (cmd.charAt 0)]
+      (if (and (not= c0 "-")
+               (not= c0 "+"))
+        (set! cmd (str "+" cmd)))
+      (set! ast [(std/symbol (cmd.charAt 0))
+                 (nth ast 1)
+                 (parseInt (rest cmd))]
+            cmd (str (first ast))
+            ret ((get SPEC-OPS cmd) ast env)))
+    :else
+    (do (if (std/list? ast)
+          (do (transpileAtoms ast env)
+              (set! cmd (first ast)))
+          (set! cmd (transpileSingle ast)))
+        (if-not cmd (syntax! :e1 ast))
+        (set! cmd (maybeStripStdlib cmd))
+        (if (std/list? ast)
+          (do (if (testre? rdr/REGEX.func cmd)
+                (set! cmd (tnodeEx ["(" cmd ")"])))
+              (ret.add [cmd
+                        "("
+                        (join "," (tnodeEx (rest ast))) ")"]))
+          (ret.add cmd))))
+  (set! ret (nodeTag ret ast))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype "" [ast env public?]
