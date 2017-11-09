@@ -185,7 +185,7 @@ function computeLoop(ast, env) {
 
     //core.println("SWITCH:", core.pr_obj(ast, true));
 
-    var t, a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
+    let t, a0 = ast[0], a1 = ast[1], a2 = ast[2], a3 = ast[3];
     switch (a0.value) {
     case "is-and?":
         t=true;
@@ -217,15 +217,11 @@ function computeLoop(ast, env) {
     case "quasiquote":
         ast = quasiquote(a1);
         break;
-    case "defmacro":
-        let p2=ast[2],
-            p3=ast.slice(3);
-        ast=[ast[0], ast[1],
-             [types.symbol("fn*"), p2].concat(p3)]
-        a2=ast[2];
-        a1=ast[1];
-        var func = compute(a2, env);
+    case "macro*":
+        let p2=ast[2], p3=ast.slice(3);
+        let func= compute([types.symbol("fn*"), p2].concat(p3),env);
         func._ismacro_ = true;
+        a1=ast[1];
         return env.set(a1, func);
     case "macroexpand":
         return macroexpand(a1, env);
@@ -332,11 +328,11 @@ function runRepl() {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var macro_assert=`
-(defmacro assert* [c msg]
+(macro* assert* [c msg]
   (if* c true (throw* msg)))
 `;
 var macro_cond=`
-(defmacro cond* [&xs]
+(macro* cond* [&xs]
   (if* (> (count* xs) 0)
     (list* 'if*
           (first* xs)

@@ -265,7 +265,7 @@
             (= "quasiquote"
                (str (nth ast 0)))
             (do->true (set! ast (quasiquote (nth ast 1))))
-            (= "defmacro"
+            (= "macro*"
                (str (nth ast 0)))
             (do->false (set! ret (handleMacro ast env)))
             (= "macroexpand"
@@ -352,11 +352,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- macro_assert "
-  (defmacro assert* [c msg] (if* c true (throw* msg)))")
+  (macro* assert* [c msg] (if* c true (throw* msg)))")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- macro_cond "
-  (defmacro cond* [&xs]
+  (macro* cond* [&xs]
     (if* (> (count* xs) 0)
       (list* 'if*
             (first* xs)
