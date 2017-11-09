@@ -40,6 +40,9 @@
        (if* start
         `(Array.prototype.slice.call ~arr ~start)
         `(Array.prototype.slice.call ~arr))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro float "" [x] `(parseFloat ~x))
+(defmacro int "" [x] `(parseInt ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro println "" [&msgs]

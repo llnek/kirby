@@ -336,6 +336,10 @@
              (Object.entries ~tmp)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro float "" [x] `(parseFloat ~x))
+(defmacro int "" [x] `(parseInt ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do-monad "" [monad bindings & body]
   ((fn [mo]
      (var res (fn [&xs]

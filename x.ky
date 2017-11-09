@@ -1,12 +1,9 @@
 
-(defn- nodeTag "" [obj src]
-  (when (and obj
-             src
-             (not (boolean? obj))
-             (not (number? obj)))
-    (set! obj.source src.source)
-    (set! obj.column src.column)
-    (set! obj.line src.line))
-  obj)
+(var x '(fn [] (var ____args (slice arguments)
+                    a "222"
+                    b 3.4
+                    c 5
+                    d false
+                    e {:poo true})))
 
 

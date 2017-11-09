@@ -214,10 +214,10 @@ function findCmd(ast) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function quoteSingle(a) {
   if (types.keyword_p(a)) {
-    return "\"" + types.keyword_s(a) + "\"";
+    return "kirbystdlibref.keyword(\":" + a + "\")";
   }
   if (types.symbol_p(a)) {
-    return rdr.jsid(types.symbol_s(a));
+    return "kirbystdlibref.symbol(\"" + a + "\")";
   }
   if (std.string_p(a)) {
     return a;
@@ -237,13 +237,15 @@ function quote_QQ(a,env) {
 }
 
 function quoteMap(a,env) {
-  let ret=tnode();
+  let ret=tnode(), comma="";
+
   for (let i=0; i < a.length; i+=2) {
     if (i > 0) { ret.add(","); }
-    ret.add([quote_QQ(a[i],env), " : ", quote_QQ(a[i+1],env)]);
+    ret.add([quote_QQ(a[i],env), " , ", quote_QQ(a[i+1],env)]);
   }
-  ret.prepend("{");
-  ret.add("}");
+  if (a.length > 0) {comma=",";}
+  ret.prepend(["[","kirbystdlibref.symbol(\"hashmap\")", comma]);
+  ret.add("]");
   return ret;
 }
 
@@ -1168,6 +1170,7 @@ function sf_object(ast,env) {
   return ret;
 }
 SPEC_OPS["hash-map"]= sf_object;
+SPEC_OPS["hashmap"]= sf_object;
 SPEC_OPS["{"]= sf_object;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
