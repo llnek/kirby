@@ -390,37 +390,6 @@ SPEC_OPS["deftype-"]=function(ast,env) { return sf_deftype(ast,env,false); }
 SPEC_OPS["deftype"]=function(ast,env) { return sf_deftype(ast,env,true); }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-var _lambdaFuncCount=0;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_lambda(ast,env) {
-  if (_lambdaFuncCount !== 0) {
-    throw new Error("Cant nest lambdas");
-  }
-  ++_lambdaFuncCount;
-  let x=[types.symbol("fn"),
-         types.vector(),
-         ["var", "____args",
-           "Array.prototype.slice.call(arguments)"].map(function(s) {
-             return types.symbol(s);
-           })];
-  let body=ast[1];
-  if (body.length===0) { body=[null]; }
-  if (body.length===1 &&
-      types.value_p(body[0])) {
-  } else {
-    body= ast.slice(1);
-  }
-  x=x.concat(body);
-  try {
-    return sf_fn(x,env);
-  } finally {
-    --_lambdaFuncCount;
-  }
-}
-SPEC_OPS["lambda"]=sf_lambda;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_compOp(ast, env) {
   let cmd=ast[0];
   if (cmd == "not=" || cmd == "!=") ast[0]= types.symbol("!==");
@@ -1036,23 +1005,6 @@ function sf_get(ast,env) {
 }
 SPEC_OPS["aget"]=sf_get;
 SPEC_OPS["get"]=sf_get;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_str(ast,env) {
-  let ret= nodeTag(tnode(),ast),
-      args=ast.slice(1);
-  transpileAtoms(args,env);
-  if (args.length > 1) {
-    ret.add(args);
-    ret.join(",");
-    ret.prepend("[");
-    ret.add("].join(\"\")");
-  } else if (args.length > 0) {
-    ret.add(["", args[0], ".toString()"]);
-  }
-  return ret;
-}
-SPEC_OPS["str"]=sf_str;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_array(ast,env) {

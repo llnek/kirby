@@ -419,4 +419,13 @@
          (if-not ~_while (set! ~escvar true))
          (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
+(defmacro lambda [code]
+  (let* [sz (count* code)
+         body (if* (> sz 1 ) [ code ] code)]
+    `(fn [] (var ____args (slice arguments)) ~@body)))
+
+(defmacro str [&xs] `(.join (vec ~@xs) ""))
+
+
+
 

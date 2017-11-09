@@ -360,25 +360,6 @@
   "" ^{:opcode ["deftype"]} [a e] (sf-deftype a e true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- _lambdaFuncCount 0)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-lambda "" ^{:opcode ["lambda"]} [ast env]
-  (if (not= 0 _lambdaFuncCount)
-    (raise! "Can't nest lambdas")
-    (++ _lambdaFuncCount))
-  (var x '(fn [] (var ____args (slice arguments)))
-       body (nth ast 1))
-  (if (zlen? body) (set! body [nil]))
-  (if-not (and (= 1 (alen body))
-               (std/value? (car body)))
-    (set! body (rest ast)))
-  (set! x (x.concat body))
-  (try
-    (sf-fn x env)
-    (finally (-- _lambdaFuncCount))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp ""
   ^{:opcode ["not=" "!=" "=="
              "=" ">" ">=" "<" "<="]} [ast env]
@@ -859,19 +840,6 @@
   (var ret (nodeTag (tnode) ast))
   (transpileAtoms ast env)
   (ret.add [(nth ast 1) "[" (nth ast 2) "]"])
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-str
-  "" ^{:opcode ["str"]} [ast env]
-  (var ret (nodeTag (tnode) ast)
-       args (rest ast))
-  (transpileAtoms args env)
-  (if (> (alen args) 1)
-    (doto ret
-      (.add args) (.join ",") (.prepend "[") (.add "].join(\"\")"))
-    (if (not-empty args)
-      (ret.add ["" (first args) ".toString()"])))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
