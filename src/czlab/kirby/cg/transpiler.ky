@@ -379,20 +379,6 @@
     (finally (-- _lambdaFuncCount))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-apply "" ^{:opcode ["apply"]} [ast env]
-  (var args (ast.slice 2)
-       f (second ast)
-       ret (nodeTag (tnode) ast))
-  (for [i 0 :while (< i (alen args)) :recur (+1 i)]
-    (ret.add (transpile* (nth args i) env)))
-  (if (> (alen args) 1) (join "," ret))
-  (ret.prepend "[")
-  (ret.add "]")
-  (ret.prepend [(transpile* f env) ".apply(this,"])
-  (ret.add ")")
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp ""
   ^{:opcode ["not=" "!=" "=="
              "=" ">" ">=" "<" "<="]} [ast env]
@@ -429,19 +415,6 @@
   (if (> (alen ast) 1) (join op ret))
   (ret.prepend "(")
   (ret.add ")")
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-repeat
-  "" ^{:opcode ["repeat-n"]} [ast env]
-  (var ret (nodeTag (tnode) ast))
-  (transpileAtoms ast env)
-  (for [i 0 end (int (second ast))
-        :while (< i end) :recur (+1 i)]
-    (if (not= i 0) (ret.add ","))
-    (ret.add (nth ast 2)))
-  (ret.prepend "[")
-  (ret.add "]")
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -503,26 +476,6 @@
   (if stmtQ
     (ret.add "}")
     (ret.add ["return " _x ";}).call(this)"]))
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-range
-  "" ^{:opcode ["range"]} [ast env]
-  (var ret (nodeTag (tnode) ast)
-       len 0 start 0 step 1 end 0)
-  (transpileAtoms ast env)
-  (set! len (alen ast)
-        end (int (second ast)))
-  (when (> len 2)
-    (set! start (int (second ast))
-          end (int (nth ast 2))))
-  (if (> len 3)
-    (set! step (int (nth ast 3))))
-  (for [i start :while (< i end) :recur (+ i step)]
-    (if (not= i start) (ret.add ","))
-    (ret.add (str i)))
-  (ret.prepend "[")
-  (ret.add "]")
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1201,45 +1154,6 @@
        [a0 a1] ast)
   (if (== a0 "not") (set! a0 (symbol "!")))
   (ret.add ["(" (transpile* a0 env) (transpile* a1 env) ")"])
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-doseq
-  "" ^{:opcode ["doseq"]} [ast env]
-  (var ret (nodeTag (tnode) ast)
-       stmtQ (stmt? ast)
-       args (nth ast 1)
-       body (exprHint (ast.slice 2) false)
-       [loopvar loopexpr] args
-       escvar (gensym) idxvar (gensym) exprvar (gensym))
-  (ret.add ["let " (transpileSingle loopvar)
-            "= " exprvar "[" idxvar "];\n"])
-  (for [i 2 v nil ev nil
-        :while (< i (alen args)) :recur (+1 i)]
-    (set! v (nth args i) ev (str v))
-    (cond
-      (= ev "while")
-      (ret.add ["if (! "
-                (transpile* (nexth args i) env) ") {" escvar "=true;}\n"])
-      (= ev "when")
-      (doto ret
-        (.add ["if (!" escvar ") {\n"])
-        (.add ["if (! "
-               (transpile* (nexth args i) env) ") {continue;}\n"])
-        (.add "}\n"))
-      (= ev "let")
-      (ret.add (sf-var-let
-                 (.concat [(symbol "var")] (nexth args i)) env))))
-  (ret.add ["if (!" escvar ") {\n"])
-  (ret.add (transpileDo body env false))
-  (ret.add "}\n")
-  (ret.add "}\n")
-  (ret.prepend ["for(let " escvar "=false," idxvar "=0; "
-                "(!" escvar " && " idxvar
-                " < " exprvar ".length); ++" idxvar ") {\n"])
-  (ret.prepend ["let " exprvar "= " (transpile* loopexpr env) ";\n"])
-  (if-not stmtQ (ret.prepend "(function() {\n"))
-  (if-not stmtQ (ret.add "}).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

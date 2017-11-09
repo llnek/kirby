@@ -384,5 +384,39 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defmacro range [a & [b c]]
+  (let* [start (if* b a 0)
+         end (if* b b a)
+         step (if* c c 1)]
+    `(do-with [ret []]
+       (for [i ~start
+             :while (< i ~end) :recur (+ i ~step)]
+         (ret.push i)))))
+
+(defmacro apply [f & args]
+  `(.apply ~f this (vec ~@args)))
+
+(defmacro repeat [n x]
+  `(do-with [ret []]
+     (for [i 0 :while (< i ~n) :recur (+1 i)]
+       (ret.push ~x))))
+
+(defmacro doseq [bindings & xs]
+  (let* [loopExpr (gensym*) escvar (gensym*) idxvar (gensym*)
+         _while (if* (is-eq? (nth* bindings 2) ':while)
+                     (nth* bindings 3)
+                     (if* (is-eq? (nth* bindings 4) ':while)
+                          (nth* bindings 5) true))
+         _when (if* (is-eq? (nth* bindings 2) ':when)
+                    (nth* bindings 3)
+                    (if* (is-eq? (nth* bindings 4) ':when)
+                         (nth* bindings 5) true))]
+    `(let [~loopExpr ~(nth* bindings 1)]
+       (for [~idxvar 0 ~escvar false
+             :while (and (not ~escvar)
+                         (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
+         (var ~(nth* bindings 0) (nth ~loopExpr ~idxvar))
+         (if-not ~_while (set! ~escvar true))
+         (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
 

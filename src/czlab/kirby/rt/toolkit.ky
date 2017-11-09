@@ -235,6 +235,9 @@
   "*"   (fn [a b] (* a b))
   "/"   (fn [a b] (div a b))
 
+  "not=" (fn [a b] (not= a b))
+  "=" (fn [a b] (= a b))
+
   "time*"  timeMillis
 
   "list*"  std/list

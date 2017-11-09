@@ -421,23 +421,6 @@ function sf_lambda(ast,env) {
 SPEC_OPS["lambda"]=sf_lambda;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_apply(ast,env) {
-  let args= ast.slice(2),
-      f=ast[1],
-      ret=nodeTag(tnode(),ast);
-  for (var i=0; i < args.length; ++i) {
-    ret.add(eval_QQ(args[i],env));
-  }
-  if (args.length > 1) ret.join(",");
-  ret.prepend("[");
-  ret.add("]");
-  ret.prepend([eval_QQ(f,env), ".apply(this,"]);
-  ret.add(")");
-  return ret;
-}
-SPEC_OPS["apply"]=sf_apply;
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_compOp(ast, env) {
   let cmd=ast[0];
   if (cmd == "not=" || cmd == "!=") ast[0]= types.symbol("!==");
@@ -485,22 +468,6 @@ function sf_arithOp(ast,env) {
 regoBuiltins(sf_arithOp,"bitwise");
 regoBuiltins(sf_arithOp, "logic");
 regoBuiltins(sf_arithOp, "arith");
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_repeat(ast, env) {
-  transpileAtoms(ast,env);
-  let ret= nodeTag(tnode(),ast);
-  for (var i= 0,
-       end= parseInt(ast[1]);
-       i < end; ++i) {
-    if (i !== 0) ret.add(",");
-    ret.add(ast[2]);
-  }
-  ret.prepend("[");
-  ret.add("]");
-  return ret;
-}
-SPEC_OPS["repeat-n"]=sf_repeat;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileDo(ast,env,returnQ) {
@@ -595,35 +562,6 @@ function sf_case(ast, env) {
 SPEC_OPS["case"]=sf_case;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_range (ast,env) {
-  if (ast.length < 2 || ast.length > 4) syntax_E("e0",ast);
-
-  let len= 0, start= 0, step= 1, end= 0;
-  let ret= nodeTag(tnode(),ast);
-
-  transpileAtoms(ast,env);
-  len=ast.length;
-  end= parseInt(ast[1]);
-
-  if (len > 2) {
-    start= parseInt(ast[1]);
-    end= parseInt(ast[2]);
-  }
-
-  if (len > 3)
-    step= parseInt(ast[3]);
-
-  for (var i= start; i< end; i += step) {
-    if (i !== start) ret.add(",");
-    ret.add("" +  i);
-  }
-  ret.prepend("[");
-  ret.add("]");
-  return ret;
-}
-SPEC_OPS["range"]=sf_range;
-
-
 function sf_vardefs(ast,env,cmd) {
   let s, kks={}, ret=nodeTag(tnode(),ast);
   let publicQ=("global" == cmd);
@@ -1540,55 +1478,6 @@ function sf_unary(ast,env) {
   return ret;
 }
 regoBuiltins(sf_unary, "unary");
-
-//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function sf_doseq(ast,env) {
-  let stmtQ= stmt_p(ast);
-  let whileexpr,whenexpr,letexpr;
-  let ret=nodeTag(tnode(),ast),
-      args= ast[1],
-      body= ast.slice(2),
-      loopvar= args[0],
-      loopexpr= args[1],
-      escvar=gensym("Q____"),
-      idxvar=gensym("I____"),
-      exprvar=gensym();
-
-  ret.add(["let ", transpileSingle(loopvar),
-           "= ", exprvar, "[",idxvar,"];\n"]);
-  if (args.length > 2)
-    for (var i=2,v=null; i < args.length; ++i) {
-      v=args[i];
-      if (v == "while") {
-        whileexpr=args[i+1];
-        ret.add(["if (! ", eval_QQ(whileexpr,env),
-                 ") {", escvar,"=true;}\n"]);
-      } else if (v == "when") {
-        whenexpr=args[i+1];
-        ret.add(["if (!", escvar,") {\n"]);
-        ret.add(["if (! ", eval_QQ(whenexpr,env),") {continue;}\n"]);
-        ret.add("}\n");
-      } else if (v == "let") {
-        letexpr=[types.symbol("var")].concat(args[i+1]);
-        ret.add(sf_var_let(letexpr,env));
-      }
-    }
-  ret.add(["if (!", escvar,") {\n"])
-  body=exprHint(body, false);
-  ret.add(transpileDo(body,env,false));
-  ret.add("}\n");
-  ret.add("}\n");
-  ret.prepend(["for(let ", escvar,"=false,", idxvar,"=0; ",
-               "(!", escvar," && ", idxvar," < ", exprvar, ".length); ++", idxvar,") {\n"]);
-  ret.prepend(["let ",exprvar,"= ", eval_QQ(loopexpr,env), ";\n"]);
-  if (stmtQ) {
-  } else {
-    ret.prepend("(function() {\n");
-    ret.add("}).call(this)");
-  }
-  return ret;
-}
-SPEC_OPS["doseq"]=sf_doseq;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function spitExterns() {

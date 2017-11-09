@@ -107,6 +107,7 @@ function eq_p (a, b) {
     return false;
   }
   switch (ota) {
+    case "keyword":
     case "symbol":
       return a.value === b.value;
     case "hash-map":

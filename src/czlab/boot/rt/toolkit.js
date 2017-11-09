@@ -232,6 +232,9 @@ module.exports= {
   "*"  : function(a,b){return a*b;},
   "/"  : function(a,b){return a/b;},
 
+  "not="  : function(a,b){return a !== b;},
+  "="  : function(a,b){ return a===b;},
+
   "time*" : timeMillis,
 
   "list*" : types.list,

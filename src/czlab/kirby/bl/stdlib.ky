@@ -213,6 +213,8 @@
                            (get b k))
               (set! ok? false)
               (break!)))))
+      (:symbol :keyword)
+      (= a.value b.value)
       ;else
       (= a b))))
 
