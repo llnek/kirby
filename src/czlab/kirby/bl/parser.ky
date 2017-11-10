@@ -16,6 +16,7 @@
             :refer [lambda-arg
                     object?
                     nichts?
+                    into
                     vector
                     conj!
                     opt??
@@ -35,9 +36,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nextToken "" [tokens]
-  (var t (peekToken tokens))
-  (++ tokens.pos)
-  t)
+  (var t (peekToken tokens)) (++ tokens.pos) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peekToken "" [tokens] (nth tokens tokens.pos))
@@ -84,7 +83,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readBlock "" [tokens head tail]
   (var token (nextToken tokens)
-       ast (list)
+       ast (tree)
        ok? true ret nil tn "" cur nil)
   (if token (set! tn token.name))
   (if (not= tn head)
@@ -104,20 +103,16 @@
   ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readList
-  "" [cur tokens] (readBlock tokens "(" ")"))
+(defn- readList "" [cur tokens]
+  (into :list (readBlock tokens "(" ")")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "" [cur tokens]
-  (var v (readBlock tokens "[" "]"))
-  (set-in! v :____vec true)
-  v)
+  (into :vector (readBlock tokens "[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readMap "" [cur tokens]
-  (var v (readBlock tokens "{" "}"))
-  (set-in! v :____map true)
-  v)
+  (into :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skip+parse "" [tokens func]
@@ -131,27 +126,27 @@
     (case token.name
       "'" (skip+parse
             tokens
-            #(list (symbol "quote") (read* tokens)))
+            #(tree (symbol "quote") (read* tokens)))
       "`" (skip+parse
             tokens
-            #(list (symbol "quasiquote") (read* tokens)))
+            #(tree (symbol "quasiquote") (read* tokens)))
       "~" (skip+parse
             tokens
-            #(list (symbol "unquote") (read* tokens)))
+            #(tree (symbol "unquote") (read* tokens)))
       "~@" (skip+parse
              tokens
-             #(list (symbol "splice-unquote") (read* tokens)))
+             #(tree (symbol "splice-unquote") (read* tokens)))
       "^" (skip+parse
             tokens
             (fn []
               (set! tmp (read* tokens))
-              (list (symbol "with-meta") (read* tokens) tmp)))
+              (tree (symbol "with-meta") (read* tokens) tmp)))
       "@" (skip+parse
             tokens
-            #(list (symbol "deref") (read* tokens)))
+            #(tree (symbol "deref") (read* tokens)))
       "#" (skip+parse
             tokens
-            #(list (symbol "lambda") (read* tokens)))
+            #(tree (symbol "lambda") (read* tokens)))
       ")" (throwE token "unexpected ')'")
       "(" (readList token tokens)
       "]" (throwE token "unexpected ']'")

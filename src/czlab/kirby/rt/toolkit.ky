@@ -21,6 +21,7 @@
                     not-empty
                     object?
                     Symbol
+                    prn
                     Atom
                     symbol
                     swap!
@@ -34,7 +35,7 @@
                     sequential?]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstrX "" [b arr] `(map #(std/prn % ~b) ~arr))
+(defmacro prstrX "" [b arr] `(map #(prn % ~b) ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prstrT "" [arr] `(prstrX true ~arr))
@@ -45,7 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
   (var that this tmp nil)
-  (set! tmp #(apply that this arguments))
+  (set! tmp #(apply that this ____args))
   (each-key (fn [v k] (set-in! tmp k v)) that)
   tmp)
 
@@ -92,21 +93,22 @@
 (defn- clone "" [obj]
   (var ret nil)
   (case (typeid obj)
-    :list
-    (set! ret (slice obj))
     :vector
-    (do (set! ret (slice obj))
-        (set-in! ret :____vec true))
+    (set! ret (into :vector (slice obj)))
+    :tree
+    (set! ret (into :tree (slice obj)))
+    :list
+    (set! ret (into :list (slice obj)))
     :map
-    (do (set! ret (slice obj))
-        (set-in! ret :____map true))
+    (set! ret (into :map (slice obj)))
     :object
     (set! ret
           (reduce
-            (fn [acc n]
-              (set-in! acc n (get obj n)) acc)
+            (fn [acc en]
+              (set-in! acc
+                       (first en) (last en)) acc)
             {}
-            (keys obj)))
+            (seq obj)))
     :function
     (set! ret (obj.clone))
     ;else
@@ -122,19 +124,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- conj "" [arr & xs]
   (cond
-    (list? arr)
-    (concat (xs.reverse) arr)
-    (some? arr)
-    (do-with [v (concat arr xs)]
-      (set-in! v :____vec true))
+    (list? arr) (concat (xs.reverse) arr)
+    (some? arr) (into :vector (concat arr xs))
     :else arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- seq "" [obj]
   (cond
-    (list? obj)
-    (if (not-empty obj) obj)
-    (vector? obj)
+    (array? obj)
     (if (not-empty obj) (slice obj))
     (string? obj)
     (if (not-empty obj) (obj.split ""))
@@ -154,10 +151,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveJS "" [s]
-  (vector (if (contains? s ".")
+  [(if (contains? s ".")
             (-> (.exec /^(.*)\.[^\.]*$/g s) (nth 1) (eval))
             GLOBAL)
-          (eval s)))
+   (eval s)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- filterJS "" [obj]
@@ -166,9 +163,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" [obj m]
-  (var ret (clone obj))
-  (set-in! ret :____meta m)
-  ret)
+  (var ret (clone obj)) (set-in! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- jsObject? "" [m]

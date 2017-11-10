@@ -91,7 +91,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lexer "" [source fname]
   (var len (alen source)
-       tree (list)
+       tree (tree)
        ch nil nx nil
        token "" line 1
        tcol 0 col 0 pos 0
