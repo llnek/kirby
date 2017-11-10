@@ -332,12 +332,25 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- writeDoc "" [doc]
+  (if doc
+    (do (set! doc (doc.replace rdr/REGEX.dquoteHat ""))
+        (set! doc (doc.replace rdr/REGEX.dquoteEnd ""))
+        (map (fn [s] (str "//"s "\n"))
+             (doc.split "\\n")))
+    ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype "" [ast env public?]
   (var ret (nodeTag (tnode) ast)
        cz (transpile* (nth ast 1) env)
        par (first (nth ast 2))
        args (nth ast 3)
-       mtds (ast.slice 4))
+       doc nil mtds nil)
+  (if (string? (nth ast 4))
+    (do (set! doc (nth ast 4))
+        (set! mtds (ast.slice 5)))
+    (set! mtds (ast.slice 4)))
   (ret.add ["class " cz])
   (if par
     (ret.add [" extends " (transpile* par env)]))
@@ -349,6 +362,8 @@
     (ret.add (sf-func m env false))
     (ret.add "\n"))
   (ret.add "}\n")
+  (if doc
+    (ret.prepend (writeDoc doc)))
   (if (and public? (= 1 (.countNSPCache (rt/globalEnv))))
       (set-in! EXTERNS cz cz))
   ret)
@@ -597,11 +612,14 @@
   "" ^{:opcode ["set-in!"]} [ast env]
   (assert (even? (alen ast)) "set-in: bad arg count")
   (var ret (nodeTag (tnode) ast)
+       more false
        obj (transpile* (nth ast 1) env))
   (for [i 2 :while (< i (alen ast)) :recur (+2 i)]
-    (if (> i 2) (ret.add ","))
+    (when (> i 2) (ret.add ",") (set! more true))
     (ret.add [obj "[" (transpile* (nth ast i) env) "]"
               "=" (transpile* (nexth ast i) env)]))
+  (when more
+    (ret.prepend "(") (ret.add ")"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -751,10 +769,8 @@
             (second fargs) (transpileDo body env true) "}\n"])
   (if (not-empty hints)
     (ret.add (fmtSpecOps fname hints)))
-  (when doc
-    (set! doc (-> (doc.replace rdr.REGEX.dquoteHat "")
-                  (.replace rdr.REGEX.dquoteEnd "")))
-    (ret.prepend (map #(str "//" % "\n") (doc.split "\\n"))))
+  (if doc
+    (ret.prepend (writeDoc doc)))
   (if (and public?
            (not dot?)
            (= 1 (.countNSPCache (rt/globalEnv))))

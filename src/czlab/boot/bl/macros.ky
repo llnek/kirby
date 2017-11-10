@@ -393,8 +393,11 @@
              :while (< i ~end) :recur (+ i ~step)]
          (ret.push i)))))
 
-(defmacro apply [f & args]
-  `(.apply ~f this (vec ~@args)))
+(defmacro apply* [f this & args]
+  `(.apply ~f ~this (vec ~@args)))
+
+(defmacro apply [f this args]
+  `(.apply ~f ~this ~args))
 
 (defmacro repeat [n x]
   `(do-with [ret []]
@@ -426,6 +429,6 @@
 
 (defmacro str [&xs] `(.join (vec ~@xs) ""))
 
-
+(defmacro ch@ [s pos] `(.charAt ~s ~pos))
 
 

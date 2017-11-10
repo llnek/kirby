@@ -11,15 +11,21 @@
 
   czlab.kirby.bl.lexer
 
-  (require ["./stdlib" :as std]
-           ["source-map" :rename {SourceNode TreeNode}]))
+  (require ["source-map" :as smap]
+           ["./stdlib"
+            :as std
+            :refer [contains?
+                    opt??
+                    conj!
+                    list
+                    not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnodeEx "" [chunk name] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnode "" [&[source line col chunk name]]
-  (new TreeNode line col source chunk (std/opt name "")))
+  (new smap/SourceNode line col source chunk (opt?? name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def REGEX {
@@ -68,14 +74,14 @@
 (defn jsid "" [name]
   (var pfx "")
   (when (and (string? name)
-             (= "-" (name.charAt 0)))
+             (= "-" (ch@ name 0)))
     (set! pfx "-")
     (set! name (rest name)))
   (if (testid? name)
     (reduce
       (fn [acc x]
         (set! acc
-              (.replace acc (first x) (second x)))
+              (acc.replace (first x) (second x)))
         (if (acc.endsWith (second x))
           (acc.slice 0 -1)
           acc))
@@ -85,101 +91,98 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lexer "" [source fname]
   (var len (alen source)
-       token ""
-       line 1
-       tcol 0
-       col 0
-       pos 0
-       ch nil
-       nx nil
-       esc? false
-       str? false
-       regex? false
-       comment? false)
-  (do-with [tree (std/list)]
-    (var toke (fn [ln col s s?]
-                (if (std/opt s? (std/not-empty s))
-                  (std/conj! tree (tnode fname ln col s s))) ""))
-    (while (< pos len)
-      (set! ch (source.charAt pos))
-      (++ col)
-      (++ pos)
-      (set! nx (source.charAt pos))
-      (when (= ch "\n")
-        (set! col 0)
-        (++ line)
-        (if comment? (set! comment? false)))
-      (cond
-        comment? nil
-        esc? (do (set! esc? false)
-                 (+= token ch))
-        regex?
-        (do (if (= ch "\\") (set! esc? true))
+       tree (list)
+       ch nil nx nil
+       token "" line 1
+       tcol 0 col 0 pos 0
+       esc? false str? false
+       regex? false comment? false)
+  (var toke
+       (fn [ln col s s?]
+         (if (opt?? s? (not-empty s))
+           (conj! tree (tnode fname ln col s s))) ""))
+  (while (< pos len)
+    (set! ch (ch@ source pos))
+    (++ col)
+    (++ pos)
+    (set! nx (ch@ source pos))
+    (when (= ch "\n")
+      (set! col 0)
+      (++ line)
+      (if comment? (set! comment? false)))
+    (cond
+      comment? nil
+      esc? (do (set! esc? false)
+               (+= token ch))
+      regex?
+      (do (if (= ch "\\")
+            (set! esc? true))
+          (+= token ch)
+          (when (= ch "/")
+            (set! regex? false)
+            (when (contains? "gimuy" nx)
+              (+= token nx)
+              (++ pos))
+            (set! token (toke line tcol token))))
+      (= ch "\"")
+      (if-not str?
+        (do (set! tcol col)
+            (set! str? true)
+            (+= token ch))
+        (do (set! str? false)
             (+= token ch)
-            (when (= ch "/")
-              (set! regex? false)
-              (when (.includes "gimuy" nx)
-                (+= token nx)
-                (++ pos))
-              (set! token (toke line tcol token))))
-        (= ch "\"")
-        (if-not str?
-          (do (set! tcol col)
-              (set! str? true)
-              (+= token ch))
-          (do (set! str? false)
-              (+= token ch)
-              (set! token
-                    (toke line tcol token true))))
-        str?
-        (do (if (= ch "\n") (set! ch "\\n"))
-            (if (= ch "\\") (set! esc? true))
-            (+= token ch))
-        (or (= ch "'")
-            (= ch "`")
-            (= ch "@")
-            (= ch "^"))
-        (if (and (empty? token)
-                 (not (REGEX.wspace.test nx)))
-          (do (set! tcol col)
-              (toke line tcol ch))
+            (set! token
+                  (toke line tcol token true))))
+      str?
+      (do (if (= ch "\n") (set! ch "\\n"))
+          (if (= ch "\\") (set! esc? true))
           (+= token ch))
-        (and (= ch "&")
-             (= nx "&"))
-        (do (if (empty? token) (set! tcol col))
-            (+= token (str ch nx))
-            (++ pos))
-        (= ch "~")
-        (if (and (empty? token)
-                 (not (REGEX.wspace.test nx)))
-          (do (set! tcol col)
-              (if (= nx "@")
-                (do (++ pos)
-                    (toke line tcol "~@"))
-                (toke line tcol ch)))
-          (+= token ch))
-        (and (= ch "/")
-             (empty? token))
-        (do (set! regex? true)
-            (set! tcol col)
-            (+= token ch))
-        (or (= ch "[")(= ch "]")
-            (= ch "{")(= ch "}")
-            (= ch "(")(= ch ")"))
-        (do (set! token (toke line tcol token))
-            (set! tcol col)
+      (or (= ch "'") (= ch "`")
+          (= ch "@") (= ch "^"))
+      (if (and (empty? token)
+               (not (REGEX.wspace.test nx)))
+        (do (set! tcol col)
             (toke line tcol ch))
-        (= ch ";")
-        (do (set! token (toke line tcol token))
-            (set! tcol col)
-            (set! comment? true))
-        (or (= ch ",")
-            (REGEX.wspace.test ch))
-        (->> (-> (if (= ch "\n") (-1 line) line)
-                 (toke tcol token))
-             (set! token))
-        :else
-        (do (if (empty? token) (set! tcol col)) (+= token ch))))))
+        (+= token ch))
+      (and (= ch "&")
+           (= nx "&"))
+      (do (if (empty? token) (set! tcol col))
+          (+= token (str ch nx))
+          (++ pos))
+      (= ch "~")
+      (if (and (empty? token)
+               (not (REGEX.wspace.test nx)))
+        (do (set! tcol col)
+            (if (= nx "@")
+              (do (++ pos)
+                  (toke line tcol "~@"))
+              (toke line tcol ch)))
+        (+= token ch))
+      (and (= ch "/")
+           (empty? token))
+      (do (set! regex? true)
+          (set! tcol col)
+          (+= token ch))
+      (or (= ch "[")(= ch "]")
+          (= ch "{")(= ch "}")
+          (= ch "(")(= ch ")"))
+      (do (set! token (toke line tcol token))
+          (set! tcol col)
+          (toke line tcol ch))
+      (= ch ";")
+      (do (set! token (toke line tcol token))
+          (set! tcol col)
+          (set! comment? true))
+      (or (= ch ",")
+          (REGEX.wspace.test ch))
+      (->> (-> (if (= ch "\n") (-1 line) line)
+               (toke tcol token))
+           (set! token))
+      :else
+      (do (if (empty? token)
+            (set! tcol col))
+          (+= token ch))))
+  tree)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

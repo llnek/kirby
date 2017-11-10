@@ -365,7 +365,13 @@ function sf_deftype(ast,env,publicQ) {
       cz=eval_QQ(ast[1],env),
       par=ast[2][0],
       args=ast[3],
-      mtds=ast.slice(4);
+      doc,mtds;
+  if (std.string_p(ast[4])) {
+    doc=ast[4];
+    mtds=ast.slice(5);
+  } else {
+    mtds=ast.slice(4);
+  }
   ret.add(["class ", cz]);
   if (par) {
     ret.add([" extends ", eval_QQ(par,env)]);
@@ -378,6 +384,11 @@ function sf_deftype(ast,env,publicQ) {
     ret.add("\n");
   }
   ret.add("}\n");
+
+  if (doc) {
+    ret.prepend(writeDoc(doc));
+  }
+
   if (publicQ &&
       (1=== rt.globalEnv().countNSPCache())) {
       EXTERNS[cz]=cz;
@@ -474,8 +485,8 @@ function sf_do (ast,env) {
   body=exprHint(body, !stmtQ);
   ret.add(transpileDo(body,env, !stmtQ));
   if (stmtQ) {
-    ret.prepend("{\n");
-    ret.add("}");
+    //ret.prepend("{\n");
+    //ret.add("}");
   } else {
     ret.prepend("(function() {\n");
     ret.add("}).call(this)");
@@ -487,6 +498,7 @@ SPEC_OPS["do"]=sf_do;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_case(ast, env) {
   let ret= nodeTag(tnode(),ast);
+  let _x=gensym("S____");
   let stmtQ= stmt_p(ast);
   let tst= ast[1],
       e =null, t= null, c=null, dft=null;
@@ -502,29 +514,29 @@ function sf_case(ast, env) {
            j < e.length; ++j) {
         ret.add(["case ", transpileSingle(e[j]), ":\n"]);
         if (j === (e.length-1))
-          ret.add(["____x= ",
+          ret.add([_x, "=",
                    eval_QQ(c,env), ";\nbreak;\n"]);
       }
     } else {
       ret.add(["case ", transpileSingle(e), ":\n"]);
-      ret.add(["____x= ",
+      ret.add([_x, "=",
                eval_QQ(c), ";\nbreak;\n"]);
     }
   }
   if (dft) {
     ret.add("default:\n");
-    ret.add(["____x= ",
+    ret.add([_x, "=",
              eval_QQ(dft), ";\nbreak;\n"]);
   }
   ret.prepend(["switch (",
                eval_QQ(tst,env), ") {\n"]);
   ret.add("}");
   if (stmtQ) {
-    ret.prepend("{ let ____x;\n");
+    ret.prepend("{ let " + _x + ";\n");
     ret.add("}");
   } else {
-    ret.prepend("(function() { let ____x;\n");
-    ret.add(" return ____x;}).call(this)");
+    ret.prepend("(function() { let " + _x + ";\n");
+    ret.add(" return "+ _x +";}).call(this)");
   }
   return ret;
 }
@@ -674,11 +686,16 @@ regoBuiltins(sf_x_eq,"assign");
 function sf_set_in(ast,env) {
   assert(std.even_p(ast.length), "set-in: bad arg count");
   let ret= nodeTag(tnode(),ast),
+      more=false,
       obj= eval_QQ(ast[1],env);
   for (let i=2; i < ast.length; i += 2) {
-    if (i > 2) { ret.add(","); }
+    if (i > 2) { ret.add(","); more =true; }
     ret.add([obj, "[", eval_QQ(ast[i],env), "]",
              "=", eval_QQ(ast[i+1],env)]);
+  }
+  if (more) {
+    ret.prepend("(");
+    ret.add(")");
   }
   return ret;
 }
@@ -869,19 +886,24 @@ function sf_func(ast,env,publicQ) {
            pad(indent), "}\n"]);
   if (true ) {
     ret.add(fmtSpecOps(fname, hints));
-    //ret.add(";");
   }
   if (doc) {
-    doc= doc.replace(rdr.REGEX.dquoteHat, "");
-    doc=doc.replace(rdr.REGEX.dquoteEnd, "");
-    ret.prepend(
-      doc.split("\\n").map(function(s) {
-        return "//"+ s +  "\n";
-      }));
+    ret.prepend(writeDoc(doc));
   }
   if (publicQ && !dotQ &&
              (1=== rt.globalEnv().countNSPCache())) EXTERNS[fname]=fname;
   return ret;
+}
+
+function writeDoc(doc) {
+  if (doc) {
+    doc= doc.replace(rdr.REGEX.dquoteHat, "");
+    doc=doc.replace(rdr.REGEX.dquoteEnd, "");
+    return doc.split("\\n").map(function(s) {
+        return "//"+ s +  "\n";
+    });
+  }
+  return "";
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1201,17 +1223,28 @@ function sf_ns(ast,env) {
       (nsp == "czlab.kirby.bl.stdlib")) {}
   else if (nsp.startsWith("czlab.kirby.")) {
     ret.push("var kirbystdlibref=std;\n");
+    //ret.push(injectStdRefs("std"));
   }
   else {
     let form=[types.symbol("require"),
               ["\"kirby\"",
                types.keyword(":as"), types.symbol("kirbystdlibref")]];
     ret.push(sf_require(form));
+    //ret.push(injectStdRefs("kirby"));
   }
 
   return ret;
 }
 SPEC_OPS["ns"]=sf_ns;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function injectStdRefs(lib) {
+  let ret=tnode();
+  for (var x in std) {
+    ret.add(["var ", x, "=", lib, "[\"", x, "\"];\n"]);
+  }
+  return ret;
+}
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_comment(ast,env) {

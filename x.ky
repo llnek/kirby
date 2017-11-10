@@ -1,6 +1,7 @@
 
-
-(var x '{ :k 3 })
+(deftype xxx [][]
+  "poo"
+  (xx [] (ch@ "sss" 7)))
 
 
 

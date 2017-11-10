@@ -15,8 +15,8 @@
 (defn not-empty "" [coll] (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- stringify "" [obj]
-  (var cache [])
+(defn stringify "" [obj]
+  (var cache (vector))
   (if obj
     (JSON/stringify obj
                     (fn [k v]
@@ -27,22 +27,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt?? "" [cur other] (if (def? cur) cur other))
-(defn opt "" [cur other] (if (def? cur) cur other))
+;;(defn opt "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj! "" [coll & xs]
-  (coll.push.apply coll xs)
-  coll)
+  (if coll (coll.push.apply coll xs)) coll)
   ;(if (list? coll) (coll.unshift x) (coll.push x)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj "" [coll x]
-  (coll.concat x))
-  ;(if (list? coll) (.concat [x] coll) (.concat coll x)))
+  (if coll
+    (if (list? coll)
+      (.concat [x] coll) (.concat coll x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop! "" [coll]
-  (var r (if (list? coll) (coll.shift) (coll.pop)))
+  ;(var r (if (list? coll) (coll.shift) (coll.pop)))
+  (var r (if coll (coll.pop)))
   [r coll])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -52,11 +53,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn "" [obj & [readable?]]
-  (var _r (opt readable? true)
-       pa (fn [arr s e](str s (join " "
-                                    (map #(prn % _r) arr)) e)))
+  (var _r (opt?? readable? true)
+       pa (fn [arr s e]
+            (str s (join " "
+                         (map #(prn % _r) arr)) e)))
   (case (typeid obj)
-    :lambda-arg (str "%" (+1 (parseInt obj.value)))
+    :lambda-arg (str "%" (+1 (int obj.value)))
     :atom (str "(atom " (prn obj.value _r) ")")
     :keyword (str ":" obj.value)
     :symbol obj.value
@@ -70,10 +72,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype LambdaArg [][]
+  ""
   (constructor [arg]
     (var name (if (= arg "%")
                 "1" (rest arg))
-         v (parseInt name))
+         v (int name))
     (if-not (> v 0)
       (raise! "Bad lambda-arg: " arg))
     ;;zero based arg so minus 1
@@ -84,66 +87,60 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Primitive [][]
+  ""
   (constructor [v]
     (set! this.value v) this)
   (toString [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Keyword [][]
+  ""
   (constructor [name]
     (set! this.value (rest name)) this)
   (toString [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Symbol [][]
+  ""
   (constructor [name]
     (set! this.value name) this)
   (toString [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn primitive? "" [obj] (inst? Primitive obj))
 (defn primitive "" [v] (new Primitive v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn primitive? "" [obj] (inst? Primitive obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol? "" [obj] (inst? Symbol obj))
 (defn symbol "" [name] (new Symbol name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn symbol? "" [obj] (inst? Symbol obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword? "" [obj] (inst? Keyword obj))
 (defn keyword "" [name] (new Keyword name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn keyword? "" [obj] (inst? Keyword obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg? "" [obj] (inst? LambdaArg obj))
 (defn lambda-arg "" [name] (new LambdaArg name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lambda-arg? "" [obj] (inst? LambdaArg obj))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom [][]
+  ""
   (constructor [val] (set! this.value val) this))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn atom "" [val] (new Atom val))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom? "" [atm] (inst? Atom atm))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deref "" [a] (.-value a))
+(defn atom "" [val] (new Atom val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset! "" [a v] (set! a.value v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deref "" [a] (.-value a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn swap! "" [a f &xs]
   (->> (concat [a.value] xs)
-       (f.apply this )
+       (apply f this)
        (set! a.value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -178,7 +175,8 @@
       (number? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sequential? "" [arr] (and (array? arr) (not (map? arr))))
+(defn sequential? "" [arr]
+  (and (array? arr) (not (map? arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "" [a b]
@@ -194,25 +192,24 @@
                   (alen b))
           (set! ok? false)
           (for [i 0
-                :recur (+1 i)
-                :while (< i (alen a))]
+                :while (< i (alen a))
+                :recur (+1 i)]
             (when-not (eq? (nth a i)
                            (nth b i))
               (set! ok? false)
-              (break!)))))
+              (break-out-of-loop!)))))
       :object
       (do-with [ok? true]
         (if-not (= (count a)
                    (count b))
           (set! ok? false)
           (for [i 0 k nil ks (keys a)
-                :recur (+1 i)
-                :while (< i (alen ks))]
+                :while (< i (alen ks)) :recur (+1 i)]
             (set! k (nth ks i))
             (when-not (eq? (get a k)
                            (get b k))
               (set! ok? false)
-              (break!)))))
+              (break-out-of-loop!)))))
       (:symbol :keyword)
       (= a.value b.value)
       ;else
@@ -224,10 +221,21 @@
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn last "" [coll] (if coll (nth coll (last-index coll))))
+(defn last "" [coll]
+  (if coll (nth coll (last-index coll))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn into "" [type coll]
+  (case type
+    :vector (set-in! coll :____vec true)
+    :list (set-in! coll :____list true)
+    :map (set-in! coll :____map true)
+    :tree (set-in! coll :____tree true))
+  coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list "" [&xs] (set-in! xs :____list true) xs)
+(defn tree "" [&xs] (set-in! xs :____tree true) xs)
 (defn list? "" [obj]
   (and (array? obj)
        (or obj.____list
@@ -272,14 +280,16 @@
                   (array? coll)) coll (keys coll))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn concat* "" [coll & xs] (coll.concat.apply coll xs))
+(defn concat* "" [coll & xs]
+  (if coll (coll.concat.apply coll xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" [coll start step]
-  (do-with [ret []]
-    (for [i start
-          :while (< i (alen coll)) :recur (+ i step)]
-      (ret.push (nth coll i)))))
+  (var ret (vector))
+  (for [i start
+        :while (< i (alen coll)) :recur (+ i step)]
+    (conj! ret (nth coll i)))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "" [coll] (every coll 0 2))
@@ -290,46 +300,54 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "" [c1 c2]
   (var cz (if (< (alen c2)
-                 (alen c1)) (alen c2) (alen c1)))
-  (do-with [ret []]
-    (for [i 0
-          :while (< i cz) :recur (+1 i)]
-      (ret.push (nth c1 i) (nth c2 i)))))
+                 (alen c1)) (alen c2) (alen c1))
+       ret (vector))
+  (for [i 0
+        :while (< i cz) :recur (+1 i)]
+    (conj! ret (nth c1 i) (nth c2 i)))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def identity
+(def m-identity
   {:bind (fn [mv mf] (mf mv))
    :result (fn [v] v)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def maybe
+(def m-maybe
   {:bind (fn [mv mf] (if (nil? mv) nil (mf mv)))
    :result (fn [v] v)
    :zero nil})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def array
+(def m-array
   {:bind (fn [mv mf]
            (reduce
-             (fn [acc v] (.concat acc v)) [] (map mf mv)))
-   :result (fn [v] (.concat [] v))
-   :zero []
+             (fn [acc v]
+               (acc.concat v))
+             (vector)
+             (map mf mv)))
+   :result (fn [v] (.concat (vector) v))
+   :zero (vector)
    :plus #(reduce
-            (fn [acc v] (.concat acc v))
-            []
-            (Array.prototype.slice.call arguments))})
+            (fn [acc v]
+              (acc.concat v))
+            (vector)
+            (slice arguments))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def state
+(def m-state
   {:bind (fn [mv mf]
            (fn [s]
-             (var x (mv s)) ((mf (nth x 0)) (nth x 1))))
-   :result (fn [v] (fn [s] (.concat [] [v s])))})
+             (var x (mv s))
+             ((mf (nth x 0)) (nth x 1))))
+   :result (fn [v]
+             (fn [s]
+               (.concat (vector) (vector v s))))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def continuation
+(def m-continuation
   {:bind (fn [mv mf]
            (fn [c]
              (mv (fn [v] ((mf v) c)))))
