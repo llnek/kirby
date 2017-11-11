@@ -27,28 +27,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt?? "" [cur other] (if (def? cur) cur other))
-;;(defn opt "" [cur other] (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj! "" [coll & xs]
-  (if coll (coll.push.apply coll xs)) coll)
-  ;(if (list? coll) (coll.unshift x) (coll.push x)) coll)
+  (if (list? coll)
+    (coll.unshift.apply coll (xs.reverse))
+    (coll.push.apply coll xs)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn conj "" [coll x]
-  (if coll
-    (if (list? coll)
-      (.concat [x] coll) (.concat coll x))))
+(defn conj "" [coll &xs]
+  (var cpy (slice coll))
+  (if (vector? coll) (into :vector cpy))
+  (if (list? coll) (into :list cpy))
+  (if (map? coll) (into :map cpy))
+  (apply conj! this (.concat [cpy] xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop! "" [coll]
-  ;(var r (if (list? coll) (coll.shift) (coll.pop)))
-  (var r (if coll (coll.pop)))
+  (var r (if (list? coll) (coll.shift) (coll.pop)))
   [r coll])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop "" [coll]
-  (var r (if (list? coll) (car coll) (last coll)))
+  (var r (if (list? coll) (first coll) (last coll)))
   [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -66,6 +67,7 @@
     :vector (pa obj "[" "]")
     :map (pa obj "{" "}")
     :list (pa obj "(" ")")
+    :array (pa obj "(" ")")
     :string obj
     (:null :nil) "null"
     (obj.toString)))
@@ -159,6 +161,7 @@
     (fn? obj) :function
     (string? obj) :string
     (number? obj) :number
+    (array? obj) :array
     (object? obj) :object
     :else
     (raise! "Unknown type [" (type obj) "]")))
@@ -229,17 +232,19 @@
   (case type
     :vector (set-in! coll :____vec true)
     :list (set-in! coll :____list true)
-    :map (set-in! coll :____map true)
-    :tree (set-in! coll :____tree true))
+    :map (set-in! coll :____map true))
   coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn list "" [&xs] (set-in! xs :____list true) xs)
-(defn tree "" [&xs] (set-in! xs :____tree true) xs)
-(defn list? "" [obj]
+(defn pairs? "" [obj]
   (and (array? obj)
-       (or obj.____list
-           (and (not obj.____vec) (not obj.____map)))))
+       (not (vector? obj))
+       (not (map? obj))
+       (not (list? obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn list? "" [obj] (and (array? obj) obj.____list))
+(defn list "" [&xs] (set-in! xs :____list true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "" [obj] (and (array? obj) obj.____vec))

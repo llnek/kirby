@@ -1150,7 +1150,7 @@ function sf_require(ast,env) {
         renames= e[j+1]; ++j;
       }
     }
-    ret.add(["var ",
+    ret.add(["const ",
              rdr.jsid(as),
              "= require(",
              transpileSingle(path), ");\n"]);
@@ -1158,12 +1158,12 @@ function sf_require(ast,env) {
     renames= renames || [];
     for (let i=0; i< refers.length;++i) {
       v=transpileSingle(refers[i]);
-      ret.add(["var ", v,"=",as,"[\"",v,"\"];\n"]);
+      ret.add(["const ", v,"=",as,"[\"",v,"\"];\n"]);
     }
     for (let i=0; i< renames.length; i += 2) {
       e=transpileSingle(renames[i]);
       v=transpileSingle(renames[i+1]);
-      ret.add(["var ", v,"=",as,"[\"",e,"\"];\n"]);
+      ret.add(["const ", v,"=",as,"[\"",e,"\"];\n"]);
     }
   }
   return ret;
@@ -1222,7 +1222,7 @@ function sf_ns(ast,env) {
   if ((nsp == "czlab.kirby.bl.defmacros") ||
       (nsp == "czlab.kirby.bl.stdlib")) {}
   else if (nsp.startsWith("czlab.kirby.")) {
-    ret.push("var kirbystdlibref=std;\n");
+    ret.push("const kirbystdlibref=std;\n");
     //ret.push(injectStdRefs("std"));
   }
   else {

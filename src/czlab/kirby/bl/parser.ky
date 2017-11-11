@@ -20,7 +20,6 @@
                     vector
                     conj!
                     opt??
-                    list
                     symbol
                     keyword]]
            ["./lexer" :as rdr]))
@@ -103,8 +102,8 @@
   ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readList "" [cur tokens]
-  (into :list (readBlock tokens "(" ")")))
+(defn- readList
+  "" [cur tokens] (readBlock tokens "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "" [cur tokens]
@@ -165,7 +164,7 @@
 (defn parser "" [source & [fname]]
   (var tokens (rdr/lexer source
                          (opt?? fname "*adhoc*"))
-       f nil ast (list) tlen (alen tokens))
+       f nil ast [] tlen (alen tokens))
   (set! tokens.pos 0)
   (comment
     (for [i 0 :while (< i tlen) :recur (+1 i)]

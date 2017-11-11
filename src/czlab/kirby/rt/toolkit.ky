@@ -95,12 +95,12 @@
   (case (typeid obj)
     :vector
     (set! ret (into :vector (slice obj)))
-    :tree
-    (set! ret (into :tree (slice obj)))
     :list
     (set! ret (into :list (slice obj)))
     :map
     (set! ret (into :map (slice obj)))
+    :array
+    (set! ret (slice obj))
     :object
     (set! ret
           (reduce

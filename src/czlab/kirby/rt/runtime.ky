@@ -123,7 +123,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" [ast env]
-  (and (list? ast)
+  (and (pairs? ast)
        (symbol? (first ast))
        (getMacro (str (first ast)))))
 
@@ -150,8 +150,10 @@
     (unwrap-str ast)
     (symbol? ast)
     (env.get ast)
-    (list? ast)
+    (pairs? ast)
     (map #(compute %1 env) ast)
+    (list? ast)
+    (into :list (map #(compute %1 env) ast))
     (vector? ast)
     (into :vector (map #(compute %1 env) ast))
     (and false (map? ast))
@@ -259,7 +261,7 @@
     (set! ast (macroexpand ast env))
     (set! ok?
           (cond
-            (not (list? ast))
+            (not (array? ast))
             (do->false (set! ret (evalAst ast env)))
             (= 0 (count ast))
             (do->false (set! ret ast))
