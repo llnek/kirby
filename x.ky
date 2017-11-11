@@ -1,7 +1,5 @@
 
-(deftype xxx [][]
-  "poo"
-  (xx [] (ch@ "sss" 7)))
+(var abc [2 3], abc (inc abc))
 
 
 

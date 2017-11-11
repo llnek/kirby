@@ -569,20 +569,50 @@ SPEC_OPS["def~"]= function (ast,env) { return sf_vardefs(ast,env, "global"); };
 SPEC_OPS["var~"]= function (ast,env) { return sf_vardefs(ast,env, "let"); };
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_const(ast, env, cmd) {
+  let vname=null, publicQ= ("global" == cmd);
+  let ret=nodeTag(tnode(),ast);
+  ast=ast.slice(1);
+  cmd="const";
+  let kks={}, keys=[];
+  for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
+    rhs=ast[i+1];
+    lhs=ast[i];
+    if (types.symbol_p(lhs)) {
+      lhs=transpileSingle(lhs);
+      kks[lhs]=null;
+      ret.add(["const ", lhs,
+                "= ", eval_QQ(rhs,env), ";\n"]);
+    } else {
+      rc=destruct0(cmd,lhs,rhs,env);
+      ret.add(rc[0]);
+      rc[1].map(function(s) {
+        kks[rdr.jsid(s)]=null;
+      });
+    }
+  }
+  if (publicQ &&
+             (1=== rt.globalEnv().countNSPCache()))
+    Object.keys(kks).forEach(function(s){
+      EXTERNS[s]=s;
+    });
+
+  return ret;
+}
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+SPEC_OPS["const-"]= function (ast,env) { return sf_const(ast, env, "local"); };
+SPEC_OPS["const"]= function (ast,env) { return sf_const(ast,env, "global"); };
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_var (ast, env, cmd) {
   let vname=null, publicQ= ("global" == cmd);
   let ret=nodeTag(tnode(),ast);
-
   ast=ast.slice(1);
-  if (publicQ ||
-          ("local" == cmd)) cmd="var";
-
-  let kks={}, keys=[];
+  if (publicQ || ("local" == cmd)) cmd="var";
+  let tmp,kks={}, keys=[];
+  /*
   for(var i=0;i<ast.length;i+=2) {
-    if (types.symbol_p(ast[i])) {
-      keys.push(ast[i]);
-    }
-  }
+    if (types.symbol_p(ast[i])) { keys.push(ast[i]); } }
   if (keys.length > 0) {
     ret.add(["let ",
              keys.map(function(s) {
@@ -590,11 +620,19 @@ function sf_var (ast, env, cmd) {
                kks[ss]=null;
                return ss; }).join(","), ";\n"]);
   }
+  */
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
     lhs=ast[i];
     if (types.symbol_p(lhs)) {
-      ret.add([transpileSingle(lhs), "= ", eval_QQ(rhs,env), ";\n"]);
+      lhs=transpileSingle(lhs);
+      tmp=[lhs, "= ", eval_QQ(rhs,env), ";\n"];
+      if (!kks.hasOwnProperty(lhs)) {
+        kks[lhs]=null;
+        tmp.unshift(" ");
+        tmp.unshift(cmd);
+      }
+      ret.add(tmp);
     } else {
       rc=destruct0(cmd,lhs,rhs,env);
       ret.add(rc[0]);
