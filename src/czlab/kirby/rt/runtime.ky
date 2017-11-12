@@ -39,13 +39,15 @@
 (def- CACHE {})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- loadMacros []
+(defn- loadMacros "" []
   (when-not loadedMacros?
-    (set! loadedMacros? true)
+    (true! loadedMacros?)
     (require "../bl/macros.ky")) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn setMacro "" [cmd func]
+(defn setMacro
+"Register a new macro"
+  [cmd func]
   (when (and cmd func)
     (set! cmd (str cmd))
     (when-not (contains? cmd "/")
@@ -56,7 +58,9 @@
     (set-in! CACHE cmd func)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getMacro "" [cmd]
+(defn getMacro
+"Get macro"
+  [cmd]
   (var ret nil)
   (set! cmd (str cmd))
   (if (contains? cmd "/")
@@ -91,35 +95,40 @@
   (println "DBG-RT: " (prn obj true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readAST "" [s]
+(defn- readAST
+"Returns the AST"
+  [s]
   (var ret (parser/parser s))
   (if (= 1 (count ret))
     (set! ret (first ret)))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- isPair? "" [x]
+(defn- isList?
+"Returns true if a non-empty list"
+  [x]
   (and (sequential? x) (not-empty x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quasiquote "" [ast]
   (cond
-    (not (isPair? ast))
-    (tree (symbol "quote") ast)
+    (not (isList? ast))
+    [(symbol "quote") ast]
     (and (symbol? (first ast))
-         (= (.-value (first ast)) "unquote"))
+         (== (first ast) "unquote"))
     (second ast)
-    (and (isPair? (first ast))
-         (= (.-value (first (first ast))) "splice-unquote"))
-    (tree (symbol "concat*")
-          (second (first ast))
-          (quasiquote (rest ast)))
+    (and (isList? (first ast))
+         (== (first (first ast))
+             "splice-unquote"))
+    [(symbol "concat*")
+     (second (first ast))
+     (quasiquote (rest ast))]
     :else
     (let [a0 (first ast)
           a1 (rest ast)]
-      (tree (symbol "cons*")
+      [(symbol "cons*")
        (quasiquote a0)
-       (quasiquote a1)))))
+       (quasiquote a1)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" [ast env]
@@ -128,10 +137,11 @@
        (getMacro (str (first ast)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn expandMacro "" [ast env mc] (macroexpand ast env))
+(defn expandMacro
+  "" [ast env mc] (mexpand ast env))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- macroexpand "" [ast env]
+(defn- mexpand "" [ast env]
   (var isM? (isMacroCall? ast env)
        mac nil
        cmd (if isM? (first ast) ""))
@@ -153,9 +163,9 @@
     (pairs? ast)
     (map #(compute %1 env) ast)
     (list? ast)
-    (into :list (map #(compute %1 env) ast))
+    (into! :list (map #(compute %1 env) ast))
     (vector? ast)
-    (into :vector (map #(compute %1 env) ast))
+    (into! :vector (map #(compute %1 env) ast))
     (and false (map? ast))
     (reduce
       (fn [acc en]
@@ -197,14 +207,14 @@
   (for [i 0 :while (< i (alen a1)) :recur (+2 i)]
     (e.set (nth a1 i)
            (compute (nexth a1 i) e)))
-  (vector true (nth ast 2) e))
+  [(nth ast 2) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleMacro "" [ast env]
-  (var rc (tree (nth ast 0)
-                (nth ast 1)
-                (concat [(symbol "fn*") (nth ast 2)]
-                        (ast.slice 3)))
+  (var rc [(first ast)
+           (second ast)
+           (concat [(symbol "fn*")
+                    (nth ast 2)] (ast.slice 3))]
        a2 (nth rc 2)
        a1 (nth rc 1)
        func (compute  a2 env))
@@ -218,12 +228,13 @@
   (try
     (compute a1 env)
     (catch ex
-      (if (and a2 (= "catch*"
-                     (str  (first a2))))
+      (if (and a2 (== "catch*"
+                      (first a2)))
         (if (inst? Error ex)
           (set! ex (.-message ex)))
         (compute (nth a2 2)
-                 (new LEXEnv env [(nth a2 1)] [ex]))
+                 (new LEXEnv
+                      env [(nth a2 1)] [ex]))
         (throw ex)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -240,91 +251,112 @@
   (var el (evalAst ast env)
        f (first el))
   (if (.-____ast f)
-    (vector true (.-____ast f) (f.____genenv (rest el)))
-    (vector false (f.apply this (rest el)) env)))
+    [true (.-____ast f)
+          (f.____genenv (rest el))]
+    [false (f.apply this (rest el)) env]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fn-wrap "" [run ast env params]
-  (var f #(run ast (new LEXEnv env params ____args)))
+  (var f #(run ast
+               (new LEXEnv
+                    env params ____args)))
   (set-in! f
            :____macro false
            :____meta nil
            :____ast ast
-           :____genenv #(new LEXEnv env params %))
+           :____genenv #(new LEXEnv
+                             env params %))
   f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- computeLoop "" [ast env]
-  ;;(println "EVAL:" (prn ast))
+(defn- compute* "" [ast env]
+  ;;(println "eval:" (prn ast))
   (var ok? true ret nil)
-  (while ok?
-    (set! ast (macroexpand ast env))
-    (set! ok?
-          (cond
-            (not (array? ast))
-            (do->false (set! ret (evalAst ast env)))
-            (= 0 (count ast))
-            (do->false (set! ret ast))
-            (= "and*"
-               (str (first ast)))
-            (do->false (set! ret (handleAND ast env)))
-            (= "or*"
-               (str (first ast)))
-            (do->false (set! ret (handleOR ast env)))
-            (= "def*"
-               (str (first ast)))
+  (for []
+    (set! ast
+          (mexpand ast env))
+    (->>
+      (cond
+        (not (array? ast))
+        (do->true
+          (set! ret (evalAst ast env)))
+        (= 0 (count ast))
+        (do->true
+          (set! ret ast))
+        (== "and*"
+            (first ast))
+        (do->true
+          (set! ret (handleAND ast env)))
+        (== "or*"
+            (first ast))
+        (do->true
+          (set! ret (handleOR ast env)))
+        (== "def*"
+            (first ast))
+        (do->true
+          (set! ret (env.set a1
+                             (compute a2 env))))
+        (== "let*"
+            (first ast))
+        (do->false
+          (var rc (handleLet ast env))
+          (set! ast (first rc)
+                env (second rc)))
+        (== "quote"
+            (first ast))
+        (do->true
+          (set! ret (second ast)))
+        (== "quasiquote"
+            (first ast))
+        (do->false
+          (set! ast
+                (quasiquote (second ast))))
+        (== "macro*"
+            (first ast))
+        (do->true
+          (set! ret (handleMacro ast env)))
+        (== "macroexpand"
+            (first ast))
+        (do->true
+          (set! ret
+                (mexpand (second ast) env)))
+        (== "try*"
+            (first ast))
+        (do->true
+          (set! ret (handleTry ast env)))
+        (== "do*"
+            (first ast))
+        (do->false
+          (evalAst (ast.slice 1 -1) env)
+          (set! ast (nth ast (last-index ast))))
+        (== "if*"
+            (first ast))
+        (do->false
+          (set! ast (handleIf ast env)))
+        (== "fn*"
+            (first ast))
+        (do->true
+          (set! ret
+                (fn-wrap compute
+                         (nth ast 2)
+                         env
+                         (nth ast 1))))
+        :else
+        (let [rc (handleForm ast env)
+              a1 (nth rc 1)
+              a2 (nth rc 2)]
+          (if (first rc)
             (do->false
-              (set! ret (env.set a1 (compute a2 env))))
-            (= "let*"
-               (str (first ast 0)))
-            (let [rc (handleLet ast env)]
-              (set! ast (nth rc 1))
-              (set! env (nth rc 2))
-              (first rc))
-            (= "quote"
-               (str (first ast)))
-            (do->false (set! ret (second ast)))
-            (= "quasiquote"
-               (str (first ast)))
-            (do->true (set! ast (quasiquote (second ast))))
-            (= "macro*"
-               (str (first ast)))
-            (do->false (set! ret (handleMacro ast env)))
-            (= "macroexpand"
-               (str (first ast)))
-            (do->false
-              (set! ret (macroexpand (second ast) env)))
-            (= "try*"
-               (str (first ast)))
-            (do->false (set! ret (handleTry ast env)))
-            (= "do*"
-               (str (first ast)))
+              (set! ast a1 env a2))
             (do->true
-              (evalAst (ast.slice 1 -1) env)
-              (set! ast (nth ast (last-index ast))))
-            (= "if*"
-               (str (first ast)))
-            (do->true (set! ast (handleIf ast env)))
-            (= "fn*"
-               (str (first ast)))
-            (do->false (set! ret
-                             (fn-wrap compute
-                                      (nth ast 2)
-                                      env
-                                      (nth ast 1))))
-            :else
-            (let [rc (handleForm ast env)]
-              (if (first rc)
-                (do (set! ast (nth rc 1))
-                    (set! env (nth rc 2)))
-                (do (set! ret (nth rc 1))))
-              (first rc)))))
+              (set! ret a1)))))
+      (set! ____break )))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "" [ast env]
   (if-not env (set! env global_env))
-  (var ret (computeLoop ast env))
+  (var ret (compute* ast env))
   (if (undef? ret) nil ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -336,36 +368,39 @@
   (each-key (fn [v k]
               (ret.set (symbol k) v)) rt)
   (ret.set (symbol "eval")
-           (fn [ast] (compute ast ret)))
+           #(compute % ret))
   (ret.set (symbol "*ARGV*") [])
   (ret.set (symbol "*host-language*")  "javascript")
   (ret.set (symbol "*gensym-counter*") (atom 0))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- prefix "kirby> ")
+(const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- run_repl (fn []
-  (var rl (readline.createInterface process.stdin
-                                    process.stdout))
-  (rl.on :line
-         (fn [line]
-           (try
-             (if line (println (rep line)))
-             (catch err (println err)))
-           (rl.setPrompt prefix  (alen prefix))
-           (rl.prompt )))
-  (rl.on :close
-         (fn []
-           (println "Bye!")
-           (process.exit 0)))
-  (println prefix "Kirby REPL v1.0.0")
-  (rl.setPrompt prefix  (alen prefix))
-  (rl.prompt )))
+(const- run_repl
+  (fn []
+    (var rl (readline.createInterface
+              process.stdin process.stdout))
+    (rl.on
+      :line
+      (fn [line]
+        (try
+          (if line (println (rep line)))
+          (catch err (println err)))
+        (rl.setPrompt prefix  (alen prefix))
+        (rl.prompt )))
+    (rl.on
+      :close
+      (fn []
+        (println "Bye!")
+        (process.exit 0)))
+    (println prefix "Kirby REPL v1.0.0")
+    (rl.setPrompt prefix  (alen prefix))
+    (rl.prompt )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def-  rep #(show (compute (readAST %))))
+(const- rep #(show (compute (readAST %))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def-  global_env (new LEXEnv))
@@ -374,11 +409,11 @@
 (defn runRepl "" [] (init) (run_repl))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- macro_assert "
+(const- macro_assert "
   (macro* assert* [c msg] (if* c true (throw* msg)))")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- macro_cond "
+(const- macro_cond "
   (macro* cond* [&xs]
     (if* (> (count* xs) 0)
       (list* 'if*
@@ -389,7 +424,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" []
   (set! global_env (newEnv))
-  (global_env.set (symbol "*host-language*") "javascript")
+  (global_env.set
+    (symbol "*host-language*") "javascript")
   (rep macro_cond)
   (rep macro_assert)
   (loadMacros))

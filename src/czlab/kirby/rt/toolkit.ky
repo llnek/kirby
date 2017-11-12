@@ -14,7 +14,8 @@
   (require ["fs" :as fs])
   (require ["../bl/stdlib"
             :as std
-            :refer [stringify
+            :refer [extendAttr
+                    stringify
                     contains?
                     LambdaArg
                     Keyword
@@ -35,70 +36,47 @@
                     sequential?]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstrX "" [b arr] `(map #(prn % ~b) ~arr))
+(defmacro prstrX
+  "" [b arr] `(map #(prn % ~b) ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstrT "" [arr] `(prstrX true ~arr))
+(defmacro prstrT
+  "" [arr] `(prstrX true ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prstrF "" [arr] `(prstrX false ~arr))
+(defmacro prstrF
+  "" [arr] `(prstrX false ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
   (var that this tmp nil)
   (set! tmp #(apply that this ____args))
-  (each-key (fn [v k] (set-in! tmp k v)) that)
+  (each-key
+    (fn [v k] (set-in! tmp k v)) that)
   tmp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnStr "" [&xs] (join " " (prstrT xs)))
+(defn- prnStr
+  "" [&xs] (join " " (prstrT xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnLn "" [&xs] (each #(println %) (prstrT xs)))
+(defn- prnLn
+  "" [&xs] (each #(println %) (prstrT xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- slurp "" [f] (fs/readFileSync f "utf-8"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- timeMillis "" [] (.getTime (new Date)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- object "" [&xs]
-  (if (empty? xs)
-    {}
-    (apply assoc this (concat [ {} ] xs))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assoc "" [src & xs]
-  (if (odd? (alen xs))
-    (raise! "Odd number of assoc arguments"))
-  (var ret (clone src))
-  (var~ k v)
-  (for [i 0 :while (< i (alen xs)) :recur (+2 i)]
-    (set! k (str "" (nth xs i))
-          v (nexth xs i))
-    (if-not (string? k)
-      (raise! "expected string, got: " (type k)))
-    (set-in! ret k v))
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dissoc "" [src & xs]
-  (var ret (clone src))
-  (for [i 0 :while (< i (alen xs)) :recur (+1 i)]
-    (delete! ret (nth xs i)))
-  ret)
+(defn- slurp
+  "" [f] (fs/readFileSync f "utf-8"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clone "" [obj]
   (var ret nil)
   (case (typeid obj)
     :vector
-    (set! ret (into :vector (slice obj)))
+    (set! ret (into! :vector (slice obj)))
     :list
-    (set! ret (into :list (slice obj)))
+    (set! ret (into! :list (slice obj)))
     :map
-    (set! ret (into :map (slice obj)))
+    (set! ret (into! :map (slice obj)))
     :array
     (set! ret (slice obj))
     :object
@@ -113,10 +91,7 @@
     (set! ret (obj.clone))
     ;else
     (raise! "clone of non-collection: " (typeid obj)))
-  (Object.defineProperty ret
-                         :____meta
-                         {:enumerable false :writable true})
-  ret)
+  (extendAttr ret :____meta))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cons "" [a b] (concat [a] b))
@@ -124,8 +99,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- conj "" [arr & xs]
   (cond
-    (list? arr) (concat (xs.reverse) arr)
-    (some? arr) (into :vector (concat arr xs))
+    (list? arr) (into! :list
+                       (concat (xs.reverse) arr))
+    (some? arr) (into! :vector (concat arr xs))
     :else arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -152,8 +128,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveJS "" [s]
   [(if (contains? s ".")
-            (-> (.exec /^(.*)\.[^\.]*$/g s) (nth 1) (eval))
-            GLOBAL)
+     (-> (.exec /^(.*)\.[^\.]*$/g s)
+         (nth 1) (eval))
+     GLOBAL)
    (eval s)])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -163,22 +140,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" [obj m]
-  (var ret (clone obj)) (set-in! ret :____meta m) ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- jsObject? "" [m]
-  (and (object? m)
-       (not (inst? LambdaArg m))
-       (not (inst? Atom m))
-       (not (inst? Symbol m))
-       (not (inst? Keyword m))))
+  (var ret (clone obj))
+  (set-in! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" [obj]
-  (if (and (not (sequential? obj))
-           (not (map? obj))
-           (not (jsObject? obj))
-           (not (fn? obj)))
+  (if-not (or (array? obj)
+              (object? obj)
+              (fn? obj))
     (raise! "can't get metadata from: " (typeid obj)))
   (get obj :____meta))
 
@@ -188,35 +157,21 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- invokeJS "" [method & xs]
-  (var [obj f] (resolveJS method)
-       res (apply f obj xs))
-  (filterJS res))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- gensym-counter (atom 0))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- gensym "" [& [pfx]]
-  (symbol (str (or pfx "G____")
-               (swap! gensym-counter
-                      (fn [x] (+1 x))))))
+  (var [obj f] (resolveJS method))
+  (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (set! module.exports {
 
   "is-same?"  (fn [a b] (== a b))
-
-  "obj-type*"  std/typeid
-
-  "gensym*"  gensym
-
-  "is-eq?"  std/eq?
-
   "is-nil?"  (fn [x] (nil? x))
 
+  "obj-type*"  std/typeid
+  "gensym*"  std/gensym
+  "is-eq?"  std/eq?
   "is-some?"  std/some?
 
-  "slice*"  (fn [arr &xs]
+  "slice*"  (fn [arr & xs]
               (Array.prototype.slice.apply arr xs))
 
   "throw*"  (fn [&xs]
@@ -226,10 +181,10 @@
   "#t?"  (fn [x] (true? x))
   "is-str?"  (fn [x] (string? x))
 
-  "symbol*"  std/symbol
+  "is-keyword?"  std/keyword?
   "is-symbol?"  std/symbol?
   "keyword*"  std/keyword
-  "is-keyword?"  std/keyword?
+  "symbol*"  std/symbol
 
   "println*"  prnLn
   "prn*"  prnStr
@@ -248,67 +203,57 @@
   "not=" (fn [a b] (not= a b))
   "=" (fn [a b] (= a b))
 
-  "time*"  timeMillis
-
-  "list*"  std/list
-  "is-list?"  std/list?
-
-  "vector*"  std/vector
-  "is-vector?"  std/vector?
-
-  "hash-map*"  std/hashmap
-  "is-map?"  std/map?
-
-  "dissoc*"  dissoc
-  "assoc*"  assoc
-
   "is-contains?" std/contains?
 
-  "get*"  (fn [m k] (get m k))
-  "keys*"  (fn [x] (Object.keys x))
-  "values*"  (fn [x] (Object.values x))
+  "is-vector?"  std/vector?
+  "is-list?"  std/list?
+  "is-map?"  std/map?
+  "hash-map*"  std/hashmap
+  "vector*"  std/vector
+  "list*"  std/list
 
-  "dec*"  (fn [x] (- x 1))
-  "inc*"  (fn [x] (+ x 1))
+  "values*"  (fn [x] (Object.values x))
+  "keys*"  (fn [x] (Object.keys x))
+  "get*"  (fn [m k] (get m k))
 
   "not*"  (fn [x] (if x false true))
+  "dec*"  (fn [x] (-1 x))
+  "inc*"  (fn [x] (+1 x))
 
   "is-even?"  (fn [n] (= 0 (mod n 2)))
   "is-odd?"  (fn [n]  (= 1 (mod n 2)))
 
   "is-sequential?"  std/sequential?
+  "concat*"  std/concat*
+  "count*"  std/count
   "cons*"  cons
 
-  "concat*"  std/concat*
-
+  "rest*"  (fn [arr]
+              (if arr (arr.slice 1) []))
   "nth*"  (fn [arr i] (get arr i))
   "first*"  (fn [arr] (get arr 0))
-  "rest*"  (fn [arr] (if arr (arr.slice 1) []))
 
-  "is-empty?"  std/empty?
-
+  "is-empty?" (fn [x] (= 0 (std/count x)))
   "not-empty*" std/not-empty
-
-  "count*"  std/count
 
   "apply*"  fapply
   "map*"  fmap
 
-  "type*"  (fn [x] (typeof x))
-  "evens*" std/evens
-  "odds*"  std/odds
+  "evens" (fn [n] (= 0 (mod n 2)))
+  "odds" (fn [n]  (= 1 (mod n 2)))
+  "type*" (fn [x] (typeof x))
 
+  "meta*"  meta
   "conj*"  conj
   "seq*"  seq
 
-  "with-meta*"  withMeta
-  "meta*"  meta
-  "atom*"  std/atom
   "is-atom?"  std/atom?
+  "atom*"  std/atom
   "deref*"  std/deref
   "reset*"  std/reset!
   "swap*"  std/swap!
 
+  "with-meta*"  withMeta
   "js-eval*"  evalJS
   "js*"  invokeJS
 

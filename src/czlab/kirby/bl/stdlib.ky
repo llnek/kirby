@@ -309,9 +309,18 @@ implements Sequential"
 "Returns a typed collection"
   [type coll]
   (case type
-    :vector (set-in! coll :____vec true)
-    :list (set-in! coll :____list true)
-    :map (set-in! coll :____map true))
+    :vector
+    (set-in! (extendAttr coll
+                         :____vec)
+             :____vec true)
+    :list
+    (set-in! (extendAttr coll
+                         :____list)
+             :____list true)
+    :map
+    (set-in! (extendAttr coll
+                         :____map)
+             :____map true))
   coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -337,7 +346,9 @@ implements Sequential"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
 "Create a List"
-  [&xs] (set-in! xs :____list true) xs)
+  [&xs]
+  (extendAttr xs :____list)
+  (set-in! xs :____list true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector?
@@ -347,7 +358,9 @@ implements Sequential"
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
 "Create a Vector"
-  [&xs] (set-in! xs :____vec true) xs)
+  [&xs]
+  (extendAttr xs :____vec)
+  (set-in! xs :____vec true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map?
@@ -360,6 +373,7 @@ implements Sequential"
   [&xs]
   (if (odd? (alen xs))
     (raise! "Odd number of hash map arguments"))
+  (extendAttr xs :____map)
   (set-in! xs :____map true) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -452,6 +466,25 @@ keys mapped to the corresponding vals"
     (set-in! ret
              (str (nth keys i)) (nth vals i)))
   ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn extendAttr "" [obj attr]
+  (Object.defineProperty
+    obj
+    attr
+    {:enumerable false :writable true})
+  obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- gensym-counter (atom 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gensym
+"Generates next random symbol"
+  [& [pfx]]
+  (symbol (str (opt?? pfx "G____")
+               (swap! gensym-counter
+                      (fn [x] (+1 x))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
