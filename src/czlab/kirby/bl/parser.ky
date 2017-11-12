@@ -24,24 +24,38 @@
                     keyword]]
            ["./lexer" :as rdr]))
 
-(def- tnodeEx (rdr/tnodeEx))
-(def- tnode (rdr/tnode))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- tnodeEx (rdr/tnodeEx))
+(const- tnode (rdr/tnode))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- throwE "" [token msg]
+(defn- throwE
+"Raise an error"
+  [token & msgs]
+  (var s (join "" msgs))
   (if token
-    (raise! msg "\nnear line " token.line "\nin file " token.source)
-    (raise! msg "\nnear EOF ")))
+    (raise! s "\nnear line: "
+            token.line "\nin file: " token.source)
+    (raise! s "\nnear EOF ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- nextToken "" [tokens]
+(defn- nextToken
+"Returns the next token,
+updates the token index"
+  [tokens]
   (var t (peekToken tokens)) (++ tokens.pos) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- peekToken "" [tokens] (nth tokens tokens.pos))
+(defn- peekToken
+"Returns the next token,
+without moving the token index"
+  [tokens] (nth tokens tokens.pos))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- copyTokenData "" [token node]
+(defn- copyTokenData
+"Attach source level information
+to the node"
+  [token node]
   (if (object? node)
     (set-in! node
              :source token.source
@@ -49,7 +63,9 @@
              :column token.column)) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readAtom "" [tokens]
+(defn- readAtom
+"Process an atom"
+  [tokens]
   (var ret nil tn ""
        token (nextToken tokens))
   (if token
@@ -80,21 +96,23 @@
   (copyTokenData token ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readBlock "" [tokens head tail]
-  (var token (nextToken tokens)
-       ast (tree)
-       ok? true ret nil tn "" cur nil)
+(defn- readBlock
+"Process a LISP form"
+  [tokens head tail]
+  (var ast [] ok? true
+       token (nextToken tokens))
+  (var~ ret cur tn)
   (if token (set! tn token.name))
   (if (not= tn head)
-    (throwE token (str "expected '" head "'")))
+    (throwE token "expected '" head "'"))
   (set! cur (peekToken tokens))
   (while ok?
     (when (or (nichts? cur)
               (= tail cur.name))
       (if cur
         (copyTokenData token ast)
-        (throwE cur (str "expected '" tail "', got EOF")))
-      (set! ok? false))
+        (throwE cur "expected '" tail "', got EOF"))
+      (false! ok?))
     (when ok?
       (addAst ast (read* tokens))
       (set! cur (peekToken tokens))))
@@ -103,49 +121,60 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readList
-  "" [cur tokens] (readBlock tokens "(" ")"))
+"Process a LISP expression"
+  [cur tokens]
+  (readBlock tokens "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readVector "" [cur tokens]
-  (into :vector (readBlock tokens "[" "]")))
+(defn- readVector
+"Process a Vector"
+  [cur tokens]
+  (into! :vector (readBlock tokens "[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readMap "" [cur tokens]
-  (into :map (readBlock tokens "{" "}")))
+(defn- readMap
+"Process a Hashmap"
+  [cur tokens]
+  (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- skip+parse "" [tokens func]
+(defn- skip+parse
+"Advance the token index,
+then continue to parse"
+  [tokens func]
   (copyTokenData (nextToken tokens) (func tokens)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- read* "" [tokens]
+(defn- read*
+"Main parser routine"
+  [tokens]
   (var tmp nil token (peekToken tokens))
   (if (nichts? token)
     undefined
     (case token.name
       "'" (skip+parse
             tokens
-            #(tree (symbol "quote") (read* tokens)))
+            #([(symbol "quote") (read* tokens)]))
       "`" (skip+parse
             tokens
-            #(tree (symbol "quasiquote") (read* tokens)))
+            #([(symbol "quasiquote") (read* tokens)]))
       "~" (skip+parse
             tokens
-            #(tree (symbol "unquote") (read* tokens)))
+            #([(symbol "unquote") (read* tokens)]))
       "~@" (skip+parse
              tokens
-             #(tree (symbol "splice-unquote") (read* tokens)))
+             #([(symbol "splice-unquote") (read* tokens)]))
       "^" (skip+parse
             tokens
             (fn []
               (set! tmp (read* tokens))
-              (tree (symbol "with-meta") (read* tokens) tmp)))
+              [(symbol "with-meta") (read* tokens) tmp]))
       "@" (skip+parse
             tokens
-            #(tree (symbol "deref") (read* tokens)))
+            #([(symbol "deref") (read* tokens)]))
       "#" (skip+parse
             tokens
-            #(tree (symbol "lambda") (read* tokens)))
+            #([(symbol "lambda") (read* tokens)]))
       ")" (throwE token "unexpected ')'")
       "(" (readList token tokens)
       "]" (throwE token "unexpected ']'")
@@ -157,13 +186,16 @@
       (readAtom tokens))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- addAst "" [ast f]
-  (if-not (undef? f) (conj! ast f)) ast)
+(defn- addAst
+  "" [ast f] (if-not (undef? f) (conj! ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn parser "" [source & [fname]]
-  (var tokens (rdr/lexer source
-                         (opt?? fname "*adhoc*"))
+(defn parser
+"AST Parser"
+  [source & [fname]]
+  (var tokens (rdr/lexer
+                source
+                (opt?? fname "*adhoc*"))
        f nil ast [] tlen (alen tokens))
   (set! tokens.pos 0)
   (comment
@@ -174,8 +206,9 @@
   ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dumpTree "" [tree & [indent]]
-  (var pad (.repeat " " (opt?? indent 0)))
+(defn dumpTree
+"Debug and dump the AST"
+  [tree]
   (for [i 0 :while (< i (alen tree)) :recur (+1 i)]
     (println (prn (nth tree i)))))
 

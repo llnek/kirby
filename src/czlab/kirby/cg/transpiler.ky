@@ -13,8 +13,8 @@
 
   (require ["../bl/stdlib"
             :as std
-            :refer [lambda-arg? hashmap contains? last typeid
-                    primitive pair? map? vector? opt??
+            :refer [lambda-arg? hashmap pair? contains? last typeid
+                    prn primitive pair? map? vector? opt??
                     primitive? not-empty conj! list?
                     symbol keyword symbol? keyword?]]
            ["../bl/lexer"
@@ -362,6 +362,16 @@
   (for [i 0 n nil m nil
         :while (< i (alen mtds)) :recur (+1 i)]
     (set! m (nth mtds i))
+    (when (and (== (first m) "constructor")
+               (not-empty args))
+      (for [x 0 :while (< x (alen args))
+                :recur (+2 x)]
+        (set-in! args
+                 x
+                 (str "\"" (nth args x) "\"")))
+      (m.splice 2 0
+        (concat [(symbol "set-in!")
+                 (symbol "this")] args)))
     (m.unshift (symbol "method"))
     (ret.add (sf-func m env false))
     (ret.add "\n"))
@@ -514,9 +524,8 @@
   (var vname nil public? (== "global" cmd)
        kks {} keys []
        ret (nodeTag (tnode) ast))
-  (set! ast (rest ast))
-  (set! cmd "const")
-  (for[i 0 rc nil lhs nil rhs nil
+  (set! ast (rest ast) cmd "const")
+  (for [i 0 rc nil lhs nil rhs nil
        :while (< i (alen ast)) :recur (+2 i)]
     (set! rhs (nexth ast i)
           lhs (nth ast i))
@@ -527,15 +536,13 @@
                     "= " (transpile* rhs env) ";\n"]))
       (do (set! rc (destruct0 cmd lhs rhs env))
           (ret.add (first rc))
-          (each (fn [s] (set-in! kks (rdr/jsid s) nil)) (second rc)))))
-
+          (each #(set-in! kks (rdr/jsid %) nil) (second rc)))))
   (when (and public?
              (= 1 (.countNSPCache (rt/globalEnv))))
-    (each (fn [s] (set-in! EXTERNS s s)) (keys kks)))
+    (each #(set-in! EXTERNS % %) (keys kks)))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 (defn- sf-const-global "" ^{:opcode ["const"]} [ast env]
   (sf-const ast  env  "global"))
 (defn- sf-const-local "" ^{:opcode ["const-"]} [ast env]
@@ -566,22 +573,22 @@
     (set! lhs (nth ast i)
           rhs (nexth ast i))
     (if (symbol? lhs)
-      (do (set! lhs (transpileSingle lhs))
-          (set! tmp ["= " (transpile* rhs env) ";\n"])
+      (do (set! lhs (transpileSingle lhs)
+                tmp ["= "
+                     (transpile* rhs env) ";\n"])
           (when-not (contains? kks lhs)
             (set-in! kks lhs nil)
-            (.unshift tmp " ")
-            (.unshift tmp cmd))
+            (.unshift tmp cmd " "))
           (ret.add tmp))
       (do (set! rc (destruct0 cmd lhs rhs env))
           (ret.add (first rc))
-          (map (fn [s]
-                 (set-in! kks (rdr/jsid s) nil)) (second rc)))))
-    (when (and public?
-               (= 1 (.countNSPCache (rt/globalEnv))))
-      (each-key (fn [v k]
-                  (set-in! EXTERNS k k)) kks))
-    ret)
+          (map #(set-in! kks (rdr/jsid %) nil)
+               (second rc)))))
+  (when (and public?
+             (= 1 (.countNSPCache (rt/globalEnv))))
+    (each-key (fn [v k]
+                (set-in! EXTERNS k k)) kks))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var-local
@@ -628,8 +635,9 @@
   (var ret (nodeTag (tnode) ast)
        stmtQ (stmt? ast))
   (ret.add ["throw " (transpile* (nth ast 1) env)])
-  (if-not stmtQ (ret.prepend "(function (){ "))
-  (if-not stmtQ (ret.add " }).call(this)"))
+  (when-not stmtQ
+    (ret.prepend "(function (){ ")
+    (ret.add " }).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -756,9 +764,7 @@
     (set! hints (resolveMeta (nth args 2) env)
           args (nth args 1)
           fargs (handleFuncArgs (parseFuncArgs args) env)))
-  (ret.add "function (")
-  (ret.add (first fargs))
-  (ret.add [") {\n"
+  (ret.add ["function (" (first fargs) ") {\n"
             (second fargs) (transpileDo body env true) "}"])
   ret)
 
@@ -771,7 +777,7 @@
 (defn- fmtSpecOps "" [fname attrs]
   (var ks (or (get attrs "opcode") [])
        out (->> (map #(fmtRegoSpecOps
-                        (str %1) fname) ks)
+                        (str %) fname) ks)
                 (join ";\n")))
   (if (not-empty ks) (str out ";\n") out))
 
@@ -780,7 +786,7 @@
   (var ret (nodeTag (tnode) ast)
        fname (transpile* (nth ast 1) env)
        mtd? (== (first ast) "method")
-       dot? (fname.includes ".")
+       dot? (contains? fname ".")
        hints {}
        fargs nil
        e2 (nth ast 2)
@@ -800,13 +806,15 @@
   (cond
     mtd?
     (do (if (.-static hints) (ret.add "static "))
-        (ret.add [fname " ("]))
+        (ret.add [fname " ("])
+        (if (== fname "constructor")
+          (body.push (symbol "this"))))
     dot?
     (ret.add [fname " = function ("])
     :else
     (ret.add (str "function " fname "(")))
-  (ret.add (first fargs))
-  (ret.add [") {\n"
+  (ret.add [(first fargs)
+            ") {\n"
             (second fargs) (transpileDo body env true) "}\n"])
   (if (not-empty hints)
     (ret.add (fmtSpecOps fname hints)))
@@ -862,8 +870,9 @@
     (ret.add ["finally {\n",
               (transpileDo (exprHint (rest f)
                                      false) env false) ";\n}\n"]))
-  (if-not stmtQ (ret.prepend "(function(){\n"))
-  (if-not stmtQ (ret.add "}).call(this)"))
+  (when-not stmtQ
+    (ret.prepend "(function(){\n")
+    (ret.add "}).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -875,9 +884,9 @@
        a2 (exprHint (nth ast 2) (not stmtQ))
        a3 (if (> (alen ast) 3) (nth ast 3))
        elze (if a3 (exprHint a3 (not stmtQ))))
-  (set! a1 (transpile* a1 env))
-  (set! a2 (transpile* a2 env))
-  (set! elze (transpile* elze env))
+  (set! a1 (transpile* a1 env)
+        a2 (transpile* a2 env)
+        elze (transpile* elze env))
   (if stmtQ
     (do (ret.add ["if (" a1 ") {\n" a2 ";\n}"])
         (if a3 (ret.add [" else { \n" elze ";\n}"])))
@@ -932,16 +941,16 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- includeFile
-  ((fn []
-     (var icache [])
-     (fn [fname]
-       (if (contains? icache fname)
-         (tnode)
-         (let [src (fs/readFileSync fname "utf-8")]
-           (conj! icache fname)
-           (transpileTree (psr/parser src fname)
-                          (rt/globalEnv ))))))))
+(def- icache [])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- includeFile [fname]
+  (if (contains? icache fname)
+    (tnode)
+    (let [src (fs/readFileSync fname "utf-8")]
+      (conj! icache fname)
+      (transpileTree (psr/parser src fname)
+                     (rt/globalEnv )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
@@ -971,7 +980,8 @@
   (var ret (nodeTag (tnode) ast))
   (for [i 1
         :while (< i (alen ast)) :recur (+1 i)]
-    (set! e (nth ast i) as (gensym)
+    (set! e (nth ast i)
+          as (gensym)
           refers nil renames nil)
     (if (or (not (array? e))
             (< (alen e) 3)) (syntax! :e0 ast))
@@ -989,7 +999,8 @@
         (do (set! renames (nexth e j))
             (++ j))))
     (ret.add ["const " (rdr/jsid as)
-              "= require(" (transpileSingle path) ");\n"])
+              "= require("
+              (transpileSingle path) ");\n"])
     (for [i 0
           :while (and refers
                       (< i (alen refers))) :recur (+1 i)]
@@ -1017,7 +1028,7 @@
          (str "")
          (JSON/parse ))
     :else
-    (raise! "Bad meta value" (std/prn ast))))
+    (raise! "Bad meta value" (prn ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns
@@ -1036,10 +1047,10 @@
         :while (< i (alen ast)) :recur (+1 i)]
     (set! e (nth ast i))
     (cond
-      (and (list? e)
+      (and (pair? e)
            (== "include" (car e)))
       (conj! ret (sf-include e))
-      (and (list? e)
+      (and (pair? e)
            (== "require" (car e)))
       (conj! ret (sf-require e))))
   ;;force a internal reference to stdlib for user files
@@ -1118,8 +1129,9 @@
   (ret.add "){\n")
   (ret.add (transpileDo body env false))
   (ret.add "}\n")
-  (if-not stmtQ (ret.prepend "(function() {\n"))
-  (if-not stmtQ (ret.add "}).call(this)"))
+  (when-not stmtQ
+    (ret.prepend "(function() {\n")
+    (ret.add "}).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1162,7 +1174,7 @@
   (set! ast
         [(first ast)
          (second ast)
-         (.concat [(symbol "fn*") pms] body)])
+         (concat [(symbol "fn*") pms] body)])
   (var a2 (nth ast 2)
        a1 (str (nth ast 1))
        func (rt/compute a2 env))
@@ -1206,17 +1218,18 @@
   (join "\n" arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- transpileCode "" [codeStr fname srcMap?]
+(defn- transpileCode "" [codeStr fname options]
   (.resetNSPCache (rt/globalEnv))
   (set! EXTERNS {})
   (var outNode (transpileTree (psr/parser codeStr fname)
                               (rt/globalEnv))
-       options {}
+       {:keys [source-map format]} options
        cstr ""
+       fopts {}
        extra (spitExterns))
   (outNode.prepend (banner))
   (set! cstr
-        (if srcMap?
+        (if source-map
           (let [outFile (str (path/basename fname ".ky") ".js")
                 srcMap (str outFile ".map")
                 output (outNode.toStringWithSourceMap {:file outFile})]
@@ -1226,26 +1239,31 @@
                  "\n//# sourceMappingURL="
                  (path/relative (path/dirname fname) srcMap)))
           (str outNode extra)))
-  (if false
-    (set! cstr (esfmt/format cstr options)))
+  (if format
+    (set! cstr (esfmt/format cstr fopts)))
   (set! cstr (cleanCode cstr))
-  (if false
-    (set! cstr (esfmt/format cstr options)))
+  (if format
+    (set! cstr (esfmt/format cstr fopts)))
   cstr)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- transpileXXX "" [code file smap?]
+(defn- transpileXXX "" [code file options]
   (try
-    (transpileCode code file smap?)
+    (transpileCode code file options)
     (catch e
       (when e
         (println (.-stack e)) (throw e)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn transpileWithSrcMap "" [code file] (transpileXXX code file true))
+(defn transpileWithSrcMap
+  "" [code file options]
+  (transpileXXX code file options))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn transpile "" [code file] (transpileXXX code file false))
+(defn transpile
+  "" [code file options]
+  (transpileXXX code file options))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parseWithSourceMap "" [codeStr fname]

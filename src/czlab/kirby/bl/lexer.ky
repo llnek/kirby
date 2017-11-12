@@ -21,14 +21,19 @@
                     not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnodeEx "" [chunk name] (tnode nil nil nil chunk name))
+(defn tnodeEx
+"Create a token"
+  [chunk name] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnode "" [&[source line col chunk name]]
-  (new smap/SourceNode line col source chunk (opt?? name "")))
+(defn tnode
+"Create a token with source information"
+  [&[source line col chunk name]]
+  (new smap/SourceNode
+       line col source chunk (opt?? name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def REGEX {
+(const- REGEX {
   noret /^def\b|^var\b|^set!\b|^set-in!\b|^throw\b/
   id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
   id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
@@ -53,7 +58,7 @@
   wspace /\s/})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- REPLACERS
+(const- REPLACERS
   [[REGEX.query "_QUERY_"]
         [REGEX.bang "_BANG_"]
         [REGEX.dash "_DASH_"]
@@ -67,16 +72,21 @@
         [REGEX.star "_STAR_"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn testid? "" [name]
-  (or (REGEX.id.test name) (REGEX.id2.test name)))
+(defn testid?
+"Returns true if a valid js identifier"
+  [name]
+  (or (REGEX.id.test name)
+      (REGEX.id2.test name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn jsid "" [name]
+(defn jsid
+"Escape to compliant js identifier"
+  [name]
   (var pfx "")
   (when (and (string? name)
              (= "-" (ch@ name 0)))
-    (set! pfx "-")
-    (set! name (rest name)))
+    (set! pfx "-"
+          name (rest name)))
   (if (testid? name)
     (reduce
       (fn [acc x]
@@ -85,19 +95,22 @@
         (if (acc.endsWith (second x))
           (acc.slice 0 -1)
           acc))
-      (.replace (str pfx name) REGEX.slash ".") REPLACERS)
+      (.replace (str pfx name)
+                REGEX.slash ".") REPLACERS)
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lexer "" [source fname]
+(defn lexer
+"Lexical analyzer"
+  [source fname]
   (var len (alen source)
-       tree (tree)
+       tree []
        ch nil nx nil
        token "" line 1
        tcol 0 col 0 pos 0
        esc? false str? false
-       regex? false comment? false)
-  (var toke
+       regex? false comment? false
+       toke
        (fn [ln col s s?]
          (if (opt?? s? (not-empty s))
            (conj! tree (tnode fname ln col s s))) ""))
@@ -109,17 +122,17 @@
     (when (= ch "\n")
       (set! col 0)
       (++ line)
-      (if comment? (set! comment? false)))
+      (if comment? (false! comment?)))
     (cond
       comment? nil
-      esc? (do (set! esc? false)
+      esc? (do (false! esc?)
                (+= token ch))
       regex?
       (do (if (= ch "\\")
-            (set! esc? true))
+            (true! esc?))
           (+= token ch)
           (when (= ch "/")
-            (set! regex? false)
+            (false! regex?)
             (when (contains? "gimuy" nx)
               (+= token nx)
               (++ pos))
@@ -127,9 +140,9 @@
       (= ch "\"")
       (if-not str?
         (do (set! tcol col)
-            (set! str? true)
+            (true! str?)
             (+= token ch))
-        (do (set! str? false)
+        (do (false! str?)
             (+= token ch)
             (set! token
                   (toke line tcol token true))))
@@ -160,22 +173,25 @@
         (+= token ch))
       (and (= ch "/")
            (empty? token))
-      (do (set! regex? true)
+      (do (true! regex?)
           (set! tcol col)
           (+= token ch))
       (or (= ch "[")(= ch "]")
           (= ch "{")(= ch "}")
           (= ch "(")(= ch ")"))
-      (do (set! token (toke line tcol token))
-          (set! tcol col)
+      (do (set! token (toke line
+                            tcol token)
+                tcol col)
           (toke line tcol ch))
       (= ch ";")
-      (do (set! token (toke line tcol token))
-          (set! tcol col)
-          (set! comment? true))
+      (set! token (toke line
+                        tcol token)
+            tcol col
+            comment? true)
       (or (= ch ",")
           (REGEX.wspace.test ch))
-      (->> (-> (if (= ch "\n") (-1 line) line)
+      (->> (-> (if (= ch "\n")
+                 (-1 line) line)
                (toke tcol token))
            (set! token))
       :else

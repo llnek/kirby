@@ -379,6 +379,15 @@ function sf_deftype(ast,env,publicQ) {
   ret.add(" {\n");
   for (let i=0,n=null,m=null; i < mtds.length; ++i) {
     m=mtds[i];
+    if (m[0] == "constructor" &&
+        args.length > 0) {
+      for (let x=0;x<args.length;x+=2) {
+        args[x]= "\"" + args[x] +"\"";
+      }
+      m.splice(2,0,
+        [types.symbol("set-in!"),
+         types.symbol("this")].concat(args));
+    }
     m.unshift(types.symbol("method"));
     ret.add(sf_func(m,env,false));
     ret.add("\n");
@@ -911,6 +920,8 @@ function sf_func(ast,env,publicQ) {
   if (mtdQ) {
     if (hints["static"]) { ret.add("static "); }
     ret.add([fname, " ("]);
+    if (fname == "constructor")
+      body.push(types.symbol("this"));
   }
   else if (dotQ) {
     ret.add([fname, " = function ("]);

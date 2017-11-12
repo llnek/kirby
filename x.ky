@@ -1,5 +1,7 @@
 
-(var abc [2 3], abc (inc abc))
+(defn xxx [a b & xs]
+  (var {:keys [source-map format]} a)
+  nil)
 
 
 

@@ -431,4 +431,6 @@
 
 (defmacro ch@ [s pos] `(.charAt ~s ~pos))
 
+(defmacro false! [x] `(set! ~x false))
+(defmacro true! [x] `(set! ~x true))
 
