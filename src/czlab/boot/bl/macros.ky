@@ -446,4 +446,8 @@
 (defmacro n# [coll]
   `(kirbystdlibref/count ~coll))
 
+(defmacro 1st [x] `(first ~x))
+(defmacro 2nd [x] `(second ~x))
+
+
 

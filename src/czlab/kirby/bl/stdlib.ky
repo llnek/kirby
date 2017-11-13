@@ -24,12 +24,12 @@ circular object reference"
   [obj]
   (var cache [])
   (if obj
-    (JSON/stringify obj
-                    (fn [k v]
-                      (if (object? v)
-                        (if (contains? cache v)
-                          (undef! v)
-                          (conj! cache v))) v))))
+    (JSON/stringify
+      obj
+      (fn [k v] (if (object? v)
+                  (if (contains? cache v)
+                    (undef! v)
+                    (conj! cache v))) v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt??
@@ -76,7 +76,7 @@ and the altered collection"
 (defn pop
 "Like pop! but returns a new collection"
   [coll]
-  (var r (if (list? coll) (first coll) (last coll)))
+  (var r (if (list? coll) (1st coll) (last coll)))
   [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
