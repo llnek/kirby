@@ -166,7 +166,7 @@ function tokenize (source, fname) {
             token += ch;
     }
     else if ((ch=== "'") || (ch=== "`") ||
-             (ch=== "@") || ( ch=== "^")) {
+             (ch==="$") || (ch=== "@") || ( ch=== "^")) {
       if (token.length===0 &&
           (!REGEX.wspace.test(nx))) {
           tcol= col;

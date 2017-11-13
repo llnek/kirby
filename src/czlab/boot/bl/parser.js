@@ -171,6 +171,17 @@ function readTokens (tokens) {
                         function(){
                           return [types.symbol("deref"),
                             readTokens(tokens)];});
+    case "$":
+      return skipAndParse(tokens,
+                        function(){
+                          let x=types.symbol("str"),
+                            y=readTokens(tokens);
+                          if (y.length > 1) {
+                            y= [x, y];
+                          } else {
+                            y.unshift(x);
+                          }
+                          return y;});
     case "#": return skipAndParse(tokens,
                         function () {
                           return [types.symbol("lambda"),

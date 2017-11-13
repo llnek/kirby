@@ -76,13 +76,13 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wrap-str "" [s]
+(defn wrap-str "" [s]
   (str "\"" (-> (s.replace /\\/g "\\\\")
                 (.replace /"/g "\\\"")
                 (.replace /\n/g "\\n")) "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- unwrap-str "" [s]
+(defn unwrap-str "" [s]
   (if (and (s.startsWith "\"")
            (s.endsWith "\""))
     (-> (s.slice 1 (last-index s))

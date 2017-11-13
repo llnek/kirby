@@ -151,7 +151,7 @@
           (if (= ch "\\") (set! esc? true))
           (+= token ch))
       (or (= ch "'") (= ch "`")
-          (= ch "@") (= ch "^"))
+          (= ch "$") (= ch "@") (= ch "^"))
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
         (do (set! tcol col)

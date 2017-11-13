@@ -299,6 +299,22 @@ function transpileList(ast, env) {
     let c= transpileSingle(types.symbol(cmd.slice(2)));
     ret.add([eval_QQ(ast[1],env), ".",c]);
   }
+  else
+  if (cmd.startsWith(".@")) {
+    let onemore, pos;
+    if (cmd.startsWith(".@+")) {
+      pos=cmd.slice(3);
+      onemore=true;
+    } else {
+      pos= cmd.slice(2);
+    }
+    ret.add([eval_QQ(ast[1],env), "["]);
+    if (onemore) {
+      ret.add([pos,"+1]"]);
+    } else {
+      ret.add([pos,"]"]);
+    }
+  }
   else if ("." === cmd.charAt(0)) {
     ret.add(eval_QQ(ast[1],env));
     ret.add([cmd, "("]);

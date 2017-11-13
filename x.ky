@@ -1,7 +1,12 @@
+(defn- txTree "" [root env]
+  (var ret (node' (tnode) root))
 
-(defn xxx [a b & xs]
-  (var {:keys [source-map format]} a)
+  (var sss (.@x poo))
+  (var vvv (.@+x fff))
+
+  (var ccc $(kkd)
+       hhh $(.@+i vars))
+
   nil)
-
 
 

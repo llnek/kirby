@@ -172,6 +172,13 @@ then continue to parse"
       "@" (skip+parse
             tokens
             #([(symbol "deref") (read* tokens)]))
+      "$" (skip+parse
+            tokens
+            #(do-with [y (read* tokens)]
+               (var x (symbol "str"))
+               (if (> (alen y) 1)
+                 (set! y [x y])
+                 (y.unshift x))))
       "#" (skip+parse
             tokens
             #([(symbol "lambda") (read* tokens)]))

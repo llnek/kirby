@@ -406,19 +406,28 @@
 
 (defmacro doseq [bindings & xs]
   (let* [loopExpr (gensym*) escvar (gensym*) idxvar (gensym*)
+         _let (if* (is-eq? (nth* bindings 2) ':let)
+                   (nth* bindings 3))
          _while (if* (is-eq? (nth* bindings 2) ':while)
                      (nth* bindings 3)
                      (if* (is-eq? (nth* bindings 4) ':while)
-                          (nth* bindings 5) true))
+                          (nth* bindings 5)
+                          (if* (is-eq? (nth* bindings 6) ':while)
+                               (nth* bindings 7)
+                               true)))
          _when (if* (is-eq? (nth* bindings 2) ':when)
                     (nth* bindings 3)
                     (if* (is-eq? (nth* bindings 4) ':when)
-                         (nth* bindings 5) true))]
+                         (nth* bindings 5)
+                         (if* (is-eq? (nth* bindings 6) ':when)
+                              (nth* bindings 7)
+                              true)))]
     `(let [~loopExpr ~(nth* bindings 1)]
        (for [~idxvar 0 ~escvar false
              :while (and (not ~escvar)
                          (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
          (var ~(nth* bindings 0) (nth ~loopExpr ~idxvar))
+         ~(if* _let `(var ~@_let))
          (if-not ~_while (set! ~escvar true))
          (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
@@ -433,4 +442,8 @@
 
 (defmacro false! [x] `(set! ~x false))
 (defmacro true! [x] `(set! ~x true))
+
+(defmacro n# [coll]
+  `(kirbystdlibref/count ~coll))
+
 
