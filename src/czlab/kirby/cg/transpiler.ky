@@ -377,7 +377,7 @@
     (->> (-> (doc.replace rdr/REGEX.dquoteHat "")
              (.replace rdr/REGEX.dquoteEnd "")
              (.split "\\n"))
-         (map #(str "//" % "\n"))) ""))
+         (map #(str "//" (.trim (str %)) "\n"))) ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype
@@ -396,9 +396,10 @@
   (if par
     (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
-  (for [i 0 ml (alen mtds)
+  (for [i 0 pos 0 ml (alen mtds)
         :while (< i ml) :recur (+1 i)]
     (set! m (.@i mtds))
+    (set! pos (if (string? (nth m 1)) 3 2))
     (when (and (== (.@0 m) "constructor")
                (not-empty args))
       (for [x 0 al (alen args)
@@ -406,7 +407,7 @@
         (set-in! args
                  x
                  (str "\"" (.@x args) "\"")))
-      (m.splice 2 0
+      (m.splice pos 0
         (concat [(symbol "set-in!")
                  (symbol "this")] args)))
     (m.unshift (symbol "method"))

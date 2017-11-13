@@ -393,14 +393,19 @@ function sf_deftype(ast,env,publicQ) {
     ret.add([" extends ", eval_QQ(par,env)]);
   }
   ret.add(" {\n");
-  for (let i=0,n=null,m=null; i < mtds.length; ++i) {
+  for (let i=0,n=null,m=null,pos=0; i < mtds.length; ++i) {
     m=mtds[i];
+    if (std.string_p(m[1])) {
+      pos=3;
+    } else {
+      pos=2;
+    }
     if (m[0] == "constructor" &&
         args.length > 0) {
       for (let x=0;x<args.length;x+=2) {
         args[x]= "\"" + args[x] +"\"";
       }
-      m.splice(2,0,
+      m.splice(pos,0,
         [types.symbol("set-in!"),
          types.symbol("this")].concat(args));
     }
@@ -965,6 +970,7 @@ function writeDoc(doc) {
     doc= doc.replace(rdr.REGEX.dquoteHat, "");
     doc=doc.replace(rdr.REGEX.dquoteEnd, "");
     return doc.split("\\n").map(function(s) {
+      s=(""+s).trim();
         return "//"+ s +  "\n";
     });
   }
@@ -1565,6 +1571,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   rt.globalEnv().resetNSPCache();
 
   let options={};
+
   let outNode= transpileTree(
                 psr.parser(codeStr, fname),rt.globalEnv()),
       cstr,
