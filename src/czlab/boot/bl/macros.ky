@@ -55,6 +55,9 @@
 (defmacro undef! "" [x] `(set! ~x undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nil! "" [x] `(set! ~x nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro last-index "" [coll] `(- (alen ~coll) 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -431,10 +434,13 @@
          (if-not ~_while (set! ~escvar true))
          (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro lambda [code]
   (let* [sz (count* code)
-         body (if* (> sz 1 ) [ code ] code)]
-    `(fn [] (var ____args (slice arguments)) ~@body)))
+         body (if* (> sz 1 )
+                   code
+                   (if* (> sz 0) (nth* code 0)))]
+    `(fn [] (var ____args (slice arguments)) ~body)))
 
 (defmacro str [&xs] `(.join (vec ~@xs) ""))
 

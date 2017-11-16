@@ -76,10 +76,10 @@ function readAtom(tokens) {
            "null"=== tn)  {
     ret= null;
   }
-  else if ("true" === tn) {
+  else if ("#t" === tn || "true" === tn) {
     ret=true;
   }
-  else if ("false"=== tn) {
+  else if ("#f" === tn || "false"=== tn) {
     ret=false;
   }
   else {

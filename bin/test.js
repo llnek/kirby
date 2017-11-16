@@ -1,4 +1,4 @@
 #!/usr/bin/env node
 
-require("../src/czlab/test/main");
+require("../src/czlab/out/main");
 

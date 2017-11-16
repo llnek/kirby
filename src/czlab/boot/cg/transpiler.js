@@ -947,7 +947,7 @@ function sf_func(ast,env,publicQ) {
   else if (dotQ) {
     ret.add([fname, " = function ("]);
   } else {
-    ret.add("function "+ fname+ "(");
+    ret.add(["const ",fname, " = function ("]);
   }
   ret.add(fargs[0]);
   ret.add([") {\n",
@@ -1021,7 +1021,7 @@ function sf_try(ast,env) {
   if (f===null && c===null) syntax_E("e0", ast);
   let ret= nodeTag(tnode(),ast),
       tbody=ast.slice(1);
-  tbody= exprHint(tbody, stmtQ);
+  tbody= exprHint(tbody, !stmtQ);
   ret.add(["try {\n",
            transpileDo(tbody,env, !stmtQ),
            "\n"+ ind +"} "]);
@@ -1576,7 +1576,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
                 psr.parser(codeStr, fname),rt.globalEnv()),
       cstr,
       extra= spitExterns();
-  outNode.prepend(banner());
+  //outNode.prepend(banner());
 
   if (srcMap_Q) {
     let outFile= path.basename(fname, ".ky") + ".js",
@@ -1594,18 +1594,21 @@ function transpileCode(codeStr, fname, srcMap_Q) {
     cstr= esfmt.format(cstr, options);
   }
   cstr=cleanCode(cstr);
-  if (true) {
-    cstr= esfmt.format(cstr, options);
+  //if (true) { cstr= esfmt.format(cstr, options); }
+  if (cstr.length > 0) {
+    cstr=banner()+ cstr;
   }
   return cstr;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function cleanCode(code) {
-  let out=[];
+  let tmp,out=[];
   code.split("\n").forEach(function(s) {
-    s=s.trim();
-    if (!(s === ";")) out.push(s);
+    tmp=s.trim();
+    if (tmp.length > 0 && tmp !== ";") {
+      out.push(s);
+    }
   });
   return out.join("\n");
 }
