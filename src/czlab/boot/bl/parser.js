@@ -8,6 +8,7 @@
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var types=require("./types"),
+  tn=require("./tnode"),
   std=require("./stdlib"),
     rdr=require("./lexer");
 

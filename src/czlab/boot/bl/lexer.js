@@ -117,7 +117,11 @@ function tokenize (source, fname) {
 
   let toke=function(ln, col, s,astring) {
     if (astring || s.length > 0) {
-     tree.push(tnode(fname, ln, col, s, s));
+      if (s.startsWith("&") && s.length > 1) {
+        tree.push(tnode(fname, ln, col, "&","&"));
+        s=s.slice(1);
+      }
+      tree.push(tnode(fname, ln, col, s, s));
     }
     return "";
   }

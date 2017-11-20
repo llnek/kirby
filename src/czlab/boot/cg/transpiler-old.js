@@ -604,25 +604,26 @@ function sf_const(ast, env, cmd) {
   let ret=nodeTag(tnode(),ast);
   ast=ast.slice(1);
   cmd="const";
-  let rval,out,keys=[];
+  let kks={}, keys=[];
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
     lhs=ast[i];
     if (types.symbol_p(lhs)) {
       lhs=transpileSingle(lhs);
-      rval=eval_QQ(rhs,env);
-      keys.push(lhs);
-      ret.add(["const ", lhs, "= ", rval, ";\n"]);
+      kks[lhs]=null;
+      ret.add(["const ", lhs,
+                "= ", eval_QQ(rhs,env), ";\n"]);
     } else {
-      out=tnode();
-      rhs=destructStar(lhs,out);
-      ret.add(["let ",transpileSingle(rhs),"=",rval,";\n"]);
-      ret.add(out);
+      rc=destruct0(cmd,lhs,rhs,env);
+      ret.add(rc[0]);
+      rc[1].map(function(s) {
+        kks[rdr.jsid(s)]=null;
+      });
     }
   }
   if (publicQ &&
              (1=== rt.globalEnv().countNSPCache()))
-    keys.forEach(function(s){
+    Object.keys(kks).forEach(function(s){
       EXTERNS[s]=s;
     });
 
@@ -638,26 +639,41 @@ function sf_var (ast, env, cmd) {
   let ret=nodeTag(tnode(),ast);
   ast=ast.slice(1);
   if (publicQ || ("local" == cmd)) cmd="var";
-  let rval,tmp,out, keys=[];
+  let tmp,kks={}, keys=[];
+  /*
+  for(var i=0;i<ast.length;i+=2) {
+    if (types.symbol_p(ast[i])) { keys.push(ast[i]); } }
+  if (keys.length > 0) {
+    ret.add(["let ",
+             keys.map(function(s) {
+               let ss= transpileSingle(s);
+               kks[ss]=null;
+               return ss; }).join(","), ";\n"]);
+  }
+  */
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
     lhs=ast[i];
-    rval=eval_QQ(rhs,env);
     if (types.symbol_p(lhs)) {
       lhs=transpileSingle(lhs);
-      tmp=[cmd, " ", lhs, "= ", rval, ";\n"];
-      keys.push(lhs);
+      tmp=[lhs, "= ", eval_QQ(rhs,env), ";\n"];
+      if (!kks.hasOwnProperty(lhs)) {
+        kks[lhs]=null;
+        tmp.unshift(" ");
+        tmp.unshift(cmd);
+      }
       ret.add(tmp);
     } else {
-      out=tnode();
-      rhs=destructStar(lhs,out);
-      ret.add(["let ",transpileSingle(rhs),"=",rval,";\n"]);
-      ret.add(out);
+      rc=destruct0(cmd,lhs,rhs,env);
+      ret.add(rc[0]);
+      rc[1].map(function(s) {
+        kks[rdr.jsid(s)]=null;
+      });
     }
   }
   if (publicQ &&
              (1=== rt.globalEnv().countNSPCache()))
-    keys.forEach(function(s){
+    Object.keys(kks).forEach(function(s){
       EXTERNS[s]=s;
     });
 
@@ -793,7 +809,7 @@ function sf_fn(ast,env) {
     args=args[1];
   }
 
-  fargs=processFuncArgs(args,env);
+  fargs=handleFuncArgs(parseFuncArgs(args),env);
   ret.add("function (");
   ret.add(fargs[0]);
   ret.add([") {\n", fargs[1],
@@ -921,7 +937,7 @@ function sf_func(ast,env,publicQ) {
     args=args[1];
   }
   let ret=nodeTag(tnode(),ast),
-      fargs= processFuncArgs(args,env);
+      fargs= handleFuncArgs(parseFuncArgs(args),env);
   if (mtdQ) {
     if (hints["static"]) { ret.add("static "); }
     ret.add([fname, " ("]);
@@ -1574,7 +1590,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   } else {
     cstr= outNode + extra;
   }
-  if (false) {
+  if (true) {
     cstr= esfmt.format(cstr, options);
   }
   cstr=cleanCode(cstr);
@@ -1724,7 +1740,7 @@ function destruct0(cmd, lhs,rhs,env) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function processFuncArgs(args,env) {
+function processFuncArgs(args) {
   let pms= [],
       fdefs=tnode(), fargs= tnode();
   let rhs, e, ev, rval,out;
@@ -1733,26 +1749,20 @@ function processFuncArgs(args,env) {
     e=args[i];
     if (types.symbol_p(e)) {
       if (e=="&") {
-        rval= tnode();
-        rval.add(["Array.prototype.slice.call(arguments,",""+i,")"]);
+        rval= tnode(["Array.prototype.slice.call(arguments,",i,")"]);
         e=args[i+1];
-        if (types.symbol_p(e)) {
-          rhs=e;
-          fdefs.add(["let ", ""+rhs, "=", rval,";\n"]);
-        } else {
+        if (types.symbol_p(e)) { rhs=e; } else {
           out=tnode();
           rhs=destructStar(e,out);
           fdefs.add(["let ", ""+rhs, "=", rval,";\n"]);
           fdefs.add(out);
         }
-        break;
       } else {
         pms.push(e);
       }
     }
     else if (std.array_p(e)) {
-      rval= tnode();
-      rval.add(["arguments[",""+i,"]"]);
+      rval= tnode(["arguments[",i,"]"]);
       out=tnode();
       rhs=destructStar(e,out);
       pms.push(rhs);
@@ -1800,34 +1810,20 @@ function destruct_Vec(src, coll) {
       if (e== "_") {}
       else
       if (e=="&") {
-        rval=tnode();
-        rval.add(["Array.prototype.slice.call(",""+src,",",""+i,")"]);
+        rval=tnode(["Array.prototype.slice.call(",""+src,",",i,")"]);
         out=tnode();
-        e=coll[i+1];
-        if (types.symbol_p(e)) { rhs=e;} else {
-          rhs=destructStar(e,out);
-        }
+        rhs=destructStar(coll[i+1],out);
         ret.add(["let ", ""+rhs, "=", rval, ";\n"]);
         ret.add(out);
-        break;
       } else {
-        out=tnode();
-        out.add(["let ", ""+e, "=", ""+src, "[", ""+i, "];\n"]);
-        ret.add(out);
+        out.add(["let ", ""+e, "=", ""+src, "[", i, "];\n"]);
       }
     } else if (std.array_p(e)) {
-      rval= tnode();
-      rval.add([""+src, "[",""+i,"]"]);
+      rval= tnode([""+src, "[",i,"]"]);
       out=tnode();
       rhs=destructStar(e,out);
       ret.add(["let ", ""+rhs, "=", rval,";\n"]);
       ret.add(out);
-    } else if (types.keyword_p(e)) {
-      if (e=="as") {
-        ++i;
-      } else {
-        //error
-      }
     } else {
       //error
     }
@@ -1845,7 +1841,7 @@ function destruct_Map(src, coll) {
         let arr=coll[i+1];
         for (let j=0;j<arr.length; ++j) {
           e=""+arr[j];
-          ret.add(["let ", e, "=", ""+src, "[\"", e,"\"];\n"]);
+          ret.add(["let ", e, "=", ""+src, "[\"", e,"\"]"]);
         }
       }
     } else {
