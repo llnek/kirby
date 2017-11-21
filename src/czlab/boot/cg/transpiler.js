@@ -608,9 +608,9 @@ function sf_const(ast, env, cmd) {
   for(var rc=null, i=0,lhs=null,rhs=null; i < ast.length; i=i+2) {
     rhs=ast[i+1];
     lhs=ast[i];
+    rval=eval_QQ(rhs,env);
     if (types.symbol_p(lhs)) {
       lhs=transpileSingle(lhs);
-      rval=eval_QQ(rhs,env);
       keys.push(lhs);
       ret.add(["const ", lhs, "= ", rval, ";\n"]);
     } else {
@@ -1574,7 +1574,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   } else {
     cstr= outNode + extra;
   }
-  if (false) {
+  if (true) {
     cstr= esfmt.format(cstr, options);
   }
   cstr=cleanCode(cstr);
@@ -1737,12 +1737,13 @@ function processFuncArgs(args,env) {
         rval.add(["Array.prototype.slice.call(arguments,",""+i,")"]);
         e=args[i+1];
         if (types.symbol_p(e)) {
-          rhs=e;
-          fdefs.add(["let ", ""+rhs, "=", rval,";\n"]);
+          rhs=transpileSingle(e);
+          fdefs.add(["let ", rhs, "=", rval,";\n"]);
         } else {
           out=tnode();
           rhs=destructStar(e,out);
-          fdefs.add(["let ", ""+rhs, "=", rval,";\n"]);
+          rhs=transpileSingle(rhs);
+          fdefs.add(["let ", rhs, "=", rval,";\n"]);
           fdefs.add(out);
         }
         break;
@@ -1756,7 +1757,7 @@ function processFuncArgs(args,env) {
       out=tnode();
       rhs=destructStar(e,out);
       pms.push(rhs);
-      fdefs.add(["let ", ""+rhs, "=", rval,";\n"]);
+      fdefs.add(["let ", transpileSingle(rhs), "=", rval,";\n"]);
       fdefs.add(out);
     }
     else {
@@ -1765,7 +1766,7 @@ function processFuncArgs(args,env) {
   }
 
   for (let i=0;i < pms.length;++i) {
-    fargs.add(""+pms[i]);
+    fargs.add(transpileSingle(pms[i]));
   }
   fargs.join(",");
 
@@ -1794,6 +1795,7 @@ function destructStar(coll, out) {
 function destruct_Vec(src, coll) {
   let e,rhs,rval,out;
   let ret=tnode();
+  src=transpileSingle(src);
   for (let i=0;i<coll.length;++i) {
     e=coll[i];
     if (types.symbol_p(e)) {
@@ -1801,26 +1803,26 @@ function destruct_Vec(src, coll) {
       else
       if (e=="&") {
         rval=tnode();
-        rval.add(["Array.prototype.slice.call(",""+src,",",""+i,")"]);
+        rval.add(["Array.prototype.slice.call(",src,",",""+i,")"]);
         out=tnode();
         e=coll[i+1];
         if (types.symbol_p(e)) { rhs=e;} else {
           rhs=destructStar(e,out);
         }
-        ret.add(["let ", ""+rhs, "=", rval, ";\n"]);
+        ret.add(["let ", transpileSingle(rhs), "=", rval, ";\n"]);
         ret.add(out);
         break;
       } else {
         out=tnode();
-        out.add(["let ", ""+e, "=", ""+src, "[", ""+i, "];\n"]);
+        out.add(["let ", transpileSingle(e), "=", src, "[", ""+i, "];\n"]);
         ret.add(out);
       }
     } else if (std.array_p(e)) {
       rval= tnode();
-      rval.add([""+src, "[",""+i,"]"]);
+      rval.add([src, "[",""+i,"]"]);
       out=tnode();
       rhs=destructStar(e,out);
-      ret.add(["let ", ""+rhs, "=", rval,";\n"]);
+      ret.add(["let ", transpileSingle(rhs), "=", rval,";\n"]);
       ret.add(out);
     } else if (types.keyword_p(e)) {
       if (e=="as") {
@@ -1838,14 +1840,15 @@ function destruct_Vec(src, coll) {
 function destruct_Map(src, coll) {
   let e,arr;
   let ret=tnode();
+  src=transpileSingle(src);
   for (let i=0;i<coll.length;++i) {
     e=coll[i];
     if (types.keyword_p(e)) {
       if (e== "keys" || e== "strs") {
         let arr=coll[i+1];
         for (let j=0;j<arr.length; ++j) {
-          e=""+arr[j];
-          ret.add(["let ", e, "=", ""+src, "[\"", e,"\"];\n"]);
+          e= arr[j];
+          ret.add(["let ", transpileSingle(e), "=", src, "[\"", ""+e,"\"];\n"]);
         }
       }
     } else {

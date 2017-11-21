@@ -105,113 +105,6 @@
     (set! obj.source src.source
           obj.column src.column obj.line src.line)) obj)
 
-(defn- xxx "" [args]
-  (var pms []
-       fargs (tnode) out (tnode))
-  (var~ rhs e ev rval)
-  (for [i 0 sz (count args)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i args))
-    (cond
-      (symbol? e)
-      (do
-        (set! ev $(e))
-        (when (or (= "&" ev)
-                  (ev.startsWith "&"))
-          (set! rval (tnodeEx ["kirbystdlibref.slice("
-                               "arguments," i ")"]))
-          (break-out-of-loop!))
-        (cond
-          (= ev "&")
-          (do (set! e (.@+i args))
-              (cond
-                (symbol? e)
-                (set! rhs e)
-                (array? e)
-                (do (set! out (tnode))
-                    (set! rhs (destruct* e out))
-                    (ret.add (xxx rhs rval out)))))
-          (ev.startsWith "&")
-          (set! rhs (symbol (rest ev)))
-          :else
-          (conj! pms e)))
-      (array? e)
-      (do (set! rval (tnodeEx ["arguments[" i "]"]))
-          (set! out (tnode))
-          (set! rhs (destruct* e out))
-          (conj! pms rhs)
-          (ret.add (xxx rhs rval out)))
-      :else ""))
-  (for [i 0 sz (count pms)
-        :while (< i sz) :recur (+1 i)]
-    (fargs.add $(.@i pms)))
-  (fargs.join ",")
-  [fargs ret])
-
-(defn- xxx "" [rhs rval parts]
-  (var ret (tnode))
-  (ret.add [cmd " " $(rhs) "=" rval ";\n"])
-  (doseq [p parts]
-    (if (array? p)
-      (ret.add ["let " $(1st p) "=" $(rhs) "[" (2nd p) "];\n"])
-      (ret.add p)))
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct* "" [coll out]
-  (var rhs (gensym))
-  (for [i 0 e nil sz (count coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i coll))
-    (when (and (keyword? e)
-               (== e "as"))
-      (set! rhs (.@+i coll))
-      (break-out-of-loop!)))
-  (cond
-    (map? coll) (crackMap rhs coll out)
-    (vector? coll) (crackVec rhs coll out)
-    :else "")
-  rhs)
-
-;;[a b c & d]
-;;[a b c & [d e]]
-(defn- crackVec "" [target coll out]
-  (var~ out rval rhs e ev)
-  (var pms [] ret (tnode))
-  (for [i 0 sz (count coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i coll))
-    (cond
-      (symbol? e)
-      (do
-        (set! ev $(e))
-        (when (or (= "&" ev)
-                  (ev.startsWith "&"))
-          (set! rval (tnodeEx ["kirbystdlibref.slice("
-                               target "," i ")"]))
-          (break-out-of-loop!))
-        (cond
-          (= ev "&")
-          (do (set! e (.@+i coll))
-              (cond
-                (symbol? e)
-                (set! rhs e)
-                (array? e)
-                (do (set! out (tnode))
-                    (set! rhs (destruct* e out))
-                    (ret.add (xxx rhs rval out)))))
-          (ev.startsWith "&")
-          (set! rhs (symbol (rest ev)))
-          :else
-          (ret.add ["let " $(e) "=" rhs "[" i "];\n"])))
-      (array? e)
-      (do (set! rval (tnodeEx [target "[" i "]"]))
-          (set! out (tnode))
-          (set! rhs (destruct* e out))
-          (conj! pms [rhs i])
-          (ret.add (xxx rhs rval out)))
-      :else ""))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructVec "" [lhs keys]
   (var~ as e ev)
@@ -677,28 +570,27 @@
 
   (var ret (node' (tnode) ast)
        cmd $(1st ast)
-       kks {} keys []
+       keys []
        vname nil
        private? (.endsWith cmd "-"))
-  (var~ rc lhs rhs)
+  (var~ rval rc lhs rhs)
   (set! ast (rest ast) cmd "const")
   (for [i 0 sz (n# ast)
        :while (< i sz) :recur (+2 i)]
     (set! lhs (.@i ast)
-          rhs (.@+i ast))
+          rhs (.@+i ast)
+          rval (tx* rhs env))
     (if (symbol? lhs)
       (do (set! lhs (txAtom lhs))
-          (set-in! kks lhs nil)
-          (ret.add [cmd " " lhs
-                    "= " (tx* rhs env) ";\n"]))
-      (do (set! rc (destruct0 cmd lhs rhs env))
-          (ret.add (1st rc))
-          (each #(set-in! kks
-                          (rdr/jsid %) nil)
-                (2nd rc)))))
+          (conj! keys lhs)
+          (ret.add [cmd " " lhs "= " rval ";\n"]))
+      (do (set! out (tnode))
+          (set! rhs (destruct* lhs out))
+          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add out))))
   (when (and (not private?)
              (= 1 (.countNSPCache (rt/globalEnv))))
-    (each #(set-in! EXTERNS % %) (keys kks)))
+    (each #(set-in! EXTERNS % %) keys))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -710,43 +602,29 @@
   (var ret (node' (tnode) ast)
        tmp nil vname nil
        cmd $(1st ast)
-       keys [] kks {}
+       keys []
        private? (not= cmd "def"))
-  (var~ rc lhs rhs)
+  (var~ rval rc lhs rhs)
   (set! ast (rest ast)
         cmd (if (== cmd "var") "let" "var"))
-  (comment
-    (for [i 0
-          :while (< i (n# ast)) :recur (+2 i)]
-      (if (symbol? (.@i ast))
-        (conj! keys (.@i ast))))
-    (if (not-empty keys)
-      (ret.add ["let "
-                (join ","
-                      (map (fn [s]
-                             (var ss (txAtom s))
-                             (set-in! kks ss nil) ss) keys)) ";\n"])))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (set! lhs (.@i ast)
-          rhs (.@+i ast))
+          rhs (.@+i ast)
+          rval (tx* rhs env))
     (if (symbol? lhs)
       (do (set! lhs (txAtom lhs)
-                tmp [lhs "= "
-                     (tx* rhs env) ";\n"])
-          (when-not (contains? kks lhs)
-            (set-in! kks lhs nil)
-            (tmp.unshift cmd " "))
+                tmp [cmd " " lhs "= " rval ";\n"])
+          (conj! keys lhs)
           (ret.add tmp))
-      (do (set! rc (destruct0 cmd lhs rhs env))
-          (ret.add (1st rc))
-          (map #(set-in! kks
-                         (rdr/jsid %) nil)
-               (2nd rc)))))
+      (do (set! out (tnode))
+          (set! rhs (destruct* lhs out))
+          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add out))))
   (when (and (not private?)
              (= 1 (.countNSPCache (rt/globalEnv))))
-    (each-key (fn [v k]
-                (set-in! EXTERNS k k)) kks))
+    (each (fn [k]
+            (set-in! EXTERNS k k)) keys))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -958,8 +836,7 @@
              (array? (2nd args)))
     (set! hints (evalMeta (.@2 args) env)
           args (2nd args)))
-  (set! fargs (handleFuncArgs
-                  (parseFuncArgs args) env))
+  (set! fargs (processFuncArgs args env))
   (ret.add ["function (" (1st fargs) ") {\n"
             (2nd fargs) (txDo body env #t) "}"])
   ret)
@@ -1004,9 +881,7 @@
              (array? (2nd args)))
     (set! hints (evalMeta (.@2 args) env)
           args (2nd args)))
-  (set! fargs
-        (handleFuncArgs
-          (parseFuncArgs args) env))
+  (set! fargs (processFuncArgs args env))
   (cond mtd?
         (do (if (.-static hints)
               (ret.add "static "))
@@ -1491,6 +1366,125 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def version MODULE-VERSION)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- processFuncArgs "" [args env]
+  (var pms [] fdefs (tnode) fargs (tnode))
+  (var~ rhs e ev rval out)
+  (for [i 0 sz (count args)
+        :while (< i sz) :recur (+1 i)]
+    (set! e (.@i args))
+    (cond
+      (symbol? e)
+      (if (== e "&")
+        (do (set! rval (tnode))
+            (rval.add ["Array.prototype.slice.call(arguments," $(i) ")"])
+            (set! e (.@+i args))
+            (if (symbol? e)
+              (do (set! rhs e)
+                  (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"]))
+              (do (set! out (tnode))
+                  (set! rhs (destruct* e out))
+                  (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"])
+                  (fdefs.add out)))
+            (break-out-of-loop!))
+        (conj! pms e))
+      (array? e)
+      (do (set! rval (tnode))
+          (rval.add ["arguments[" $(i) "]"])
+          (set! out (tnode))
+          (set! rhs (destruct* e out))
+          (conj! pms rhs)
+          (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (fdefs.add out))
+      :else
+      (raise! "bad")))
+  (for [i 0 sz (count pms)
+        :while (< i sz) :recur (+1 i)]
+    (fargs.add (txAtom (.@i pms))))
+  (fargs.join ",")
+  [fargs fdefs])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct* "" [coll out]
+  (var rhs (gensym) e nil)
+  (for [i 0 sz (count coll)
+       :while (< i sz) :recur (+1 i)]
+    (set! e (.@i coll))
+    (if (and (keyword? e)
+             (== e "as"))
+      (set! rhs (.@+i coll))
+      (break-out-of-loop!)))
+  (cond
+    (map? coll)
+    (out.add (destruct-Map rhs coll))
+    (vector? coll)
+    (out.add (destruct-Vec rhs coll)))
+  rhs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct-Vec "" [src coll]
+  (var~ e rhs rval out)
+  (var ret (tnode))
+  (set! src (txAtom src))
+  (for [i 0 sz (count coll)
+        :while (< i sz) :recur (+1 i)]
+    (set! e (.@i coll))
+    (cond
+      (symbol? e)
+      (cond
+        (== e "_") nil
+        (== e "&")
+        (do (set! rval (tnode))
+            (rval.add ["Array.prototype.slice.call("
+                       src "," $(i) ")"])
+            (set! out (tnode))
+            (set! e (.@+i coll))
+            (if (symbol? e)
+              (set! rhs e)
+              (set! rhs (destruct* e out)))
+            (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+            (ret.add out)
+            (break-out-of-loop!))
+        :else
+        (do (set! out (tnode))
+            (out.add ["let " (txAtom e)
+                      "=" src "[" $(i) "];\n"])
+            (ret.add out)))
+      (array? e)
+      (do (set! rval (tnode))
+          (rval.add [src "[" $(i) "]"])
+          (set! out (tnode))
+          (set! rhs (destruct* e out))
+          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add out))
+      (keyword? e)
+      (if (== e "as")
+        (++ i)
+        (raise! "Bad keyword"))
+      :else (raise! "")))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- destruct-Map "" [src coll]
+  (var ret (tnode))
+  (var~ e arr)
+  (for [i 0 sz (count coll)
+        :while (< i sz) :recur (+1 i)]
+    (set! e (.@i coll))
+    (cond
+      (keyword? e)
+      (cond
+        (or (== e "keys")
+            (== e "strs"))
+        (let [arr (.@+i coll)]
+          (for [j 0 sz (count arr)
+                :while (< i sz) :recur (+1 i)]
+            (set! e (.@j arr))
+            (ret.add ["let " (txAtom e) "=" src "[\"" $(e) "\"];\n"])))
+        :else (raise! ""))
+      :else (raise! "")))
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
