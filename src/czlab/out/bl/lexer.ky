@@ -111,7 +111,12 @@
        regex? #f comment? #f
        toke
        (fn [ln col s s?]
-         (if (opt?? s? (not-empty s))
+         (when (opt?? s? (not-empty s))
+           (when (and (s.startsWith "&")
+                      (not= s "&&")
+                      (> (alen s) 1))
+             (conj! tree (tnode fname ln col "&" "&"))
+             (set! s (rest s)))
            (conj! tree (tnode fname ln col s s))) ""))
   (while (< pos len)
     (set! ch (ch@ source pos))

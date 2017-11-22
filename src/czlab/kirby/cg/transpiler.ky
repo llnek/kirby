@@ -1317,7 +1317,7 @@
        cstr ""
        fopts {}
        extra (spitExterns))
-  (true! format)
+  ;(true! format)
   (set! cstr
         (if source-map
           (let [outFile (str (path/basename fname ".ky") ".js")
@@ -1469,6 +1469,7 @@
 (defn- destruct-Map "" [src coll]
   (var ret (tnode))
   (var~ e arr)
+  (set! src (txAtom src))
   (for [i 0 sz (count coll)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i coll))
@@ -1478,12 +1479,13 @@
         (or (== e "keys")
             (== e "strs"))
         (let [arr (.@+i coll)]
+          (++ i)
           (for [j 0 sz (count arr)
-                :while (< i sz) :recur (+1 i)]
+                :while (< j sz) :recur (+1 j)]
             (set! e (.@j arr))
             (ret.add ["let " (txAtom e) "=" src "[\"" $(e) "\"];\n"])))
-        :else (raise! ""))
-      :else (raise! "")))
+        :else (raise! "bad keyword" e))
+      :else (raise! "bad destruction" e)))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

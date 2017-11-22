@@ -112,9 +112,9 @@
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
-           (if (and (s.startsWith "&")
-                    (not= s "&&")
-                    (= 1 (alen s)))
+           (when (and (s.startsWith "&")
+                      (not= s "&&")
+                      (> (alen s) 1))
              (conj! tree (tnode fname ln col "&" "&"))
              (set! s (rest s)))
            (conj! tree (tnode fname ln col s s))) ""))
