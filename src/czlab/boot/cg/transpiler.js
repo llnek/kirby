@@ -72,7 +72,7 @@ var ERRORS_MAP= {
 var RESERVED= {
 "compare": ["not=","!=","==","=",">",">=","<","<="],
 "arith": ["+","-","*","div","%", "mod"],
-"logic": ["||","&&"],
+"logic": ["or","and"],
 "bitwise": ["^","&","|","<<",">>",">>>"],
 "incdec": ["++","--"],
 "unary": ["not", "~","!"],
@@ -463,6 +463,9 @@ function sf_arithOp(ast,env) {
 
   if (cmd == "mod") cmd="%";
   if (cmd == "div") cmd="/";
+  if (cmd == "and") cmd="&&";
+  if (cmd == "or") cmd="||";
+
 
   if (1 === ast.length) {
     if ("-" == cmd) { ret.add("-"); }

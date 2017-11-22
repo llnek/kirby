@@ -445,7 +445,7 @@
 (defn- sf-arithOp
   ""
   ^{:opcode ["+" "-" "*" "div" "%"  "mod"
-             "||" "&&"
+             "or" "and"
              "^" "&" "|" "<<" ">>" ">>>"]}
   [ast env]
   (var op (tnode)
@@ -454,6 +454,8 @@
   (var e1 (ast.shift) cmd $(e1))
   (if (== cmd "mod") (set! cmd "%"))
   (if (== cmd "div") (set! cmd "/"))
+  (if (== cmd "and") (set! cmd "&&"))
+  (if (== cmd "or") (set! cmd "||"))
   (if (= 1 (n# ast))
     (if (== "-" cmd) (ret.add "-"))
     (op.add [""  cmd  ""]))
@@ -490,10 +492,10 @@
        body (exprHint (rest ast) (not stmtQ)))
   (ret.add (txDo body env (not stmtQ)))
   (if stmtQ
-    (ret.prepend "{\n")
+    nil;(ret.prepend "{\n")
     (ret.prepend "(function() {\n"))
   (if stmtQ
-    (ret.add "}")
+    nil;(ret.add "}")
     (ret.add "}).call(this)"))
   ret)
 
@@ -513,7 +515,7 @@
           c (.@+i ast))
     (if (pairs? e)
       (for [j 0 sz (n# e)
-            :while (< j sz) :recur (+1 i)]
+            :while (< j sz) :recur (+1 j)]
         (ret.add ["case "
                   (txAtom (.@j e)) ":\n"])
         (if (= j (last-index e))
@@ -530,10 +532,10 @@
                 (tx* tst env) ") {\n"])
   (ret.add "}")
   (if stmtQ
-    (ret.prepend ["{ let " _x ";\n"])
+    (ret.prepend ["let " _x ";\n"])
     (ret.prepend ["(function() { let " _x ";\n"]))
   (if stmtQ
-    (ret.add "}")
+    nil;(ret.add "}")
     (ret.add ["return " _x ";}).call(this)"]))
   ret)
 
@@ -662,7 +664,7 @@
   (ret.add ["throw " (tx* (2nd ast) env)])
   (when-not stmtQ
     (ret.prepend "(function (){ ")
-    (ret.add " }).call(this)"))
+    (ret.add ";}).call(this)"))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1317,7 +1319,7 @@
        cstr ""
        fopts {}
        extra (spitExterns))
-  ;(true! format)
+  (true! format)
   (set! cstr
         (if source-map
           (let [outFile (str (path/basename fname ".ky") ".js")
