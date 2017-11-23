@@ -172,9 +172,18 @@ function transpileAtoms(atoms, env) {
     }
   });
 }
-
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-function transpileSingle(a) {
+function transpileSingle(ast) {
+  try {
+    return transpile_Single(ast);
+  } catch (e) {
+    console.log("Error in file: " + ast.source +
+                ", near line: " + ast.line +
+                ", column: " + ast.column);
+    throw e;
+  }
+}
+function transpile_Single(a) {
   if (types.symbol_p(a)) {
     return rdr.jsid(types.symbol_s(a));
   }
@@ -270,6 +279,16 @@ SPEC_OPS["quote"]=sf_quote;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function transpileList(ast, env) {
+  try {
+    return transpile_List(ast,env);
+  } catch (e) {
+    console.log("Error in file: " + ast.source +
+                ", near line: " + ast.line +
+                ", column: " + ast.column);
+    throw e;
+  }
+}
+function transpile_List(ast,env) {
   let stmtQ= stmt_p(ast);
   let ret=tnode();
   let cmd= "",
@@ -901,8 +920,20 @@ function fmtSpecOps(fname, attrs) {
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function writeFuncInfo(fname, ast) {
+  let s= "//name: ["+fname+"] in file: " +
+         ast.source + " near line: " + ast.line + "\n",
+      len=s.length;
+  if (len < 80)  len=80;
+  let ret=tnodeEx("/".repeat(len) + "\n");
+  ret.add(s);
+  return ret;
+}
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_func(ast,env,publicQ) {
-  let fname = eval_QQ(ast[1],env),
+  let fname0=""+ast[1],
+      fname = eval_QQ(ast[1],env),
       mtdQ= (ast[0] == "method"),
       dotQ= fname.includes("."),
       hints={},
@@ -940,28 +971,30 @@ function sf_func(ast,env,publicQ) {
   ret.add([") {\n",
            fargs[1],
            transpileDo(body,env),
-           pad(indent), "}\n"]);
+           pad(indent), "};\n"]);
   if (true ) {
     ret.add(fmtSpecOps(fname, hints));
   }
   if (doc) {
     ret.prepend(writeDoc(doc));
   }
+  ret.prepend(writeFuncInfo(fname0,ast));
   if (publicQ && !dotQ &&
              (1=== rt.globalEnv().countNSPCache())) EXTERNS[fname]=fname;
   return ret;
 }
 
 function writeDoc(doc) {
+  let out=[];
   if (doc) {
     doc= doc.replace(rdr.REGEX.dquoteHat, "");
     doc=doc.replace(rdr.REGEX.dquoteEnd, "");
-    return doc.split("\\n").map(function(s) {
+    doc.split("\\n").forEach(function(s) {
       s=(""+s).trim();
-        return "//"+ s +  "\n";
+      if (s.length>0) out.push("//"+ s + "\n");
     });
   }
-  return "";
+  return out;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

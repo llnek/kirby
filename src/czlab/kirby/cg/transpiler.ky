@@ -226,8 +226,14 @@
         :else s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" [x env]
-  (if (array? x) (txPairs x env) (txAtom x)))
+(defn- tx* "" [x & [env]]
+  (try
+    (if (array? x) (txPairs x env) (txAtom x))
+    (catch e
+      (println "Error in file: " x.source
+                ", near line: " x.line
+                ", column: " x.column)
+      (throw e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- findCmd "" [ast]
@@ -330,7 +336,7 @@
     (cmd.startsWith ".-")
     (ret.add [(tx* (2nd ast) env)
               "."
-              (txAtom (symbol (cmd.slice 2)))])
+              (tx* (symbol (cmd.slice 2)))])
     (cmd.startsWith ".@")
     (do (var onemore? #f pos 2)
         (when (cmd.startsWith ".@+")
@@ -353,7 +359,7 @@
     (do (if (pairs? ast)
           (do (txExpr ast env)
               (set! cmd (1st ast)))
-          (set! cmd (txAtom ast)))
+          (set! cmd (tx* ast)))
         (if-not cmd (syntax! :e1 ast))
         (set! cmd (maybeStripStdlib cmd))
         (if (pairs? ast)
@@ -368,11 +374,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeDoc "Convert to jsdoc"
   [doc]
+  (var out [])
   (if doc
     (->> (-> (doc.replace rdr/REGEX.dquoteHat "")
              (.replace rdr/REGEX.dquoteEnd "")
              (.split "\\n"))
-         (map #(str "//" (.trim (str %)) "\n"))) ""))
+         (each #(let [s (.trim (str %))]
+                  (if (not-empty s)
+                    (conj! out (str "//" s "\n")))))))
+  out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype
@@ -474,7 +484,7 @@
         (if stmtQ false (opt?? return? true)))
   (for [i 0 :while (< i end) :recur (+1 i)]
     (set! e (exprHint (.@i ast) #f))
-    (ret.add [(txPairs e env) ";\n"]))
+    (ret.add [(tx* e env) ";\n"]))
   (when (>= end 0)
     (set! e (exprHint (.@end ast)
                       (not stmtQ))
@@ -517,11 +527,11 @@
       (for [j 0 sz (n# e)
             :while (< j sz) :recur (+1 j)]
         (ret.add ["case "
-                  (txAtom (.@j e)) ":\n"])
+                  (tx* (.@j e)) ":\n"])
         (if (= j (last-index e))
           (ret.add [_x "="
                     (tx* c env) brk])))
-      (do (ret.add ["case " (txAtom e) ":\n"
+      (do (ret.add ["case " (tx* e) ":\n"
                     _x "="
                     (tx* c env) brk]))))
   (when dft
@@ -552,7 +562,7 @@
   (if-not (== "let" cmd) (set! cmd "var"))
   (for [i 1 s nil sz (n# ast)
         :while (< i sz) :recur (+1 i)]
-    (set! s (txAtom (.@i ast)))
+    (set! s (tx* (.@i ast)))
     (ret.add s)
     (set-in! kks s nil))
   (ret.join ",")
@@ -583,12 +593,12 @@
           rhs (.@+i ast)
           rval (tx* rhs env))
     (if (symbol? lhs)
-      (do (set! lhs (txAtom lhs))
+      (do (set! lhs (tx* lhs))
           (conj! keys lhs)
           (ret.add [cmd " " lhs "= " rval ";\n"]))
       (do (set! out (tnode))
           (set! rhs (destruct* lhs out))
-          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add ["let " (tx* rhs) "=" rval ";\n"])
           (ret.add out))))
   (when (and (not private?)
              (= 1 (.countNSPCache (rt/globalEnv))))
@@ -615,13 +625,13 @@
           rhs (.@+i ast)
           rval (tx* rhs env))
     (if (symbol? lhs)
-      (do (set! lhs (txAtom lhs)
+      (do (set! lhs (tx* lhs)
                 tmp [cmd " " lhs "= " rval ";\n"])
           (conj! keys lhs)
           (ret.add tmp))
       (do (set! out (tnode))
           (set! rhs (destruct* lhs out))
-          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add ["let " (tx* rhs) "=" rval ";\n"])
           (ret.add out))))
   (when (and (not private?)
              (= 1 (.countNSPCache (rt/globalEnv))))
@@ -652,7 +662,7 @@
 (defn- sf-new
   "" ^{:opcode ["new"]} [ast env]
   (var ret (node' (tnode) ast))
-  (ret.add (txPairs (rest ast) env))
+  (ret.add (tx* (rest ast) env))
   (ret.prepend "new ")
   ret)
 
@@ -739,7 +749,7 @@
             (cond
               (symbol? e)
               (ret.add ["let "
-                        (txAtom e)
+                        (tx* e)
                         "=slice(arguments," pos ");\n"])
               (map? e)
               (destructMap)
@@ -858,12 +868,22 @@
   (if (not-empty ks) (str out ";\n") out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- writeFuncInfo "" [fname src]
+  (var s (str "//name: [" fname "] in file: "
+              ast.source " near line: " ast.line "\n")
+       len (alen s))
+  (if (< len 80)  (set! len 80))
+  (doto (tnodeEx (str (.repeat "/" len) "\n"))
+    (.add s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func
   ""
   ^{:opcode ["defn" "defn-"]}
   [ast env]
 
   (var mtd? (== (1st ast) "method")
+       fname0 $(1st ast)
        fname (tx* (2nd ast) env)
        dot? (contains? fname ".")
        ret (node' (tnode) ast)
@@ -902,6 +922,7 @@
     (ret.add (fmtSpecOps fname hints)))
   (if doc
     (ret.prepend (writeDoc doc)))
+  (ret.prepend (writeFuncInfo fname0 ast))
   (if (and (not private?)
            (not dot?)
            (not mtd?)
@@ -1086,17 +1107,17 @@
                 (++ j))))
     (ret.add ["const " (rdr/jsid as)
               "= require("
-              (txAtom path) ");\n"])
+              (tx* path) ");\n"])
     (for [i 0 sz (n# refers)
           :while (and refers
                       (< i sz)) :recur (+1 i)]
-      (set! v (txAtom (.@i refers)))
+      (set! v (tx* (.@i refers)))
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
     (for [i 0 sz (n# renames)
           :while (and renames
                       (< i sz)) :recur (+2 i)]
-      (set! e (txAtom (.@i renames))
-            v (txAtom (.@+i renames)))
+      (set! e (tx* (.@i renames))
+            v (tx* (.@+i renames)))
       (ret.add ["const " v
                 "=" as "[\"" e "\"];\n"])))
   ret)
@@ -1199,7 +1220,7 @@
         :while (< i sz) :recur (+2 i)]
     (if (= i 0) (ret.add "let "))
     (if (not= i 0) (ret.add ","))
-    (ret.add [(txAtom (.@i vars))
+    (ret.add [(tx* (.@i vars))
               "=" (tx* (.@+i vars) env)]))
   (if (empty? vars)
     (ret.add "let ____break=false;")
@@ -1213,7 +1234,7 @@
   (for [i 0 k 0 sz (n# recurs)
         :while (< i sz) :recur (+1 i)(+2 k)]
     (if (not= i 0) (ret.add ","))
-    (ret.add [(txAtom (.@k vars))
+    (ret.add [(tx* (.@k vars))
               "=" (tx* (.@i recurs) env)]))
   (ret.add "){\n")
   (ret.add (txDo body env #f))
@@ -1384,10 +1405,10 @@
             (set! e (.@+i args))
             (if (symbol? e)
               (do (set! rhs e)
-                  (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"]))
+                  (fdefs.add ["let " (tx* rhs) "=" rval ";\n"]))
               (do (set! out (tnode))
                   (set! rhs (destruct* e out))
-                  (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"])
+                  (fdefs.add ["let " (tx* rhs) "=" rval ";\n"])
                   (fdefs.add out)))
             (break-out-of-loop!))
         (conj! pms e))
@@ -1397,13 +1418,13 @@
           (set! out (tnode))
           (set! rhs (destruct* e out))
           (conj! pms rhs)
-          (fdefs.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (fdefs.add ["let " (tx* rhs) "=" rval ";\n"])
           (fdefs.add out))
       :else
       (raise! "bad")))
   (for [i 0 sz (count pms)
         :while (< i sz) :recur (+1 i)]
-    (fargs.add (txAtom (.@i pms))))
+    (fargs.add (tx* (.@i pms))))
   (fargs.join ",")
   [fargs fdefs])
 
@@ -1428,7 +1449,7 @@
 (defn- destruct-Vec "" [src coll]
   (var~ e rhs rval out)
   (var ret (tnode))
-  (set! src (txAtom src))
+  (set! src (tx* src))
   (for [i 0 sz (count coll)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i coll))
@@ -1445,12 +1466,12 @@
             (if (symbol? e)
               (set! rhs e)
               (set! rhs (destruct* e out)))
-            (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+            (ret.add ["let " (tx* rhs) "=" rval ";\n"])
             (ret.add out)
             (break-out-of-loop!))
         :else
         (do (set! out (tnode))
-            (out.add ["let " (txAtom e)
+            (out.add ["let " (tx* e)
                       "=" src "[" $(i) "];\n"])
             (ret.add out)))
       (array? e)
@@ -1458,7 +1479,7 @@
           (rval.add [src "[" $(i) "]"])
           (set! out (tnode))
           (set! rhs (destruct* e out))
-          (ret.add ["let " (txAtom rhs) "=" rval ";\n"])
+          (ret.add ["let " (tx* rhs) "=" rval ";\n"])
           (ret.add out))
       (keyword? e)
       (if (== e "as")
@@ -1471,7 +1492,7 @@
 (defn- destruct-Map "" [src coll]
   (var ret (tnode))
   (var~ e arr)
-  (set! src (txAtom src))
+  (set! src (tx* src))
   (for [i 0 sz (count coll)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i coll))
@@ -1485,7 +1506,7 @@
           (for [j 0 sz (count arr)
                 :while (< j sz) :recur (+1 j)]
             (set! e (.@j arr))
-            (ret.add ["let " (txAtom e) "=" src "[\"" $(e) "\"];\n"])))
+            (ret.add ["let " (tx* e) "=" src "[\"" $(e) "\"];\n"])))
         :else (raise! "bad keyword" e))
       :else (raise! "bad destruction" e)))
   ret)
