@@ -1,10 +1,4 @@
 (ns poo)
 
+(var x 3)
 
-  (const a (* 3 4) b 2 [x y & z] 33)
-(defn xxx []
-
-
-  nil
-
-  )

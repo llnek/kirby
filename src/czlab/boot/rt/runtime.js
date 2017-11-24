@@ -343,8 +343,8 @@ var macro_cond=`
 function init() {
   global_env=newEnv();
   global_env.set(types.symbol("*host-language*"), "javascript");
-  rep(macro_cond);
-  rep(macro_assert);
+  //rep(macro_cond);
+  //rep(macro_assert);
   loadMacros();
 }
 

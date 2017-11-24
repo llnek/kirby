@@ -921,8 +921,9 @@ function fmtSpecOps(fname, attrs) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function writeFuncInfo(fname, ast) {
+  let file= ast.source.slice(ast.source.lastIndexOf("/")+1);
   let s= "//name: ["+fname+"] in file: " +
-         ast.source + " near line: " + ast.line + "\n",
+         file + " near line: " + ast.line + "\n",
       len=s.length;
   if (len < 80)  len=80;
   let ret=tnodeEx("/".repeat(len) + "\n");

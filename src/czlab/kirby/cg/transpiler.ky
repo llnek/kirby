@@ -869,8 +869,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeFuncInfo "" [fname src]
-  (var s (str "//name: [" fname "] in file: "
-              ast.source " near line: " ast.line "\n")
+  (var file (ast.source.slice (+1 (ast.source.lastIndexOf "/")))
+       s (str "//name: [" fname "] in file: "
+              file " near line: " ast.line "\n")
        len (alen s))
   (if (< len 80)  (set! len 80))
   (doto (tnodeEx (str (.repeat "/" len) "\n"))

@@ -426,8 +426,8 @@
   (set! global_env (newEnv))
   (global_env.set
     (symbol "*host-language*") "javascript")
-  (rep macro_cond)
-  (rep macro_assert)
+  ;(rep macro_cond)
+  ;(rep macro_assert)
   (loadMacros))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

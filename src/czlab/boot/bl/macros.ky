@@ -12,6 +12,15 @@
 
   czlab.kirby.bl.defmacros)
 
+(defmacro cond* "" [&xs]
+  (if* (> (count* xs) 0)
+    `(if* ~(first* xs)
+          ~(nth* xs 1)
+          ~(cons* 'cond* (rest* (rest* xs))))))
+(defmacro assert* "" [c msg] (if* c true (throw* msg)))
+
+
+
 (defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))
 (defmacro not-empty "" [coll] `(not (empty? ~coll)))
 
