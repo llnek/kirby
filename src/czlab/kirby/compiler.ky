@@ -9,21 +9,17 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.cg.transpiler
+  czlab.kirby.compiler
 
-  (require ["../bl/stdlib"
+  (require ["./stdlib"
             :as std
             :refer [lambda-arg? hashmap pairs? contains? last typeid
                     prn primitive map? vector? opt?? some?
                     primitive? not-empty conj! list?
                     extendAttr gensym count
                     symbol keyword symbol? keyword?]]
-           ["../bl/lexer"
-            :as rdr
-            :refer
-            [tnode tnodeEx]]
-           ["../bl/parser" :as psr]
-           ["../rt/runtime" :as rt])
+           ["./parser" :as parser]
+           ["./engine" :as eng])
   (require ["fs" :as fs]
            ["path" :as path]
            ["esformatter" :as esfmt]))
@@ -58,23 +54,18 @@
       MATH-OP-REGEX /^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- simpleton? "" [ast]
-  (or (undef? ast)
-      (string? ast)
-      (number? ast)
-      (boolean? ast) (nil? ast)))
+(defn- simple? "" [ast]
+  (or (undef? ast) (nil? ast) (string? ast) (number? ast) (boolean? ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- exprHint "" [ast flag]
-  (var x ast)
-  (if (simpleton? ast)
-    (set! x (primitive ast)))
-  (set-in! x :____expr flag)
-  x)
+  (if (simple? ast)
+    (set! ast (primitive ast)))
+  (set-in! ast :____expr flag) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- stmt? "" [ast]
-  (if (simpleton? ast)
+  (if (simple? ast)
     (raise! "Cant test expr? on primitive"))
   (false? ast.____expr))
 
@@ -99,100 +90,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- node' "" [obj src]
-  (when (and obj
-             src
-             (not (simpleton? obj)))
+  (when (and obj src (not (simple? obj)))
     (set! obj.source src.source
           obj.column src.column obj.line src.line)) obj)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructVec "" [lhs keys]
-  (var~ as e ev)
-  (for [i 0 sz (n# lhs)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i lhs) ev $(e))
-    (cond (symbol? e)
-          (cond (= ev "_")
-                nil
-                (= ev "&")
-                (do (set-in! keys
-                             (str "&"
-                                  (.@+i lhs)) i)
-                    (++ i))
-                (ev.startsWith "&")
-                (set-in! keys ev i)
-                :else
-                (set-in! keys ev i))
-          (keyword? e)
-          (if (= ev "as")
-            (do (++ i)
-                (set! as $(.@i lhs)))
-            (raise! "bad keyword: :" ev))))
-  as)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructMap "" [lhs keys]
-  (var~ as e ev)
-  (for [i 0 sz (n# lhs)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i lhs) ev $(e))
-    (if (keyword? e)
-      (cond (or (= ev "keys")
-                (= ev "strs"))
-            (let [ks (.@+i lhs)]
-              (++ i)
-              (for [j 0 sz (n# ks)
-                    :while (< j sz) :recur (+1 j)]
-                (set-in! keys
-                         $(.@j ks) nil)))
-            (= ev "as")
-            (do (++ i)
-                (set! as $(.@i lhs))))
-      (raise! "bad destruct field: " (typeid e))))
-  as)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct1 "" [lhs]
-  (var as nil out [] keys {})
-  (cond (vector? lhs)
-        (set! as (destructVec lhs keys))
-        (map? lhs)
-        (set! as (destructMap lhs keys))
-        (symbol? lhs)
-        (set-in! keys $(lhs) nil)
-        :else
-        (raise! "cant destruct with: " (typeid lhs)))
-  [as keys])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct0 "" [cmd lhs rhs env]
-  (var [as keys] (destruct1 lhs)
-       kdefs [] ka nil kvals (tnode))
-  (if (empty? as) (set! as (gensym "A____")))
-  (set! as (rdr/jsid as))
-  (each-key
-    (fn [v k]
-      (var rest? false)
-      (when (k.startsWith "&")
-        (set! rest? true
-              k (rest k)))
-      (set! k (rdr/jsid k))
-      (conj! kdefs k)
-      (->>
-        (cond (nil? v)
-              (str "[\"" k "\"];\n")
-              rest?
-              (str ".slice(" v ");\n")
-              :else
-              (str "[" v "];\n"))
-        (str k "=" as )
-        (kvals.add ))) keys)
-  (kvals.prepend (str cmd
-                      " "
-                      (join "," kdefs) ";\n"))
-  [[(tnodeEx [cmd " "
-              (rdr/jsid as) "= "
-              (tx* rhs env) ";\n"]) kvals] kdefs])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree "" [root env]
@@ -305,10 +205,10 @@
        ret (tnode)
        specop nil
        tmp nil
-       mc (rt/getMacro cmd))
+       mc (eng/getMacro cmd))
   ;;handle macro calls
   (when mc
-    (set! ast (rt/expandMacro ast env mc)
+    (set! ast (eng/expandMacro ast env mc)
           ast (exprHint ast (not stmtQ))
           cmd (findCmd ast)))
   ;;handle (+1 ) or (-1 ) cases
@@ -327,7 +227,7 @@
   (cond
     (== cmd "with-meta")
     (do (set! tmp (2nd ast))
-        (if-not (simpleton? tmp)
+        (if-not (simple? tmp)
           (do (set-in! tmp
                        :____meta
                        (evalMeta (.@2 ast) env))
@@ -424,7 +324,7 @@
   (ret.add "}\n")
   (if doc (ret.prepend (writeDoc doc)))
   (if (and (not private?)
-           (= 1 (.countNSPCache (rt/globalEnv))))
+           (= 1 (.countNSPCache (eng/globalEnv))))
       (set-in! EXTERNS cz cz))
   ret)
 
@@ -569,7 +469,7 @@
   (ret.prepend (str cmd " "))
   (ret.add ";\n")
   (if (and (not private?)
-           (= 1 (.countNSPCache (rt/globalEnv))))
+           (= 1 (.countNSPCache (eng/globalEnv))))
     (each-key (fn [v k]
                 (set-in! EXTERNS k k)) kks))
   ret)
@@ -601,7 +501,7 @@
           (ret.add ["let " (tx* rhs) "=" rval ";\n"])
           (ret.add out))))
   (when (and (not private?)
-             (= 1 (.countNSPCache (rt/globalEnv))))
+             (= 1 (.countNSPCache (eng/globalEnv))))
     (each #(set-in! EXTERNS % %) keys))
   ret)
 
@@ -634,7 +534,7 @@
           (ret.add ["let " (tx* rhs) "=" rval ";\n"])
           (ret.add out))))
   (when (and (not private?)
-             (= 1 (.countNSPCache (rt/globalEnv))))
+             (= 1 (.countNSPCache (eng/globalEnv))))
     (each (fn [k]
             (set-in! EXTERNS k k)) keys))
   ret)
@@ -735,107 +635,6 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- parseFuncArgs "" [args]
-  (var pms [] ret [])
-  (var~ e ev)
-  (for [pos 0 sz (n# args)
-        :while (< pos sz) :recur (+1 pos)]
-    (set! e (.@pos args) ev $(e))
-    (cond
-      (symbol? e)
-      (cond
-        (= ev "&")
-        (do (set! e (.@+pos args))
-            (cond
-              (symbol? e)
-              (ret.add ["let "
-                        (tx* e)
-                        "=slice(arguments," pos ");\n"])
-              (map? e)
-              (destructMap)
-              (array? e)
-              (destructVec)))
-        (ev.startsWith "&")
-        (ret.add ["let "
-                  (rdr/jsid (rest ev))
-                  "=slice(arguments," pos ");\n"])
-        (== ev "_")
-        nil
-        :else (conj! pms e))
-      (map? e)
-      (destructMap)
-      (array? e)
-      (destructVec)
-      :else
-      (raise! "bad function arg: " (typeid e))))
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- XXparseFuncArgs "" [args]
-  (var ret [])
-  (var~ e ev)
-  (for [i 0 sz (n# args)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i args) ev $(e))
-    (cond (symbol? e)
-          (cond (= ev "_")
-                (conj! ret
-                       (gensym "_"))
-                (= ev "&")
-                (do (set! e (.@+i args))
-                    (if (symbol? e)
-                      (conj! ret [e i e])
-                      (conj! ret [(symbol (str "&" $(gensym "A____"))) i e]))
-                    (++ i))
-                (ev.startsWith "&")
-                (do (set! e (symbol (rest ev)))
-                    (conj! ret [e i e]))
-                :else
-                (conj! ret e))
-          (keyword? e)
-          (raise! "bad function args destructure: " (typeid e))
-          (array? e)
-          (conj! ret [(gensym) i e])
-          :else
-          (raise! "bad function args destructure: " (typeid e))))
-  ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleFuncArgs "" [fargs env]
-  (var out [] misc []
-       keys [] ret (tnode) knode (tnode))
-  (each (fn [arg]
-          (cond
-            (symbol? arg)
-            (conj! keys arg)
-            (and (symbol? (1st arg))
-                 (not (.startsWith $(1st arg) "&"))
-                 (array? (.@2 arg)))
-            (do (conj! keys (1st arg))
-                (conj! misc arg))
-            :else (conj! misc arg))) fargs)
-  (each (fn [arr]
-          (var a0 (1st arr)
-               name $(a0)
-               varg? (name.startsWith "&")
-               pos $(2nd arr)
-               a2 (.@2 arr))
-          (if varg? (set! name (rest name)))
-          (set! name (rdr/jsid name))
-          (cond
-            (and (symbol? a0)
-                 (symbol? a2))
-            (ret.add ["let " name
-                      "=Array.prototype.slice.call(arguments," pos ");\n"])
-            (array? a2)
-            (do (if varg?
-                  (ret.add ["let " name
-                            "=Array.prototype.slice.call(arguments," pos ");\n"]))
-                (ret.add (1st (destruct0 "let" a2 name env)))))) misc)
-  (knode.add (join "," (map #(rdr/jsid (str %)) keys)))
-  (conj! out knode ret))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
   "" ^{:opcode ["fn"]} [ast env]
   (var ret (node' (tnode) ast)
@@ -927,7 +726,7 @@
   (if (and (not private?)
            (not dot?)
            (not mtd?)
-           (= 1 (.countNSPCache (rt/globalEnv))))
+           (= 1 (.countNSPCache (eng/globalEnv))))
     (set-in! EXTERNS fname fname))
   ret)
 
@@ -1055,8 +854,8 @@
     (tnode)
     (let [src (fs/readFileSync fname "utf-8")]
       (conj! icache fname)
-      (txTree (psr/parser src fname)
-              (rt/globalEnv )))))
+      (txTree (parser/parser src fname)
+              (eng/globalEnv )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
@@ -1079,7 +878,7 @@
     (try
       (conj! ret (includeFile fname))
       (finally
-        (.popNSP (rt/globalEnv)))))
+        (.popNSP (eng/globalEnv)))))
   (if (empty? ret) (tnode) ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1150,7 +949,7 @@
              (symbol? (2nd nsp)))
     (set! hints (evalMeta (.@2 nsp) env)
           nsp (2nd nsp)))
-  (.pushNSP (rt/globalEnv) $(nsp))
+  (.pushNSP (eng/globalEnv) $(nsp))
   (set! ast (ast.slice 2))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1162,10 +961,10 @@
                (== "require" (1st e)))
           (conj! ret (sf-require e))))
   ;;force a internal reference to stdlib for user files
-  (set! nsp (.peekNSP (rt/globalEnv)))
+  (set! nsp (.peekNSP (eng/globalEnv)))
   (cond
-    (or (= nsp "czlab.kirby.bl.macros")
-        (= nsp "czlab.kirby.bl.stdlib"))
+    (or (= nsp "czlab.kirby.macros")
+        (= nsp "czlab.kirby.stdlib"))
     nil
     (nsp.startsWith "czlab.kirby.")
     (conj! ret (tnodeEx "const kirbystdlibref=std;\n"))
@@ -1178,10 +977,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" [cmd]
   (var lib "kirbystdlibref."
-       nsp (.peekNSP (rt/globalEnv)))
+       nsp (.peekNSP (eng/globalEnv)))
   (set! cmd $(cmd))
   (if (and (cmd.startsWith lib)
-           (= nsp "czlab.kirby.bl.stdlib"))
+           (= nsp "czlab.kirby.stdlib"))
     (cmd.slice (n# lib))
     cmd))
 
@@ -1289,11 +1088,11 @@
          (concat [(symbol "fn*") pms] body)])
   (var a1 $(2nd ast)
        a2 (.@2 ast)
-       func (rt/compute a2 env))
+       func (eng/compute a2 env))
   (set-in! func :____macro #t)
   (if doc
     (set-in! func :____doc doc))
-  (rt/setMacro a1 func)
+  (eng/setMacro a1 func)
   (node' (tnode) ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1320,7 +1119,7 @@
   (str "/*"
        "Auto generated by Kirby - v"
        MODULE-VERSION " "
-       (.firstNSP (rt/globalEnv)) " - " (new Date) "*/\n\n"))
+       (.firstNSP (eng/globalEnv)) " - " (new Date) "*/\n\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cleanCode "" [code]
@@ -1333,10 +1132,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpileCode "" [codeStr fname options]
-  (.resetNSPCache (rt/globalEnv))
+  (.resetNSPCache (eng/globalEnv))
   (set! EXTERNS {})
-  (var outNode (txTree (psr/parser codeStr fname)
-                       (rt/globalEnv))
+  (var outNode (txTree (parser/parser codeStr fname)
+                       (eng/globalEnv))
        {:keys [source-map format]} options
        cstr ""
        fopts {}
@@ -1383,7 +1182,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parseWithSourceMap "" [codeStr fname]
-  (var outNode (txTree (psr/parser codeStr fname)))
+  (var outNode (txTree (parser/parser codeStr fname)))
   (outNode.prepend (banner))
   (outNode.toStringWithSourceMap ))
 

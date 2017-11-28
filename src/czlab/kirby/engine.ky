@@ -9,13 +9,45 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.rt.runtime
+  czlab.kirby.engine
 
   (require ["readline" :as readline])
-  (require ["../bl/parser" :as parser]
-           ["../bl/stdlib"
+  (require ["fs" :as fs])
+  (require ["./parser" :as parser]
+           ["./stdlib"
             :as std
-            :refer [contains?
+            :refer [extendAttr
+                    stringify
+                    contains?
+                    LambdaArg
+                    Keyword
+                    not-empty
+                    object?
+                    Symbol
+                    into!
+                    prn
+                    Atom
+                    symbol
+                    swap!
+                    atom
+                    vector
+                    vector?
+                    list?
+                    map?
+                    some?
+                    typeid
+                    sequential?
+                    contains?
+                    contains?
+                    conj!
+                    some?
+                    count
+                    last
+                    pop!
+                    opt??
+                    vector
+                    Symbol
+
                     keyword?
                     atom
                     into!
@@ -31,9 +63,305 @@
                     seq
                     prn
                     not-empty
-                    sequential?]]
-           ["../rt/toolkit" :as rt]
-           ["../bl/env" :as env :refer [LEXEnv]]))
+                    sequential?]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- assertSymbol "" [k]
+  (if-not (inst? Symbol k)
+    (raise! "env.xxx key must be a symbol")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype LEXEnv [][nspaces []
+                   data {} parent nil]
+  "Lexical Environment"
+  (constructor "Create and initialize
+               a new env with these symbols,
+               and optionally a parent env"
+    [parent vars exprs]
+    (if parent (set-in! this
+                        :parent parent))
+    (for [i 0 e nil ev nil
+          sz (n# vars)
+          :while (< i sz) :recur (+1 i)]
+      (set! e (.@i vars)
+            ev (.-value e))
+      (cond
+        (= ev "&")
+        (do (set-in! this.data
+                     $(.@+i vars)
+                     (slice exprs i))
+            (break-out-of-loop!))
+        (ev.startsWith "&")
+        (do (set-in! this.data
+                     (rest ev)
+                     (slice exprs i))
+            (break-out-of-loop!))
+        :else
+        (set-in! this.data
+                 ev (.@i exprs)))))
+  (find "Find the env
+        containing this symbol"
+    [k]
+    (assertSymbol k)
+    (cond
+      (contains? this.data k.value) this
+      (some? this.parent) (.find this.parent k)))
+  (set "Bind this symbol,
+       value to this env"
+    [k v]
+    (assertSymbol k)
+    (set-in! this.data k.value v) v)
+  (get "Get value of
+       this symbol"
+    [k]
+    (assertSymbol k)
+    (var env (.find this k))
+    (if-not env (raise! k.value " not found"))
+    (get env.data k.value))
+  (pushNSP "Add a namespace"
+    [nsp]
+    (conj! this.nspaces $(nsp)))
+  (peekNSP "Returns the
+           last added namespace"
+    []
+    (last this.nspaces))
+  (popNSP "Return and remove
+          the last added namespace"
+    []
+    (1st (pop! this.nspaces)))
+  (firstNSP "Get the first
+            added namespace"
+    []
+    (1st this.nspaces))
+  (countNSPCache "Count n# of
+                 added namespaces"
+    []
+    (n# this.nspaces))
+  (resetNSPCache "Clear all namespaces"
+    []
+    (set-in! this :nspaces []) nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prstrX
+  "" [b arr] (map #(prn % b) arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro prstrT
+  "" [arr] `(prstrX true ~arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro prstrF
+  "" [arr] `(prstrX false ~arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn Function.prototype.clone "" []
+  (var that this tmp nil)
+  (set! tmp #(apply that this ____args))
+  (each-key
+    (fn [v k] (set-in! tmp k v)) that)
+  tmp)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prnStr
+  "" [&xs] (join " " (prstrT xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prnLn
+  "" [&xs] (each #(println %) (prstrT xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- slurp
+  "" [f] (fs/readFileSync f "utf-8"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- clone "" [obj]
+  (var oid (typeid obj))
+  (case oid
+    (:vector :map :list)
+    (into! oid (slice obj))
+    :array
+    (slice obj)
+    :object
+    (reduce
+      (fn [acc en]
+        (set-in! acc
+                 (1st en) (last en)) acc)
+      {}
+      (seq obj))
+    :function
+    (obj.clone)
+    ;else
+    (raise! "clone of non-collection: " oid )))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- cons "" [a b] (concat [a] b))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- conj "" [arr &xs]
+  (cond
+    (list? arr)
+    (into! :list
+           (-> (xs.reverse)
+               (concat arr)))
+    (some? arr)
+    (into! :vector
+           (concat arr xs))
+    :else arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- seq "" [obj]
+  (cond
+    (array? obj)
+    (if (not-empty obj) (slice obj))
+    (string? obj)
+    (if (not-empty obj) (obj.split ""))
+    (nil? obj)
+    nil
+    :else
+    (raise! "seq: called on non-sequence")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fapply "" [f &xs] (f.apply this xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- fmap "" [f arr] (map f arr))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- GLOBAL (if (undef? window) undefined  window))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- resolveJS "" [s]
+  [(if (contains? s ".")
+     (-> (.exec /^(.*)\.[^\.]*$/g s)
+         (nth 1) (eval))
+     GLOBAL)
+   (eval s)])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- filterJS "" [obj]
+  (var s (stringify obj))
+  (if (not-empty s) (JSON/parse s)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- withMeta "" [obj m]
+  (var ret (clone obj))
+  (set-in! ret :____meta m) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- meta "" [obj]
+  (if-not (or (array? obj)
+              (object? obj)
+              (fn? obj))
+    (raise! "can't get metadata from: " (typeid obj)))
+  (get obj :____meta))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- evalJS "" [s]
+  (filterJS (eval (s.toString))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- invokeJS "" [method &xs]
+  (var [obj f] (resolveJS method))
+  (filterJS (apply f obj xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- toolkit {
+
+  "is-same?"  (fn [a b] (== a b))
+  "is-nil?"  (fn [x] (nil? x))
+
+  "obj-type*"  std/typeid
+  "gensym*"  std/gensym
+  "is-eq?"  std/eq?
+  "is-some?"  std/some?
+
+  "slice*"  (fn [arr & xs]
+              (Array.prototype.slice.apply arr xs))
+
+  "throw*"  (fn [&xs]
+              (throw (new Error (.join xs ""))))
+
+  "#f?"  (fn [x] (false? x))
+  "#t?"  (fn [x] (true? x))
+  "is-str?"  (fn [x] (string? x))
+
+  "is-keyword?"  std/keyword?
+  "is-symbol?"  std/symbol?
+  "keyword*"  std/keyword
+  "symbol*"  std/symbol
+
+  "println*"  prnLn
+  "prn*"  prnStr
+
+  "slurp*"  slurp
+
+  "<"   (fn [a b] (< a b))
+  "<="  (fn [a b] (<= a b))
+  ">"   (fn [a b] (> a b))
+  ">="  (fn [a b] (>= a b))
+  "+"   (fn [a b] (+ a b))
+  "-"   (fn [a b] (- a b))
+  "*"   (fn [a b] (* a b))
+  "/"   (fn [a b] (div a b))
+
+  "not=" (fn [a b] (not= a b))
+  "=" (fn [a b] (= a b))
+
+  "is-contains?" std/contains?
+
+  "is-vector?"  std/vector?
+  "is-list?"  std/list?
+  "is-map?"  std/map?
+  "hash-map*"  std/hashmap
+  "vector*"  std/vector
+  "list*"  std/list
+
+  "values*"  (fn [x] (Object.values x))
+  "keys*"  (fn [x] (Object.keys x))
+  "get*"  (fn [m k] (get m k))
+
+  "not*"  (fn [x] (if x #f #t))
+  "dec*"  (fn [x] (-1 x))
+  "inc*"  (fn [x] (+1 x))
+
+  "is-even?"  (fn [n] (= 0 (mod n 2)))
+  "is-odd?"  (fn [n]  (= 1 (mod n 2)))
+
+  "is-sequential?"  std/sequential?
+  "concat*"  std/concat*
+  "count*"  std/count
+  "cons*"  cons
+
+  "rest*"  (fn [arr]
+              (if arr (arr.slice 1) []))
+  "nth*"  (fn [arr i] (get arr i))
+  "first*"  (fn [arr] (get arr 0))
+
+  "is-empty?" (fn [x] (= 0 (std/count x)))
+  "not-empty*" std/not-empty
+
+  "apply*"  fapply
+  "map*"  fmap
+
+  "evens" (fn [n] (= 0 (mod n 2)))
+  "odds" (fn [n]  (= 1 (mod n 2)))
+  "type*" (fn [x] (typeof x))
+
+  "meta*"  meta
+  "conj*"  conj
+  "seq*"  seq
+
+  "is-atom?"  std/atom?
+  "atom*"  std/atom
+  "deref*"  std/deref
+  "reset*"  std/reset!
+  "swap*"  std/swap!
+
+  "with-meta*"  withMeta
+  "js-eval*"  evalJS
+  "js*"  invokeJS
+
+})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- loadedMacros? false)
@@ -43,7 +371,7 @@
 (defn- loadMacros "" []
   (when-not loadedMacros?
     (true! loadedMacros?)
-    (require "../bl/macros.ky")) nil)
+    (require "./macros.ky")) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setMacro "Register a new macro"
@@ -71,7 +399,7 @@
       (if-not ret
         (set! ret
               (get CACHE
-                   (str "czlab.kirby.bl.macros/" cmd))))))
+                   (str "czlab.kirby.macros/" cmd))))))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -366,7 +694,7 @@
 (defn newEnv "" []
   (var ret (new LEXEnv))
   (each-key (fn [v k]
-              (ret.set (symbol k) v)) rt)
+              (ret.set (symbol k) v)) toolkit)
   (ret.set (symbol "eval")
            #(compute % ret))
   (ret.set (symbol "*ARGV*") [])

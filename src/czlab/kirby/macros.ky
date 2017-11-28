@@ -10,7 +10,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
 
-  czlab.kirby.bl.macros)
+  czlab.kirby.macros)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro cond* "" [&xs]

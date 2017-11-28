@@ -11,10 +11,9 @@
 
   czlab.kirby.main
 
-  (require ["./cg/transpiler" :as tx]
-           ["./bl/stdlib" :as std]
-           ["./bl/lexer" :as rdr]
-           ["./rt/runtime" :as rt])
+  (require ["./transpiler" :as tx]
+           ["./stdlib" :as std]
+           ["./runtime" :as rt])
   (require ["node-getopt" :as gopt]
            ["watch" :as watcher]
            ["path" :as path]
@@ -103,7 +102,7 @@
            (fn [module fname]
              (var code
                   (.transpile
-                    (require "./cg/transpiler")
+                    (require "./transpiler")
                     (fs/readFileSync fname "utf8")
                     (path/relative (process/cwd) fname)))
              (module._compile code fname)))
@@ -117,5 +116,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
