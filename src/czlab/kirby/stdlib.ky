@@ -391,6 +391,13 @@
   [coll] (every coll 1 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn modulo "Modulo"
+  [x N]
+  (if (< x 0)
+    (- x (* (- 1)
+            (+ N (* (Math.floor (div (- x) N)) N))))
+    (rem x N)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "Returns a seq of the first item
                  in each coll, then the second, etc"
   [c1 c2]
