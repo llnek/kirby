@@ -89,23 +89,24 @@
 (defn- testre? "" [re x] (if x (re.test x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- node' "" [obj src]
-  (when (and obj src (not (simple? obj)))
+(defn- node' "" [src &[obj]]
+  (set! obj (opt?? obj (tnode)))
+  (when src
     (set! obj.source src.source
           obj.column src.column obj.line src.line)) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree "" [root env]
-  (var ret (node' (tnode) root))
+  (var ret (node' root))
   (doseq [r root
           :let [tmp (tx* r env)]
           :when (some? tmp)]
     (ret.add [tmp "\n"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txExpr "" [atoms env]
+(defn- txExpr "" [expr env]
   (each (fn [a i arr]
-          (set-in! arr i (tx* a env))) atoms))
+          (set-in! arr i (tx* a env))) expr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txAtom "" [a]
@@ -115,7 +116,7 @@
         (keyword? a)
         (str "\"" s "\"")
         (symbol? a)
-        (rdr/jsid s)
+        (parser/jsid s)
         (nil? a)
         "null"
         (primitive? a)
@@ -126,7 +127,7 @@
         :else s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" [x & [env]]
+(defn- tx* "" [x &[env]]
   (try
     (if (array? x) (txPairs x env) (txAtom x))
     (catch e
@@ -161,40 +162,41 @@
         :else $(a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quote! "" [a env]
-  (if (array? a)
-    (if (map? a)
-      (quoteMap a env)
-      (quoteBlock a env))
-    (quoteSingle a)))
+(defn- quote! "" [ast env]
+  (if (array? ast)
+    (if (map? ast)
+      (quoteMap ast env)
+      (quoteBlock ast env))
+    (quoteSingle ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quoteMap "" [a env]
-  (var ret (tnode) comma "")
-  (for [i 0 sz (n# a)
+(defn- quoteMap "" [ast env]
+  (var comma ""
+       ret (node' ast))
+  (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (if (> i 0) (ret.add ","))
-    (ret.add [(quote! (.@i a) env)
-              " : " (quote! (.@+i a) env)]))
-  (if-not (empty? a) (set! comma ","))
+    (ret.add [(quote! (.@i ast) env)
+              " : " (quote! (.@+i ast) env)]))
+  (if-not (empty? ast) (set! comma ","))
   (ret.prepend ["[" "symbol(\"hashmap\")" comma])
   (ret.add "]")
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quoteBlock "" [a env]
-  (var ret (tnode))
-  (for [i 0 sz (n# a)
+(defn- quoteBlock "" [ast env]
+  (var ret (node' ast))
+  (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (if (> i 0) (ret.add ","))
-    (ret.add (quote! (.@i a) env)))
+    (ret.add (quote! (.@i ast) env)))
   (ret.prepend "[")
   (ret.add "]")
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
-  (var ret (node' (tnode) ast))
+  (var ret (node' ast))
   (ret.add (quote! (2nd ast) env))
   ret)
 
@@ -202,9 +204,8 @@
 (defn- txPairs "" [ast env]
   (var stmtQ (stmt? ast)
        cmd (findCmd ast)
-       ret (tnode)
-       specop nil
-       tmp nil
+       ret (node' ast)
+       specop nil tmp nil
        mc (eng/getMacro cmd))
   ;;handle macro calls
   (when mc
@@ -212,7 +213,7 @@
           ast (exprHint ast (not stmtQ))
           cmd (findCmd ast)))
   ;;handle (+1 ) or (-1 ) cases
-  (when (rdr/REGEX.int.test cmd)
+  (when (parser/REGEX.int.test cmd)
     (var c0 (ch@ cmd 0))
     (if (and (not= c0 "-")
              (not= c0 "+"))
@@ -242,11 +243,11 @@
         (when (cmd.startsWith ".@+")
           (++ pos)
           (true! onemore?))
-        (ret.add [(tx* (2nd ast) env) "[" (cmd.slice pos)])
-        (if onemore?
-          (ret.add "+1]")
-          (ret.add "]")))
-    (= "." (ch@ cmd 0))
+        (ret.add [(tx* (2nd ast) env)
+                  "["
+                  (cmd.slice pos)
+                  (if onemore? "+1]" "]")]))
+    (cmd.startsWith ".")
     (do (ret.add [(tx* (2nd ast) env) cmd "("])
         (for [n 2 sz (n# ast)
               :while (< n sz) :recur (+1 n)]
@@ -263,43 +264,41 @@
         (if-not cmd (syntax! :e1 ast))
         (set! cmd (maybeStripStdlib cmd))
         (if (pairs? ast)
-          (do (if (testre? rdr/REGEX.func cmd)
+          (do (if (testre? parser/REGEX.func cmd)
                 (set! cmd (tnodeEx ["(" cmd ")"])))
               (ret.add [cmd
                         "("
                         (join "," (tnodeEx (rest ast))) ")"]))
           (ret.add cmd))))
-  (node' ret ast))
+  (node' ast ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeDoc "Convert to jsdoc"
   [doc]
   (var out [])
   (if doc
-    (->> (-> (doc.replace rdr/REGEX.dquoteHat "")
-             (.replace rdr/REGEX.dquoteEnd "")
+    (->> (-> (doc.replace parser/REGEX.dquoteHat "")
+             (.replace parser/REGEX.dquoteEnd "")
              (.split "\\n"))
          (each #(let [s (.trim (str %))]
                   (if (not-empty s)
-                    (conj! out (str "//" s "\n")))))))
-  out)
+                    (conj! out (str "//" s "\n"))))))) out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype
   "Define a JS Class"
   ^{:opcode ["deftype" "deftype-"]}
   [ast env]
-  (var private? (.endsWith $(1st ast) "-")
-       ret (node' (tnode) ast)
-       cz (tx* (2nd ast) env)
+  (var private? (ends? $(1st ast) "-")
+       czname (tx* (2nd ast))
        par (1st (.@2 ast))
-       args (.@3 ast))
+       czargs (.@3 ast) ret (node' ast))
   (var~ n m doc mtds)
   (if (string? (.@4 ast))
     (do (set! doc (.@4 ast)
               mtds (ast.slice 5)))
     (set! mtds (ast.slice 4)))
-  (ret.add ["class " cz])
+  (ret.add ["class " czname])
   (if par
     (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -325,7 +324,7 @@
   (if doc (ret.prepend (writeDoc doc)))
   (if (and (not private?)
            (= 1 (.countNSPCache (eng/globalEnv))))
-      (set-in! EXTERNS cz cz))
+      (set-in! EXTERNS czname czname))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
