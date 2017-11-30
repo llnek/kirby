@@ -5,65 +5,25 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-
   czlab.kirby.engine
-
   (require ["readline" :as readline])
   (require ["fs" :as fs])
   (require ["./parser" :as parser]
            ["./stdlib"
             :as std
-            :refer [extendAttr
-                    stringify
-                    contains?
-                    LambdaArg
-                    Keyword
-                    not-empty
-                    object?
-                    Symbol
-                    into!
-                    prn
-                    Atom
-                    symbol
-                    swap!
-                    atom
-                    vector
-                    vector?
-                    list?
-                    map?
-                    some?
-                    typeid
-                    sequential?
-                    contains?
-                    contains?
-                    conj!
-                    some?
-                    count
-                    last
-                    pop!
-                    opt??
-                    vector
-                    Symbol
-
-                    keyword?
-                    atom
-                    into!
-                    vector?
-                    vector
-                    symbol?
-                    symbol
-                    count
-                    pairs?
-                    list?
-                    map?
-                    tree
-                    seq
-                    prn
-                    not-empty
-                    sequential?]]))
+            :refer [pairs? stringify contains?
+                    LambdaArg Keyword
+                    not-empty object?
+                    Symbol into! prn
+                    Atom symbol swap!
+                    atom vector vector?
+                    list? map? some?
+                    typeid sequential?
+                    conj! some? count
+                    last pop! opt??
+                    keyword? symbol? seq]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertSymbol "" [k]
@@ -91,7 +51,7 @@
                      $(.@+i vars)
                      (slice exprs i))
             (break-out-of-loop!))
-        (ev.startsWith "&")
+        (start? ev "&")
         (do (set-in! this.data
                      (rest ev)
                      (slice exprs i))

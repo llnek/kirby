@@ -5,12 +5,9 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-
   czlab.kirby.parser
-
   (require ["source-map" :as smap])
   (require ["./stdlib"
             :as std
@@ -88,7 +85,7 @@
       (fn [acc x]
         (set! acc
               (acc.replace (1st x) (2nd x)))
-        (if (acc.endsWith (2nd x))
+        (if (ends? acc (2nd x))
           (acc.slice 0 -1)
           acc))
       (.replace (str pfx name)
@@ -97,17 +94,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lexer "Lexical analyzer" [source fname]
-  (var len (count source)
-       tree []
-       ch nil nx nil
-       token "" line 1
-       esc? #f str? #f
+  (var regex? #f comment? #f
        tcol 0 col 0 pos 0
-       regex? #f comment? #f
+       esc? #f str? #f
+       len (n# source)
+       token "" line 1
+       ch nil nx nil
+       tree []
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
-           (when (and (s.startsWith "&")
+           (when (and (starts? s "&")
                       (not= s "&&")
                       (> (alen s) 1))
              (conj! tree (tnode fname ln col "&" "&"))
@@ -204,7 +201,8 @@
   [token & msgs]
   (var s (join "" msgs))
   (if token
-    (raise! s "\nnear line: "
+    (raise! s
+            "\nnear line: "
             token.line "\nin file: " token.source)
     (raise! s "\nnear EOF ")))
 
@@ -244,12 +242,12 @@
     (or (REGEX.hex.test tn)
         (REGEX.int.test tn))
     (set! ret (int tn))
-    (and (tn.startsWith "\"")
-         (tn.endsWith "\""))
+    (and (starts? tn "\"")
+         (ends? tn "\""))
     (set! ret tn)
-    (tn.startsWith ":")
+    (starts? tn ":")
     (set! ret (keyword tn))
-    (tn.startsWith "%")
+    (starts? tn "%")
     (set! ret (lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
