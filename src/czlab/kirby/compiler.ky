@@ -243,7 +243,7 @@
     (ret.add [tmp "\n"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txExpr "" [expr env]
+(defn- txForm "" [expr env]
   (each (fn [a i arr]
           (set-in! arr i (tx* a env))) expr))
 
@@ -266,26 +266,24 @@
         :else s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" [x &[env]]
+(defn- tx* "" [x & [env]]
   (try
-    (if (array? x) (txPairs x env) (txAtom x))
+    (if (array? x)
+      (txPairs x env) (txAtom x))
     (catch e
-      (println "Error in file: " x.source
-                ", near line: " x.line
-                ", column: " x.column)
+      (println "Error in file: "
+               x.source
+               ",line: "
+               x.line ",col: " x.column)
       (throw e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- findCmd "" [ast]
-  (cond (vector? ast)
-        "vec"
-        (map? ast)
-        "hashmap"
-        (list? ast)
-        "list"
-        (array? ast)
-        $(1st ast)
-        :else ""))
+(defn- gcmd "" [ast]
+  (cond (vector? ast) "vec"
+        (map? ast) "hashmap"
+        (list? ast) "list"
+        (and (array? ast)
+             (symbol? (1st ast))) $(1st ast) :else ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" [a]
@@ -318,9 +316,7 @@
     (ret.add [(quote! (.@i ast) env)
               " : " (quote! (.@+i ast) env)]))
   (if-not (empty? ast) (set! comma ","))
-  (ret.prepend ["[" "symbol(\"hashmap\")" comma])
-  (ret.add "]")
-  ret)
+  (wrap ret ["[" "symbol(\"hashmap\")" comma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" [ast env]
@@ -329,28 +325,26 @@
         :while (< i sz) :recur (+1 i)]
     (if (> i 0) (ret.add ","))
     (ret.add (quote! (.@i ast) env)))
-  (ret.prepend "[")
-  (ret.add "]")
-  ret)
+  (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
+  (if-not (= 2 (n# ast)) (syntax! :wrong-num-args ast))
   (var ret (node' ast))
-  (ret.add (quote! (2nd ast) env))
-  ret)
+  (wrap ret "" (quote! (2nd ast) env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" [ast env]
   (var stmtQ (stmt? ast)
-       cmd (findCmd ast)
+       cmd (gcmd ast)
        ret (node' ast)
-       specop nil tmp nil
+       op nil tmp nil
        mc (eng/getMacro cmd))
   ;;handle macro calls
   (when mc
     (set! ast (eng/expandMacro ast env mc)
           ast (exprHint ast (not stmtQ))
-          cmd (findCmd ast)))
+          cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (parser/REGEX.int.test cmd)
     (var c0 (ch@ cmd 0))
@@ -362,7 +356,7 @@
                (int (rest cmd))]
           cmd $(1st ast)))
   ;;maybe special form
-  (set! specop (get SPEC-OPS cmd))
+  (set! op (get SPEC-OPS cmd))
   ;;handle all cases
   (cond
     (== cmd "with-meta")
@@ -372,35 +366,35 @@
                        :____meta
                        (evalMeta (.@2 ast) env))
               (ret.add (tx* tmp env)))
-          (raise! "cant with-meta simple value")))
-    (cmd.startsWith ".-")
+          (syntax!! ast "cant with-meta simple value")))
+    (starts? cmd ".-")
     (ret.add [(tx* (2nd ast) env)
               "."
-              (tx* (symbol (cmd.slice 2)))])
-    (cmd.startsWith ".@")
+              (tx* (symbol (cmd.slice 2)) env)])
+    (starts? cmd ".@")
     (do (var onemore? #f pos 2)
-        (when (cmd.startsWith ".@+")
+        (when (starts? cmd ".@+")
           (++ pos)
           (true! onemore?))
         (ret.add [(tx* (2nd ast) env)
                   "["
                   (cmd.slice pos)
                   (if onemore? "+1]" "]")]))
-    (cmd.startsWith ".")
+    (starts? cmd ".")
     (do (ret.add [(tx* (2nd ast) env) cmd "("])
         (for [n 2 sz (n# ast)
               :while (< n sz) :recur (+1 n)]
           (if (not= n 2) (ret.add ","))
           (ret.add (tx* (.@n ast) env)))
         (ret.add ")"))
-    (some? specop)
-    (set! ret (specop ast env))
+    (some? op)
+    (set! ret (op ast env))
     :else
     (do (if (pairs? ast)
-          (do (txExpr ast env)
-              (set! cmd (1st ast)))
-          (set! cmd (tx* ast)))
-        (if-not cmd (syntax! :e1 ast))
+          (do (txForm ast env)
+              (set! cmd $(1st ast)))
+          (set! cmd (tx* ast env)))
+        (if-not cmd (syntax! :empty-form ast))
         (set! cmd (maybeStripStdlib cmd))
         (if (pairs? ast)
           (do (if (testre? parser/REGEX.func cmd)
@@ -428,15 +422,17 @@
   "Define a JS Class"
   ^{:opcode ["deftype" "deftype-"]}
   [ast env]
+  (if-not (>= (n# ast) 4) (syntax! :wrong-num-args ast))
   (var private? (ends? $(1st ast) "-")
-       czname (tx* (2nd ast))
+       czname (tx* (2nd ast) env)
        par (1st (.@2 ast))
-       czargs (.@3 ast) ret (node' ast))
+       czargs (.@3 ast)
+       ret (node' ast))
   (var~ n m doc mtds)
   (if (string? (.@4 ast))
     (do (set! doc (.@4 ast)
-              mtds (ast.slice 5)))
-    (set! mtds (ast.slice 4)))
+              mtds (slice ast 5)))
+    (set! mtds (slice ast 4)))
   (ret.add ["class " czname])
   (if par
     (ret.add [" extends " (tx* par env)]))
@@ -445,7 +441,7 @@
         :while (< i sz) :recur (+1 i)]
     (set! m (.@i mtds))
     (set! pos (if (string? (2nd m)) 3 2))
-    (when (and (== (1st m)
+    (when (and (== $(1st m)
                    "constructor")
                (not-empty czargs))
       (for [x 0 sz (n# czargs)
@@ -461,45 +457,50 @@
   (ret.add "}\n")
   (if doc (ret.prepend (writeDoc doc)))
   (if (and (not private?)
-           (= 1 (.countNSPCache (eng/globalEnv))))
-      (set-in! EXTERNS czname czname))
-  ret)
+           (= 1 (.countNSPCache
+                  (eng/globalEnv))))
+      (set-in! EXTERNS czname czname)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp ""
-  ^{:opcode ["not=" "!=" "==" "="
+  ^{:opcode ["not=" "!="
+             "==" "="
              ">" ">=" "<" "<="]} [ast env]
+  (if-not (and (>= (n# ast) 3)
+               (odd? (n# ast))) (syntax! :wrong-num-args ast))
   (var ret (node' ast)
-       cmd (1st ast))
+       cmd $(1st ast))
   (cond (== cmd "not=")
         (set-in! ast 0 (symbol "!=="))
         (== cmd "=")
         (set-in! ast 0 (symbol "===")))
-  (for [i 0 op (tx* (ast.shift))
+  (for [i 0 op (tx* (ast.shift) env)
         :while (< i (last-index ast)) :recur (+1 i)]
     (ret.add (tnodeEx [(tx* (.@i ast) env)
-                       " " op
-                       " " (tx* (.@+i ast) env)])))
-  (ret.join " && ")
+                       " "
+                       op
+                       " "
+                       (tx* (.@+i ast) env)])))
+  (join " && " ret)
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-arithOp
   ""
-  ^{:opcode ["bit-lshift" "bit-rshift" "bit-zrshift"
+  ^{:opcode ["bitwise-lshift" "bitwise-rshift" "bitwise-zrshift"
              "+" "-" "*" "div" "mod"
              "or" "and" "exp" "rem"
-             "bit-and" "bit-or" "bit-not" "bit-xor"]}
+             "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]}
   [ast env]
-  (var op "" e1 (tx* (ast.shift))
-       cmd $(e1) ret (node' ast))
-  (cond (== cmd "bit-zrshift") (set! cmd ">>>")
-        (== cmd "bit-rshift") (set! cmd ">>")
-        (== cmd "bit-lshift") (set! cmd "<<")
-        (== cmd "bit-and") (set! cmd "&")
-        (== cmd "bit-or") (set! cmd "|")
-        (== cmd "bit-not") (set! cmd "~")
-        (== cmd "bit-xor") (set! cmd "^")
+  (var e1 (tx* (ast.shift) env)
+       op "" cmd $(e1) ret (node' ast))
+  (cond (== cmd "bitwise-zrshift") (set! cmd ">>>")
+        (== cmd "bitwise-rshift") (set! cmd ">>")
+        (== cmd "bitwise-lshift") (set! cmd "<<")
+        (== cmd "bitwise-and") (set! cmd "&")
+        (== cmd "bitwise-or") (set! cmd "|")
+        (== cmd "bitwise-not") (set! cmd "~")
+        (== cmd "bitwise-xor") (set! cmd "^")
         (== cmd "rem") (set! cmd "%")
         (== cmd "div") (set! cmd "/")
         (== cmd "and") (set! cmd "&&")
@@ -509,14 +510,13 @@
     (if (== "-" cmd) (ret.add "-"))
     (set! op cmd))
   (ret.add ast)
-  (if (> (n# ast) 1)
-    (ret.join op))
+  (if (> (n# ast) 1) (join op ret))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txDo "" [ast env & [return?]]
-  (var ret (node' ast)
-       stmtQ (stmt? ast)
+  (var stmtQ (stmt? ast)
+       ret (node' ast)
        e nil end (last-index ast))
   (set! return?
         (if stmtQ false (opt?? return? true)))
@@ -529,29 +529,29 @@
           e (tx* e env))
     (ret.add (if-not return?
                [e ";\n"]
-               ["return " e ";\n"])))
-  ret)
+               ["return " e ";\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
   "" ^{:opcode ["do"]} [ast env]
   (var ret (node' ast)
-       stmtQ (stmt? ast)
-       body (exprHint (rest ast) (not stmtQ)))
-  (ret.add (txDo body env (not stmtQ)))
+       stmtQ (stmt? ast))
+  (ret.add (txDo (exprHint (rest ast)
+                           (not stmtQ))
+                 env (not stmtQ)))
   (if stmtQ
-    (wrap ret "" "");(wrap ret "{\n" "}")
+    (wrap ret "" "")
     (wrap ret
-          "(function() {\n"
-          "}).call(this)")))
+          "(function() {\n" "}).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
   "" ^{:opcode ["case"]} [ast env]
-  (var ret (node' ast)
-       stmtQ (stmt? ast)
+  (var stmtQ (stmt? ast)
+       ret (node' ast)
        brk ";\nbreak;\n"
-       tst (2nd ast) _x $(gensym "C__"))
+       tst (2nd ast)
+       _x $(gensym "C__"))
   (var~ e t c dft)
   (if (odd? (n# ast))
     (set! dft (1st (pop! ast))))
@@ -569,22 +569,20 @@
                     (tx* c env) brk])))
       (ret.add ["case " (tx* e env) ":\n"
                 _x "=" (tx* c env) brk])))
-  (when dft
+  (if dft
     (ret.add ["default:\n"
               _x "=" (tx* dft env) brk]))
   (wrap ret ["switch ("
              (tx* tst env) ") {\n"] "}")
   (if stmtQ
-    (wrap ret ["let " _x ";\n"] "") ;"}"
+    (wrap ret ["let " _x ";\n"] "")
     (wrap ret
           ["(function() { let " _x ";\n"]
           ["return " _x ";}).call(this)"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-vardefs
-  ""
-  ^{:opcode ["def~-" "def~" "var~"]}
-  [ast env]
+(defn- sf-vardefs "" ^{:opcode ["def~-"
+                                "def~" "var~"]} [ast env]
   (var ret (node' ast)
        cmd $(1st ast)
        kks {}
@@ -595,18 +593,21 @@
     (set! s (tx* (.@i ast) env))
     (ret.add s)
     (set-in! kks s nil))
-  (ret.join ",")
+  (join "," ret)
   (wrap ret (str cmd " ") ";\n")
   (if (and (not private?)
-           (= 1 (.countNSPCache (eng/globalEnv))))
+           (= 1 (.countNSPCache
+                  (eng/globalEnv))))
     (each-key (fn [v k]
                 (set-in! EXTERNS k k)) kks)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-var
-  ""
-  ^{:opcode ["const" "const-" "def" "def-" "var"]}
-  [ast env]
+(defn- sf-var "" ^{:opcode ["const"
+                            "const-"
+                            "def"
+                            "def-"
+                            "var"]} [ast env]
+  (if-not (odd? (n# ast)) (syntax! :wrong-num-args ast))
   (var ret (node' ast)
        cmd $(1st ast)
        keys []
@@ -624,21 +625,25 @@
           rhs (.@+i ast)
           rval (tx* rhs env))
     (if (symbol? lhs)
-      (do (set! lhs (tx* lhs)
+      (do (set! lhs (tx* lhs env)
                 tmp [cmd " " lhs "=" rval ";\n"])
           (conj! keys lhs)
           (ret.add tmp))
       (do (set! out (tnode)
                 rhs (destruct* lhs out env))
-          (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
+          (ret.add ["let "
+                    (tx* rhs env)
+                    "=" rval ";\n" out]))))
   (when (and (not private?)
-             (= 1 (.countNSPCache (eng/globalEnv))))
+             (= 1 (.countNSPCache
+                    (eng/globalEnv))))
     (each (fn [k]
             (set-in! EXTERNS k k)) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-inst?
   "" ^{:opcode ["inst?"]} [ast env]
+  (if-not (= (n# ast) 3) (syntax! :wrong-num-args ast))
   (var ret (node' ast))
   (wrap ret "" ["(" (tx* (.@2 ast) env)
                 " instanceof " (tx* (2nd ast) env) ")"]))
@@ -646,11 +651,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-delete
   "" ^{:opcode ["delete!"]} [ast env]
+  (if-not (and (>= (n# ast) 2)
+               (< (n# ast) 4)) (syntax! :wrong-num-args ast))
   (var ret (node' ast))
   (ret.add ["delete "
             (tx* (2nd ast) env)])
   (if (> (n# ast) 2)
-    (ret.add ["[" (tx* (.@2 ast)) "]"])) ret)
+    (ret.add ["[" (tx* (.@2 ast) env) "]"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
@@ -664,7 +671,7 @@
   (var ret (node' ast)
        stmtQ (stmt? ast))
   (ret.add ["throw " (tx* (2nd ast) env)])
-  (when-not stmtQ
+  (if-not stmtQ
     (wrap ret
           "(function (){ "
           ";}).call(this)")) ret)
@@ -672,6 +679,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-opop
   "" ^{:opcode ["++" "--" "++$" "--$"]} [ast env]
+  (if-not (= (n# ast) 2) (syntax! :wrong-num-args ast))
   (var cmd $(1st ast)
        ret (node' ast)
        a2 (tx* (2nd ast) env))
@@ -681,18 +689,28 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-eq
-  "" ^{:opcode ["+=" "-=" "*=" "div=" "rem=" "exp="
-                "bit-and=" "bit-or=" "bit-xor="
-                "bit-lshift=" "bit-rshift=" "bit-zrshift="]} [ast env]
+  "" ^{:opcode ["+="
+                "-="
+                "*="
+                "div="
+                "rem="
+                "exp="
+                "bitwise-and="
+                "bitwise-or="
+                "bitwise-xor="
+                "bitwise-lshift="
+                "bitwise-rshift="
+                "bitwise-zrshift="]} [ast env]
+  (if-not (= (n# ast) 3) (syntax! :wrong-num-args ast))
   (var cmd $(1st ast)
        ret (node' ast))
   (cond
-    (== cmd "bit-zrshift=") (set! cmd ">>>=")
-    (== cmd "bit-rshift=") (set! cmd ">>=")
-    (== cmd "bit-lshift=") (set! cmd "<<=")
-    (== cmd "bit-xor=") (set! cmd "^=")
-    (== cmd "bit-or=") (set! cmd "|=")
-    (== cmd "bit-and=") (set! cmd "&=")
+    (== cmd "bitwise-zrshift=") (set! cmd ">>>=")
+    (== cmd "bitwise-rshift=") (set! cmd ">>=")
+    (== cmd "bitwise-lshift=") (set! cmd "<<=")
+    (== cmd "bitwise-xor=") (set! cmd "^=")
+    (== cmd "bitwise-or=") (set! cmd "|=")
+    (== cmd "bitwise-and=") (set! cmd "&=")
     (== cmd "div=") (set! cmd "/=")
     (== cmd "rem=") (set! cmd "%=")
     (== cmd "exp=") (set! cmd "**="))
@@ -702,8 +720,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set-in
   "" ^{:opcode ["set-in!"]} [ast env]
-  (assert (even? (n# ast))
-          "set-in: bad arg count")
+  (if-not (even? (n# ast))
+          (syntax! :wrong-num-args ast))
   (var ret (node' ast)
        more #f
        obj (tx* (2nd ast) env))
@@ -719,8 +737,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set
   "" ^{:opcode ["set!"]} [ast env]
-  (assert (odd? (n# ast))
-          "set: bad arg count")
+  (if-not (odd? (n# ast))
+          (syntax! :wrong-num-args ast))
   (var more #f
        ret (node' ast))
   (for [i 1 sz (n# ast)
@@ -740,15 +758,20 @@
        fargs nil
        hints {}
        body (slice ast 2))
+  (if-not (array? args) (syntax! :no-func-args ast))
   (when (and (= 3 (n# args))
              (== "with-meta"
                  $(1st args))
              (array? (2nd args)))
     (set! hints (evalMeta (.@2 args) env)
           args (2nd args)))
+  (if-not (array? args) (syntax! :no-func-args ast))
   (set! fargs (processFuncArgs args env))
-  (ret.add ["function (" (1st fargs) ") {\n"
-            (2nd fargs) (txDo body env #t) "}"]) ret)
+  (wrap ret "" ["function ("
+                (1st fargs)
+                ") {\n"
+                (2nd fargs)
+                (txDo body env #t) "}"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtRegoSpecOps "" [alias fname]
@@ -764,8 +787,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeFuncInfo "" [fname src]
   (var file (ast.source.slice (+1 (ast.source.lastIndexOf "/")))
-       s (str "//name: [" fname "] in file: "
-              file " near line: " ast.line "\n")
+       s (str "//name: ["
+              fname
+              "] in file: "
+              file
+              ",line: " ast.line "\n")
        len (alen s))
   (if (< len 80)  (set! len 80))
   (doto (tnodeEx (str (.repeat "/" len) "\n")) (.add s)))
@@ -779,9 +805,8 @@
        fname (tx* (2nd ast) env)
        dot? (contains? fname ".")
        ret (node' ast) hints {}
+       e2 (.@2 ast) args 2 body 3
        fargs nil doc nil
-       e2 (.@2 ast)
-       args 2 body 3
        private? (ends? fname0 "-"))
   (if (string? e2)
     (set! doc 2 args 3))
@@ -789,12 +814,14 @@
   (if doc (set! doc (nth ast doc)))
   (set! args (nth ast args)
         body (slice ast body))
+  (if-not (array? args) (syntax! :no-func-args ast))
   (when (and (= 3 (n# args))
              (== "with-meta"
                  $(1st args))
              (array? (2nd args)))
     (set! hints (evalMeta (.@2 args) env)
           args (2nd args)))
+  (if-not (array? args) (syntax! :no-func-args ast))
   (set! fargs (processFuncArgs args env))
   (cond mtd?
         (do (if (.-static hints)
@@ -818,7 +845,8 @@
   (if (and (not private?)
            (not dot?)
            (not mtd?)
-           (= 1 (.countNSPCache (eng/globalEnv))))
+           (= 1 (.countNSPCache
+                  (eng/globalEnv))))
     (set-in! EXTERNS fname fname))
   ret)
 
@@ -832,8 +860,8 @@
   ;;look for finally
   (set! f (last ast))
   (if (and (array? f)
-           (== "finally" (1st f)))
-    (set! f (pop! ast)
+           (== "finally" $(1st f)))
+    (set! f (1st (pop! ast))
           sz (n# ast))
     (nil! f))
   ;;look for catch
@@ -841,20 +869,22 @@
   (if (> sz 1)
     (set! c (nth ast (-1 sz))))
   (if (and (array? c)
-           (== "catch" (1st c)))
+           (== "catch" $(1st c)))
     (do (if (or (< (n# c) 2)
-                (not (symbol? (2nd c)))) (syntax! :e0 ast))
-        (set! c (ast.pop)))
+                (not (symbol? (2nd c))))
+          (syntax! :expected-symbol ast))
+        (set! c (1st (pop! ast))))
     (nil! c))
   ;;try needs either a catch or finally or both
-  (if (and (nil? f) (nil? c)) (syntax! :e0 ast))
+  (if (and (nil? f)
+           (nil? c)) (syntax! :invalid-try-block ast))
   (ret.add ["try {\n"
             (txDo (exprHint (rest ast)
                             (not stmtQ)) env) "\n}"])
   (when c
     (set! t (2nd c))
     (ret.add [(str "catch (" t ") {\n")
-              (txDo (exprHint (c.slice 2)
+              (txDo (exprHint (slice c 2)
                               (not stmtQ)) env) ";\n}\n"]))
   (when f
     (ret.add ["finally {\n",
@@ -883,6 +913,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-nth ""
   ^{:opcode ["nth"]} [ast env]
+  (if-not (= (n# ast) 3) (syntax! :wrong-num-args ast))
   (var ret (node' ast))
   (wrap ret "" [(tx* (2nd ast) env)
                 "[" (tx* (.@2 ast) env) "]"]))
@@ -890,6 +921,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-get
   "" ^{:opcode ["get"]} [ast env]
+  (if-not (= (n# ast) 3) (syntax! :wrong-num-args ast))
   (var ret (node' ast))
   (wrap ret "" [(tx* (2nd ast) env)
                 "[" (tx* (.@2 ast) env) "]"]))
@@ -934,8 +966,7 @@
     (tnode)
     (let [src (fs/readFileSync fname "utf-8")]
       (conj! icache fname)
-      (txTree (parser/parser src fname)
-              (eng/globalEnv )))))
+      (txTree (parser/parser src fname) (eng/globalEnv )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
@@ -946,7 +977,8 @@
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast))
     (if (or (not (array? e))
-            (not= 1 (n# e))) (syntax! :e0 ast))
+            (not= 1 (n# e)))
+      (syntax! :bad-include-file ast))
     (set! fname $(1st e))
     (if fname
       (set! fname (fname.replace /[\"]/g "")))
@@ -954,7 +986,7 @@
       (set! fname (fs/realpathSync
                     (str dir "/" fname)))
       (catch e
-        (syntax! :e11 ast)))
+        (syntax! :file-read-error ast)))
     (try
       (conj! ret (includeFile fname))
       (finally
@@ -971,7 +1003,7 @@
           as $(gensym "R__")
           refers nil renames nil)
     (if (or (not (array? e))
-            (< (n# e) 3)) (syntax! :e0 ast))
+            (< (n# e) 3)) (syntax! :bad-require ast))
     (set! path $(1st e))
     (for [j 1 sz (n# e)
           :while (< j sz) :recur (+1 j)]
@@ -1014,11 +1046,12 @@
          (str )
          (JSON/parse ))
     :else
-    (raise! "Bad meta value" (prn ast))))
+    (syntax! :bad-meta ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns
   "" ^{:opcode ["ns"]} [ast env]
+  (if-not (>= (n# ast) 2) (syntax! :wrong-num-args ast))
   (var ret [] e nil
        hints {} nsp (2nd ast))
   (when (and (array? nsp)
@@ -1067,8 +1100,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for
   "" ^{:opcode ["for"]} [ast env]
-  (var ret (node' ast)
-       stmtQ (stmt? ast)
+  (var stmtQ (stmt? ast)
+       ret (node' ast)
        body (exprHint (slice ast 2) #f))
   (if (empty? body)
     (tnode)
@@ -1116,9 +1149,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode
   "" ^{:opcode ["js#"]} [ast env]
-  (node' ast (tnodeEx (-> $(2nd ast)
-                          (.replace parser/REGEX.dquoteHat "")
-                          (.replace parser/REGEX.dquoteEnd "")))))
+  (node' ast
+         (tnodeEx (-> $(2nd ast)
+                      (.replace parser/REGEX.dquoteHat "")
+                      (.replace parser/REGEX.dquoteEnd "")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro
@@ -1142,12 +1176,12 @@
                       :while (< j sz) :recur (+1 j)]
                   (set! x (.@j e))
                   (if-not (symbol? x)
-                    (raise! "Bad optional arg for macro"))
+                    (syntax! :expected-symbol ast))
                   (conj! pms x)))
             (do (conj! pms e (.@+i args))
                 (++ i)))
           (not (symbol? e))
-          (raise! "Bad optional arg for macro")
+          (syntax! :expected-symbol ast)
           :else
           (conj! pms e)))
   (set! ast
@@ -1165,6 +1199,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary
   "" ^{:opcode ["not" "~" "!"]} [ast env]
+  (if-not (= (n# ast) 2) (syntax! :wrong-num-args ast))
   (var [a0 a1] ast
        ret (node' ast))
   (if (== a0 "not") (set! a0 (symbol "!")))
@@ -1199,7 +1234,8 @@
 (defn- transpileCode "" [codeStr fname options]
   (.resetNSPCache (eng/globalEnv))
   (set! EXTERNS {})
-  (var outNode (txTree (parser/parser codeStr fname)
+  (var outNode (txTree (parser/parser codeStr
+                                      fname)
                        (eng/globalEnv))
        {:keys [source-map format]} options
        cstr ""
@@ -1228,8 +1264,7 @@
   (try
     (transpileCode code file options)
     (catch e
-      (when e
-        (println (.-stack e)) (throw e)))))
+      (println (.-stack e)) (throw e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn transpileWithSrcMap
