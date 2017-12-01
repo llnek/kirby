@@ -119,13 +119,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro boolean? "" [obj] `(= (typeof ~obj) "boolean"))
-
+(defmacro bool? "" [obj] `(= (typeof ~obj) "boolean"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro number? "" [obj] `(= (typeof ~obj) "number"))
-
+(defmacro num? "" [obj] `(= (typeof ~obj) "number"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro string? "" [obj] `(= (typeof ~obj) "string"))
-
+(defmacro str? "" [obj] `(= (typeof ~obj) "string"))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro fn? "" [obj] `(= (typeof ~obj) "function"))
 
