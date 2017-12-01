@@ -121,7 +121,16 @@ function tokenize (source, fname) {
         tree.push(tnode(fname, ln, col, "&","&"));
         s=s.slice(1);
       }
-      tree.push(tnode(fname, ln, col, s, s));
+      if (s.startsWith("-") && false &&
+          (REGEX.int.test(s) || REGEX.float.test(s))) {
+        s=s.slice(1);
+        tree.push(tnode(fname,ln,col,"(","("));
+        tree.push(tnode(fname,ln,col,"-","-"));
+        tree.push(tnode(fname,ln,col,s,s));
+        tree.push(tnode(fname,ln,col,")",")"));
+      } else {
+        tree.push(tnode(fname, ln, col, s, s));
+      }
     }
     return "";
   }

@@ -775,7 +775,7 @@ function sf_set_in(ast,env) {
 }
 
 SPEC_OPS["set-in!"]=sf_set_in;
-
+SPEC_OPS["=>>"]=sf_set_in;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function assert(tst) {
   if (! tst) throw new Error(
@@ -801,7 +801,7 @@ function sf_set(ast,env) {
   return ret;
 }
 SPEC_OPS["set!"]=sf_set;
-
+SPEC_OPS["=>"]=sf_set;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_fn(ast,env) {
   let fargs, args=ast[1],
