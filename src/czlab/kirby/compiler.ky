@@ -8,22 +8,20 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.compiler
-  (require ["./stdlib"
-            :as std
-            :refer [lambda-arg? hashmap pairs?
-                    contains? last typeid
-                    prn primitive map? vector?
-                    opt?? some? primitive?
-                    not-empty conj! list?
-                    gensym count pop! slice
-                    symbol keyword symbol? keyword?]]
-           ["./parser"
-            :as parser
-            :refer [tnode tnodeEx]]
-           ["./engine" :as eng])
-  (require ["fs" :as fs]
-           ["path" :as path]
-           ["esformatter" :as esfmt]))
+  (:require ["./stdlib"
+             :as std
+             :refer [lambda-arg? hashmap pairs?
+                     contains? last typeid
+                     prn primitive map? vector?
+                     opt?? some? primitive?
+                     not-empty conj! list?
+                     gensym count pop! slice
+                     symbol keyword symbol? keyword?]]
+            ["./engine" :as eng]
+            ["./parser" :as parser :refer [tnode tnodeEx]])
+  (:require ["fs" :as fs]
+            ["path" :as path]
+            ["esformatter" :as esfmt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ERRORS-MAP {
@@ -74,9 +72,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "" [ast args env]
-  (var fargs (tnode)
-       fdefs (tnode)
-       pms [] ret [fargs fdefs])
+  (var [fargs fdefs :as ret] [(tnode) (tnode)] pms [])
   (var~ e ev rval out)
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
@@ -124,13 +120,13 @@
       (break-out-of-loop!)))
   (cond
     (map? coll)
-    (out.add (destruct-Map rhs coll env ast))
+    (out.add (destructMap rhs coll env ast))
     (vector? coll)
-    (out.add (destruct-Vec rhs coll env ast)))
+    (out.add (destructVec rhs coll env ast)))
   rhs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct-Vec "" [src coll env ast]
+(defn- destructVec "" [src coll env ast]
   (=> src (tx* src env))
   (var~ e rval out)
   (var ret (tnode))
@@ -156,7 +152,8 @@
         (do (=> out (tnode))
             (out.add ["let "
                       (tx* e env)
-                      "=" src "[" $(i) "];\n" out])))
+                      "=" src "[" $(i) "];\n"])
+            (ret.add out)))
       (array? e)
       (do (=> rval (tnode)
               out (tnode)
@@ -172,7 +169,7 @@
       :else (error! :syntax-error ast))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct-Map "" [src coll env ast]
+(defn- destructMap "" [src coll env ast]
   (=> src (tx* src env))
   (var ret (tnode))
   (var~ e arr)
@@ -199,12 +196,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- simple? "" [ast]
-  (or (undef? ast) (nil? ast) (string? ast) (number? ast) (boolean? ast)))
+  (or (undef? ast) (nil? ast) (str? ast) (num? ast) (bool? ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- wrap "" [ret head tail]
   (if head (ret.prepend head))
-  (ret.add tail)
+  (if tail (ret.add tail))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -240,8 +237,7 @@
   (var ret (node' root))
   (doseq [r root
           :let [t (tx* r env)]
-          :when (some? t)]
-    (ret.add [t "\n"])) ret)
+          :when (some? t)] (ret.add [t "\n"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txForm "" [expr env]
@@ -267,9 +263,7 @@
         :else s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" [x & [env]]
-  (if (array? x)
-    (txPairs x env) (txAtom x)))
+(defn- tx* "" [x & [env]] (if (array? x) (txPairs x env) (txAtom x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gcmd "" [ast]
@@ -309,7 +303,7 @@
     (if (> i 0) (ret.add ","))
     (ret.add [(quote! (.@i ast) env)
               " : " (quote! (.@+i ast) env)]))
-  (if-not (empty? ast) (set! comma ","))
+  (if-not (empty? ast) (=> comma ","))
   (wrap ret ["[" "symbol(\"hashmap\")" comma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -422,6 +416,9 @@
                ["return " e ";\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;kenl
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
   (if-not (= (n# ast) 2) (error! :invalid-arity ast))
   (var ret (node' ast))
@@ -439,7 +436,7 @@
        czargs (.@3 ast)
        ret (node' ast))
   (var~ n m doc mtds)
-  (if (string? (.@4 ast))
+  (if (str? (.@4 ast))
     (do (=> doc (.@4 ast)
             mtds (slice ast 5)))
     (=> mtds (slice ast 4)))
