@@ -72,13 +72,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn "Print the input data as string"
-  [obj & [readable?]]
-  (var _r (opt?? readable? true)
-       pa (fn [arr s e]
-            (str s (.join (map (fn [x] (prn x _r)) arr) " ") e)))
+  [obj]
+  (var pa (fn [arr s e]
+            (str s (join " " (map prn arr)) e)))
   (case (typeid obj)
     :lambda-arg (str "%" (+1 (int obj.value)))
-    :atom (str "(atom " (prn obj.value _r) ")")
+    :atom (str "(atom " (prn obj.value) ")")
     :keyword (str ":" obj.value)
     :symbol obj.value
     :object (stringify obj)
@@ -97,31 +96,31 @@
                 "1" (rest arg))
          v (int name))
     (if-not (> v 0)
-      (raise! "Bad lambda-arg: " arg))
+      (raise! "invalid lambda-arg " arg))
     ;;zero based arg so minus 1
     (-- v)
-    (set! this.value $(v)))
+    (=> this.value $(v)))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Primitive [][value nil]
   "Defining a primitive data type"
   (constructor "" [v]
-    (set! this.value v))
+    (=> this.value v))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Keyword [][value ""]
   "Defining a keyword"
   (constructor "" [name]
-    (set! this.value (rest name)))
+    (=> this.value (rest name)))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Symbol [][value ""]
   "Defining a symbol"
   (constructor "" [name]
-    (set! this.value name))
+    (=> this.value name))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -159,7 +158,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom [][value nil]
   "Defining a clojure-like Atom"
-  (constructor "" [val] (set! this.value val)))
+  (constructor "" [val] (=> this.value val)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom?
@@ -171,7 +170,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset!
-  "Set a new value to the Atom" [a v] (set! a.value v))
+  "Set a new value to the Atom" [a v] (=> a.value v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
@@ -183,7 +182,7 @@
   [a f & xs]
   (->> (concat [a.value] xs)
        (apply f this)
-       (set! a.value )) (get a :value))
+       (=> a.value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn typeid "Returns the type-id
@@ -231,6 +230,7 @@
 (defn eq? "Tests if two things are equal"
   [a b]
   (var ta (typeid a)
+       ok? #t
        tb (typeid b))
   (if-not (or (= ta tb)
               (and (sequential? a)
@@ -238,31 +238,29 @@
     #f
     (case ta
       (:map :list :vector)
-      (do-with [ok? #t]
-        (if (not= (alen a)
-                  (alen b))
-          (false! ok?)
-          (for [i 0 sz (alen a)
-                :while (< i sz) :recur (+1 i)]
-            (when-not (eq? (.@i a)
-                           (.@i b))
-              (false! ok?)
-              (break-out-of-loop!)))))
+      (do (if (not= (alen a)
+                    (alen b))
+            (false! ok?)
+            (for [i 0 sz (alen a)
+                  :while (< i sz) :recur (+1 i)]
+              (when-not (eq? (.@i a)
+                             (.@i b))
+                (false! ok?)
+                (break-out-of-loop!)))) ok?)
       :object
-      (do-with [ok? #t]
-        (if-not (= (count a)
-                   (count b))
-          (false! ok?)
-          (for [i 0 k nil ks (keys a)
-                :while (< i (alen ks)) :recur (+1 i)]
-            (set! k (.@i ks))
-            (when-not (eq? (get a k)
-                           (get b k))
-              (false! ok?)
-              (break-out-of-loop!)))))
+      (do (if-not (= (count a)
+                     (count b))
+            (false! ok?)
+            (for [i 0 k nil ks (keys a)
+                  :while (< i (alen ks)) :recur (+1 i)]
+              (=> k (.@i ks))
+              (when-not (eq? (get a k)
+                             (get b k))
+                (false! ok?)
+                (break-out-of-loop!)))) ok?)
       (:symbol :keyword)
       (= a.value b.value)
-      ;else
+      ;;else
       (= a b))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -282,12 +280,11 @@
   [type coll]
   (case type
     :vector
-    (set-in! coll :____vec #t)
+    (=>> coll :____vec #t)
     :list
-    (set-in! coll :____list #t)
+    (=>> coll :____list #t)
     :map
-    (set-in! coll :____map #t))
-  coll)
+    (=>> coll :____map #t)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
@@ -310,7 +307,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" [&xs] (set-in! xs :____list #t) xs)
+  "Create a List" [&xs] (=>> xs :____list #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
@@ -318,7 +315,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" [&xs] (set-in! xs :____vec #t) xs)
+  "Create a Vector" [&xs] (=>> xs :____vec #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
@@ -328,8 +325,7 @@
 (defn hashmap "Create a new Hashmap"
   [&xs]
   (if (odd? (alen xs))
-    (raise! "Odd number of hash map arguments"))
-  (set-in! xs :____map #t) xs)
+    (raise! "Invalid arity for hashmap")) (=>> xs :____map #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
@@ -392,9 +388,10 @@
 (defn modulo "Modulo"
   [x N]
   (if (< x 0)
-    (- x (* (- 1)
+    (- x (* -1
             (+ N (* (Math.floor (div (- x) N)) N))))
     (rem x N)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "Returns a seq of the first item
                  in each coll, then the second, etc"
@@ -418,13 +415,15 @@
        ret {})
   (for [i 0
         :while (< i cz) :recur (+1 i)]
-    (set-in! ret
-             $(.@i keys) (.@i vals)))
+    (=>> ret
+         $(.@i keys) (.@i vals)))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn extendAttr "" [obj attr]
-  (Object.defineProperty obj attr {:enumerable #f :writable #t}) obj)
+(defn extendAttr "" [obj attr & [flags]]
+  (=> flags (opt?? flags
+                   {:enumerable #f :writable #t}))
+  (Object.defineProperty obj attr flags) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- gensym-counter (atom 0))
@@ -432,7 +431,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gensym "Generates next random symbol"
   [& [pfx]]
-  (symbol (str (opt?? pfx "G____")
+  (symbol (str (opt?? pfx "GS__")
                (swap! gensym-counter
                       (fn [x] (+1 x))))))
 
@@ -470,9 +469,7 @@
    :zero []
    :plus #(reduce
             (fn [acc v]
-              (concat acc v))
-            []
-            (slice arguments))})
+              (concat acc v)) [] ____args)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def m-state

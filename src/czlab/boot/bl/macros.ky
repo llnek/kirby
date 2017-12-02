@@ -464,5 +464,7 @@
 (defmacro 1st [x] `(first ~x))
 (defmacro 2nd [x] `(second ~x))
 
+(defmacro starts? [x s] `(.startsWith ~x ~s))
+(defmacro ends? [x s] `(.endsWith ~x ~s))
 
 

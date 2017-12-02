@@ -75,16 +75,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsid "Escape to
            compliant js identifier"
-  [name]
-  (var pfx "")
-  (when (and (string? name)
-             (= "-" (ch@ name 0)))
-    (set! pfx "-" name (rest name)))
+  [input]
+  (var pfx "" name $(input))
+  (when (and name
+             (starts? name "-"))
+    (=> pfx "-" name (rest name)))
   (if (testid? name)
     (reduce
       (fn [acc x]
-        (set! acc
-              (acc.replace (1st x) (2nd x)))
+        (=> acc
+            (acc.replace (1st x) (2nd x)))
         (if (ends? acc (2nd x))
           (acc.slice 0 -1)
           acc))
@@ -108,15 +108,15 @@
                       (not= s "&&")
                       (> (alen s) 1))
              (conj! tree (tnode fname ln col "&" "&"))
-             (set! s (rest s)))
+             (=> s (rest s)))
            (conj! tree (tnode fname ln col s s))) ""))
   (while (< pos len)
-    (set! ch (ch@ source pos))
+    (=> ch (ch@ source pos))
     (++ col)
     (++ pos)
-    (set! nx (ch@ source pos))
+    (=> nx (ch@ source pos))
     (when (= ch "\n")
-      (set! col 0)
+      (=> col 0)
       (++ line)
       (if comment? (false! comment?)))
     (cond
@@ -132,36 +132,36 @@
             (when (contains? "gimuy" nx)
               (+= token nx)
               (++ pos))
-            (set! token (toke line tcol token))))
+            (=> token (toke line tcol token))))
       (= ch "\"")
       (if-not str?
-        (do (set! tcol col)
+        (do (=> tcol col)
             (true! str?)
             (+= token ch))
         (do (false! str?)
             (+= token ch)
-            (set! token
-                  (toke line tcol token #t))))
+            (=> token
+                (toke line tcol token #t))))
       str?
-      (do (if (= ch "\n") (set! ch "\\n"))
-          (if (= ch "\\") (set! esc? #t))
+      (do (if (= ch "\n") (=> ch "\\n"))
+          (if (= ch "\\") (=> esc? #t))
           (+= token ch))
       (or (= ch "'") (= ch "`")
           (= ch "$") (= ch "@") (= ch "^"))
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
-        (do (set! tcol col)
+        (do (=> tcol col)
             (toke line tcol ch))
         (+= token ch))
       (and (= ch "&")
            (= nx "&"))
-      (do (if (empty? token) (set! tcol col))
+      (do (if (empty? token) (=> tcol col))
           (+= token (str ch nx))
           (++ pos))
       (= ch "~")
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
-        (do (set! tcol col)
+        (do (=> tcol col)
             (if (= nx "@")
               (do (++ pos)
                   (toke line tcol "~@"))
@@ -170,29 +170,24 @@
       (and (= ch "/")
            (empty? token))
       (do (true! regex?)
-          (set! tcol col)
+          (=> tcol col)
           (+= token ch))
       (or (= ch "[")(= ch "]")
           (= ch "{")(= ch "}")
           (= ch "(")(= ch ")"))
-      (do (set! token (toke line
-                            tcol token)
-                tcol col)
+      (do (=> token (toke line tcol token) tcol col)
           (toke line tcol ch))
       (= ch ";")
-      (set! token (toke line
-                        tcol token)
-            tcol col
-            comment? #t)
+      (=> token (toke line tcol token) tcol col comment? #t)
       (or (= ch ",")
           (REGEX.wspace.test ch))
       (->> (-> (if (= ch "\n")
                  (-1 line) line)
                (toke tcol token))
-           (set! token))
+           (=> token))
       :else
       (do (if (empty? token)
-            (set! tcol col))
+            (=> tcol col))
           (+= token ch))))
   tree)
 
@@ -204,7 +199,7 @@
     (raise! s
             "\nnear line: "
             token.line "\nin file: " token.source)
-    (raise! s "\nnear EOF ")))
+    (raise! s "\nnear EOF")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- nextToken "Returns the next token,
@@ -222,10 +217,10 @@
                      to the node"
   [token node]
   (if (object? node)
-    (set-in! node
-             :source token.source
-             :line token.line
-             :column token.column)) node)
+    (=>> node
+         :source token.source
+         :line token.line
+         :column token.column)) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAtom "Process an atom"
@@ -233,32 +228,32 @@
   (var ret nil tn ""
        token (nextToken tokens))
   (if token
-    (set! tn token.name))
+    (=> tn token.name))
   (cond
     (empty? tn)
     (undef! ret)
     (REGEX.float.test tn)
-    (set! ret (float tn))
+    (=> ret (float tn))
     (or (REGEX.hex.test tn)
         (REGEX.int.test tn))
-    (set! ret (int tn))
+    (=> ret (int tn))
     (and (starts? tn "\"")
          (ends? tn "\""))
-    (set! ret tn)
+    (=> ret tn)
     (starts? tn ":")
-    (set! ret (keyword tn))
+    (=> ret (keyword tn))
     (starts? tn "%")
-    (set! ret (lambda-arg tn))
+    (=> ret (lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
-    (set! ret nil)
+    (=> ret nil)
     (or (= "#t" tn)
         (= "true" tn))
-    (set! ret true)
+    (=> ret true)
     (or (= "#f" tn)
         (= "false" tn))
-    (set! ret false)
-    :else (set! ret (symbol tn)))
+    (=> ret false)
+    :else (=> ret (symbol tn)))
   (copyTokenData token ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -267,10 +262,10 @@
   (var ast [] ok? #t
        token (nextToken tokens))
   (var~ ret cur tn)
-  (if token (set! tn token.name))
+  (if token (=> tn token.name))
   (if (not= tn head)
     (throwE token "expected '" head "'"))
-  (set! cur (peekToken tokens))
+  (=> cur (peekToken tokens))
   (while ok?
     (when (or (nichts? cur)
               (= tail cur.name))
@@ -280,7 +275,7 @@
       (false! ok?))
     (when ok?
       (addAst ast (read* tokens))
-      (set! cur (peekToken tokens))))
+      (=> cur (peekToken tokens))))
   (nextToken tokens)
   ast)
 
@@ -326,7 +321,7 @@
       "^" (skip+parse
             tokens
             (fn []
-              (set! tmp (read* tokens))
+              (=> tmp (read* tokens))
               [(symbol "with-meta") (read* tokens) tmp]))
       "@" (skip+parse
             tokens
@@ -336,7 +331,7 @@
             #(do-with [y (read* tokens)]
                (var x (symbol "str"))
                (if (> (alen y) 1)
-                 (set! y [x y])
+                 (=> y [x y])
                  (y.unshift x))))
       "#" (skip+parse
             tokens
@@ -361,8 +356,8 @@
   (var tokens (lexer
                 source
                 (opt?? fname "*adhoc*"))
-       f nil ast [] tlen (count tokens))
-  (set! tokens.pos 0)
+       f nil ast [] tlen (n# tokens))
+  (=> tokens.pos 0)
   (comment
     (for [i 0 :while (< i tlen) :recur (+1 i)]
       (println "token=" (.-name (.@i tokens)))))
@@ -373,7 +368,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "Debug and dump the AST"
   [tree]
-  (for [i 0 sz (count tree)
+  (for [i 0 sz (n# tree)
         :while (< i sz) :recur (+1 i)]
     (println (prn (.@i tree)))))
 
