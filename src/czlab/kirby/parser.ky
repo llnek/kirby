@@ -12,7 +12,8 @@
   (require ["./stdlib"
             :as std
             :refer [lambda-arg object? nichts? count
-                    into! vector conj! opt?? symbol
+                    into! vector conj!
+                    slice opt?? symbol
                     keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

@@ -102,8 +102,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" []
-  (var that this tmp nil)
-  (=> tmp #(apply that this ____args))
+  (var that this
+       tmp #(apply that this ____args))
   (each-key
     (fn [v k] (=>> tmp k v)) that)
   tmp)
@@ -258,8 +258,8 @@
   "dec*"  (fn [x] (-1 x))
   "inc*"  (fn [x] (+1 x))
 
-  "is-even?"  (fn [n] (= 0 (mod n 2)))
-  "is-odd?"  (fn [n]  (= 1 (mod n 2)))
+  "is-even?"  (fn [n] (= 0 (std/modulo n 2)))
+  "is-odd?"  (fn [n]  (= 1 (std/modulo n 2)))
 
   "is-sequential?"  std/sequential?
   "concat*"  std/concat*
