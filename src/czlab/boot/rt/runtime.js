@@ -50,7 +50,8 @@ function getMacro(x) {
   if (nsp) {
     ret= CACHE[nsp+"/"+x];
   }
-  if (!ret) ret = CACHE["czlab.kirby.bl.defmacros/"+x];
+  if (!ret) ret = CACHE["czlab.kirby.bl.macros/"+x];
+  if (!ret) ret = CACHE["czlab.kirby.macros/"+x];
   return ret;
 }
 

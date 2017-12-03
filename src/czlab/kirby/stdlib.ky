@@ -273,7 +273,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn last "Returns the last element"
   [coll]
-  (if coll (nth coll (last-index coll))))
+  (if (and (array? coll)
+           (nzlen? coll)) (nth coll (last-index coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into! "Assign a type to this collection"
@@ -342,7 +343,8 @@
   (cond
     (or (array? coll)
         (string? coll)) (coll.includes x)
-    (object? coll) (coll.hasOwnProperty x)))
+    (object? coll) (coll.hasOwnProperty x)
+    :else false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nichts? "Returns true if object is

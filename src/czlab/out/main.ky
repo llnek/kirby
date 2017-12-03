@@ -5,20 +5,17 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-
   czlab.kirby.main
-
-  (require ["./cg/transpiler" :as tx]
-           ["./bl/stdlib" :as std]
-           ["./bl/lexer" :as rdr]
-           ["./rt/runtime" :as rt])
   (require ["node-getopt" :as gopt]
            ["watch" :as watcher]
            ["path" :as path]
-           ["fs" :as fs]))
+           ["fs" :as fs])
+  (require ["./compiler" :as tx]
+           ["./stdlib" :as std]
+           ["./engine" :as rt]))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- validFlag? /-h\b|-r\b|-v\b|-b\b|-s\b|-t\b/)
@@ -103,7 +100,7 @@
            (fn [module fname]
              (var code
                   (.transpile
-                    (require "./cg/transpiler")
+                    (require "./compiler")
                     (fs/readFileSync fname "utf8")
                     (path/relative (process/cwd) fname)))
              (module._compile code fname)))
@@ -117,5 +114,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
