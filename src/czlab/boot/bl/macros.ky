@@ -9,13 +9,6 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.bl.macros)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro cond* "" [&xs]
-  (if* (> (count* xs) 0)
-    `(if* ~(first* xs)
-          ~(nth* xs 1)
-          ~(cons* 'cond* (rest* (rest* xs))))))
-(defmacro assert* "" [c msg] (if* c true (throw* msg)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))

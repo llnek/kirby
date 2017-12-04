@@ -658,25 +658,25 @@
 (defn runRepl "" [] (init) (run_repl))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_assert "
-  (macro* assert* [c msg] (if* c true (throw* msg)))")
+(const- macro_assert ```
+  (macro* assert* [c msg] (if* c true (throw* msg))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_cond "
+(const- macro_cond ```
   (macro* cond* [&xs]
     (if* (> (count* xs) 0)
       (list* 'if*
             (first* xs)
             (nth* xs 1)
-            (cons* 'cond* (rest* (rest* xs))))))")
+            (cons* 'cond* (rest* (rest* xs)))))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" []
   (=> global_env (newEnv))
   (global_env.set
     (symbol "*host-language*") "javascript")
-  ;(rep macro_cond)
-  ;(rep macro_assert)
+  (rep macro_cond)
+  (rep macro_assert)
   (loadMacros))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

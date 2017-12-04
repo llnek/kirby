@@ -96,12 +96,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lexer "Lexical analyzer" [source fname]
   (var regex? #f comment? #f
-       tcol 0 col 0 pos 0
-       esc? #f str? #f
+       col 0 pos 0
+       fform? #f esc? #f str? #f
        len (n# source)
        token "" line 1
        ch nil nx nil
        tree []
+       tline line tcol col
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
@@ -122,6 +123,17 @@
       (if comment? (false! comment?)))
     (cond
       comment? nil
+      fform?
+      (if (and (= ch "`")
+               (= nx "`")
+               (= (ch@ source (+1 pos)) "`"))
+        (do (false! fform?)
+            (+= pos 2)
+            (+= token "\"")
+            (=> token (toke tline tcol token true)))
+        (cond (= ch "\"") (+= token "\\\"")
+              (= ch "\n") (+= token "\\n")
+              :else (+= token ch)))
       esc? (do (false! esc?)
                (+= token ch))
       regex?
@@ -133,62 +145,70 @@
             (when (contains? "gimuy" nx)
               (+= token nx)
               (++ pos))
-            (=> token (toke line tcol token))))
+            (=> token (toke tline tcol token))))
       (= ch "\"")
       (if-not str?
-        (do (=> tcol col)
+        (do (=> tline line tcol col)
             (true! str?)
             (+= token ch))
         (do (false! str?)
             (+= token ch)
             (=> token
-                (toke line tcol token #t))))
+                (toke tline tcol token #t))))
       str?
       (do (if (= ch "\n") (=> ch "\\n"))
           (if (= ch "\\") (=> esc? #t))
           (+= token ch))
+      (and (= ch "`")
+           (= nx "`")
+           (= (ch@ source (+1 pos)) "`")
+           (empty?  token))
+      (do (=> tline line tcol col)
+          (+= pos 2)
+          (true! fform?)
+          (+= token "\""))
       (or (= ch "'") (= ch "`")
           (= ch "$") (= ch "@") (= ch "^"))
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
-        (do (=> tcol col)
-            (toke line tcol ch))
+        (do (=> tline line tcol col)
+            (toke tline tcol ch))
         (+= token ch))
       (and (= ch "&")
            (= nx "&"))
-      (do (if (empty? token) (=> tcol col))
+      (do (if (empty? token) (=> tline line tcol col))
           (+= token (str ch nx))
           (++ pos))
       (= ch "~")
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
-        (do (=> tcol col)
+        (do (=> tline line tcol col)
             (if (= nx "@")
               (do (++ pos)
-                  (toke line tcol "~@"))
-              (toke line tcol ch)))
+                  (toke tline tcol "~@"))
+              (toke tline tcol ch)))
         (+= token ch))
       (and (= ch "/")
            (empty? token))
       (do (true! regex?)
-          (=> tcol col)
+          (=> tline line tcol col)
           (+= token ch))
       (or (= ch "[")(= ch "]")
           (= ch "{")(= ch "}")
           (= ch "(")(= ch ")"))
-      (do (=> token (toke line tcol token) tcol col)
-          (toke line tcol ch))
+      (do (=> token (toke tline tcol token) tline line tcol col)
+          (toke tline tcol ch))
       (= ch ";")
-      (=> token (toke line tcol token) tcol col comment? #t)
+      (=> token (toke tline tcol token) tline line tcol col comment? #t)
       (or (= ch ",")
           (REGEX.wspace.test ch))
       (->> (-> (if (= ch "\n")
-                 (-1 line) line)
+                 (-1 tline) tline)
                (toke tcol token))
            (=> token))
       :else
       (do (if (empty? token)
-            (=> tcol col))
+            (=> tline line tcol col))
           (+= token ch))))
   tree)
 

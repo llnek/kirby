@@ -99,16 +99,22 @@ function normalizeId (name) {
   }
 }
 
+function xxx(tokens,pos) {
+
+}
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function tokenize (source, fname) {
   let len= source.length,
        token= "",
-       line= 1,
+       tline=0,
        tcol= 0,
+       line= 1,
        col= 0,
        pos= 0,
        ch= null,
        nx= null,
+       fformQ=false,
        escQ= false,
        strQ= false,
        tree=[],
@@ -121,16 +127,7 @@ function tokenize (source, fname) {
         tree.push(tnode(fname, ln, col, "&","&"));
         s=s.slice(1);
       }
-      if (s.startsWith("-") && false &&
-          (REGEX.int.test(s) || REGEX.float.test(s))) {
-        s=s.slice(1);
-        tree.push(tnode(fname,ln,col,"(","("));
-        tree.push(tnode(fname,ln,col,"-","-"));
-        tree.push(tnode(fname,ln,col,s,s));
-        tree.push(tnode(fname,ln,col,")",")"));
-      } else {
-        tree.push(tnode(fname, ln, col, s, s));
-      }
+      tree.push(tnode(fname, ln, col, s, s));
     }
     return "";
   }
@@ -139,6 +136,7 @@ function tokenize (source, fname) {
     ++col;
     ++pos;
     nx= source.charAt(pos);
+
     if (ch=== "\n") {
       col= 0;
       ++line;
@@ -146,6 +144,21 @@ function tokenize (source, fname) {
     }
 
     if (commentQ) {}
+    else
+    if (fformQ) {
+      if (ch==="`" && nx==="`" && source.charAt(pos+1)==="`") {
+        fformQ=false;
+        ++pos;
+        ++pos;
+        token += "\"";
+        token= toke(line, tcol, token, true);
+      } else {
+        if (ch==="\"") { token += "\\\""; }
+        else if (ch==="\n") { token += "\\n"; }
+        //else if (ch==="\\") { token += "\\\\";}
+        else { token += ch; }
+      }
+    }
     else if (escQ) {
         escQ=false;
         token += ch;
@@ -164,6 +177,7 @@ function tokenize (source, fname) {
     }
     else if (ch === "\"") {
       if (!strQ) {
+        tline=line;
           tcol= col;
               strQ=true;
               token += ch;
@@ -178,10 +192,19 @@ function tokenize (source, fname) {
         if ( ch=== "\\") escQ= true;
             token += ch;
     }
+    else if (ch==="`" && nx==="`" && source.charAt(pos+1)==="`" && token.length===0) {
+      tline=line;
+      tcol=col;
+      ++pos;
+      ++pos;
+      fformQ=true;
+      token += "\"";
+    }
     else if ((ch=== "'") || (ch=== "`") ||
              (ch==="$") || (ch=== "@") || ( ch=== "^")) {
       if (token.length===0 &&
           (!REGEX.wspace.test(nx))) {
+        tline=line;
           tcol= col;
               toke(line, tcol, ch);
       } else {
@@ -189,13 +212,14 @@ function tokenize (source, fname) {
       }
     }
     else if (ch === "&" && nx === "&") {
-      if (token.length===0) tcol= col;
+      if (token.length===0) { tcol= col; tline=line; }
       token += ch + nx;
       ++pos;
     }
     else if (ch === "~") {
       if (token.length===0 &&
           (!REGEX.wspace.test(nx))) {
+          tline=line;
           tcol= col;
               if (nx=== "@") {
                 ++pos;
@@ -209,6 +233,7 @@ function tokenize (source, fname) {
     }
     else if (ch === "/" && token.length===0) {
       regexQ=true;
+      tline=line;
       tcol=col;
       token += ch;
     }
@@ -216,11 +241,13 @@ function tokenize (source, fname) {
             (ch=== "{") || (ch=== "}") ||
       (ch=== "(") || (ch=== ")")) {
         token= toke(line, tcol, token);
+            tline=line;
             tcol= col;
             toke(line, tcol, ch);
     }
     else if (ch === ";") {
         token= toke(line, tcol, token);
+            tline=line;
             tcol= col;
             commentQ= true;
     }
@@ -231,7 +258,7 @@ function tokenize (source, fname) {
         token= toke( n, tcol, token);
     }
     else {
-        if (token.length===0) tcol= col;
+        if (token.length===0) { tline=line; tcol= col; }
         token += ch;
     }
   }
