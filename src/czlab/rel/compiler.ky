@@ -86,7 +86,7 @@
         ;vargs
         (do (=> rval (tnode)
                 e (.@+i args))
-            (rval.add ["slice(arguments," $(i) ")"])
+            (rval.add ["Array.prototype.slice.call(arguments," $(i) ")"])
             (if (symbol? e)
               (fdefs.add ["let "
                           (tx* e env) "=" rval ";\n"])
@@ -121,8 +121,8 @@
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
-    (if (and (keyword? e)
-             (== e "as"))
+    (when (and (keyword? e)
+               (== e "as"))
       (=> rhs (.@+i coll))
       (break-out-of-loop!)))
   ;handle a vec or a map destructure only
@@ -149,7 +149,7 @@
         (do (=> rval (tnode)
                 out (tnode)
                 e (.@+i coll))
-            (rval.add ["slice(" src "," $(i) ")"])
+            (rval.add ["Array.prototype.slice.call(" src "," $(i) ")"])
             (if-not (symbol? e)
               (=> e (destruct* e out env ast)))
             (ret.add ["let "
@@ -629,7 +629,7 @@
   (var ret (node' ast)
        cmd $(1st ast)
        keys {}
-       private? (ends? cmd "-"))
+       private? (not= cmd "def~"))
   (if (starts? cmd "def")
     (=> cmd "var") (=> cmd "let"))
   (for [i 1 s nil sz (n# ast)
@@ -811,8 +811,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" ^{:opcode ["defn" "defn-"]} [ast env]
-  (var fname0 $(1st ast) mtd? (== fname0 "method")
-       private? (ends? fname0 "-")
+  (var private? (ends? $(1st ast) "-")
+       mtd? (== $(1st ast) "method")
+       fname0 $(2nd ast)
        fname (tx* (2nd ast) env)
        dot? (contains? fname ".")
        fargs nil ret (node' ast)
@@ -896,8 +897,9 @@
        ret (node' ast)
        a1 (exprHint (2nd ast) (not stmtQ))
        a2 (exprHint (.@2 ast) (not stmtQ))
-       a3 (if (> (n# ast) 3) (.@3 ast))
-       elze (if (def? a3) (exprHint a3 (not stmtQ))))
+       m? (> (n# ast) 3)
+       a3 (if m? (.@3 ast))
+       elze (if m? (exprHint a3 (not stmtQ))))
   (=> a1 (tx* a1 env)
       a2 (tx* a2 env)
       elze (tx* elze env))
@@ -905,8 +907,8 @@
         nil
         (if stmtQ
           ["if (" a1 ") {\n" a2 ";\n}"
-           (if (def? a3) (tnodeEx [" else { \n"
-                                   elze ";\n}"]) "")]
+           (if m? (tnodeEx [" else { \n"
+                            elze ";\n}"]) "")]
           ["(" a1 " ?\n" a2 " :\n" (or elze "null") ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

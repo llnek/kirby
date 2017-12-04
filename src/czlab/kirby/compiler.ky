@@ -121,8 +121,8 @@
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
-    (if (and (keyword? e)
-             (== e "as"))
+    (when (and (keyword? e)
+               (== e "as"))
       (=> rhs (.@+i coll))
       (break-out-of-loop!)))
   ;handle a vec or a map destructure only
