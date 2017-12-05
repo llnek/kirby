@@ -378,24 +378,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parser "Main parser routine"
   [source & [fname]]
-  (var tokens (lexer
-                source
-                (opt?? fname "*adhoc*"))
+  (var tokens (lexer source
+                     (opt?? fname "*adhoc*"))
        f nil ast [] tlen (n# tokens))
   (=> tokens.pos 0)
-  (comment
-    (for [i 0 :while (< i tlen) :recur (+1 i)]
-      (println "token=" (.-name (.@i tokens)))))
+  (if false
+    (each #(println "token=" (.-name %)) tokens))
   (while (< tokens.pos tlen)
-    (addAst ast (read* tokens)))
-  ast)
+    (addAst ast (read* tokens))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "Debug and dump the AST"
   [tree]
-  (for [i 0 sz (n# tree)
-        :while (< i sz) :recur (+1 i)]
-    (println (prn (.@i tree)))))
+  (each #(println (prn %)) tree))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
