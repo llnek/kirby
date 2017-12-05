@@ -1,9 +1,5 @@
 (ns poo)
 
-(var x
-     ```
-     poo face "hello"
-     "world"
-     \u0000 fucker ```)
+(var x 0)
 
 

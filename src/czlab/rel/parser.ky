@@ -29,7 +29,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const REGEX {
-  noret /^def\b|^var\b|^set!\b|^set-in!\b|^throw\b/
   id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
   id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
   float /^[-+]?[0-9]+\.[0-9]+$/
@@ -54,24 +53,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- REPLACERS
-  [[REGEX.query "_QUERY_"]
-        [REGEX.bang "_BANG_"]
-        [REGEX.dash "_DASH_"]
-        [REGEX.quote "_QUOTE_"]
-        [REGEX.hash "_HASH_"]
-        [REGEX.plus "_PLUS_"]
-        [REGEX.perc "_PERC_"]
-        [REGEX.at "_AT_"]
-        [REGEX.less "_LT_"]
-        [REGEX.greater "_GT_"]
-        [REGEX.star "_STAR_"]])
+  [[REGEX.query "_QUERY_"] [REGEX.bang "_BANG_"] [REGEX.dash "_DASH_"]
+   [REGEX.quote "_QUOTE_"] [REGEX.hash "_HASH_"] [REGEX.plus "_PLUS_"]
+   [REGEX.perc "_PERC_"] [REGEX.at "_AT_"] [REGEX.less "_LT_"]
+   [REGEX.greater "_GT_"] [REGEX.star "_STAR_"]])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testid? "Returns true
               if a valid js identifier"
-  [name]
-  (or (REGEX.id.test name)
-      (REGEX.id2.test name)))
+  [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsid "Escape to
@@ -95,14 +85,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lexer "Lexical analyzer" [source fname]
-  (var regex? #f comment? #f
-       col 0 pos 0
-       fform? #f esc? #f str? #f
+  (var fform? #f esc? #f str? #f
+       regex? #f comment? #f
        len (n# source)
        token "" line 1
        ch nil nx nil
+       col 0 pos 0
+       tline line
        tree []
-       tline line tcol col
+       tcol col
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
@@ -123,17 +114,6 @@
       (if comment? (false! comment?)))
     (cond
       comment? nil
-      fform?
-      (if (and (= ch "`")
-               (= nx "`")
-               (= (ch@ source (+1 pos)) "`"))
-        (do (false! fform?)
-            (+= pos 2)
-            (+= token "\"")
-            (=> token (toke tline tcol token true)))
-        (cond (= ch "\"") (+= token "\\\"")
-              (= ch "\n") (+= token "\\n")
-              :else (+= token ch)))
       esc? (do (false! esc?)
                (+= token ch))
       regex?
@@ -146,6 +126,25 @@
               (+= token nx)
               (++ pos))
             (=> token (toke tline tcol token))))
+      fform?
+      (if (and (= ch "`")
+               (= nx "`")
+               (= (ch@ source (+1 pos)) "`"))
+        (do (false! fform?)
+            (+= pos 2)
+            (+= token "\"")
+            (=> token (toke tline tcol token true)))
+        (cond (= ch "\"") (+= token "\\\"")
+              (= ch "\n") (+= token "\\n")
+              :else (+= token ch)))
+      (and (= ch "`")
+           (= nx "`")
+           (= (ch@ source (+1 pos)) "`")
+           (empty?  token))
+      (do (=> tline line tcol col)
+          (+= pos 2)
+          (true! fform?)
+          (+= token "\""))
       (= ch "\"")
       (if-not str?
         (do (=> tline line tcol col)
@@ -155,18 +154,11 @@
             (+= token ch)
             (=> token
                 (toke tline tcol token #t))))
+      ;;must be after the check for string
       str?
       (do (if (= ch "\n") (=> ch "\\n"))
           (if (= ch "\\") (=> esc? #t))
           (+= token ch))
-      (and (= ch "`")
-           (= nx "`")
-           (= (ch@ source (+1 pos)) "`")
-           (empty?  token))
-      (do (=> tline line tcol col)
-          (+= pos 2)
-          (true! fform?)
-          (+= token "\""))
       (or (= ch "'") (= ch "`")
           (= ch "$") (= ch "@") (= ch "^"))
       (if (and (empty? token)
@@ -210,6 +202,12 @@
       (do (if (empty? token)
             (=> tline line tcol col))
           (+= token ch))))
+  ;;check for errors
+  (var tmp {:source fname :line tline :column col})
+  (if fform? (throwE tmp "unterminated free-form"))
+  (if esc? (throwE tmp "incomplete escape"))
+  (if str? (throwE tmp "unterminated string"))
+  (if regex? (throwE tmp "unterminated regex definition"))
   tree)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -232,6 +230,10 @@
 (defn- peekToken "Returns the next token,
                  without moving the token index"
   [tokens] (nth tokens tokens.pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prevToken "Returns the previous token"
+  [tokens] (nth tokens (-1 tokens.pos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- copyTokenData "Attach source level information
@@ -281,18 +283,20 @@
 (defn- readBlock "Process a LISP form"
   [tokens head tail]
   (var ast [] ok? #t
+       start nil
        token (nextToken tokens))
   (var~ ret cur tn)
   (if token (=> tn token.name))
   (if (not= tn head)
     (throwE token "expected '" head "'"))
-  (=> cur (peekToken tokens))
+  (=> start token
+      cur (peekToken tokens))
   (while ok?
     (when (or (nichts? cur)
               (= tail cur.name))
       (if cur
         (copyTokenData token ast)
-        (throwE cur "expected '" tail "', got EOF"))
+        (throwE start "expected '" tail "', got EOF"))
       (false! ok?))
     (when ok?
       (addAst ast (read* tokens))
