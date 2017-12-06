@@ -59,8 +59,15 @@ function pr_obj(obj, readable) {
     case "atom":
       return "(atom " + pr_obj(obj.value, _r) + ")";
     case "keyword":
-      return ":" + obj.toString();
+      return "(Keyword :" + obj.toString()+ ")";
+    case "symbol":
+      return "(Symbol " + obj.toString() + ")";
     default:
+      if (false && std.array_p(obj))
+      return "(" +
+        obj.map(function(e) {
+          return pr_obj(e,_r); }).join(" ") + ")";
+      else
       return obj.toString();
   }
 }

@@ -347,6 +347,7 @@ function init() {
   rep(macro_cond);
   rep(macro_assert);
   loadMacros();
+  return true;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

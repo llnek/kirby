@@ -1663,14 +1663,19 @@ function parseWithSourceMap(codeStr, fname) {
   return outNode.toStringWithSourceMap();
 }
 
+function dbgAST(source,fname) {
+  psr.dumpTree(psr.parser(source, fname));
+}
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var version= MODULE_VERSION;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 module.exports = {
   transpileWithSrcMap: transpileWithSrcMap,
-  transpile: transpile,
   parseWithSourceMap: parseWithSourceMap,
+  transpile: transpile,
+  dbgAST: dbgAST,
   version: version
 };
 

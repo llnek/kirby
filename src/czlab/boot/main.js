@@ -95,7 +95,7 @@ function compileFiles() {
     }
     source= fs.readFileSync(fin, "utf8");
     if (dbgAST_Q) {
-      kirby.dbgAST(source, fin, dirs);
+      kirby.dbgAST(source,fin);
     } else {
       let out;
       if (wantMap_Q)
@@ -117,13 +117,25 @@ function init() {
     module._compile(
       kb.transpile(code, path.relative(process.cwd(), fname)), fname);
   };
-  rt.init();
+  return rt.init();
 }
 
+function pcli() {
+  let v = opt.options["version"],
+      h = opt.options["help"];
+  if (v) {
+    console.info(kirby.version);
+  }
+  else if (h) {
+    opt.showHelp();
+  }
+  else {
+    compileFiles();
+  }
+}
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function main() {
-  init();
-  compileFiles();
+  return init() && pcli();
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
