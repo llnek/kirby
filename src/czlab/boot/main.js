@@ -120,14 +120,45 @@ function init() {
   return rt.init();
 }
 
+
+function watch() {
+  let cwd=process.cwd();
+  console.log("Watching" + cwd + "for \".ky\" file changes...");
+  watcher.watchTree(
+    cwd,
+    {filter:
+      function(f,stat) {
+        return stat.isDirectory() ||
+               f.indexOf(".ky") !== -1; },
+     ignoreDotFiles: true,
+     ignoreDirectoryPattern: /node_modules/ },
+    function(f, curr, prev) {
+      if (typeof f === "object" && prev === null && curr === null) {
+        // Finished walking the tree
+      } else if (curr && curr.nlink === 0) {
+        // f was removed
+      } //else if (prev === null) {/*new file*/}
+      else {
+        // f is a new file or changed
+        require("child_process").spawn("bin/boot.js",
+          [f.substring(1+ cwd.length)], {stdio: "inherit"});
+      }
+    });
+}
+
+
 function pcli() {
   let v = opt.options["version"],
+      w = opt.options["watch"],
       h = opt.options["help"];
   if (v) {
     console.info(kirby.version);
   }
   else if (h) {
     opt.showHelp();
+  }
+  else if (w) {
+    watch();
   }
   else {
     compileFiles();
