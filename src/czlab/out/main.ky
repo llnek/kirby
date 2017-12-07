@@ -63,7 +63,7 @@
                 (fs/readFileSync fname "utf8")
                 (path/relative (process/cwd) fname)))
          (module._compile code fname)))
-  (rt.init))
+  (rt.init tx.version))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doWatch "" [cwd]

@@ -627,26 +627,25 @@
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- run_repl
-  (fn []
-    (var rl (readline.createInterface process.stdin
-                                      process.stdout))
-    (rl.on
-      :line
-      (fn [line]
-        (try
-          (if line (println (rep line)))
-          (catch err (println err)))
-        (rl.setPrompt prefix  (alen prefix))
-        (rl.prompt )))
-    (rl.on
-      :close
-      (fn []
-        (println "Bye!")
-        (process.exit 0)))
-    (println prefix "Kirby REPL v1.0.0")
-    (rl.setPrompt prefix  (alen prefix))
-    (rl.prompt )))
+(defn- run_repl "" []
+  (var rl (readline.createInterface process.stdin
+                                    process.stdout))
+  (rl.on
+    :line
+    (fn [line]
+      (try
+        (if line (println (rep line)))
+        (catch e (println e)))
+      (rl.setPrompt prefix  (alen prefix))
+      (rl.prompt )))
+  (rl.on
+    :close
+    (fn []
+      (println "Bye!")
+      (process.exit 0)))
+  (println prefix "Kirby REPL v" version)
+  (rl.setPrompt prefix  (alen prefix))
+  (rl.prompt ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- rep #(show (compute (readAST %))))
@@ -671,11 +670,12 @@
             (cons* 'cond* (rest* (rest* xs)))))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- inited? false)
+(def- inited? false version "")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" []
+(defn init "" [ver]
   (when-not inited?
-    (=> global_env (newEnv))
+    (=> version ver
+        global_env (newEnv))
     (rep macro_cond)
     (rep macro_assert)
     (loadMacros)
