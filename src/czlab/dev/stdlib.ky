@@ -1,0 +1,510 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.stdlib)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn not-empty "If coll is empty,
+                returns nil, else coll"
+  [coll]
+  (if (empty? coll) nil coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn stringify "JSON stringify without
+                circular object reference"
+  [obj]
+  (var cache [])
+  (if obj
+    (JSON/stringify
+      obj
+      (fn [k v] (if (object? v)
+                  (if (contains? cache v)
+                    (undef! v)
+                    (conj! cache v))) v))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn opt?? "If cur is not defined,
+            returns other else returns cur"
+  [cur other]
+  (if (def? cur) cur other))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn conj! "If coll is a list,
+            prepends to head of coll else appends all to end"
+  [coll & xs]
+  (if (list? coll)
+    (coll.unshift.apply coll (xs.reverse))
+    (coll.push.apply coll xs)) coll)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn conj "Like conj! but
+           returns a new collection"
+  [coll & xs]
+  (var c
+       (cond (vector? coll)
+             (into :vector coll)
+             (list? coll)
+             (into :list coll)
+             (map? coll)
+             (into :map coll)
+             :else (slice coll)))
+  (apply conj! this (concat [c] xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pop! "Removes the first element if list,
+           else removes the last element,
+           returning the element
+           and the altered collection"
+  [coll]
+  (var r (if (list? coll) (coll.shift) (coll.pop))) [r coll])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pop "Like pop! but returns a new collection"
+  [coll]
+  (var r (if (list? coll) (1st coll) (last coll)))
+  [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn prn "Print the input data as string"
+  [obj]
+  (var pa (fn [arr s e]
+            (str s (join " " (map prn arr)) e)))
+  (case (typeid obj)
+    :lambda-arg (str "%" (+1 (int obj.value)))
+    :atom (str "(atom " (prn obj.value) ")")
+    :keyword (str ":" obj.value)
+    :symbol obj.value
+    :object (stringify obj)
+    :vector (pa obj "[" "]")
+    :map (pa obj "{" "}")
+    (:array :list) (pa obj "(" ")")
+    :string obj
+    (:null :nil) "null"
+    (obj.toString)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype LambdaArg [][value ""]
+  "Defining a lambda positional argument"
+  (constructor "" [arg]
+    (var name (if (= arg "%")
+                "1" (rest arg))
+         v (int name))
+    (if-not (> v 0)
+      (raise! "invalid lambda-arg " arg))
+    ;;zero based arg so minus 1
+    (-- v)
+    (=> this.value $(v)))
+  (toString "" [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Primitive [][value nil]
+  "Defining a primitive data type"
+  (constructor "" [v]
+    (=> this.value v))
+  (toString "" [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Keyword [][value ""]
+  "Defining a keyword"
+  (constructor "" [name]
+    (=> this.value (rest name)))
+  (toString "" [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Symbol [][value ""]
+  "Defining a symbol"
+  (constructor "" [name]
+    (=> this.value name))
+  (toString "" [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn primitive?
+  "Returns true if primitive" [obj] (inst? Primitive obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn primitive
+  "Create a Primitive" [v] (new Primitive v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol?
+  "Returns true if a symbol" [obj] (inst? Symbol obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn symbol
+  "Create a new Symbol" [name] (new Symbol name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword?
+  "Returns true if a keyword" [obj] (inst? Keyword obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword
+  "Create a new Keyword" [name] (new Keyword name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg?
+  "Returns true if a Lambda Arg" [obj] (inst? LambdaArg obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn lambda-arg
+  "Create a new Lambda Arg" [name] (new LambdaArg name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Atom [][value nil]
+  "Defining a clojure-like Atom"
+  (constructor "" [val] (=> this.value val)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn atom?
+  "Returns true if an Atom" [atm] (inst? Atom atm))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn atom
+  "Create a new Atom" [val] (new Atom val))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn reset!
+  "Set a new value to the Atom" [a v] (=> a.value v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deref
+  "Get value inside the Atom" [a] (.-value a))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn swap! "Change value inside the Atom,
+            returning the new value"
+  [a f & xs]
+  (->> (concat [a.value] xs)
+       (apply f this)
+       (=> a.value )) (get a :value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn typeid "Returns the type-id
+             of this object"
+  [obj]
+  (cond
+    (lambda-arg? obj) :lambda-arg
+    (keyword? obj) :keyword
+    (symbol? obj) :symbol
+    (vector? obj) :vector
+    (atom? obj) :atom
+    (list? obj) :list
+    (map? obj) :map
+    (nil? obj) :null
+    (true? obj) :true
+    (false? obj) :false
+    (fn? obj) :function
+    (string? obj) :string
+    (number? obj) :number
+    (array? obj) :array
+    (object? obj) :object
+    :else
+    (raise! "Unknown type [" (type obj) "]")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn value? "Returns true
+             if a simple value"
+  [obj]
+  (or (nil? obj)
+      (vector? obj)
+      (list? obj)
+      (map? obj)
+      (false? obj)
+      (true? obj)
+      (string? obj)
+      (number? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sequential? "Returns true if coll
+                  implements Sequential"
+  [arr]
+  (and (array? arr) (not (map? arr))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eq? "Tests if two things are equal"
+  [a b]
+  (var ta (typeid a)
+       ok? #t
+       tb (typeid b))
+  (if-not (or (= ta tb)
+              (and (sequential? a)
+                   (sequential? b)))
+    #f
+    (case ta
+      (:map :list :vector)
+      (do (if (not= (alen a)
+                    (alen b))
+            (false! ok?)
+            (for [i 0 sz (alen a)
+                  :while (< i sz) :recur (+1 i)]
+              (when-not (eq? (.@i a)
+                             (.@i b))
+                (false! ok?)
+                (break-out-of-loop!)))) ok?)
+      :object
+      (do (if-not (= (count a)
+                     (count b))
+            (false! ok?)
+            (for [i 0 k nil ks (keys a)
+                  :while (< i (alen ks)) :recur (+1 i)]
+              (=> k (.@i ks))
+              (when-not (eq? (get a k)
+                             (get b k))
+                (false! ok?)
+                (break-out-of-loop!)))) ok?)
+      (:symbol :keyword)
+      (= a.value b.value)
+      ;;else
+      (= a b))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn object? "Returns true
+              if a js object"
+  [obj]
+  (if-not (or (nil? obj)
+              (array? obj)) (= (type obj) "object")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn last "Returns the last element"
+  [coll]
+  (if (and (array? coll)
+           (nzlen? coll)) (nth coll (last-index coll))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn into! "Assign a type to this collection"
+  [type coll]
+  (case type
+    :vector
+    (=>> coll :____vec #t)
+    :list
+    (=>> coll :____list #t)
+    :map
+    (=>> coll :____map #t)) coll)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn into "Like into! but
+           returning a new collection"
+  [type coll]
+  (into! type (coll.slice 0)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pairs? "Returns true if
+             a LISP list, not data"
+  [obj]
+  (and (array? obj)
+       (not (vector? obj))
+       (not (map? obj))
+       (not (list? obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn list? "Returns true if a List"
+  [obj] (and (array? obj) obj.____list))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn list
+  "Create a List" [&xs] (=>> xs :____list #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vector? "Returns true if a Vector"
+  [obj] (and (array? obj) obj.____vec))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vector
+  "Create a Vector" [&xs] (=>> xs :____vec #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn map? "Returns true if a Hashmap"
+  [obj] (and (array? obj) obj.____map))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hashmap "Create a new Hashmap"
+  [&xs]
+  (if (odd? (alen xs))
+    (raise! "Invalid arity for hashmap")) (=>> xs :____map #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn seq "Returns a sequence"
+  [obj]
+  (cond
+    (string? obj) (obj.split "")
+    (array? obj) (obj.slice 0)
+    (object? obj) (Object.entries obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn contains? "Returns true
+                if item is inside"
+  [coll x]
+  (cond
+    (or (array? coll)
+        (string? coll)) (coll.includes x)
+    (object? coll) (coll.hasOwnProperty x)
+    :else false))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn nichts? "Returns true if object is
+              either null of undefined"
+  [obj] (or (undef? obj) (nil? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn some? "Returns true if object is
+            defined and not null"
+  [obj] (not (nichts? obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn count "Count the number of elements inside"
+  [coll]
+  (if coll
+    (alen (if (or (string? coll)
+                  (array? coll)) coll (keys coll))) 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn concat* "Add many to this collection"
+  [coll & xs]
+  (if coll (coll.concat.apply coll xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- every "" [coll start step]
+  (var ret [])
+  (for [i start sz (alen coll)
+        :while (< i sz) :recur (+ i step)]
+    (conj! ret (.@i coll)))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn evens "Collect every
+            2nd item starting at 0"
+  [coll] (every coll 0 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn odds "Collect every
+           2nd item starting at 1"
+  [coll] (every coll 1 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn modulo "Modulo"
+  [x N]
+  (if (< x 0)
+    (- x (* -1
+            (+ N (* (Math.floor (div (- x) N)) N))))
+    (rem x N)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn interleave "Returns a seq of the first item
+                 in each coll, then the second, etc"
+  [c1 c2]
+  (var cz (if (< (alen c2)
+                 (alen c1))
+            (alen c2) (alen c1))
+       ret [])
+  (for [i 0
+        :while (< i cz) :recur (+1 i)]
+    (conj! ret (.@i c1) (.@i c2)))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn zipmap "Returns a map with the
+             keys mapped to the corresponding vals"
+  [keys vals]
+  (var cz (if (< (alen keys)
+                 (alen vals))
+            (alen keys) (alen vals))
+       ret {})
+  (for [i 0
+        :while (< i cz) :recur (+1 i)]
+    (=>> ret
+         $(.@i keys) (.@i vals)))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn extendAttr "" [obj attr & [flags]]
+  (=> flags (opt?? flags
+                   {:enumerable #f :writable #t}))
+  (Object.defineProperty obj attr flags) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- gensym-counter (atom 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn gensym "Generates next random symbol"
+  [& [pfx]]
+  (symbol (str (opt?? pfx "GS__")
+               (swap! gensym-counter
+                      (fn [x] (+1 x))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn slice "" [coll & [start end]]
+  (if (def? end)
+    (Array.prototype.slice.call coll start end)
+    (if (def? start)
+      (Array.prototype.slice.call coll start)
+      (Array.prototype.slice.call coll))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn assoc! "" [mmap & xs]
+  (when mmap
+    (for [i 0 sz (count xs)
+          :while (< i sz) :recur (+2 i)]
+      (=>> mmap
+           (.@i xs)
+           (.@+i xs)))) mmap)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dissoc! "" [mmap & xs]
+  (when mmap
+    (doseq [n xs]
+      (delete! mmap n))) mmap)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;monads
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def m-identity
+  {:bind (fn [mv mf] (mf mv))
+   :result #(%1)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def m-maybe
+  {:bind (fn [mv mf]
+           (if (nil? mv) nil (mf mv)))
+   :result #(%1)
+   :zero nil})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def m-array
+  {:bind (fn [mv mf]
+           (reduce
+             (fn [acc v]
+               (concat acc v))
+             []
+             (map mf mv)))
+   :result #(concat [] %)
+   :zero []
+   :plus #(reduce
+            (fn [acc v]
+              (concat acc v)) [] ____args)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def m-state
+  {:bind (fn [mv mf]
+           (fn [s]
+             (var x (mv s))
+             ((mf (1st x)) (2nd x))))
+   :result (fn [v]
+             (fn [s]
+               (concat [] [v s])))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def m-continuation
+  {:bind (fn [mv mf]
+           (fn [c]
+             (mv (fn [v] ((mf v) c)))))
+   :result (fn [v] (fn [c] (c v)))})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
