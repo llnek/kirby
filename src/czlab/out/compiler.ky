@@ -1222,6 +1222,11 @@
   (outNode.toStringWithSourceMap ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dbgAST
+  "" [source fname]
+  (parser/dumpTree (parser/parser source fname)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 (def version MODULE-VERSION)
 

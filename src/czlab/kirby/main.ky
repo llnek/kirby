@@ -9,62 +9,22 @@
       :author "Kenneth Leung"}
   czlab.kirby.main
   (require ["node-getopt" :as gopt]
-           ["watch" :as watcher]
+           ["child_process" :as cp]
+           ["watch" :as watch]
            ["path" :as path]
            ["fs" :as fs])
   (require ["./compiler" :as tx]
-           ["./stdlib" :as std]
+           ["./stdlib"
+            :as std
+            :refer [object?]]
            ["./engine" :as rt]))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- validFlag? /-h\b|-r\b|-v\b|-b\b|-s\b|-t\b/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- error! #(do (println %) (process.exit 1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- opt
-  (-> (gopt/create
-        [[:h "help" "display this help"]
-         [:v "version" "show version"]
-         [:r "run" "run .ky files"]
-         [:w "watch" "auto-compile changed files"]
-         [:b "browser-bundle" "bundle for browser"]
-         [:m "source-map" "generate source maps"]
-         [:f "format" "format source code"]
-         [:t "show-ast" "show AST"]])
-      (.setHelp (str "kirby [OPTION] [<infile>] [<outfile>]\n\n"
-                     "<outfile> default to <infile> with \".js\" extension\n\n"
-                     "Also compile stdin to stdout\n"
-                     "eg. $ echo '(console.log \"hello\")' | kirby\n\n"
-                     "[[OPTIONS]]\n\n"))
-      (.bindHelp)
-      (.parseSystem)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleNoArgs
-  "when no args do stdin -> stdout compile or run repl and return null to
-  halt operations."
-  []
-  (var pout (.-stdout process)
-       source ""
-       pin (.-stdin process))
-  (pout.on :error error!)
-  (doto pin
-    (.setEncoding "utf8")
-    (.resume)
-    (.on :data #(+= source (.toString %)))
-    (.on :end #(try
-                 (->> (process/cwd)
-                      (tx/transpile source)
-                      (pout.write)) (catch e (error! e))))
-    (.on :error error!))
-  (delay #(when (= 0 pin.bytesRead)
-            (pin.removeAllListeners :data) (runrepl)) 20))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- compileFiles "" []
+(defn- compileFiles "" [opt]
   (var fin
        (if (1st opt.argv)
          (1st opt.argv)
@@ -76,16 +36,15 @@
       (error! "Input file must have extension \".ky\"")))
   (try
     (var options opt.options
+         source nil
          {:keys [source-map
                  show-ast]} options)
-    (var source nil)
-    (if-not show-ast
-      (println (str "kirby v"
-                    (.-version tx))
-               ": compiling: " fin " -> " fout))
-    (set! source (fs/readFileSync fin "utf8"))
+    (println (str "kirby v"
+                  (.-version tx))
+             ": compiling: " fin " -> " fout)
+    (=> source (fs/readFileSync fin "utf8"))
     (if show-ast
-      (tx/dbgAST source fin dirs)
+      (tx/dbgAST source fin)
       (let [out (if source-map
                   (tx/transpileWithSrcMap source fin options)
                   (tx/transpile source fin options))]
@@ -95,21 +54,74 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
-  (set-in! require.extensions
-           ".ky"
-           (fn [module fname]
-             (var code
-                  (.transpile
-                    (require "./compiler")
-                    (fs/readFileSync fname "utf8")
-                    (path/relative (process/cwd) fname)))
-             (module._compile code fname)))
+  (=>> require.extensions
+       ".ky"
+       (fn [module fname]
+         (var code
+              (.transpile
+                (require "./compiler")
+                (fs/readFileSync fname "utf8")
+                (path/relative (process/cwd) fname)))
+         (module._compile code fname)))
   (rt.init))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- doWatch "" [cwd]
+  (println "Watching"
+           cwd "for \".ky\" file changes...")
+  (watch/watchTree
+    cwd
+    {:ignoreDirectoryPattern /node_modules/
+     :ignoreDotFiles true
+     :filter (fn [f stat]
+               (or (ends? f ".ky")
+                   (.isDirectory stat)))}
+    (fn [f curr prev]
+      (cond
+        (and (object? f)
+             (nil? prev)
+             (nil? curr))
+        (do->nil "finished walking the tree")
+        (and curr
+             (= 0 curr.nlink))
+        (do->nil "f was removed")
+        :else
+        (do ;;(prev === null) {/*new file*/}
+            ;;f is a new file or changed
+          (cp/spawn "bin/boot.js"
+                    [(f.slice (+1 (alen cwd)))]
+                    {:stdio "inherit"}))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- pcli "" [opt]
+  (var {:keys [version
+               repl watch help]} opt.options)
+  (cond
+    version (console.info tx.version)
+    watch (doWatch (process/cwd))
+    repl (rt/runRepl)
+    help (.showHelp opt)
+    :else (compileFiles opt)) #t)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn main "" []
-  (init)
-  (compileFiles))
+  (var opt
+       (->
+         (gopt/create
+           [[:w "watch" "auto-compile changed files"]
+            [:m "source-map" "generate source maps"]
+            [:f "format" "format source code"]
+            [:b "bundle" "bundle for browser"]
+            [:h "help" "display this help"]
+            [:v "version" "show version"]
+            [:r "repl" "start a repl"]
+            [:t "show-ast" "show AST"]])
+         (.setHelp (str "kirby [OPTIONS] [<infile>] [<outfile>]\n\n"
+                     "<outfile> default to <infile> with \".js\" suffix\n\n"
+                     "[[OPTIONS]]\n\n"))
+         (.bindHelp)))
+  (and (init)
+       (pcli (.parseSystem opt))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main)

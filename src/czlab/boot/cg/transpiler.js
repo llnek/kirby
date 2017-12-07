@@ -1613,7 +1613,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
   } else {
     cstr= outNode + extra;
   }
-  if (true ) {
+  if (true) {
     cstr= esfmt.format(cstr, options);
   }
   cstr=cleanCode(cstr);

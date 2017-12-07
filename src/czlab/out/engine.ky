@@ -671,13 +671,15 @@
             (cons* 'cond* (rest* (rest* xs)))))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(def- inited? false)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" []
-  (=> global_env (newEnv))
-  (global_env.set
-    (symbol "*host-language*") "javascript")
-  (rep macro_cond)
-  (rep macro_assert)
-  (loadMacros))
+  (when-not inited?
+    (=> global_env (newEnv))
+    (rep macro_cond)
+    (rep macro_assert)
+    (loadMacros)
+    (true! inited? )) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn globalEnv "" [] global_env)
