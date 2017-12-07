@@ -8,7 +8,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.main
-  (require ["node-getopt" :as gopt]
+  (require ["node-getopt" :as getopt]
            ["child_process" :as cp]
            ["watch" :as watch]
            ["path" :as path]
@@ -93,35 +93,38 @@
                     {:stdio "inherit"}))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pcli "" [opt]
-  (var {:keys [version
+(defn- pcli "" [gopt]
+  (var opt (.parseSystem gopt)
+       {:keys [version
                repl watch help]} opt.options)
   (cond
     version (console.info tx.version)
     watch (doWatch (process/cwd))
     repl (rt/runRepl)
-    help (.showHelp opt)
+    (or help
+        (empty? opt.argv))
+    (.showHelp gopt)
     :else (compileFiles opt)) #t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn main "" []
-  (var opt
-       (->
-         (gopt/create
-           [[:w "watch" "auto-compile changed files"]
-            [:m "source-map" "generate source maps"]
-            [:f "format" "format source code"]
-            [:b "bundle" "bundle for browser"]
-            [:h "help" "display this help"]
-            [:v "version" "show version"]
-            [:r "repl" "start a repl"]
-            [:t "show-ast" "show AST"]])
-         (.setHelp (str "kirby [OPTIONS] [<infile>] [<outfile>]\n\n"
-                     "<outfile> default to <infile> with \".js\" suffix\n\n"
-                     "[[OPTIONS]]\n\n"))
-         (.bindHelp)))
+  (var gopt
+       (getopt/create
+         [[:w "watch" "auto-compile changed files"]
+          [:m "source-map" "generate source maps"]
+          [:f "format" "format source code"]
+          [:b "bundle" "bundle for browser"]
+          [:h "help" "display this help"]
+          [:v "version" "show version"]
+          [:r "repl" "start a repl"]
+          [:t "show-ast" "show AST"]]))
+  (.setHelp gopt
+            (str "kirby [OPTIONS] [<infile>] [<outfile>]\n\n"
+                 "<outfile> default to <infile> with \".js\" suffix\n\n"
+                 "[[OPTIONS]]\n\n"))
+  (.bindHelp gopt)
   (and (init)
-       (pcli (.parseSystem opt))))
+       (pcli gopt)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main)
