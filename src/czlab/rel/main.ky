@@ -25,30 +25,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compileFiles "" [opt]
-  (var fin
-       (if (1st opt.argv)
-         (1st opt.argv)
-         (error! "No Input file"))
-       fout (2nd opt.argv))
+  (var [fin fout] opt.argv)
+  (when-not fin
+    (error! "No Input file"))
   (when-not fout
-    (set! fout (fin.replace /\.ky$/ ".js"))
+    (=> fout (fin.replace /\.ky$/ ".js"))
     (if (= fout fin)
       (error! "Input file must have extension \".ky\"")))
   (try
+    (println (str "kirby v" (.-version tx))
+             ": compiling file: " fin " -> " fout)
     (var options opt.options
-         source nil
          {:keys [source-map
-                 format show-ast]} options)
-    (println (str "kirby v"
-                  (.-version tx))
-             ": compiling: " fin " -> " fout)
-    (=> source (fs/readFileSync fin "utf8"))
+                 format show-ast]} options
+         source (fs/readFileSync fin "utf8"))
     (if show-ast
       (tx/dbgAST source fin)
-      (let [out (if source-map
-                  (tx/transpileWithSrcMap source fin options)
-                  (tx/transpile source fin options))]
-        (fs/writeFileSync fout out "utf8")))
+      (fs/writeFileSync fout
+                        (tx/transpile source fin options) "utf-8"))
     (catch e
       (error! e))))
 

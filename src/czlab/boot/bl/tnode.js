@@ -20,14 +20,14 @@ function tnode(source, line, col, chunk, name, type) {
       n=new TreeNode(line, col, source, chunk);
     }
   } else {
-    n= new TreeNode();
+    n= new TreeNode(1,1,"");
   }
   return n;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function tnodeEx(chunk, name, type) {
-  return tnode(null,null,null,chunk, name, type);
+  return tnode("",1,1,chunk, name, type);
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

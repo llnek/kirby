@@ -356,7 +356,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAST "Returns the AST"
   [s]
-  (var ret (parser/parser s))
+  (var ret (parser/parse s))
   (if (= 1 (n# ret))
     (=> ret (1st ret))) ret)
 

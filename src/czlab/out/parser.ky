@@ -376,7 +376,7 @@
   "" [ast f] (if-not (undef? f) (conj! ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn parser "Main parser routine"
+(defn parse "Main parser routine"
   [source & [fname]]
   (var tokens (lexer source
                      (opt?? fname "*adhoc*"))

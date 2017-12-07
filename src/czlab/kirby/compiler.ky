@@ -71,12 +71,16 @@
       MATH-OP-REGEX /^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- tnx "" [from x]
+  (tnode from.source from.line from.column x x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
   [args ast env]
   (var~ e ev rval out)
   (var pms []
-       [fargs fdefs :as ret] [(tnode) (tnode)])
+       [fargs fdefs :as ret] [(node' ast) (node' ast)])
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i args))
@@ -84,13 +88,13 @@
       (symbol? e)
       (if (== e "&")
         ;vargs
-        (do (=> rval (tnode)
+        (do (=> rval (node' ast)
                 e (.@+i args))
             (rval.add ["Array.prototype.slice.call(arguments," $(i) ")"])
             (if (symbol? e)
               (fdefs.add ["let "
                           (tx* e env) "=" rval ";\n"])
-              (do (=> out (tnode)
+              (do (=> out (node' ast)
                       e (destruct* e out env ast))
                   (fdefs.add ["let "
                               (tx* e env)
@@ -100,8 +104,8 @@
         (do (if (== e "_")
               (=> e (gensym "U__"))) (conj! pms e)))
       (array? e)
-      (do (=> rval (tnode)
-              out (tnode)
+      (do (=> rval (node' ast)
+              out (node' ast)
               e (destruct* e out env ast))
           (rval.add ["arguments[" $(i) "]"])
           (conj! pms e)
@@ -137,7 +141,7 @@
 (defn- destructVec "" [src coll env ast]
   (=> src (tx* src env))
   (var~ e rval out)
-  (var ret (tnode))
+  (var ret (node' ast))
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
@@ -146,8 +150,8 @@
       (cond
         (== e "_") nil
         (== e "&")
-        (do (=> rval (tnode)
-                out (tnode)
+        (do (=> rval (node' ast)
+                out (node' ast)
                 e (.@+i coll))
             (rval.add ["Array.prototype.slice.call(" src "," $(i) ")"])
             (if-not (symbol? e)
@@ -161,8 +165,8 @@
                   (tx* e env)
                   "=" src "[" $(i) "];\n"]))
       (array? e)
-      (do (=> rval (tnode)
-              out (tnode)
+      (do (=> rval (node' ast)
+              out (node' ast)
               e (destruct* e out env ast))
           (rval.add [src "[" $(i) "]"])
           (ret.add ["let "
@@ -177,7 +181,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- destructMap "" [src coll env ast]
   (=> src (tx* src env))
-  (var ret (tnode))
+  (var ret (node' ast))
   (var~ e arr)
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
@@ -327,20 +331,22 @@
   (var stmtQ (stmt? ast)
        ret (node' ast)
        cmd (gcmd ast)
+       orig ast
        op nil tmp nil
        mc (eng/getMacro cmd))
   ;;handle macro calls
   (when mc
     (=> ast (eng/expandMacro ast env mc)
-        ast (exprHint ast (not stmtQ))
+        ast (xfi orig (exprHint ast (not stmtQ)))
         cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (parser/REGEX.int.test cmd)
     (if-not (or (starts? cmd "+")
                 (starts? cmd "-"))
       (=> cmd (str "+" cmd)))
-    (=> ast [(symbol (ch@ cmd 0))
-             (2nd ast) (int (rest cmd))]
+    (=> ast (xfi ast [(symbol (ch@ cmd 0))
+                      (2nd ast)
+                      (int (rest cmd))])
         cmd $(1st ast)))
   ;;maybe special form
   (=> op (get SPEC-OPS cmd))
@@ -374,8 +380,8 @@
         (if (pairs? ast)
           (ret.add
             [(if (testre? parser/REGEX.func cmd)
-               (tnodeEx ["(" cmd ")"]) cmd)
-             "(" (join "," (tnodeEx (rest ast))) ")"])
+               (tnx ast ["(" cmd ")"]) cmd)
+             "(" (join "," (tnx ast (rest ast))) ")"])
           (ret.add cmd))))
   (node' ast ret))
 
@@ -440,15 +446,15 @@
               file ",line: " (or ast.line "?") "\n")
        len (alen s))
   (if (< len 80)  (=> len 80))
-  (doto (tnodeEx (str (.repeat "/" len) "\n")) (.add s)))
+  (doto (tnx ast (str (.repeat "/" len) "\n")) (.add s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- icache [])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- includeFile [fname]
+(defn- includeFile [fname ast]
   (if (contains? icache fname)
-    (tnode)
+    (node' ast)
     (let [src (fs/readFileSync fname "utf-8")]
       (conj! icache fname)
       (txTree (parser/parse src fname) (eng/globalEnv )))))
@@ -463,7 +469,7 @@
          (str )
          (JSON/parse ))
     (symbol? ast)
-    (->> (tx* [(symbol "tag") ast] env)
+    (->> (tx* ['tag ast] env)
          (str )
          (JSON/parse ))
     :else
@@ -516,9 +522,8 @@
              x
              (str "\"" (.@x czargs) "\"")))
       (m.splice pos 0
-        (concat [(symbol "set-in!")
-                 (symbol "this")] czargs)))
-    (m.unshift (symbol "method"))
+        (concat ['set-in! 'this] czargs)))
+    (m.unshift 'method)
     (ret.add [(sf-func m env #f) "\n"]))
   (ret.add "}\n")
   (if doc (ret.prepend (writeDoc doc)))
@@ -539,9 +544,8 @@
         (== cmd "=") (=>> ast 0 (symbol "===")))
   (for [i 0 op (tx* (ast.shift) env)
         :while (< i (last-index ast)) :recur (+1 i)]
-    (ret.add (tnodeEx [(tx* (.@i ast) env)
-                       " " op " "
-                       (tx* (.@+i ast) env)])))
+    (ret.add (tnx ast [(tx* (.@i ast) env)
+                       " " op " " (tx* (.@+i ast) env)])))
   (join " && " ret)
   (wrap ret "(" ")"))
 
@@ -580,7 +584,7 @@
   "" ^{:opcode ["do"]} [ast env]
   (var ret (node' ast)
        stmtQ (stmt? ast))
-  (ret.add (txDo (exprHint (rest ast)
+  (ret.add (txDo (exprHint (xfi ast (rest ast))
                            (not stmtQ)) env (not stmtQ)))
   (if stmtQ
     (wrap ret nil "")
@@ -658,7 +662,7 @@
        private? (and (not= cmd "const")
                      (not= cmd "def")))
   (var~ rval rc lhs rhs)
-  (=> ast (rest ast)
+  (=> ast (xfi ast (rest ast))
       cmd (if (starts? cmd "const")
             "const"
             (if (== cmd "var") "let" "var")))
@@ -672,7 +676,7 @@
               tmp [cmd " " lhs "=" rval ";\n"])
           (conj! keys lhs)
           (ret.add tmp))
-      (do (=> out (tnode)
+      (do (=> out (node' ast)
               rhs (destruct* lhs out env ast))
           (ret.add ["let "
                     (tx* rhs env)
@@ -907,8 +911,7 @@
         nil
         (if stmtQ
           ["if (" a1 ") {\n" a2 ";\n}"
-           (if m? (tnodeEx [" else { \n"
-                            elze ";\n}"]) "")]
+           (if m? (tnx ast [" else { \n" elze ";\n}"]) "")]
           ["(" a1 " ?\n" a2 " :\n" (or elze "null") ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -946,7 +949,6 @@
                     ": " (tx* (.@+i ast) env)]))
         (ret.add "\n}"))) ret)
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
   (var ret []
@@ -967,7 +969,7 @@
       (catch e
         (error! :file-access ast)))
     (try
-      (conj! ret (includeFile fname))
+      (conj! ret (includeFile fname ast))
       (catch e
         (error! :file-read ast))
       (finally
@@ -1019,16 +1021,16 @@
   (if-not (symbol? nsp)
     (error! :invalid-namespace ast))
   (.pushNSP (eng/globalEnv) $(nsp))
-  (=> ast (slice ast 2))
+  (=> ast (xfi ast (slice ast 2)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i ast))
     (cond (and (pairs? e)
                (== "include" $(1st e)))
-          (conj! ret (sf-include e))
+          (conj! ret (sf-include (xfi ast e)))
           (and (pairs? e)
                (== "require" $(1st e)))
-          (conj! ret (sf-require e))))
+          (conj! ret (sf-require (xfi ast e)))))
   ;;force a internal reference to stdlib for user files
   (=> nsp (.peekNSP (eng/globalEnv)))
   (cond
@@ -1036,9 +1038,9 @@
         (= nsp "czlab.kirby.stdlib"))
     nil
     (starts? nsp "czlab.kirby.")
-    (conj! ret (tnodeEx "const kirbystdlibref=std;\n"))
+    (conj! ret (tnx ast "const kirbystdlibref=std;\n"))
     :else
-    (->> '(require ["kirby" :as kirbystdlibref])
+    (->> (xfi ast '(require ["kirby" :as kirbystdlibref]))
          (sf-require )
          (conj! ret ))) ret)
 
@@ -1052,7 +1054,9 @@
        body (exprHint (slice ast 2) #f))
   (if (empty? body)
     (node' ast)
-    (sf-floop ret (2nd ast) body env stmtQ)) ret)
+    (sf-floop ret
+              (xfi ast (2nd ast))
+              (xfi ast body) env stmtQ)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-floop "" [ret args body env stmtQ]
@@ -1080,7 +1084,7 @@
              "let ____break=false;" ",____break=false;"))
   (=> nb '(not ____break))
   (if tst
-    (=> tst [(symbol "and") nb tst])
+    (=> tst ['and nb tst])
     (=> tst nb))
   (ret.add [(tx* tst env) "; "])
   (for [i 0 k 0 sz (n# recurs)
@@ -1094,21 +1098,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" ^{:opcode ["js#"]} [ast env]
-  (node' ast
-         (tnodeEx (-> $(2nd ast)
-                      (.replace parser/REGEX.dquoteHat "")
-                      (.replace parser/REGEX.dquoteEnd "")))))
+  (var s $(2nd ast))
+  (->>
+    (if (and (ends? s "\"")
+             (starts? s "\""))
+      (s.slice 1 -1) s) (tnodeEx) (node' ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro "" ^{:opcode ["defmacro"]} [ast env]
-  (var pms []
-       args (.@2 ast)
-       body (slice ast 3))
+  (var pms [] args (.@2 ast) body (slice ast 3))
   (var~ doc x e ev)
   (when (str? args)
-    (=> doc args
-        args (.@3 ast)
-        body (slice ast 4)))
+    (=> doc args args (.@3 ast) body (slice ast 4)))
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i args) ev $(e))
@@ -1128,14 +1129,10 @@
           (error! :syntax-error ast)
           :else
           (conj! pms e)))
-  (=> ast
-      [(1st ast) (2nd ast) (concat ['fn* pms] body)])
-  (var a1 $(2nd ast)
-       a2 (.@2 ast)
-       func (eng/compute a2 env))
-  (=>> func
-       :____macro #t
-       :____doc doc)
+  (var a2 (xfi ast (concat ['fn* pms] body))
+       func (eng/compute a2 env)
+       a1 $(2nd ast))
+  (=>> func :____macro #t :____doc doc)
   (eng/setMacro a1 func) (node' ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1145,6 +1142,13 @@
        ret (node' ast))
   (if (== a0 "not") (=> a0 '!))
   (ret.add ["(" (tx* a0 env) (tx* a1 env) ")"]) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- xfi "" [from to]
+  (=>> to
+       :source (.-source from)
+       :line (.-line from)
+       :column (.-column from)) to)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "" []
