@@ -8,7 +8,6 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.parser
-  (require ["source-map" :as smap])
   (require ["./stdlib"
             :as std
             :refer [lambda-arg object? nichts? count
@@ -17,15 +16,18 @@
                     keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnodeEx "Create a token"
-  [chunk name] (tnode nil nil nil chunk name))
+(deftype Token [][]
+  (constructor [source line column value]
+    (=>> this
+         :source source
+         :value value
+         :line line
+         :column column))
+  (toString [] (.-value this)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnode "Create a token
-            with source information"
-  [&[source line col chunk name]]
-  (new smap/SourceNode
-       line col source chunk (opt?? name "")))
+(defn- mkToken "Create a token"
+  [source line col chunk] (new Token source line col chunk))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const REGEX {
@@ -100,9 +102,9 @@
            (when (and (starts? s "&")
                       (not= s "&&")
                       (> (alen s) 1))
-             (conj! tree (tnode fname ln col "&" "&"))
+             (conj! tree (mkToken fname ln col "&"))
              (=> s (rest s)))
-           (conj! tree (tnode fname ln col s s))) ""))
+           (conj! tree (mkToken fname ln col s))) ""))
   (while (< pos len)
     (=> ch (ch@ source pos))
     (++ col)
@@ -251,7 +253,7 @@
   (var ret nil tn ""
        token (nextToken tokens))
   (if token
-    (=> tn token.name))
+    (=> tn token.value))
   (cond
     (empty? tn)
     (undef! ret)
@@ -286,7 +288,7 @@
        start nil
        token (nextToken tokens))
   (var~ ret cur tn)
-  (if token (=> tn token.name))
+  (if token (=> tn token.value))
   (if (not= tn head)
     (throwE token "expected '" head "'"))
   (=> start token
@@ -330,7 +332,7 @@
   (var tmp nil token (peekToken tokens))
   (if (nichts? token)
     undefined
-    (case token.name
+    (case token.value
       "'" (skipParse
             tokens
             #([(symbol "quote") (read* tokens)]))

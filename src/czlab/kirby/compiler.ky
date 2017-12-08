@@ -8,6 +8,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.compiler
+  (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
              :refer [lambda-arg? hashmap pairs?
@@ -18,13 +19,14 @@
                      gensym count pop! slice
                      symbol keyword symbol? keyword?]]
             ["./engine" :as eng]
-            ["./parser" :as parser :refer [tnode tnodeEx]])
+            ["./parser" :as parser])
   (:require ["fs" :as fs]
             ["path" :as path]
             ["esformatter" :as esfmt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ERRORS-MAP {
+  :no-sourcemap-info ""
   :invalid-fargs ""
   :invalid-catch ""
   :invalid-try ""
@@ -69,6 +71,17 @@
 (def- *externs* nil
       SPEC-OPS {}
       MATH-OP-REGEX /^[-+][0-9]+$/)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tnodeEx "Create a token"
+  [chunk name] (tnode nil nil nil chunk name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn tnode "Create a token
+            with source information"
+  [&[source line col chunk name]]
+  (new smap/SourceNode
+       line col source chunk (opt?? name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tnx "" [from x]
@@ -484,10 +497,19 @@
            (= nsp "czlab.kirby.stdlib"))
     (cmd.slice (alen lib)) cmd))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- assertInfo "" [ast]
+  (if-not (number? ast.line) (error! :no-sourcemap-info ast)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- assertArity "" [kond ast]
+  (if-not kond (error! :invalid-arity ast))
+  (assertInfo ast))
+
 ;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
-  (if-not (= (n# ast) 2) (error! :invalid-arity ast))
+  (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast))
   (wrap ret nil (quote! (2nd ast) env)))
 
@@ -496,34 +518,35 @@
   "Define a JS Class"
   ^{:opcode ["deftype" "deftype-"]}
   [ast env]
-  (if-not (>= (n# ast) 4) (error! :invalid-arity ast))
-  (var~ n m)
+  (assertArity (>= (n# ast) 4) ast)
+  (var ret (node' ast))
+  (var~ mtd pos n m)
   (var private? (ends? $(1st ast) "-")
        czname (tx* (2nd ast) env)
        par (1st (.@2 ast))
        czargs (.@3 ast)
-       ret (node' ast)
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
-  (for [i 0 pos 0 sz (n# mtds)
-        :while (< i sz) :recur (+1 i)]
-    (=> m (.@i mtds)
+  (doseq [m mtds]
+    ;;doc string?
+    (=> mtd 'method
         pos (if (str? (2nd m)) 3 2))
+    ;;pass line info
+    (xfi (1st m) mtd)
+    (xfi (1st m) m)
     (when (and (== $(1st m)
                    "constructor")
                (not-empty czargs))
       (for [x 0 sz (n# czargs)
             :while (< x sz) :recur (+2 x)]
-        (=>> czargs
-             x
-             (str "\"" (.@x czargs) "\"")))
+        (=>> czargs x (str "\"" (.@x czargs) "\"")))
       (m.splice pos 0
         (concat ['set-in! 'this] czargs)))
-    (m.unshift 'method)
+    (m.unshift mtd)
     (ret.add [(sf-func m env #f) "\n"]))
   (ret.add "}\n")
   (if doc (ret.prepend (writeDoc doc)))
@@ -538,6 +561,7 @@
                                ">" ">=" "<" "<="]} [ast env]
   (if-not (and (>= (n# ast) 3)
                (odd? (n# ast))) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast)
        cmd $(1st ast))
   (cond (== cmd "not=") (=>> ast 0 (symbol "!=="))
@@ -557,6 +581,7 @@
              "or" "and" "exp" "rem"
              "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]}
   [ast env]
+  (assertInfo ast)
   (var e1 (tx* (ast.shift) env)
        op "" cmd $(e1) ret (node' ast))
   (cond (== cmd "bitwise-zrshift") (=> cmd ">>>")
@@ -582,6 +607,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
   "" ^{:opcode ["do"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
   (ret.add (txDo (exprHint (xfi ast (rest ast))
@@ -594,6 +620,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
   "" ^{:opcode ["case"]} [ast env]
+  (assertInfo ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
        tst (2nd ast)
@@ -630,6 +657,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-vardefs "" ^{:opcode ["def~-"
                                 "def~" "var~"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast)
        cmd $(1st ast)
        keys {}
@@ -655,6 +683,7 @@
                             "def"
                             "var"]} [ast env]
   (if-not (odd? (n# ast)) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast)
        cmd $(1st ast)
        keys []
@@ -690,6 +719,7 @@
 (defn- sf-inst?
   "" ^{:opcode ["inst?"]} [ast env]
   (if-not (= (n# ast) 3) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast))
   (wrap ret nil ["(" (tx* (.@2 ast) env)
                  " instanceof " (tx* (2nd ast) env) ")"]))
@@ -699,6 +729,7 @@
   "" ^{:opcode ["delete!"]} [ast env]
   (if-not (and (>= (n# ast) 2)
                (< (n# ast) 4)) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast))
   (ret.add ["delete "
             (tx* (2nd ast) env)])
@@ -708,12 +739,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
   "" ^{:opcode ["new"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast))
   (wrap ret "new " (tx* (rest ast) env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-throw
   "" ^{:opcode ["throw"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
   (ret.add ["throw " (tx* (2nd ast) env)])
@@ -726,6 +759,7 @@
 (defn- sf-x-opop
   "" ^{:opcode ["++" "--" "++$" "--$"]} [ast env]
   (if-not (= (n# ast) 2) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast)
        cmd $(1st ast)
        a2 (tx* (2nd ast) env))
@@ -748,6 +782,7 @@
                 "bitwise-rshift="
                 "bitwise-zrshift="]} [ast env]
   (if-not (= (n# ast) 3) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var cmd $(1st ast)
        ret (node' ast))
   (cond
@@ -768,6 +803,7 @@
   "" ^{:opcode ["set-in!" "=>>"]} [ast env]
   (if-not (even? (n# ast))
           (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast)
        more #f
        obj (tx* (2nd ast) env))
@@ -786,6 +822,7 @@
   "" ^{:opcode ["set!" "=>"]} [ast env]
   (if-not (odd? (n# ast))
           (error! :invalid-arity ast))
+  (assertInfo ast)
   (var more #f
        ret (node' ast))
   (for [i 1 sz (n# ast)
@@ -800,6 +837,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
   "(fn [x y] ...)" ^{:opcode ["fn"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast)
        fargs nil
        body (slice ast 2)
@@ -815,6 +853,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-func "" ^{:opcode ["defn" "defn-"]} [ast env]
+  (assertInfo ast)
   (var private? (ends? $(1st ast) "-")
        mtd? (== $(1st ast) "method")
        fname0 $(2nd ast)
@@ -856,6 +895,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-try "" ^{:opcode ["try"]} [ast env]
+  (assertInfo ast)
   (var stmtQ (stmt? ast)
        sz (n# ast)
        ret (node' ast))
@@ -897,6 +937,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-if "" ^{:opcode ["if"]} [ast env]
+  (assertInfo ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
        a1 (exprHint (2nd ast) (not stmtQ))
@@ -917,11 +958,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-get "" ^{:opcode ["nth" "get"]} [ast env]
   (if-not (= (n# ast) 3) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret (node' ast))
   (wrap ret nil [(tx* (2nd ast) env) "[" (tx* (.@2 ast) env) "]"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-array "" ^{:opcode ["vec"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast))
   (if (empty? ast)
     (ret.add "[]")
@@ -936,6 +979,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-object "" ^{:opcode ["hashmap"]} [ast env]
+  (assertInfo ast)
   (var ret (node' ast))
   (if (empty? ast)
     (ret.add "{}")
@@ -951,6 +995,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-include "" [ast env]
+  (assertInfo ast)
   (var ret []
        dir (path/dirname ast.source))
   (var~ fname e)
@@ -978,6 +1023,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require "" [ast env]
+  (assertInfo ast)
   (var~ as path v e refers renames)
   (var ret (node' ast))
   (for [i 1 sz (n# ast)
@@ -1016,6 +1062,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns "" ^{:opcode ["ns"]} [ast env]
   (if-not (>= (n# ast) 2) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var ret [] e nil
        [hints nsp] (meta?? (2nd ast) env))
   (if-not (symbol? nsp)
@@ -1045,10 +1092,13 @@
          (conj! ret ))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-comment "" ^{:opcode ["comment"]} [ast env] (node' ast))
+(defn- sf-comment "" ^{:opcode ["comment"]} [ast env]
+  (assertInfo ast)
+  (node' ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-for "" ^{:opcode ["for"]} [ast env]
+  (assertInfo ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
        body (exprHint (slice ast 2) #f))
@@ -1098,6 +1148,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" ^{:opcode ["js#"]} [ast env]
+  (assertInfo ast)
   (var s $(2nd ast))
   (->>
     (if (and (ends? s "\"")
@@ -1106,6 +1157,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro "" ^{:opcode ["defmacro"]} [ast env]
+  (assertInfo ast)
   (var pms [] args (.@2 ast) body (slice ast 3))
   (var~ doc x e ev)
   (when (str? args)
@@ -1138,6 +1190,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary "" ^{:opcode ["not" "~" "!"]} [ast env]
   (if-not (= (n# ast) 2) (error! :invalid-arity ast))
+  (assertInfo ast)
   (var [a0 a1] ast
        ret (node' ast))
   (if (== a0 "not") (=> a0 '!))

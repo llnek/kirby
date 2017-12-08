@@ -331,6 +331,7 @@ module.exports= {
   Atom: Atom,
   Keyword: Keyword,
   Symbol: Symbol,
+  Primitive: Primitive,
   assoc: assoc,
   atom: atom,
   atom_p: atom_p,

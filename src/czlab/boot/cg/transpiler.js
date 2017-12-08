@@ -133,6 +133,18 @@ function nodeTag(obj, src) {
     obj.source= src.source;;
     obj.column= src.column;
     obj.line= src.line;
+  } else {
+    //console.log("warning: nodetag of value " + obj);
+  }
+  if (!src) {
+    throw Error("WHat!");
+  }
+  if (src instanceof types.Primitive) {
+    //
+  }
+  else
+  if (src && typeof src.line !== "number") {
+    //console.log("no line info for " + src);
   }
   return obj;
 }
@@ -743,18 +755,19 @@ SPEC_OPS["throw"]=sf_throw;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_x_opop(ast,env) {
+  let ret=nodeTag(tnode(),ast);
   transpileAtoms(ast,env);
-  return nodeTag(tnodeEx([ast[0],
-                          ast[1]]),ast);
+  ret.add([ast[0], ast[1]]);
+  return ret;
 }
 regoBuiltins(sf_x_opop,"incdec");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_x_eq(ast,env) {
+  let ret= nodeTag(tnode(), ast);
   transpileAtoms(ast,env);
-  return nodeTag(
-           tnodeEx([ast[1],
-                    " ", ast[0], " ", ast[2]]));
+  ret.add([ast[1], " ", ast[0], " ", ast[2]]);
+  return ret;
 }
 regoBuiltins(sf_x_eq,"assign");
 
@@ -1605,7 +1618,7 @@ function transpileCode(codeStr, fname, srcMap_Q) {
     let outFile= path.basename(fname, ".ky") + ".js",
         srcMap= outFile+ ".map",
         output= outNode.toStringWithSourceMap(
-                                         {skipValidation: true,
+                                         {skipValidation: false,
                                            file: outFile });
     fs.writeFileSync(srcMap, output.map);
     cstr= output.code + extra +
