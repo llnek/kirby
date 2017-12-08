@@ -1186,7 +1186,8 @@
        (if source-map
          (let [fmap (str fbase ".js")
                smap (str fbase ".map")
-               sout (ret.toStringWithSourceMap {:file fmap})]
+               sout (ret.toStringWithSourceMap
+                      {:skipValidation true :file fmap})]
            (fs/writeFileSync smap sout.map)
            (str sout.code
                 extra

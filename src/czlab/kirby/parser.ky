@@ -319,7 +319,7 @@
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- skip+parse "Advance the token index,
+(defn- skipParse "Advance the token index,
                   then continue to parse"
   [tokens func]
   (copyTokenData (nextToken tokens) (func tokens)))
@@ -331,34 +331,34 @@
   (if (nichts? token)
     undefined
     (case token.name
-      "'" (skip+parse
+      "'" (skipParse
             tokens
             #([(symbol "quote") (read* tokens)]))
-      "`" (skip+parse
+      "`" (skipParse
             tokens
             #([(symbol "quasiquote") (read* tokens)]))
-      "~" (skip+parse
+      "~" (skipParse
             tokens
             #([(symbol "unquote") (read* tokens)]))
-      "~@" (skip+parse
+      "~@" (skipParse
              tokens
              #([(symbol "splice-unquote") (read* tokens)]))
-      "^" (skip+parse
+      "^" (skipParse
             tokens
             (fn []
               (=> tmp (read* tokens))
               [(symbol "with-meta") (read* tokens) tmp]))
-      "@" (skip+parse
+      "@" (skipParse
             tokens
             #([(symbol "deref") (read* tokens)]))
-      "$" (skip+parse
+      "$" (skipParse
             tokens
             #(do-with [y (read* tokens)]
                (var x (symbol "str"))
                (if (> (alen y) 1)
                  (=> y [x y])
                  (y.unshift x))))
-      "#" (skip+parse
+      "#" (skipParse
             tokens
             #([(symbol "lambda") (read* tokens)]))
       ")" (throwE token "unexpected ')'")

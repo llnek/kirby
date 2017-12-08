@@ -1605,7 +1605,8 @@ function transpileCode(codeStr, fname, srcMap_Q) {
     let outFile= path.basename(fname, ".ky") + ".js",
         srcMap= outFile+ ".map",
         output= outNode.toStringWithSourceMap(
-                                         {file: outFile });
+                                         {skipValidation: true,
+                                           file: outFile });
     fs.writeFileSync(srcMap, output.map);
     cstr= output.code + extra +
            "\n//# sourceMappingURL=" +
