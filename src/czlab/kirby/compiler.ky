@@ -298,11 +298,13 @@
              (not (array? (1st ast)))) $(1st ast) :else ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quoteSingle "" [a]
+(defn- quoteSingle "" ^String [a]
   (cond (keyword? a)
-        (str "keyword(\":" a "\")")
+        (str (maybeStripStdlib "kirbystdlibref.keyword")
+             "(\":" a "\")")
         (symbol? a)
-        (str "symbol(\"" a "\")")
+        (str (maybeStripStdlib "kirbystdlibref.symbol")
+             "(\"" a "\")")
         (primitive? a)
         (do (set! a a.value)
             (cond (string? a) a
@@ -312,6 +314,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quote! "" [ast env]
+  (assertInfo ast)
   (if (array? ast)
     (if (map? ast)
       (quoteMap ast env)
@@ -488,14 +491,15 @@
          (str )
          (JSON/parse ))
     (symbol? ast)
-    (->> (tx* ['tag ast] env)
+    (->> (tx* [(keyword ":tag")
+               (str "\"" ast "\"")] env)
          (str )
          (JSON/parse ))
     :else
     (error! :invalid-meta ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- maybeStripStdlib "" [cmd]
+(defn- maybeStripStdlib "" ^String [cmd]
   (var lib "kirbystdlibref."
        nsp (.peekNSP (eng/globalEnv)))
   (=> cmd $(cmd))
@@ -504,17 +508,21 @@
     (cmd.slice (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertInfo "" [ast]
-  (if-not (number? ast.line) (error! :no-sourcemap-info ast)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertArity "" [kond ast]
   (if-not kond (error! :invalid-arity ast))
   (assertInfo ast))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- assertInfo "" [ast]
+  (if (and ast
+           (not (simple? ast))
+           (not (number? ast.line)))
+    (error! :no-sourcemap-info ast)))
+
 ;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-quote "" ^{:opcode ["quote"]} [ast env]
+(defn- sf-quote "" ^{:opcode ["quote"]
+                     :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast))
   (wrap ret nil (quote! (2nd ast) env)))

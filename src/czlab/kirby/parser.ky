@@ -223,7 +223,7 @@
     (raise! s "\nnear EOF")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- nextToken "Returns the next token,
+(defn- popToken "Returns the next token,
                  updates the token index"
   [tokens]
   (var t (peekToken tokens)) (++ tokens.pos) t)
@@ -250,10 +250,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAtom "Process an atom"
   [tokens]
-  (var ret nil tn ""
-       token (nextToken tokens))
-  (if token
-    (=> tn token.value))
+  (var token (popToken tokens)
+       ret nil tn token.value)
   (cond
     (empty? tn)
     (undef! ret)
@@ -271,40 +269,35 @@
     (=> ret (lambda-arg tn))
     (or (= "nil" tn)
         (= "null" tn))
-    (=> ret nil)
+    (nil! ret)
     (or (= "#t" tn)
         (= "true" tn))
-    (=> ret true)
+    (true! ret)
     (or (= "#f" tn)
         (= "false" tn))
-    (=> ret false)
+    (false! ret)
     :else (=> ret (symbol tn)))
   (copyTokenData token ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readBlock "Process a LISP form"
   [tokens head tail]
-  (var ast [] ok? #t
-       start nil
-       token (nextToken tokens))
-  (var~ ret cur tn)
-  (if token (=> tn token.value))
-  (if (not= tn head)
+  (var token (popToken tokens)
+       ast [] ok? #t start token)
+  (if (not= token.value head)
     (throwE token "expected '" head "'"))
-  (=> start token
-      cur (peekToken tokens))
-  (while ok?
-    (when (or (nichts? cur)
-              (= tail cur.name))
-      (if cur
-        (copyTokenData token ast)
-        (throwE start "expected '" tail "', got EOF"))
-      (false! ok?))
-    (when ok?
-      (addAst ast (read* tokens))
-      (=> cur (peekToken tokens))))
-  (nextToken tokens)
-  ast)
+  (for [cur (peekToken tokens)]
+    (cond
+      (nichts? cur)
+      (throwE start "expected '" tail "', got EOF")
+      (= tail cur.value)
+      (break-out-of-loop!)
+      :else
+      (do (addAst ast (read* tokens))
+          (=> cur (peekToken tokens)))))
+  ;;skip the tail token
+  (popToken tokens)
+  (copyTokenData start ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readList "Process an expression"
@@ -324,7 +317,7 @@
 (defn- skipParse "Advance the token index,
                   then continue to parse"
   [tokens func]
-  (copyTokenData (nextToken tokens) (func tokens)))
+  (copyTokenData (popToken tokens) (func tokens)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- read* "Inner parser routine"
@@ -335,41 +328,41 @@
     (case token.value
       "'" (skipParse
             tokens
-            #([(symbol "quote") (read* tokens)]))
+            #(['quote (read* tokens)]))
       "`" (skipParse
             tokens
-            #([(symbol "quasiquote") (read* tokens)]))
+            #(['quasiquote (read* tokens)]))
       "~" (skipParse
             tokens
-            #([(symbol "unquote") (read* tokens)]))
+            #(['unquote (read* tokens)]))
       "~@" (skipParse
              tokens
-             #([(symbol "splice-unquote") (read* tokens)]))
+             #(['splice-unquote (read* tokens)]))
       "^" (skipParse
             tokens
             (fn []
               (=> tmp (read* tokens))
-              [(symbol "with-meta") (read* tokens) tmp]))
+              ['with-meta (read* tokens) tmp]))
       "@" (skipParse
             tokens
-            #([(symbol "deref") (read* tokens)]))
+            #(['deref (read* tokens)]))
       "$" (skipParse
             tokens
             #(do-with [y (read* tokens)]
-               (var x (symbol "str"))
+               (var x 'str)
                (if (> (alen y) 1)
                  (=> y [x y])
                  (y.unshift x))))
       "#" (skipParse
             tokens
-            #([(symbol "lambda") (read* tokens)]))
-      ")" (throwE token "unexpected ')'")
-      "(" (readList token tokens)
-      "]" (throwE token "unexpected ']'")
+            #(['lambda (read* tokens)]))
       "[" (readVector token tokens)
-      "}" (throwE token "unexpected '}'")
+      "(" (readList token tokens)
       "{" (readMap token tokens)
-      (";" ",") (do->undef (nextToken tokens))
+      (")" "]" "}")
+      (throwE token "unexpected " token.value)
+      (";" ",")
+      (do->undef (popToken tokens))
       ;else
       (readAtom tokens))))
 
