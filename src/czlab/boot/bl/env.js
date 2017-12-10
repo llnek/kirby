@@ -7,8 +7,8 @@
 // You must not remove this notice, or any other, from this software.
 "use strict";
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+var types=require("./types");
 var std=require("./stdlib");
-
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function Env(outer, binds, exprs) {
   this.outer = outer || null;
@@ -76,8 +76,8 @@ Env.prototype.get = function(key) {
     throw new Error("env.get key must be a symbol");
   }
   let env = this.find(key);
-  if (!env) { std.raise("'",key.value, "' not found"); }
-  return env ? env.data[key.value] : key;
+  //if (!env) { std.println("'"+key.value+ "' not found"); }
+  return env ? env.data[key.value] : types.wrap_str(key.value);
 };
 
 module.exports= {

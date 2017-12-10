@@ -1276,22 +1276,19 @@ function sf_require(ast,env) {
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function resolveMeta(ast,env) {
-  let r, v={};
+  let r, v;
   if (Array.isArray(ast)) {
-    console.log("sdfsd===" + types.pr_obj(ast))
-    //eval_QQ(ast,env))
-    v=JSON.parse("" + eval_QQ(ast,env));
+    r=ast;
   } else if (types.keyword_p(ast)) {
     r=[ast, true];
     r.__ismap__=true;
-    v=JSON.parse("" + eval_QQ(r,env));
   } else if (types.symbol_p(ast)) {
     r=[types.keyword(":tag"), "\""+ ast + "\""];
     r.__ismap__=true;
-    v=JSON.parse("" + eval_QQ(r,env));
   } else {
     throw new Error("Bad meta value" + types.pr_obj(ast));
   }
+  v=rt.eval(r,env);
   return v;
 }
 

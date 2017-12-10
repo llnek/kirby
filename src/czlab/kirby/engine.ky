@@ -72,8 +72,8 @@
     [k]
     (assertSymbol k)
     (var env (.find this k))
-    (if-not env (raise! k.value " not found"))
-    (get env.data k.value))
+    ;(if-not env (raise! k.value " not found"))
+    (if env (get env.data k.value) (wrap-str k.value)))
   (pushNSP "Add a namespace"
     [nsp]
     (conj! this.nspaces $(nsp)))
@@ -411,7 +411,8 @@
 (defn- evalAst "" [ast env]
   (cond
     (keyword? ast)
-    (str "\"" ast "\"")
+    ;;(str "\"" ast "\"")
+    (.-value ast)
     (string? ast)
     (unwrap-str ast)
     (symbol? ast)

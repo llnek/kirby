@@ -84,8 +84,7 @@
        line col source chunk (opt?? name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tnx "" [from x]
-  (tnode from.source from.line from.column x x))
+(defn- tnx "" [from x] (tnode from.source from.line from.column x x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
@@ -483,20 +482,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- evalMeta "" [ast env]
-  (cond
-    (array? ast)
-    (JSON/parse $(tx* ast env))
-    (keyword? ast)
-    (->> (tx* [ast #t] env)
-         (str )
-         (JSON/parse ))
-    (symbol? ast)
-    (->> (tx* [(keyword ":tag")
-               (str "\"" ast "\"")] env)
-         (str )
-         (JSON/parse ))
-    :else
-    (error! :invalid-meta ast)))
+  (var x
+       (cond (array? ast)
+             ast
+             (keyword? ast)
+             (into! :map [ast #t])
+             (symbol? ast)
+             (into! :map [(keyword ":tag")
+                          (str "\"" ast "\"")])
+             :else
+             (error! :invalid-meta ast))
+       v (eng/compute x env))
+  ;(console.log "meta-obj=" + v)
+  v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" ^String [cmd]
@@ -521,8 +519,8 @@
 
 ;;kenl
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-quote "" ^{:opcode ["quote"]
-                     :tag SourceNode} [ast env]
+(defn- sf-quote ""
+  ^{:opcode ["quote"] :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast))
   (wrap ret nil (quote! (2nd ast) env)))
@@ -530,7 +528,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype
   "Define a JS Class"
-  ^{:opcode ["deftype" "deftype-"]}
+  ^{:opcode ["deftype" "deftype-"] :tag SourceNode}
   [ast env]
   (assertArity (>= (n# ast) 4) ast)
   (var ret (node' ast))

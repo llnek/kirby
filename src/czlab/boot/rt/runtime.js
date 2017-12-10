@@ -127,7 +127,8 @@ function macroexpand(ast, env) {
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function evalAst(ast, env) {
   if (types.keyword_p(ast)) {
-    return "\"" + ast.value + "\"";
+    //return "\"" + ast.value + "\"";
+    return ast.value;
   }
   if (types.symbol_p(ast)) {
     return env.get(ast);
