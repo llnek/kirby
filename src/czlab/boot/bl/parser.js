@@ -61,7 +61,7 @@ function readAtom(tokens) {
   }
   else if (tn.startsWith("\"") &&
     tn.endsWith("\"")) {
-    ret=tn;
+    ret=types.unwrap_str(tn);
   }
   else if (tn.startsWith("/") &&
     tn.endsWith("/")) {

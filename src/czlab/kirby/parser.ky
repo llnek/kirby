@@ -8,12 +8,12 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.parser
-  (require ["./stdlib"
-            :as std
-            :refer [lambda-arg object? nichts? count
-                    into! vector conj! prn
-                    slice opt?? symbol
-                    keyword contains? list not-empty]]))
+  (:require ["./stdlib"
+             :as std
+             :refer [lambda-arg object? nichts? count
+                     into! vector conj! prn
+                     slice opt?? symbol
+                     keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Token [][]
@@ -262,7 +262,7 @@
     (=> ret (int tn))
     (and (starts? tn "\"")
          (ends? tn "\""))
-    (=> ret tn)
+    (=> ret (std/unwrap-str tn))
     (starts? tn ":")
     (=> ret (keyword tn))
     (starts? tn "%")

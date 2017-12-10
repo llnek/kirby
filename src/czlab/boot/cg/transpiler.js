@@ -207,7 +207,7 @@ function transpile_Single(a) {
   }
   if (types.primitive_p(a)) { a=a.value; }
   if (std.string_p(a)) {
-    return a;
+    return types.wrap_str(a);
   }
   if (a===null) {
     return "null";
@@ -435,9 +435,7 @@ function sf_deftype(ast,env,publicQ) {
     }
     if (m[0] == "constructor" &&
         args.length > 0) {
-      for (let x=0;x<args.length;x+=2) {
-        args[x]= "\"" + args[x] +"\"";
-      }
+      for (let x=0;x<args.length;x+=2) { args[x]= ""+args[x]; }
       m.splice(pos,0,
         [types.symbol("set-in!"),
          types.symbol("this")].concat(args));
@@ -1283,12 +1281,13 @@ function resolveMeta(ast,env) {
     r=[ast, true];
     r.__ismap__=true;
   } else if (types.symbol_p(ast)) {
-    r=[types.keyword(":tag"), "\""+ ast + "\""];
+    r=[types.keyword(":tag"), ast];
     r.__ismap__=true;
   } else {
     throw new Error("Bad meta value" + types.pr_obj(ast));
   }
   v=rt.eval(r,env);
+  //console.log("vvv===" + JSON.stringify(v))
   return v;
 }
 

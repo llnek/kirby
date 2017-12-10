@@ -1,5 +1,5 @@
 (ns poo)
 
-(var z 0)
+(var z "anskldsl\"sdfd\"f;kdsl;")
 
 

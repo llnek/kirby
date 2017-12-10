@@ -77,7 +77,7 @@ Env.prototype.get = function(key) {
   }
   let env = this.find(key);
   //if (!env) { std.println("'"+key.value+ "' not found"); }
-  return env ? env.data[key.value] : types.wrap_str(key.value);
+  return env ? env.data[key.value] : key.value;
 };
 
 module.exports= {

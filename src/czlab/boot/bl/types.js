@@ -363,7 +363,7 @@ module.exports= {
   vector: vector,
   vector_p: vector_p,
   value_p : value_p,
-  wrap_str: unwrap_str
+  wrap_str: wrap_str
 
 };
 

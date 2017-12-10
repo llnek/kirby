@@ -11,7 +11,7 @@
   (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
-             :refer [lambda-arg? hashmap pairs?
+             :refer [lambda-arg? hashmap pairs? into!
                      contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
@@ -269,21 +269,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txAtom "" [a]
-  (var s $(a))
   (cond (lambda-arg? a)
-        (str "____args[" s "]")
+        (str "____args[" $(a) "]")
         (keyword? a)
-        (str "\"" s "\"")
+        (str "\"" (parser/jsid $(a)) "\"")
         (symbol? a)
-        (parser/jsid s)
+        (parser/jsid $(a))
         (nil? a)
         "null"
         (primitive? a)
         (do (=> a a.value)
-            (cond (string? a) a
+            (cond (string? a) (std/wrap-str a)
                   (nil? a) "null"
                   :else $(a)))
-        :else s))
+        (string? a)
+        (std/wrap-str a)
+        :else (parser/jsid $(a))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tx* "" [x & [env]] (if (array? x) (txPairs x env) (txAtom x)))
@@ -411,7 +412,7 @@
   [doc]
   (var out [])
   (if doc
-    (->> (.split (eng/unwrap-str doc) "\n")
+    (->> (.split (std/unwrap-str doc) "\n")
          (each #(let [s (.trim (str %))]
                   (if (not-empty s)
                     (conj! out (str "//" s "\n"))))))) out)
@@ -488,12 +489,11 @@
              (keyword? ast)
              (into! :map [ast #t])
              (symbol? ast)
-             (into! :map [(keyword ":tag")
-                          (str "\"" ast "\"")])
+             (into! :map [(keyword ":tag") ast])
              :else
              (error! :invalid-meta ast))
        v (eng/compute x env))
-  ;(console.log "meta-obj=" + v)
+  ;(console.log (str "meta-obj=" v))
   v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -512,7 +512,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertInfo "" [ast]
-  (if (and ast
+  (if (and false
+           ast
            (not (simple? ast))
            (not (number? ast.line)))
     (error! :no-sourcemap-info ast)))
@@ -555,7 +556,7 @@
                (not-empty czargs))
       (for [x 0 sz (n# czargs)
             :while (< x sz) :recur (+2 x)]
-        (=>> czargs x (str "\"" (.@x czargs) "\"")))
+        (=>> czargs x $(.@x czargs)))
       (m.splice pos 0
         (concat ['set-in! 'this] czargs)))
     (m.unshift mtd)
@@ -1196,14 +1197,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- xfi "" [from to]
-  (var tline (.-line to)
-       fline (.-line from))
-  (if (and (not (number? tline))
-           (number? fline))
-    (=>> to
-         :source (.-source from)
-         :line (.-line from)
-         :column (.-column from))) to)
+  (cond
+    (and from to)
+    (let [tline (.-line to)
+          fline (.-line from)]
+      (if (and (not (number? tline))
+               (number? fline))
+        (=>> to
+             :source (.-source from)
+             :line (.-line from)
+             :column (.-column from))) to)
+    :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "" []

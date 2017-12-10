@@ -72,8 +72,8 @@
     [k]
     (assertSymbol k)
     (var env (.find this k))
-    (if-not env (raise! k.value " not found"))
-    (get env.data k.value))
+    ;(if-not env (raise! k.value " not found"))
+    (if env (get env.data k.value) k.value))
   (pushNSP "Add a namespace"
     [nsp]
     (conj! this.nspaces $(nsp)))
@@ -335,21 +335,6 @@
                        (str "czlab.kirby.macros/" cmd)))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrap-str "" [s]
-  (str "\"" (-> (s.replace /\\/g "\\\\")
-                (.replace /"/g "\\\"")
-                (.replace /\n/g "\\n")) "\""))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unwrap-str "" [s]
-  (if (and (starts? s "\"")
-           (ends? s "\""))
-    (-> (s.slice 1 (last-index s))
-        (.replace /\\"/g "\"")
-        (.replace /\\n/g "\n")
-        (.replace /\\\\/g "\\")) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [obj]
   (println "DBG-RT: " (prn obj)))
 
@@ -411,9 +396,10 @@
 (defn- evalAst "" [ast env]
   (cond
     (keyword? ast)
-    (str "\"" ast "\"")
+    ;;(str "\"" ast "\"")
+    (.-value ast)
     (string? ast)
-    (unwrap-str ast)
+    (std.unwrap-str ast)
     (symbol? ast)
     (env.get ast)
     (pairs? ast)
@@ -504,12 +490,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleForm "" [ast env]
-  (var el (evalAst ast env)
-       f (1st el))
-  (if (.-____ast f)
-    [true (.-____ast f)
-          (f.____genenv (rest el))]
-    [false (apply f f (rest el)) env]))
+  (var f nil
+       el (evalAst ast env))
+  (cond
+    (or (vector? ast)
+        (map? ast)
+        (list? ast))
+    [false el]
+    (array? el)
+    (do (=> f (1st el))
+        (cond
+          (and f (.-____ast f))
+          [true (.-____ast f) (f.____genenv (rest el))]
+          :else
+          [false (if (fn? f)
+                   (apply f f (rest el)) el) env]))
+    :else [false el]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fn-wrap "" [run ast env params]
