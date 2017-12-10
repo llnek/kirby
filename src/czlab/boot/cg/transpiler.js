@@ -1332,7 +1332,7 @@ function sf_ns(ast,env) {
   }
   else {
     let form=[types.symbol("require"),
-              ["\"kirby\"",
+              ["kirby",
                types.keyword(":as"), types.symbol("kirbystdlibref")]];
     ret.push(sf_require(form));
     //ret.push(injectStdRefs("kirby"));

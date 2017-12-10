@@ -307,9 +307,11 @@
              "(\"" a "\")")
         (primitive? a)
         (do (set! a a.value)
-            (cond (string? a) a
+            (cond (string? a) (std/wrap-str a)
                   (nil? a) "null"
                   :else $(a)))
+        (string? a)
+        (std/wrap-str a)
         :else $(a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -493,7 +495,7 @@
              :else
              (error! :invalid-meta ast))
        v (eng/compute x env))
-  ;(console.log (str "meta-obj=" v))
+  (console.log (str "meta-obj=" (JSON/stringify v)))
   v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

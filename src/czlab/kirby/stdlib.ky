@@ -507,18 +507,44 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn wrap-str "" [s]
-  (str "\"" (-> (s.replace /\\/g "\\\\")
-                (.replace /"/g "\\\"")
-                (.replace /\\n/g "\\n")) "\""))
+  (var out "\"")
+  (for [i 0 ch "" sz (count s)
+        :while (< i sz) :recur (+1 i)]
+    (=> ch (ch@ s i))
+    (cond
+      (= ch "\\") (+= out "\\\\")
+      (= ch "\"") (+= out "\\\"")
+      (= ch "\n") (+= out "\\n")
+      (= ch "\t") (+= out "\\t")
+      (= ch "\f") (+= out "\\f")
+      (= ch "\r") (+= out "\\r")
+      (= ch "\v") (+= out "\\v")
+      :else (+= out ch)))
+  (+= out "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unwrap-str "" [s]
   (if (and (starts? s "\"")
            (ends? s "\""))
-    (-> (s.slice 1 (last-index s))
-        (.replace /\\"/g "\"")
-        (.replace /\\n/g "\n")
-        (.replace /\\\\/g "\\")) s))
+    (do-with [out ""]
+      (=> s (s.slice 1 -1))
+      (for [i 0 nx "" ch "" sz (count s)
+            :while (< i sz) :recur (+1 i)]
+        (=> ch (ch@ s i))
+        (if (= ch "\\")
+          (do (++ i)
+              (=> nx (ch@ s i))
+              (cond
+                (= nx "\"") (+= out "\"")
+                (= nx "\\") (+= out "\\")
+                (= nx "n") (+= out "\n")
+                (= nx "t") (+= out "\t")
+                (= nx "f") (+= out "\f")
+                (= nx "v") (+= out "\v")
+                (= nx "r") (+= out "\r")
+                :else (do (+= out ch) (-- i))))
+          (+= out ch))))
+    s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

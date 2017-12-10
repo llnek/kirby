@@ -12,18 +12,47 @@ var std=require("./stdlib");
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function wrap_str(s) {
-  return '"' + s.replace(/\\/g, "\\\\").
-                     replace(/"/g, '\\"').
-                     replace(/\n/g, "\\n") + '"';
+  let ch, sz=s.length,out="\"";
+  for(let i=0;i<sz;++i) {
+    ch=s.charAt(i);
+    if (ch=== "\\") out += "\\\\";
+    else if (ch==="\"") out += "\\\"";
+    else if (ch==="\n") out += "\\n";
+    //else if (ch==="\b") out += "\\b";
+    else if (ch==="\t") out += "\\t";
+    else if (ch==="\f") out += "\\f";
+    else if (ch==="\r") out += "\\r";
+    else if (ch==="\v") out += "\\v";
+    else out += ch;
+  }
+  out += "\"";
+  return out;
 }
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function unwrap_str(s) {
   if (s.startsWith("\"") && s.endsWith("\"")) {
-    return s.slice(1,s.length-1).
-            replace(/\\"/g, '"').
-            replace(/\\n/g, "\n").
-            replace(/\\\\/g, "\\");
+    s=s.slice(1,s.length-1);
+    let out="",
+      nx,ch,
+      sz=s.length;
+    for (let i=0;i<sz;++i) {
+      ch=s.charAt(i);
+      if (ch==="\\") {
+        nx=s.charAt(i+1);
+        ++i;
+        if (nx==="\"") out += "\"";
+        else if (nx==="\\") out += "\\";
+        else if (nx==="n") out+="\n";
+        else if (nx==="t") out+="\t";
+        else if (nx==="f") out+="\f";
+        else if (nx==="v") out+="\v";
+        else if (nx==="r") out+="\r";
+        else { out += ch; --i; }
+      }
+      else out +=ch;
+    }
+    return out;
   } else {
     return s;
   }

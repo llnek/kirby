@@ -188,8 +188,12 @@ function tokenize (source, fname) {
       }
     }
     else if (strQ) {
-        if ( ch=== "\n") ch= "\\n";
-        if ( ch=== "\\") escQ= true;
+      if ( ch=== "\n") {
+        ch= "\\n";
+      }
+      if ( ch=== "\\") {
+        escQ= true;
+      }
             token += ch;
     }
     else if (ch==="`" && nx==="`" && source.charAt(pos+1)==="`" && token.length===0) {

@@ -396,7 +396,6 @@
 (defn- evalAst "" [ast env]
   (cond
     (keyword? ast)
-    ;;(str "\"" ast "\"")
     (.-value ast)
     (string? ast)
     (std.unwrap-str ast)
@@ -521,9 +520,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compute* "" [ast env]
   ;;(println "eval:" (prn ast))
-  (var ok? #t ret nil)
+  (var ok? #t
+       cmd ""
+       ret nil
+       g1 (fn [a] (if (pairs? a) (1st a) "")))
   (for []
-    (=> ast (mexpand ast env))
+    (=> ast (mexpand ast env)
+        cmd (g1 ast))
     (->>
       (cond
         (not (array? ast))
@@ -532,57 +535,45 @@
         (empty? ast)
         (do->true
           (=> ret ast))
-        (== "and*"
-            (1st ast))
+        (== "and*" cmd)
         (do->true
           (=> ret (handleAND ast env)))
-        (== "or*"
-            (1st ast))
+        (== "or*" cmd)
         (do->true
           (=> ret (handleOR ast env)))
-        (== "def*"
-            (1st ast))
+        (== "def*" cmd)
         (do->true
           (=> ret (env.set a1
                            (compute a2 env))))
-        (== "let*"
-            (1st ast))
+        (== "let*" cmd)
         (do->false
           (var rc (handleLet ast env))
           (=> ast (1st rc)
               env (2nd rc)))
-        (== "quote"
-            (1st ast))
+        (== "quote" cmd)
         (do->true
           (=> ret (2nd ast)))
-        (== "quasiquote"
-            (1st ast))
+        (== "quasiquote" cmd)
         (do->false
           (=> ast
               (quasiquote (2nd ast))))
-        (== "macro*"
-            (1st ast))
+        (== "macro*" cmd)
         (do->true
           (=> ret (handleMacro ast env)))
-        (== "macroexpand"
-            (1st ast))
+        (== "macroexpand" cmd)
         (do->true
           (=> ret (mexpand (2nd ast) env)))
-        (== "try*"
-            (1st ast))
+        (== "try*" cmd)
         (do->true
           (=> ret (handleTry ast env)))
-        (== "do*"
-            (1st ast))
+        (== "do*" cmd)
         (do->false
           (evalAst (ast.slice 1 -1) env)
           (=> ast (nth ast (last-index ast))))
-        (== "if*"
-            (1st ast))
+        (== "if*" cmd)
         (do->false
           (=> ast (handleIf ast env)))
-        (== "fn*"
-            (1st ast))
+        (== "fn*" cmd)
         (do->true
           (=> ret
               (fn-wrap compute

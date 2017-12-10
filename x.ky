@@ -1,5 +1,5 @@
-(ns poo)
-
-(var z "anskldsl\"sdfd\"f;kdsl;")
-
+(ns czlab.kirby.poo)
+(defn- sf-quote ""
+  ^{:opcode ["quote"] :tag SourceNode} [ast env]
+  nil)
 
