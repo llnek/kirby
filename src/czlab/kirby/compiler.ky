@@ -84,9 +84,6 @@
        line col source chunk (opt?? name "")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tnx "" [from x] (tnode from.source from.line from.column x x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
   [args ast env]
@@ -404,8 +401,8 @@
         (if (pairs? ast)
           (ret.add
             [(if (testre? parser/REGEX.func cmd)
-               (tnx ast ["(" cmd ")"]) cmd)
-             "(" (join "," (tnx ast (rest ast))) ")"])
+               (str "(" cmd ")") cmd)
+             "(" (join "," (rest ast)) ")"])
           (ret.add cmd))))
   (node' ast ret))
 
@@ -470,7 +467,7 @@
               file ",line: " (or ast.line "?") "\n")
        len (alen s))
   (if (< len 80)  (=> len 80))
-  (doto (tnx ast (str (.repeat "/" len) "\n")) (.add s)))
+  (str (.repeat "/" len) "\n") s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- icache [])
