@@ -26,43 +26,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ERRORS-MAP {
-  :no-sourcemap-info ""
-  :invalid-fargs ""
-  :invalid-catch ""
-  :invalid-try ""
-  :invalid-include ""
-  :invalid-require ""
-  :invalid-namespace ""
-  :destruct-args ""
-  :file-access ""
-  :file-read ""
-  :file-open ""
-  :unknown-keyword ""
-  :invalid-arity ""
-  :invalid-meta ""
-  :syntax-error ""
-  :empty-form "" })
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- XERRORS-MAP {
-  :e0 "Syntax Error"
-  :e1 "Empty statement"
-  :e2 "Invalid characters in function name"
-  :e3 "End of File encountered, unterminated string"
-  :e4 "Closing square bracket, without an opening square bracket"
-  :e5 "End of File encountered, unterminated array"
-  :e6 "Closing curly brace, without an opening curly brace"
-  :e7 "End of File encountered, unterminated javascript object '}'"
-  :e8 "End of File encountered, unterminated parenthesis"
-  :e9 "Invalid character in var name"
-  :e10 "Extra chars at end of file. Maybe an extra ')'."
-  :e11 "Cannot Open include File"
-  :e12 "Invalid no of arguments to "
-  :e13 "Invalid Argument type to "
-  :e14 "End of File encountered, unterminated regular expression"
-  :e15 "Invalid vararg position, must be last argument."
-  :e16 "Invalid arity (args > expected) to "
-  :e17 "Invalid arity (args < expected) to "})
+  :no-sourcemap-info "Expected source map info"
+  :invalid-fargs "Invalid function args"
+  :invalid-catch "Invalid catch clause"
+  :invalid-try "Invalid try clause"
+  :invalid-include "Invalid include clause"
+  :invalid-require "Invalid require clause"
+  :invalid-namespace "Invalid namespace clause"
+  :destruct-args "Bad destructure args"
+  :file-access "Failed file access"
+  :file-read "Failed file read"
+  :file-open "Failed to open file"
+  :unknown-keyword "Unknown keyword"
+  :invalid-arity "Invalid function arity"
+  :invalid-meta "Invalid meta data"
+  :syntax-error "Syntax error"
+  :empty-form "Invalid form (empty)" })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- MODULE-VERSION "1.0.0")
@@ -73,15 +52,15 @@
       MATH-OP-REGEX /^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnodeEx "Create a token"
-  [chunk name] (tnode nil nil nil chunk name))
+(defn tnodeEx "Create a node"
+  [name &[chunk]] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnode "Create a token
             with source information"
   [&[source line col chunk name]]
   (new smap/SourceNode
-       line col source chunk (opt?? name "")))
+       line col source chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
@@ -858,7 +837,9 @@
        fname0 $(2nd ast)
        fname (tx* (2nd ast) env)
        dot? (contains? fname ".")
-       fargs nil ret (node' ast)
+       fargs nil
+       ret (node' ast
+                  (tnodeEx fname))
        [doc pargs] (if (str? (.@2 ast))
                      [(nth ast 2) 3] [nil 2])
        body (xfi ast (slice ast (+1 pargs)))
@@ -1147,11 +1128,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode "" ^{:opcode ["js#"]} [ast env]
   (assertArity (>= (n# ast) 2) ast)
-  (var s $(2nd ast))
+  (var s $(2nd ast)
+       name (parser/jsid "sf-jscode"))
   (->>
     (if (and (ends? s "\"")
              (starts? s "\""))
-      (s.slice 1 -1) s) (tnodeEx ) (node' ast)))
+      (s.slice 1 -1) s) (tnodeEx name) (node' ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-macro "" ^{:opcode ["defmacro"]} [ast env]
