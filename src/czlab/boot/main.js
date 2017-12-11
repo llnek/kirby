@@ -27,13 +27,11 @@ var error=function(e) {
 var opt=
 gopt.create([["h","help","display this help"],
              ["v","version","show version"],
-             ["r","run","run .ky files"],
+             ["f","format","format files"],
              ["w","watch","auto-compile changed files"],
-             ["b","browser-bundle","bundle for browser"],
              ["m","map","generate source maps"],
-             ["t","tree","show AST"],
-             ["i","include-dir=ARG+","add directory to include search path"]]);
-opt.setHelp("kirby [OPTION] [<infile>] [<outfile>]\n\n"+
+             ["t","tree","show AST"]]);
+opt.setHelp("kirby [OPTIONS] [<infile>] [<outfile>]\n\n"+
             "<outfile> default to <infile> with \".js\" extension\n\n"+
             "Also compile stdin to stdout\n"+
             "eg. $ echo '(console.log \"hello\")' | kirby\n\n"+
