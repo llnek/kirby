@@ -1,5 +1,5 @@
 (ns czlab.kirby.poo)
-(defn- sf-quote ""
-  ^{:opcode ["quote"] :tag SourceNode} [ast env]
-  nil)
+
+(var xxx "c:\\a\\b\\c\u7878\\ggg")
+(var zzz  ```c:\a\\b\c\u7878\ggg```)
 

@@ -1,0 +1,9 @@
+#!/bin/sh
+node bin/$1.js src/czlab/kirby/stdlib.ky dist/$1/stdlib.js
+node bin/$1.js src/czlab/kirby/parser.ky dist/$1/parser.js
+node bin/$1.js src/czlab/kirby/engine.ky dist/$1/engine.js
+node bin/$1.js src/czlab/kirby/compiler.ky dist/$1/compiler.js
+node bin/$1.js src/czlab/kirby/main.ky dist/$1/main.js
+cp src/czlab/kirby/macros.ky dist/$1/
+
+

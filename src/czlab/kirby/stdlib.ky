@@ -512,13 +512,13 @@
         :while (< i sz) :recur (+1 i)]
     (=> ch (ch@ s i))
     (cond
-      (= ch "\\") (+= out "\\\\")
       (= ch "\"") (+= out "\\\"")
       (= ch "\n") (+= out "\\n")
       (= ch "\t") (+= out "\\t")
       (= ch "\f") (+= out "\\f")
       (= ch "\r") (+= out "\\r")
       (= ch "\v") (+= out "\\v")
+      (= ch "\\") (+= out (if (= "u" (ch@ s (+1 i))) ch "\\\\"))
       :else (+= out ch)))
   (+= out "\""))
 

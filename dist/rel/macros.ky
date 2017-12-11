@@ -1,0 +1,466 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http:;;opensource.org;licenses;eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.macros)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro starts? "" [s arg] `(.startsWith ~s ~arg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ends? "" [s arg] `(.endsWith ~s ~arg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro n# "" [coll] `(kirbystdlibref/count ~coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro 1st "" [x] `(first ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro 2nd "" [x] `(second ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro trap! "" [&msgs]
+  (let* [sz (count* msgs)]
+    (if* (> sz 1)
+      `(throw (join "" (vec ~@msgs)))
+      (if* (> sz 0)
+        `(throw ~(nth* msgs 0)) `(throw "error!")))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro merror "" [e] `(new Error ~e))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro raise! "" [&msgs]
+  (let* [sz (count* msgs)]
+    (if* (> sz 1)
+      `(throw (merror (join "" (vec ~@msgs))))
+      (if* (> sz 0)
+        `(throw (merror ~(nth* msgs 0))) `(throw (merror "error!"))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro slice "" [arr &[start end]]
+  (if* end
+       `(Array.prototype.slice.call ~arr ~start ~end)
+       (if* start
+            `(Array.prototype.slice.call ~arr ~start)
+            `(Array.prototype.slice.call ~arr))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro float "" [x] `(parseFloat ~x))
+(defmacro int "" [x] `(parseInt ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro println "" [&msgs]
+  `(if console
+     (console.log (join "" (vec ~@msgs)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro delay "" [f t] `(setTimeout ~f ~t))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro break-out-of-loop! "" [] `(set! ____break true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro undef! "" [x] `(set! ~x undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nil! "" [x] `(set! ~x nil))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro last-index "" [coll] `(-1 (alen ~coll)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro rest "" [coll] `(.slice ~coll 1))
+(defmacro cdr "" [coll] `(.slice ~coll 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro second "" [coll] `(nth ~coll 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro first "" [coll] `(nth ~coll 0))
+(defmacro car "" [coll] `(nth ~coll 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nexth "" [coll i] `(nth ~coll (+1 ~i)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nth "" [coll i] `(get ~coll ~i))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro even? "" [n] `(= 0 (kirbystdlibref/modulo ~n 2)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro odd? "" [n] `(not (even? ~n)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro alen "" [coll] `(.-length ~coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nzlen? "" [coll] `(> (alen ~coll) 0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro zlen? "" [coll] `(= 0 (alen ~coll)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro type "" [obj] `(typeof ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro whatis? "" [obj] `(Object.prototype.toString.call ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro regex? "" [obj] `(= (whatis? ~obj) "[object RegExp]"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro array? "" [obj] `(Array.isArray ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro date? "" [obj] `(= (whatis? ~obj) "[object Date]"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro boolean? "" [obj] `(= (typeof ~obj) "boolean"))
+(defmacro bool? "" [obj] `(boolean? ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro number? "" [obj] `(= (typeof ~obj) "number"))
+(defmacro num? "" [obj] `(number? ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro string? "" [obj] `(= (typeof ~obj) "string"))
+(defmacro str? "" [obj] `(string? ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro fn? "" [obj] `(= (typeof ~obj) "function"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro undef? "" [obj] `(= (typeof ~obj) "undefined"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro def? "" [obj] `(not= (typeof ~obj) "undefined"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro nil? "" [obj] `(= ~obj null))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro values "" [obj] `(Object.values ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro keys "" [obj] `(Object.keys ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro assert "" [tst & msgs] `(if ~tst true (raise! ~@msgs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro false? "" [obj] `(= false ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro true? "" [obj] `(= true ~obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro when-not "" [tst & xs] `(when (not ~tst) ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro unless "" [tst & xs] `(when-not ~tst ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro if-not
+  "" [tst then & [else]] `(if (not ~tst) ~then ~else))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro while "" [tst & xs] `(for [:while ~tst] ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro when "" [tst & xs] `(if ~tst (do ~@xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro cond "" [&xs]
+  (let* [len (count* xs)]
+    (do* (assert* (is-even? len)
+                  "cond expects even args")
+         (if* (> len 0)
+           (let* [c (nth* xs 0)
+                  e (nth* xs 1)
+                  r (rest* (rest* xs))]
+             (if* (is-same? c "else")
+               `(if true ~e)
+               `(if ~c ~e (cond ~@r))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro -> "" [expr form & xs]
+  (let* [x `(~(nth* form 0)
+                    ~expr ~@(rest* form))]
+    (if* (> (count* xs) 0) `(-> ~x ~@xs) `~x)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ->> "" [expr form & xs]
+  (let* [x `(~@form ~expr)]
+    (if* (> (count* xs) 0) `(->> ~x ~@xs) `~x)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro let "" [bindings & xs] `(do (var ~@bindings) ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;trampoline
+(defmacro loop "" [bindings & more]
+  (let*
+    [es (evens* bindings)
+     os (odds* bindings)]
+    `((fn []
+        (var _x_ nil recur nil
+             _f_ (fn [~@es] ~@more) _r_ _f_)
+        (set! recur
+              (fn []
+                (set! _x_ arguments)
+                (js# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
+                undefined))
+        (recur ~@os)) this)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro concat "" [coll x] `(.concat ~coll ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro join "" [sep coll] `(.join ~coll ~sep))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do-with "" [binding & xs]
+  (let* [f (nth* binding 0)]
+    `(let [~f ~(nth* binding 1)] ~@xs ~f)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do->false "" [&xs]
+  (let* [a (gensym*)] `(let [~a false] ~@xs ~a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do->true "" [&xs]
+  (let* [a (gensym*)] `(let [~a true] ~@xs ~a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do->nil "" [&xs]
+  (let* [a (gensym*)] `(let [~a nil] ~@xs ~a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do->undef "" [&xs]
+  (let* [a (gensym*)] `(let [~a undefined] ~@xs ~a)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro inc "" [x] `(+1 ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro dec "" [x] `(-1 ~x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro dotimes "" [binding &xs]
+  (let* [_t (gensym*)
+         b1 (first* binding)]
+    `(for [~b1 0 ~_t ~(nth* binding 1)
+           :while (< ~b1 ~_t) :recur (+1 ~b1)] ~@xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro range "" [a & [b c]]
+  (let* [start (if* b a 0)
+         end (if* b b a)
+         step (if* c c 1)]
+    `(do-with [ret []]
+       (for [i ~start
+             :while (< i ~end) :recur (+ i ~step)]
+         (ret.push i)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro apply
+  "" [f this args] `(.apply ~f ~this ~args))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro apply*
+  "" [f this & args]
+  `(.apply ~f ~this (vec ~@args)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ch@ "" [s pos] `(.charAt ~s ~pos))
+(defmacro false! "" [x] `(set! ~x false))
+(defmacro true! "" [x] `(set! ~x true))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro repeat "" [n x]
+  `(do-with [ret []]
+     (for [i 0
+           :while (< i ~n)
+           :recur (+1 i)] (ret.push ~x))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro doseq "" [bindings & xs]
+  (let*
+    [loopExpr (gensym*)
+     escvar (gensym*)
+     idxvar (gensym*)
+     _let (if* (is-eq? (nth* bindings 2) ':let)
+               (nth* bindings 3))
+     _while (if* (is-eq? (nth* bindings 2) ':while)
+                 (nth* bindings 3)
+                 (if* (is-eq? (nth* bindings 4) ':while)
+                      (nth* bindings 5)
+                      (if* (is-eq? (nth* bindings 6) ':while)
+                           (nth* bindings 7)
+                           true)))
+     _when (if* (is-eq? (nth* bindings 2) ':when)
+                (nth* bindings 3)
+                (if* (is-eq? (nth* bindings 4) ':when)
+                     (nth* bindings 5)
+                     (if* (is-eq? (nth* bindings 6) ':when)
+                          (nth* bindings 7)
+                          true)))]
+    `(let [~loopExpr ~(nth* bindings 1)]
+       (for [~idxvar 0
+             ~escvar false
+             :while (and (not ~escvar)
+                         (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
+         (var ~(nth* bindings 0)
+              (nth ~loopExpr ~idxvar))
+         ~(if* _let `(var ~@_let))
+         (if-not ~_while (set! ~escvar true))
+         (when (and (not ~escvar) ~_when) ~@xs)) nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro if-some+ "" [binding then & [else]]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst]
+       (if (> (alen (if (or (string? ~tst)
+                            (array? ~tst))
+                      ~tst
+                      (keys ~tst))) 0) ~then ~else))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro if-some "" [binding then & [else]]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst]
+       (if (or (undef? ~tst)
+               (nil? ~tst)) ~else ~then))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro if-let "" [binding then & [else]]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst] (if ~tst ~then ~else))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro when-some+ "" [binding &xs]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst]
+       (when (> (alen (if (or (string? ~tst)
+                              (array? ~tst))
+                        ~tst (keys ~tst))) 0) ~@xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro when-some "" [binding &xs]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst]
+       (when-not (or (undef? ~tst)
+                     (nil? ~tst)) ~@xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro when-let "" [binding &xs]
+  (let* [tst (gensym*)]
+    `(let [~tst ~(nth* binding 1)
+           ~(first* binding) ~tst] (when ~tst ~@xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro doto "" [target & xs]
+  (let* [v (gensym*)]
+    `(let [~v ~target]
+       ~@(map* (fn* [e]
+                    `(~(first* e) ~v ~@(rest* e))) xs) ~v)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro map "" [f coll] `(.map ~coll ~f))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro reduce2 "" [f coll] `(.reduce ~coll ~f))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro reduce
+  "" [f start coll] `(.reduce ~coll ~f ~start))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro str [&xs] `(.join (vec ~@xs) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro lambda "" [code]
+  (let* [sz (count* code)
+         body (if* (> sz 1)
+                   code
+                   (if* (> sz 0) (nth* code 0)))]
+    `(fn [] (var ____args (slice arguments)) ~body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro each "" [func coll] `(.forEach ~coll ~func))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro each-key "" [func obj]
+  (let* [t (gensym*)]
+    `(let [~t ~obj]
+       (each (fn [e]
+               (~func (nth e 1) (nth e 0)))
+             (Object.entries ~t)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do-monad "" [monad bindings & body]
+  `((fn [mo]
+      (var res
+           (fn [&xs]
+             (if (and (or (nil? xs)
+                          (zlen? xs))
+                      (def? mo.zero))
+               mo.zero
+               (mo.result.apply mo xs))))
+      (do-bind mo.bind
+               ~bindings
+               (res.apply this ~@body))) ~monad))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do-bind "" [bindfunc bindings & body]
+  (let* [a2 (nth* bindings 1)
+         a1 (nth* bindings 0)
+         more (rest* (rest* bindings))]
+    `(~bindfunc ~a2
+                (fn [~a1]
+                  ~(if* (not-empty* more)
+                        `(do-bind ~bindfunc
+                                  ~more
+                                  ~@body)
+                        `(do ~@body))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-identity "" [monads bindings & body]
+  `(do-monad (.-identity monads) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-maybe "" [monads bindings & body]
+  `(do-monad (.-maybe monads) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-array "" [monads bindings & body]
+  `(do-monad (.-array monads) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-state "" [monads bindings & body]
+  `(do-monad (.-state monads) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad-continuation "" [monads bindings & body]
+  `(do-monad (.-continuation monads) ~bindings ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
