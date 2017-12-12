@@ -60,7 +60,10 @@
             with source information"
   [&[source line col chunk name]]
   (new smap/SourceNode
-       line col source chunk name))
+       (opt?? line nil)
+       (opt?? col nil)
+       (opt?? source nil)
+       (opt?? chunk nil) (opt?? name nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
@@ -321,24 +324,34 @@
   (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- spread "" [from to]
+  (if (and from
+           (not (simple? from))
+           (number? from.line)
+           (array? to))
+    (do (xfi from to)
+        (for [i 0 sz (n# to)
+              :while (< i sz) :recur (+1 i)]
+          (spread from (.@i to))))
+    (xfi from to)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" [ast env]
   (var stmtQ (stmt? ast)
-       e1 (1st ast)
        ret (node' ast)
        cmd (gcmd ast)
+       e1 (1st ast)
        orig ast
        op nil tmp nil
        mc (eng/getMacro cmd))
-  (when (and (not (number? ret.line))
-             (not (simple? e1))
-             (number? e1.line))
-    (xfi e1 ret)
-    (xfi e1 ast))
+  (xfi e1 ret)
+  (xfi e1 ast)
   ;;handle macro calls
   (when mc
     (=> ast (eng/expandMacro ast env mc)
-        ast (xfi orig (exprHint ast (not stmtQ)))
-        cmd (gcmd ast)))
+        ast (xfi orig (exprHint ast (not stmtQ))))
+    (spread orig ast)
+    (=> cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (parser/REGEX.int.test cmd)
     (if-not (or (starts? cmd "+")
@@ -1112,9 +1125,11 @@
   (ret.add (if (empty? vars)
              "let ____break=false;" ",____break=false;"))
   (=> nb '(not ____break))
+  (xfi ret nb)
   (if tst
     (=> tst ['and nb tst])
     (=> tst nb))
+  (xfi ret tst)
   (ret.add [$(tx* tst env) "; "])
   (for [i 0 k 0 sz (n# recurs)
         :while (< i sz) :recur (+1 i)(+2 k)]
@@ -1250,7 +1265,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST
   "" [source fname]
-  (parser/dumpTree (parser/parse source fname)))
+  (parser/dumpTree (parser/parse source fname) fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

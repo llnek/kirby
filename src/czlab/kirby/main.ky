@@ -33,14 +33,15 @@
     (if (= fout fin)
       (error! "Input file must have extension \".ky\"")))
   (try
-    (println (str "kirby v" (.-version tx))
-             ": compiling file: " fin " -> " fout)
     (var options opt.options
          {:keys [source-map
-                 format show-ast]} options
-         source (fs/readFileSync fin "utf8"))
+                 format show-ast]} options)
+    (when-not show-ast
+      (println (str "kirby v" (.-version tx))
+               ": compiling file: " fin " -> " fout))
+    (var source (fs/readFileSync fin "utf8"))
     (if show-ast
-      (tx/dbgAST source fin)
+      (println (tx/dbgAST source fin))
       (fs/writeFileSync fout
                         (tx/transpile source fin options) "utf-8"))
     (catch e

@@ -11,8 +11,10 @@
   (:require ["./stdlib"
              :as std
              :refer [lambda-arg object? nichts? count
-                     into! vector conj! prn
-                     slice opt?? symbol
+                     into! vector conj! prn wrap-str
+                     list? vector? map? escXml
+                     symbol? keyword? lambda-arg?
+                     slice opt?? symbol primitive?
                      keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -388,9 +390,52 @@
     (addAst ast (read* tokens))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dumpTree "Debug and dump the AST"
+(defn- dump* "Debug and dump the AST"
   [tree]
-  (each #(println (prn %)) tree))
+  (var s "")
+  (if (primitive? tree) (=> tree (.-value tree)))
+  (cond
+    (vector? tree)
+    (str "<vector>"
+         (join "" (map #(dump* %) tree))
+         "</vector>")
+    (map? tree)
+    (str "<map>"
+         (join "" (map #(dump* %) tree))
+         "</map>")
+    (list? tree)
+    (str "<list>"
+         (join "" (map #(dump* %) tree))
+         "</list>")
+    (array? tree)
+    (str "<sexpr>"
+         (join "" (map #(dump* %) tree))
+         "</sexpr>")
+    (lambda-arg? tree)
+    (str "<lambdaarg>%" (+1 (int (.-value tree))) "</lambdaarg>")
+    (keyword? tree)
+    (str "<keyword>" (escXml (.-value tree)) "</keyword>")
+    (symbol? tree)
+    (str "<symbol>" (escXml (.-value tree)) "</symbol>")
+    (string? tree)
+    (str "<string>" (escXml (wrap-str tree)) "</string>")
+    (number? tree)
+    (str "<number>" tree "</number>")
+    (nil? tree)
+    (str "<reserved>" "null" "</reserved>")
+    (true? tree)
+    (str "<boolean>" true "</boolean>")
+    (false? tree)
+    (str "<boolean>" false  "</boolean>")
+    (undef? tree)
+    (str "<reserved>" "undefined" "</reserved>")
+    :else (throw "Bad AST")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dumpTree "Debug and dump the AST"
+  [tree fname]
+  (str "<AbstractSyntaxTree file=\"" (escXml fname) "\">"
+       (dump* tree) "</AbstractSyntaxTree>"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
