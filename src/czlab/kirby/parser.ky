@@ -324,7 +324,11 @@
 (defn- skipParse "Advance the token index,
                   then continue to parse"
   [tokens func]
-  (copyTokenData (popToken tokens) (func tokens)))
+  (var t (popToken tokens)
+       ret (func tokens)
+       a1 (1st ret))
+  (copyTokenData t a1)
+  (copyTokenData t ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- read* "Inner parser routine"
@@ -390,33 +394,46 @@
     (addAst ast (read* tokens))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dumpInfo "" [tag ast]
+  (if (and ast
+           (number? ast.line))
+    (str "<"
+         tag
+         " line=" "\"" ast.line "\""
+         " column=" "\"" ast.column "\"" ">")
+    (str "<" tag ">")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dump* "Debug and dump the AST"
   [tree]
   (var s "")
   (if (primitive? tree) (=> tree (.-value tree)))
   (cond
     (vector? tree)
-    (str "<vector>"
+    (str (dumpInfo "vector" tree)
          (join "" (map #(dump* %) tree))
          "</vector>")
     (map? tree)
-    (str "<map>"
+    (str (dumpInfo "map" tree)
          (join "" (map #(dump* %) tree))
          "</map>")
     (list? tree)
-    (str "<list>"
+    (str (dumpInfo "list" tree)
          (join "" (map #(dump* %) tree))
          "</list>")
     (array? tree)
-    (str "<sexpr>"
+    (str (dumpInfo "sexpr" tree)
          (join "" (map #(dump* %) tree))
          "</sexpr>")
     (lambda-arg? tree)
-    (str "<lambdaarg>%" (+1 (int (.-value tree))) "</lambdaarg>")
+    (str (dumpInfo "lambda-arg" tree)
+         "%" (+1 (int (.-value tree))) "</lambda-arg>")
     (keyword? tree)
-    (str "<keyword>" (escXml (.-value tree)) "</keyword>")
+    (str (dumpInfo "keyword" tree)
+         (escXml (.-value tree)) "</keyword>")
     (symbol? tree)
-    (str "<symbol>" (escXml (.-value tree)) "</symbol>")
+    (str (dumpInfo "symbol" tree)
+         (escXml (.-value tree)) "</symbol>")
     (string? tree)
     (str "<string>" (escXml (wrap-str tree)) "</string>")
     (number? tree)
