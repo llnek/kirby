@@ -34,6 +34,7 @@
   :invalid-require "Invalid require clause"
   :invalid-namespace "Invalid namespace clause"
   :destruct-args "Bad destructure args"
+  :outside-macro "Invalid clause outside of macro"
   :file-access "Failed file access"
   :file-read "Failed file read"
   :file-open "Failed to open file"
@@ -383,6 +384,10 @@
         (ret.add ")"))
     (some? op)
     (=> ret (op ast env))
+    (or (== cmd "splice-unquote")
+        (== cmd "unquote")
+        (== cmd "quasiquote"))
+    (error! :outside-macro ast)
     :else
     (do (if (pairs? ast)
           (do (txForm ast env)
