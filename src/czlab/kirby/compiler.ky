@@ -19,7 +19,7 @@
                      gensym count pop! slice
                      symbol keyword symbol? keyword?]]
             ["./engine" :as eng]
-            ["./parser" :as parser])
+            ["./parser" :as parser :refer [jsid]])
   (:require ["fs" :as fs]
             ["path" :as path]
             ["esformatter" :as esfmt]))
@@ -45,6 +45,10 @@
   :empty-form "Invalid form (empty)" })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- ARRSLICE "Array.prototype.slice.call")
+(const- JSARGS "arguments")
+(const- LARGS "____args")
+(const- BREAK "____break")
 (const- MODULE-VERSION "1.0.0")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -69,10 +73,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
-  [args ast env]
+  [args env]
   (var~ e ev rval out)
   (var pms []
-       [fargs fdefs :as ret] [(node' ast) (node' ast)])
+       [fargs fdefs :as ret] [(node' args) (node' args)])
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i args))
@@ -80,40 +84,40 @@
       (symbol? e)
       (if (== e "&")
         ;vargs
-        (do (=> rval (node' ast)
+        (do (=> rval (node' args)
                 e (.@+i args))
-            (rval.add ["Array.prototype.slice.call(arguments," $(i) ")"])
+            (rval.add [ARRSLICE "(" JSARGS "," $(i) ")"])
             (if (symbol? e)
               (fdefs.add ["let "
                           (tx* e env) "=" rval ";\n"])
-              (do (=> out (node' ast)
-                      e (destruct* e out env ast))
+              (do (=> out (node' args)
+                      e (destruct* e out env))
                   (fdefs.add ["let "
                               (tx* e env)
                               "=" rval ";\n" out])))
             (break-out-of-loop!))
         ;ignore _
         (do (if (== e "_")
-              (=> e (gensym "U__"))) (conj! pms e)))
+              (=> e (xfi e (gensym "U__")))) (conj! pms e)))
       (array? e)
-      (do (=> rval (node' ast)
-              out (node' ast)
-              e (destruct* e out env ast))
-          (rval.add ["arguments[" $(i) "]"])
+      (do (=> rval (node' args)
+              out (node' args)
+              e (destruct* e out env))
+          (rval.add [JSARGS "[" $(i) "]"])
           (conj! pms e)
           (fdefs.add ["let "
                       (tx* e env)
                       "=" rval ";\n" out]))
       :else
-      (error! :destruct-args ast)))
+      (error! :destruct-args args)))
   (each #(fargs.add (tx* % env)) pms)
   (join "," fargs)
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct* "" [coll out env ast]
+(defn- destruct* "" [coll out env]
   ;decide on what the rhs should be referred to "as"
-  (var rhs (gensym) e nil)
+  (var rhs (xfi coll (gensym)) e nil)
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
@@ -124,16 +128,16 @@
   ;handle a vec or a map destructure only
   (cond
     (map? coll)
-    (out.add (destructMap rhs coll env ast))
+    (out.add (destructMap rhs coll env))
     (vector? coll)
-    (out.add (destructVec rhs coll env ast)))
+    (out.add (destructVec rhs coll env)))
   rhs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructVec "" [src coll env ast]
-  (=> src (tx* src env))
+(defn- destructVec "" [src coll env]
+  (var ret (node' coll)
+       as (tx* src env))
   (var~ e rval out)
-  (var ret (node' ast))
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
@@ -142,12 +146,12 @@
       (cond
         (== e "_") nil
         (== e "&")
-        (do (=> rval (node' ast)
-                out (node' ast)
+        (do (=> rval (node' coll)
+                out (node' coll)
                 e (.@+i coll))
-            (rval.add ["Array.prototype.slice.call(" src "," $(i) ")"])
+            (rval.add [ARRSLICE "(" as "," $(i) ")"])
             (if-not (symbol? e)
-              (=> e (destruct* e out env ast)))
+              (=> e (destruct* e out env)))
             (ret.add ["let "
                       (tx* e env)
                       "=" rval ";\n" out])
@@ -155,25 +159,25 @@
         :else
         (ret.add ["let "
                   (tx* e env)
-                  "=" src "[" $(i) "];\n"]))
+                  "=" as "[" $(i) "];\n"]))
       (array? e)
-      (do (=> rval (node' ast)
-              out (node' ast)
-              e (destruct* e out env ast))
-          (rval.add [src "[" $(i) "]"])
+      (do (=> rval (node' coll)
+              out (node' coll)
+              e (destruct* e out env))
+          (rval.add [as "[" $(i) "]"])
           (ret.add ["let "
                     (tx* e env)
                     "=" rval ";\n" out]))
       (keyword? e)
       (if (== e "as")
         (++ i)
-        (error! :unknown-keyword ast))
-      :else (error! :syntax-error ast))) ret)
+        (error! :unknown-keyword coll))
+      :else (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructMap "" [src coll env ast]
-  (=> src (tx* src env))
-  (var ret (node' ast))
+(defn- destructMap "" [src coll env]
+  (var ret (node' coll)
+       as (tx* src env))
   (var~ e arr)
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
@@ -190,11 +194,11 @@
               (=> e (.@j arr))
               (ret.add ["let "
                         (tx* e env)
-                        "=" src "[\"" $(e) "\"];\n"])))
+                        "=" as "[\"" $(e) "\"];\n"])))
         :else
-        (error! :unknown-keyword ast))
+        (error! :unknown-keyword coll))
       :else
-      (error! :syntax-error ast))) ret)
+      (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- simple? "" [ast]
@@ -249,22 +253,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txAtom "" [a]
+  (var s $(a))
   (cond (lambda-arg? a)
-        (str "____args[" $(a) "]")
+        (str LARGS "[" s "]")
         (keyword? a)
-        (str "\"" (parser/jsid $(a)) "\"")
+        (node' a (tnodeEx (jsid s) (str "\"" (jsid s) "\"")))
         (symbol? a)
-        (parser/jsid $(a))
+        (node' a (tnodeEx (jsid s) (jsid s)))
         (nil? a)
         "null"
         (primitive? a)
-        (do (=> a a.value)
+        (do (=> a a.value s $(a))
             (cond (string? a) (std/wrap-str a)
                   (nil? a) "null"
-                  :else $(a)))
+                  :else s))
         (string? a)
         (std/wrap-str a)
-        :else (parser/jsid $(a))))
+        :else (jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tx* "" [x & [env]] (if (array? x) (txPairs x env) (txAtom x)))
@@ -338,7 +343,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" [ast env]
-  (var stmtQ (stmt? ast)
+  (var nsp (.peekNSP (eng/globalEnv))
+       stmtQ (stmt? ast)
        ret (node' ast)
        cmd (gcmd ast)
        e1 (1st ast)
@@ -384,9 +390,10 @@
         (ret.add ")"))
     (some? op)
     (=> ret (op ast env))
-    (or (== cmd "splice-unquote")
-        (== cmd "unquote")
-        (== cmd "quasiquote"))
+    (and (or (== cmd "splice-unquote")
+             (== cmd "unquote")
+             (== cmd "quasiquote"))
+         (not (starts? nsp "czlab.kirby.")))
     (error! :outside-macro ast)
     :else
     (do (if (pairs? ast)
@@ -853,7 +860,7 @@
   (var private? (ends? $(1st ast) "-")
        mtd? (== $(1st ast) "method")
        fname0 $(2nd ast)
-       fname (tx* (2nd ast) env)
+       fname $(tx* (2nd ast) env)
        dot? (contains? fname ".")
        fargs nil
        ret (node' ast
@@ -1242,6 +1249,7 @@
        fbase (path/basename fname ".ky")
        extra (spitExterns)
        fopts {}
+       err nil
        cstr
        (if source-map
          (let [fmap (str fbase ".js")
@@ -1254,11 +1262,12 @@
                 "\n//# sourceMappingURL="
                 (path/relative (path/dirname fname) smap)))
          (str ret extra)))
-  (if format
-    (=> cstr (esfmt/format cstr fopts)))
+  (try
+    (if format (=> cstr
+                   (esfmt/format cstr fopts)))
+    (catch e (=> err e)))
   (=> cstr (cleanCode cstr))
-  ;;(if format (set! cstr (esfmt/format cstr fopts)))
-  (if (empty? cstr) "" (str (banner) cstr)))
+  (vec (if (empty? cstr) "" (str (banner) cstr)) err))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn transpile

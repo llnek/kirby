@@ -39,11 +39,12 @@
     (when-not show-ast
       (println (str "kirby v" (.-version tx))
                ": compiling file: " fin " -> " fout))
-    (var source (fs/readFileSync fin "utf8"))
+    (var ret nil source (fs/readFileSync fin "utf8"))
     (if show-ast
       (println (tx/dbgAST source fin))
-      (fs/writeFileSync fout
-                        (tx/transpile source fin options) "utf-8"))
+      (do (=> ret (tx/transpile source fin options))
+          (fs/writeFileSync fout (1st ret) "utf-8")
+          (if (2nd ret) (throw (2nd ret)))))
     (catch e
       (error! e))))
 
@@ -52,12 +53,14 @@
   (=>> require.extensions
        ".ky"
        (fn [module fname]
-         (var code
+         (var [code err]
               (.transpile
                 (require "./compiler")
                 (fs/readFileSync fname "utf8")
                 (path/relative (process/cwd) fname)))
-         (module._compile code fname)))
+         (if err
+           (throw err)
+           (module._compile code fname))))
   (rt.init tx.version))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
