@@ -23,10 +23,14 @@
   (if obj
     (JSON/stringify
       obj
-      (fn [k v] (if (object? v)
-                  (if (contains? cache v)
-                    (undef! v)
-                    (conj! cache v))) v))))
+      (fn [k v]
+        (cond
+          (fn? v)
+          (=> v "native-function")
+          (object? v)
+          (if (contains? cache v)
+            (undef! v)
+            (conj! cache v))) v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt?? "If cur is not defined,
@@ -71,8 +75,18 @@
   [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dumpObj "" [obj]
+  (reduce (fn [acc [k v]]
+                (+= acc
+                    (str (prn k)
+                         " : "
+                         (prn v) "\n")))
+            ""
+            (seq obj)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn "Print the input data as string"
-  [obj]
+  [obj & [r?]]
   (var pa (fn [arr s e]
             (str s (join " " (map prn arr)) e)))
   (case (typeid obj)
@@ -80,11 +94,12 @@
     :atom (str "(atom " (prn obj.value) ")")
     :keyword (str ":" obj.value)
     :symbol obj.value
-    :object (stringify obj)
+    :object (dumpObj obj) ;;(stringify obj)
     :vector (pa obj "[" "]")
     :map (pa obj "{" "}")
     (:array :list) (pa obj "(" ")")
-    :string obj
+    :string
+    (if r? (wrap-str obj) obj)
     (:null :nil) "null"
     (obj.toString)))
 

@@ -105,9 +105,8 @@
               e (destruct* e out env))
           (rval.add [JSARGS "[" $(i) "]"])
           (conj! pms e)
-          (fdefs.add ["let "
-                      (tx* e env)
-                      "=" rval ";\n" out]))
+          (fdefs.add out))
+          ;;(fdefs.add ["let " (tx* e env) "=" rval ";\n" out]))
       :else
       (error! :destruct-args args)))
   (each #(fargs.add (tx* % env)) pms)
@@ -947,7 +946,7 @@
   (assertArity (>= (n# ast) 3) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
-       a1 (exprHint (xfi ast (2nd ast)) (not stmtQ))
+       a1 (exprHint (xfi ast (2nd ast)) true)
        a2 (exprHint (xfi ast (.@2 ast)) (not stmtQ))
        m? (> (n# ast) 3)
        a3 (if m? (xfi ast (.@3 ast)))

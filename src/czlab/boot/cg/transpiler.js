@@ -1091,7 +1091,7 @@ function sf_if(ast,env) {
     a2=ast[2],
     a3=ast.length > 3 ? ast[3] : null;
 
-  a1= exprHint(a1, !stmtQ);
+  a1= exprHint(a1, true);
   a2= exprHint(a2, !stmtQ);
   if (a3) { a3=exprHint(a3, !stmtQ); }
 
@@ -1813,7 +1813,7 @@ function processFuncArgs(args,env) {
       out=tnode();
       rhs=destructStar(e,out);
       pms.push(rhs);
-      fdefs.add(["let ", transpileSingle(rhs), "=", rval,";\n"]);
+      //fdefs.add(["let ", transpileSingle(rhs), "=", rval,";\n"]);
       fdefs.add(out);
     }
     else {

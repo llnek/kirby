@@ -74,6 +74,17 @@
     (var env (.find this k))
     ;(if-not env (raise! k.value " not found"))
     (if env (get env.data k.value) k.value))
+  (select ""
+    [what]
+    (reduce (fn [acc [k v]]
+              (if (case what
+                    :fn (fn? v)
+                    :var (not (fn? v))
+                    true)
+                (=>> acc $(k) v)) acc) {} (seq this.data)))
+  (prn "Print set of vars"
+    []
+    (std/prn this.data))
   (pushNSP "Add a namespace"
     [nsp]
     (conj! this.nspaces $(nsp)))
@@ -201,6 +212,23 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- toolkit {
 
+  "macroexpand*" (fn [code & [env]]
+                    (println
+                      (std/prn (mexpand
+                                 code (or env global_env)))))
+
+  "macros*" (fn [&[fout]]
+               (var s (std/prn CACHE))
+               (if fout
+                 (fs/writeFileSync fout s "utf-8")
+                 (println s)))
+
+  "env*" (fn [what & [env fout]]
+               (var s (std/prn (.select (or env global_env) what)))
+               (if fout
+                 (fs/writeFileSync fout s "utf-8")
+                 (println s)))
+
   "is-same?"  (fn [a b] (== a b))
   "is-nil?"  (fn [x] (nil? x))
 
@@ -208,6 +236,8 @@
   "gensym*"  std/gensym
   "is-eq?"  std/eq?
   "is-some?"  std/some?
+
+  "str*" (fn [&xs] (join "" xs))
 
   "slice*"  (fn [arr & xs]
               (Array.prototype.slice.apply arr xs))
@@ -458,9 +488,11 @@
                     (.@2 ast)] (ast.slice 3))]
        a2 (.@2 rc)
        a1 (.@1 rc)
+       cmd (str "czlab.kirby.macros/" a1)
        func (compute  a2 env))
   (=>> func :____macro #t)
-  (env.set a1 func))
+  (setMacro cmd func))
+  ;;(env.set a1 func))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- handleTry "" [ast env]
@@ -519,7 +551,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compute* "" [ast env]
-  ;;(println "eval:" (prn ast))
   (var ok? #t
        cmd ""
        ret nil
@@ -605,8 +636,8 @@
               (ret.set (symbol k) v)) toolkit)
   (ret.set (symbol "eval")
            #(compute % ret))
-  (ret.set (symbol "*ARGV*") [])
-  (ret.set (symbol "*host-language*")  "javascript")
+  ;;(ret.set (symbol "*ARGV*") (vector))
+  ;;(ret.set (symbol "*host-language*")  "javascript")
   (ret.set (symbol "*gensym-counter*") (atom 0))
   ret)
 
@@ -638,7 +669,7 @@
 (const- rep #(show (compute (readAST %))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def-  global_env (new LEXEnv))
+(def-  global_env nil);;(new LEXEnv))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runRepl "" [] (init) (run_repl))
