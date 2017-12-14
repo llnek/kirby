@@ -520,7 +520,27 @@
            (not (number? ast.line)))
     (error! :no-sourcemap-info ast)))
 
-;;kenl
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;special-forms
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-compose ""
+  ^{:opcode ["comp"] :tag SourceNode} [ast env]
+  (assertArity (>= (n# ast) 2) ast)
+  (var ret (node' ast)
+       end (last-index ast))
+  (var~ f r prev)
+  (ret.add ["function () {\n"])
+  (ret.add ["let " LARGS "=" ARRSLICE "(" JSARGS ");\n"])
+  (for [i end :while (> i 0) :recur (-1 i)]
+    (=> f $(gensym "F__") r $(gensym "R__"))
+    (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"])
+    (if (= i end)
+      (ret.add ["let " r "=" f ".apply(this," LARGS ");\n"])
+      (ret.add ["let " r "=" f "(" prev ");\n"]))
+    (=> prev r))
+  (ret.add ["return " prev ";\n"])
+  (ret.add "}"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote ""
   ^{:opcode ["quote"] :tag SourceNode} [ast env]

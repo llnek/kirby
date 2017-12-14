@@ -26,6 +26,24 @@
                     keyword? symbol? seq]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- macro_assert ```
+  (macro* assert* [c msg] (if* c true (throw* msg))) ```)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- macro_cond ```
+  (macro* cond* [&xs]
+    (if* (> (count* xs) 0)
+      (list* 'if*
+            (first* xs)
+            (nth* xs 1)
+            (cons* 'cond* (rest* (rest* xs)))))) ```)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- GLOBAL (if (undef? window) undefined  window))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- prefix "kirby> ")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertSymbol "" [k]
   (if-not (inst? Symbol k)
     (raise! "env.xxx key must be a symbol")))
@@ -116,20 +134,19 @@
   (var that this
        tmp #(apply that this ____args))
   (each-key
-    (fn [v k] (=>> tmp k v)) that)
-  tmp)
+    (fn [v k] (=>> tmp k v)) that) tmp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnStr
-  "" [&xs] (join " " (prnArr xs)))
+(defn- prnStr "" [&xs] (join " " (prnArr xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnLn
-  "" [&xs] (each #(println %) (prnArr xs)))
+(defn- prnLn "" [&xs] (each #(println %) (prnArr xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- slurp
-  "" [f] (fs/readFileSync f "utf-8"))
+(defn- slurp "" [f] (fs/readFileSync f "utf-8"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- spit "" [f s] (fs/writeFileSync f s "utf-8"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clone "" [obj]
@@ -148,7 +165,7 @@
     :function
     (obj.clone)
     ;else
-    (raise! "clone of non-collection: " oid )))
+    (raise! "clone of non-collection: " oid)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cons "" [a b] (concat [a] b))
@@ -166,13 +183,10 @@
     :else arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fapply "" [f &xs] (f.apply this xs))
+(defn- fapply "" [f & xs] (f.apply this xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmap "" [f arr] (map f arr))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- GLOBAL (if (undef? window) undefined  window))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- resolveJS "" [s]
@@ -214,19 +228,19 @@
 
   "macroexpand*" (fn [code & [env]]
                     (println
-                      (std/prn (mexpand
-                                 code (or env global_env)))))
+                      (std/prn (expandMacro
+                                 code (or env g_env)))))
 
   "macros*" (fn [&[fout]]
                (var s (std/prn CACHE))
                (if fout
-                 (fs/writeFileSync fout s "utf-8")
+                 (spit fout s)
                  (println s)))
 
   "env*" (fn [what & [env fout]]
-               (var s (std/prn (.select (or env global_env) what)))
+               (var s (std/prn (.select (or env g_env) what)))
                (if fout
-                 (fs/writeFileSync fout s "utf-8")
+                 (spit fout s)
                  (println s)))
 
   "is-same?"  (fn [a b] (== a b))
@@ -258,15 +272,17 @@
   "prn*"  prnStr
 
   "slurp*"  slurp
+  "spit*" spit
 
   "<"   (fn [a b] (< a b))
   "<="  (fn [a b] (<= a b))
   ">"   (fn [a b] (> a b))
   ">="  (fn [a b] (>= a b))
-  "+"   (fn [a b] (+ a b))
-  "-"   (fn [a b] (- a b))
-  "*"   (fn [a b] (* a b))
-  "/"   (fn [a b] (div a b))
+
+  "div"   (fn [a &xs] (reduce (fn [acc n] (div acc n)) a xs))
+  "+"   (fn [&xs] (reduce (fn [acc n] (+ acc n)) 0 xs))
+  "-"   (fn [a &xs] (reduce (fn [acc n] (- acc n)) a xs))
+  "*"   (fn [&xs] (reduce (fn [acc n] (* acc n)) 1 xs))
 
   "not=" (fn [a b] (not= a b))
   "=" (fn [a b] (= a b))
@@ -343,7 +359,7 @@
   (when (and cmd func)
     (=> cmd $(cmd))
     (when-not (contains? cmd "/")
-      (var c (global_env.peekNSP))
+      (var c (g_env.peekNSP))
       (if-not c (raise! "missing namespace"))
       (=> cmd (str c "/" cmd)))
     ;;(println "adding macro ==== " cmd)
@@ -356,7 +372,7 @@
   (=> cmd $(cmd))
   (if (contains? cmd "/")
     (=> ret (get CACHE cmd))
-    (do (=> nsp (global_env.peekNSP))
+    (do (=> nsp (g_env.peekNSP))
         (if nsp
           (=> ret (get CACHE
                        (str nsp "/" cmd))))
@@ -365,8 +381,7 @@
                        (str "czlab.kirby.macros/" cmd)))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dbg "" [obj]
-  (println "DBG-RT: " (prn obj)))
+(defn- dbg "" [obj] (println "DBG-RT: " (prn obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAST "Returns the AST"
@@ -385,22 +400,18 @@
 (defn- quasiquote "" [ast]
   (cond
     (not (isList? ast))
-    [(symbol "quote") ast]
+    ['quote ast]
     (and (symbol? (1st ast))
          (== (1st ast) "unquote"))
     (2nd ast)
     (and (isList? (1st ast))
          (== (1st (1st ast))
              "splice-unquote"))
-    [(symbol "concat*")
-     (2nd (1st ast))
-     (quasiquote (rest ast))]
+    ['concat* (2nd (1st ast)) (quasiquote (rest ast))]
     :else
     (let [a0 (1st ast)
           a1 (rest ast)]
-      [(symbol "cons*")
-       (quasiquote a0)
-       (quasiquote a1)])))
+      ['cons* (quasiquote a0) (quasiquote a1)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" [ast env]
@@ -409,11 +420,7 @@
        (getMacro $(1st ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn expandMacro
-  "" [ast env mc] (mexpand ast env))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- mexpand "" [ast env]
+(defn expandMacro "" [ast env]
   (var isM? (isMacroCall? ast env)
        mac nil
        cmd (if isM? (1st ast) ""))
@@ -484,8 +491,7 @@
 (defn- handleMacro "" [ast env]
   (var rc [(1st ast)
            (2nd ast)
-           (concat [(symbol "fn*")
-                    (.@2 ast)] (ast.slice 3))]
+           (concat ['fn* (.@2 ast)] (ast.slice 3))]
        a2 (.@2 rc)
        a1 (.@1 rc)
        cmd (str "czlab.kirby.macros/" a1)
@@ -556,7 +562,7 @@
        ret nil
        g1 (fn [a] (if (pairs? a) (1st a) "")))
   (for []
-    (=> ast (mexpand ast env)
+    (=> ast (expandMacro ast env)
         cmd (g1 ast))
     (->>
       (cond
@@ -593,7 +599,7 @@
           (=> ret (handleMacro ast env)))
         (== "macroexpand" cmd)
         (do->true
-          (=> ret (mexpand (2nd ast) env)))
+          (=> ret (expandMacro (2nd ast) env)))
         (== "try*" cmd)
         (do->true
           (=> ret (handleTry ast env)))
@@ -622,37 +628,25 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "" [ast env]
-  (if-not env (=> env global_env))
+  (if-not env (=> env g_env))
   (var ret (compute* ast env))
   (if (undef? ret) nil ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- show "" [exp] (prn exp))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn newEnv "" []
-  (var ret (new LEXEnv))
-  (each-key (fn [v k]
-              (ret.set (symbol k) v)) toolkit)
-  (ret.set (symbol "eval")
-           #(compute % ret))
-  ;;(ret.set (symbol "*ARGV*") (vector))
-  ;;(ret.set (symbol "*host-language*")  "javascript")
-  (ret.set (symbol "*gensym-counter*") (atom 0))
-  ret)
+  (do-with [ret (new LEXEnv)]
+    (each-key (fn [v k]
+                (ret.set (symbol k) v)) toolkit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- prefix "kirby> ")
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- run_repl "" []
+(defn runRepl "" []
   (var rl (readline.createInterface process.stdin
                                     process.stdout))
   (rl.on
     :line
     (fn [line]
       (try
-        (if line (println (rep line)))
+        (if line (println (reval line)))
         (catch e (println e)))
       (rl.setPrompt prefix  (alen prefix))
       (rl.prompt )))
@@ -661,46 +655,31 @@
     (fn []
       (println "Bye!")
       (process.exit 0)))
+  (init)
   (println prefix "Kirby REPL v" version)
   (rl.setPrompt prefix  (alen prefix))
   (rl.prompt ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- rep #(show (compute (readAST %))))
+(defn- reval "" [c & xs]
+  (var f (comp prn compute readAST)
+       r (f c))
+  (doseq [x xs]
+    (=> r (f x))) r)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def-  global_env nil);;(new LEXEnv))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn runRepl "" [] (init) (run_repl))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_assert ```
-  (macro* assert* [c msg] (if* c true (throw* msg))) ```)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_cond ```
-  (macro* cond* [&xs]
-    (if* (> (count* xs) 0)
-      (list* 'if*
-            (first* xs)
-            (nth* xs 1)
-            (cons* 'cond* (rest* (rest* xs)))))) ```)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- inited? false version "")
+(def- inited? false
+      version "" g_env nil)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn init "" [ver]
   (when-not inited?
-    (=> version ver
-        global_env (newEnv))
-    (rep macro_cond)
-    (rep macro_assert)
+    (=> version ver g_env (newEnv))
+    (reval macro_cond macro_assert)
     (loadMacros)
     (true! inited? )) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn globalEnv "" [] global_env)
+(defn globalEnv "" [] g_env)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

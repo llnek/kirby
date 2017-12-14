@@ -1,5 +1,5 @@
 (ns czlab.kirby.poo)
 
-(var xxx "c:\\a\\b\\c\u7878\\ggg")
-(var zzz  ```c:\a\\b\c\u7878\ggg```)
+((comp x y z) 1)
+
 
