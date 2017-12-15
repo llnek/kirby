@@ -280,6 +280,49 @@ function quoteBlock(a,env) {
   ret.add("]");
   return ret;
 }
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+//special-forms
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_juxt(ast,env) {
+  let ret= nodeTag(tnode(),ast);
+  let f, r, prev;
+  ret.add(["function () {\n"]);
+  ret.add(["let ret=[],", "____args","=",
+           "Array.prototype.slice.call(arguments);\n"]);
+  for(let i=1; (i< ast.length); ++i) {
+    f= ""+gensym("F__"); r= ""+gensym("R__");
+    ret.add(["let ", f, "=", eval_QQ(ast[i], env), ";\n"]);
+    ret.add(["ret.push(", f, ".apply(this,____args));\n"]);
+  }
+  ret.add("return ret;\n");
+  ret.add("}");
+  return ret;
+}
+SPEC_OPS["juxt"]=sf_juxt;
+
+//;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function sf_compose(ast,env) {
+  let ret= nodeTag(tnode(),ast),
+       end= ast.length-1;
+  let f, r, prev;
+  ret.add(["function () {\n"]);
+  ret.add(["let ", "____args","=",
+           "Array.prototype.slice.call(arguments);\n"]);
+  for(let i=end; (i> 0); --i) {
+    f= ""+gensym("F__"); r= ""+gensym("R__");
+    ret.add(["let ", f, "=", eval_QQ(ast[i], env), ";\n"]);
+    if (i=== end) {
+      ret.add(["let ", r, "=", f, ".apply(this,____args);\n"]);
+    }else {
+      ret.add(["let ", r, "=", f, "(", prev, ");\n"]);
+    }
+    prev= r;
+  }
+  ret.add(["return ", prev, ";\n"]);
+  ret.add("}");
+  return ret;
+}
+SPEC_OPS["comp"]=sf_compose;
 
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_quote(ast,env) {

@@ -235,11 +235,12 @@ function tokenize (source, fname) {
           token += ch;
         }
     }
-    else if (ch === "/" && token.length===0) {
+    else if (ch==="#" && nx === "/" && token.length===0) {
       regexQ=true;
       tline=line;
       tcol=col;
-      token += ch;
+      ++pos;
+      token += nx;
     }
     else if ((ch=== "[") || (ch=== "]") ||
             (ch=== "{") || (ch=== "}") ||

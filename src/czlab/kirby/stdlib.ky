@@ -12,13 +12,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn not-empty "If coll is empty,
                 returns nil, else coll"
-  [coll]
+  ^Boolean [coll]
   (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn stringify "JSON stringify without
                 circular object reference"
-  [obj]
+  ^String [obj]
   (var cache [])
   (if obj
     (JSON/stringify
@@ -35,13 +35,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt?? "If cur is not defined,
             returns other else returns cur"
-  [cur other]
+  ^Any [cur other]
   (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj! "If coll is a list,
             prepends to head of coll else appends all to end"
-  [coll & xs]
+  ^Array [coll & xs]
   (if (list? coll)
     (coll.unshift.apply coll (xs.reverse))
     (coll.push.apply coll xs)) coll)
@@ -49,7 +49,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj "Like conj! but
            returns a new collection"
-  [coll & xs]
+  ^Array [coll & xs]
   (var c
        (cond (vector? coll)
              (into :vector coll)
@@ -65,17 +65,17 @@
            else removes the last element,
            returning the element
            and the altered collection"
-  [coll]
+  ^Array [coll]
   (var r (if (list? coll) (coll.shift) (coll.pop))) [r coll])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop "Like pop! but returns a new collection"
-  [coll]
+  ^Array [coll]
   (var r (if (list? coll) (1st coll) (last coll)))
   [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dumpObj "" [obj]
+(defn- dumpObj "" ^String [obj]
   (reduce (fn [acc [k v]]
                 (+= acc
                     (str (prn k)
@@ -86,7 +86,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn "Print the input data as string"
-  [obj & [r?]]
+  ^String [obj & [r?]]
   (var pa (fn [arr s e]
             (str s (join " " (map prn arr)) e)))
   (case (typeid obj)
@@ -140,35 +140,43 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive?
-  "Returns true if primitive" [obj] (inst? Primitive obj))
+  "Returns true if primitive" ^Boolean [obj] (inst? Primitive obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive
-  "Create a Primitive" [v] (new Primitive v))
+  "Create a Primitive" ^Primitive [v] (new Primitive v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol?
-  "Returns true if a symbol" [obj] (inst? Symbol obj))
+  "Returns true if a symbol" ^Boolean [obj] (inst? Symbol obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol
-  "Create a new Symbol" [name] (new Symbol name))
+  "Create a new Symbol" ^Symbol [name] (new Symbol name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword?
-  "Returns true if a keyword" [obj] (inst? Keyword obj))
+  "Returns true if a keyword" ^Boolean [obj] (inst? Keyword obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword
-  "Create a new Keyword" [name] (new Keyword name))
+  "Create a new Keyword" ^Keyword [name] (new Keyword name))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn keyword->symbol
+  "Convert a Keyword to Symbol" ^Symbol [k]
+  (var s (new Symbol k.value))
+  (=>> s :source k.source
+         :line  k.line
+         :column k.column) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg?
-  "Returns true if a Lambda Arg" [obj] (inst? LambdaArg obj))
+  "Returns true if a Lambda Arg" ^Boolean [obj] (inst? LambdaArg obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg
-  "Create a new Lambda Arg" [name] (new LambdaArg name))
+  "Create a new Lambda Arg" ^LambdaArg [name] (new LambdaArg name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom [][value nil]
@@ -177,24 +185,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom?
-  "Returns true if an Atom" [atm] (inst? Atom atm))
+  "Returns true if an Atom" ^Boolean [atm] (inst? Atom atm))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom
-  "Create a new Atom" [val] (new Atom val))
+  "Create a new Atom" ^Atom [val] (new Atom val))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset!
-  "Set a new value to the Atom" [a v] (=> a.value v))
+  "Set a new value to the Atom" [a v] (=> a.value v) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
-  "Get value inside the Atom" [a] (.-value a))
+  "Get value inside the Atom" ^Any [a] (.-value a))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn swap! "Change value inside the Atom,
             returning the new value"
-  [a f & xs]
+  ^Any [a f & xs]
   (->> (concat [a.value] xs)
        (apply f this)
        (=> a.value )) (get a :value))
@@ -202,7 +210,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn typeid "Returns the type-id
              of this object"
-  [obj]
+  ^Keyword [obj]
   (cond
     (lambda-arg? obj) :lambda-arg
     (keyword? obj) :keyword
@@ -225,7 +233,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value? "Returns true
              if a simple value"
-  [obj]
+  ^Boolean [obj]
   (or (nil? obj)
       (vector? obj)
       (list? obj)
@@ -238,12 +246,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sequential? "Returns true if coll
                   implements Sequential"
-  [arr]
+  ^Boolean [arr]
   (and (array? arr) (not (map? arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "Tests if two things are equal"
-  [a b]
+  ^Boolean [a b]
   (var ta (typeid a)
        ok? #t
        tb (typeid b))
@@ -281,19 +289,19 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object? "Returns true
               if a js object"
-  [obj]
+  ^Boolean [obj]
   (if-not (or (nil? obj)
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn last "Returns the last element"
-  [coll]
+  ^Any [coll]
   (if (and (array? coll)
            (nzlen? coll)) (nth coll (last-index coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into! "Assign a type to this collection"
-  [type coll]
+  ^Array [type coll]
   (case type
     :vector
     (=>> coll :____vec #t)
@@ -305,13 +313,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
            returning a new collection"
-  [type coll]
+  ^Array [type coll]
   (into! type (coll.slice 0)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pairs? "Returns true if
              a LISP list, not data"
-  [obj]
+  ^Boolean [obj]
   (and (array? obj)
        (not (vector? obj))
        (not (map? obj))
@@ -319,33 +327,33 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "Returns true if a List"
-  [obj] (and (array? obj) obj.____list))
+  ^Boolean [obj] (and (array? obj) obj.____list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" [&xs] (=>> xs :____list #t) xs)
+  "Create a List" ^Array [&xs] (=>> xs :____list #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
-  [obj] (and (array? obj) obj.____vec))
+  ^Boolean [obj] (and (array? obj) obj.____vec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" [&xs] (=>> xs :____vec #t) xs)
+  "Create a Vector" ^Array [&xs] (=>> xs :____vec #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
-  [obj] (and (array? obj) obj.____map))
+  ^Boolean [obj] (and (array? obj) obj.____map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hashmap "Create a new Hashmap"
-  [&xs]
+  ^Array [&xs]
   (if (odd? (alen xs))
     (raise! "Invalid arity for hashmap")) (=>> xs :____map #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
-  [obj]
+  ^Array [obj]
   (cond
     (string? obj) (obj.split "")
     (array? obj) (obj.slice 0)
@@ -354,7 +362,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "Returns true
                 if item is inside"
-  [coll x]
+  ^Boolean [coll x]
   (cond
     (or (array? coll)
         (string? coll)) (coll.includes x)
@@ -364,27 +372,27 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn nichts? "Returns true if object is
               either null of undefined"
-  [obj] (or (undef? obj) (nil? obj)))
+  ^Boolean [obj] (or (undef? obj) (nil? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn some? "Returns true if object is
             defined and not null"
-  [obj] (not (nichts? obj)))
+  ^Boolean [obj] (not (nichts? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn count "Count the number of elements inside"
-  [coll]
+  ^Integer [coll]
   (if coll
     (alen (if (or (string? coll)
                   (array? coll)) coll (keys coll))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat* "Add many to this collection"
-  [coll & xs]
+  ^Array [coll & xs]
   (if coll (coll.concat.apply coll xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- every "" [coll start step]
+(defn- every "" ^Array [coll start step]
   (var ret [])
   (for [i start sz (alen coll)
         :while (< i sz) :recur (+ i step)]
@@ -394,16 +402,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "Collect every
             2nd item starting at 0"
-  [coll] (every coll 0 2))
+  ^Array [coll] (every coll 0 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odds "Collect every
            2nd item starting at 1"
-  [coll] (every coll 1 2))
+  ^Array [coll] (every coll 1 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn modulo "Modulo"
-  [x N]
+  ^Integer [x N]
   (if (< x 0)
     (- x (* -1
             (+ N (* (Math.floor (div (- x) N)) N))))
@@ -412,7 +420,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "Returns a seq of the first item
                  in each coll, then the second, etc"
-  [c1 c2]
+  ^Array [c1 c2]
   (var cz (if (< (alen c2)
                  (alen c1))
             (alen c2) (alen c1))
@@ -425,7 +433,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn zipmap "Returns a map with the
              keys mapped to the corresponding vals"
-  [keys vals]
+  ^Map [keys vals]
   (var cz (if (< (alen keys)
                  (alen vals))
             (alen keys) (alen vals))
@@ -437,7 +445,7 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn extendAttr "" [obj attr & [flags]]
+(defn extendAttr "" ^Object [obj attr & [flags]]
   (=> flags (opt?? flags
                    {:enumerable #f :writable #t}))
   (Object.defineProperty obj attr flags) obj)
@@ -447,13 +455,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn gensym "Generates next random symbol"
-  [& [pfx]]
+  ^Symbol [& [pfx]]
   (symbol (str (opt?? pfx "GS__")
                (swap! gensym-counter
                       (fn [x] (+1 x))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn slice "" [coll & [start end]]
+(defn slice "" ^Array [coll & [start end]]
   (if (def? end)
     (Array.prototype.slice.call coll start end)
     (if (def? start)
@@ -461,7 +469,7 @@
       (Array.prototype.slice.call coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc! "" [mmap & xs]
+(defn assoc! "" ^Map [mmap & xs]
   (when mmap
     (for [i 0 sz (count xs)
           :while (< i sz) :recur (+2 i)]
@@ -470,7 +478,7 @@
            (.@+i xs)))) mmap)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc! "" [mmap & xs]
+(defn dissoc! "" ^Map [mmap & xs]
   (when mmap
     (doseq [n xs]
       (delete! mmap n))) mmap)
@@ -521,7 +529,7 @@
    :result (fn [v] (fn [c] (c v)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrap-str "" [s]
+(defn wrap-str "" ^String [s]
   (var out "\"")
   (for [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
@@ -538,7 +546,7 @@
   (+= out "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unwrap-str "" [s]
+(defn unwrap-str "" ^String [s]
   (if (and (starts? s "\"")
            (ends? s "\""))
     (do-with [out ""]
@@ -562,7 +570,7 @@
     s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn escXml "" [s]
+(defn escXml "" ^String [s]
   (var out "")
   (for [i 0 c nil sz (n# s)
         :while (< i sz) :recur (+1 i)]
@@ -575,6 +583,12 @@
       (= c "'") (=> c "&apos;"))
     (+= out c))
   out)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn splitSeq "" ^Array [coll cnt]
+  (if (< cnt (count coll))
+    [(take coll cnt) (drop coll cnt)]
+    [(slice coll 0) []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

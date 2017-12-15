@@ -46,10 +46,10 @@
           (fs/writeFileSync fout (1st ret) "utf-8")
           (if (2nd ret) (throw (2nd ret)))))
     (catch e
-      (error! e))))
+      (error! e))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- init "" []
+(defn- init "" ^Boolean []
   (=>> require.extensions
        ".ky"
        (fn [module fname]
@@ -88,10 +88,10 @@
             ;;f is a new file or changed
           (cp/spawn "bin/boot.js"
                     [(f.slice (+1 (alen cwd)))]
-                    {:stdio "inherit"}))))))
+                    {:stdio "inherit"}))))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pcli "" [gopt]
+(defn- pcli "" ^Boolean [gopt]
   (var opt (.parseSystem gopt)
        {:keys [version
                repl watch help]} opt.options)
@@ -123,7 +123,7 @@
                  "[[OPTIONS]]\n\n"))
          (.bindHelp )))
   (and (init)
-       (pcli gopt)))
+       (pcli gopt)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (main)

@@ -461,6 +461,11 @@
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
 
+(defmacro take "" [coll cnt] `(slice ~coll 0 ~cnt))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro drop "" [coll cnt] `(slice ~coll ~cnt))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

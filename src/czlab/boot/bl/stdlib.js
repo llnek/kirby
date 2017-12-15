@@ -143,12 +143,22 @@ function some_p(x) {
   return typeof x !== "undefined" && x !== null;
 }
 
+function splitSeq(coll,cnt) {
+    if (cnt < coll.length) {
+      return [coll.slice(0,cnt),coll.slice(cnt)];
+    } else {
+      return [coll.slice(0),[]];
+    }
+}
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 module.exports= {
   contains_p : contains_p,
   empty_p : empty_p,
   count : count,
   not_empty: not_empty,
+
+  splitSeq: splitSeq,
 
   some_p: some_p,
   concat: concat,

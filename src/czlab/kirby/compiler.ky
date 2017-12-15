@@ -54,16 +54,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       SPEC-OPS {}
-      MATH-OP-REGEX /^[-+][0-9]+$/)
+      MATH-OP-REGEX #/^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnodeEx "Create a node"
-  [name &[chunk]] (tnode nil nil nil chunk name))
+  ^SourceNode [name &[chunk]] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnode "Create a token
             with source information"
-  [&[source line col chunk name]]
+  ^SourceNode [&[source line col chunk name]]
   (new smap/SourceNode
        (opt?? line nil)
        (opt?? col nil)
@@ -73,7 +73,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
-  [args env]
+  ^Array [args env]
   (var~ e ev rval out)
   (var pms []
        [fargs fdefs :as ret] [(node' args) (node' args)])
@@ -106,7 +106,6 @@
           (rval.add [JSARGS "[" $(i) "]"])
           (conj! pms e)
           (fdefs.add out))
-          ;;(fdefs.add ["let " (tx* e env) "=" rval ";\n" out]))
       :else
       (error! :destruct-args args)))
   (each #(fargs.add (tx* % env)) pms)
@@ -114,26 +113,26 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct* "" [coll out env]
-  ;decide on what the rhs should be referred to "as"
+(defn- destruct* "Decide on what the
+                 rhs should be referred to 'as'"
+  ^Symbol [coll out env]
   (var rhs (xfi coll (gensym)) e nil)
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (=> e (.@i coll))
     (when (and (keyword? e)
                (== e "as"))
-      (=> rhs (.@+i coll))
+      (=> rhs (std/keyword->symbol (.@+i coll)))
       (break-out-of-loop!)))
   ;handle a vec or a map destructure only
   (cond
     (map? coll)
     (out.add (destructMap rhs coll env))
     (vector? coll)
-    (out.add (destructVec rhs coll env)))
-  rhs)
+    (out.add (destructVec rhs coll env))) rhs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructVec "" [src coll env]
+(defn- destructVec "" ^SourceNode [src coll env]
   (var ret (node' coll)
        as (tx* src env))
   (var~ e rval out)
@@ -174,7 +173,7 @@
       :else (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructMap "" [src coll env]
+(defn- destructMap "" ^SourceNode [src coll env]
   (var ret (node' coll)
        as (tx* src env))
   (var~ e arr)
@@ -200,21 +199,20 @@
       (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- simple? "" [ast]
+(defn- simple? "" ^Boolean [ast]
   (or (undef? ast) (nil? ast) (str? ast) (num? ast) (bool? ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wrap "" [ret head tail]
+(defn- wrap "" ^SourceNode [ret head tail]
   (if head (ret.prepend head))
-  (if tail (ret.add tail))
-  ret)
+  (if tail (ret.add tail)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- exprHint "" [ast flag]
+(defn- exprHint "" ^Array [ast flag]
   (if (simple? ast) (=> ast (primitive ast))) (=>> ast :____expr flag) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- stmt? "" [ast]
+(defn- stmt? "" ^Boolean [ast]
   (if (simple? ast) (error! :syntax-error ast)) (false? ast.____expr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -225,33 +223,33 @@
           (if (and ast ast.source) (str "\nfile: " ast.source))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- testre? "" [re x] (if x (re.test x)))
+(defn- testre? "" ^Boolean [re x] (if x (re.test x) false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- pad "" [n] (.repeat " " n))
+(defn- pad "" [n] ^String (.repeat " " n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- node' "" [ast & [obj]]
+(defn- node' "" ^SourceNode [ast & [obj]]
   (=> obj (opt?? obj (tnode)))
   (=>> obj :source ast.source
            :line ast.line
            :column ast.column) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txTree "" [root env]
+(defn- txTree "" ^SourceNode [root env]
   (var ret (node' root))
   (doseq [r root
           :let [t (tx* r env)]
           :when (some? t)] (ret.add [t "\n"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txForm "" [expr env]
+(defn- txForm "" ^Any [expr env]
   (if (array? expr)
     (each (fn [a i arr]
             (=>> arr i (tx* a env))) expr)) expr)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txAtom "" [a]
+(defn- txAtom "Returns a SourceNode or String" ^Any [a]
   (var s $(a))
   (cond (lambda-arg? a)
         (str LARGS "[" s "]")
@@ -271,10 +269,11 @@
         :else (jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" [x & [env]] (if (array? x) (txPairs x env) (txAtom x)))
+(defn- tx* "" ^Any [x & [env]]
+  (if (array? x) (txPairs x env) (txAtom x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- gcmd "" [ast]
+(defn- gcmd "" ^String [ast]
   (cond (map? ast) "hashmap"
         (vector? ast) "vec"
         (list? ast) "list"
@@ -299,7 +298,7 @@
         :else $(a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quote! "" [ast env]
+(defn- quote! "" ^SourceNode [ast env]
   (assertInfo ast)
   (if (array? ast)
     (if (map? ast)
@@ -308,7 +307,7 @@
     (quoteSingle ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quoteMap "" [ast env]
+(defn- quoteMap "" ^SourceNode [ast env]
   (var comma ""
        ret (node' ast))
   (for [i 0 sz (n# ast)
@@ -320,7 +319,7 @@
   (wrap ret ["[" "symbol(\"hashmap\")" comma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quoteBlock "" [ast env]
+(defn- quoteBlock "" ^SourceNode [ast env]
   (var ret (node' ast))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -329,7 +328,7 @@
   (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spread "" [from to]
+(defn- spreadInfo "" ^Any [from to]
   (if (and from
            (not (simple? from))
            (number? from.line)
@@ -337,11 +336,11 @@
     (do (xfi from to)
         (for [i 0 sz (n# to)
               :while (< i sz) :recur (+1 i)]
-          (spread from (.@i to))))
+          (spreadInfo from (.@i to))))
     (xfi from to)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txPairs "" [ast env]
+(defn- txPairs "" ^SourceNode [ast env]
   (var nsp (.peekNSP (eng/globalEnv))
        stmtQ (stmt? ast)
        ret (node' ast)
@@ -356,7 +355,7 @@
   (when mc
     (=> ast (eng/expandMacro ast env mc)
         ast (xfi orig (exprHint ast (not stmtQ))))
-    (spread orig ast)
+    (spreadInfo orig ast)
     (=> cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (parser/REGEX.int.test cmd)
@@ -410,8 +409,7 @@
   (node' ast ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- writeDoc "Convert to jsdoc"
-  [doc]
+(defn- writeDoc "Convert to jsdoc" ^Array [doc]
   (var out [])
   (if doc
     (->> (.split (std/unwrap-str doc) "\n")
@@ -420,7 +418,7 @@
                     (conj! out (str "//" s "\n"))))))) out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txDo "" [ast env & [return?]]
+(defn- txDo "" ^SourceNode [ast env & [return?]]
   (var stmtQ (stmt? ast)
        ret (node' ast)
        e nil end (last-index ast))
@@ -438,7 +436,7 @@
                ["return " e ";\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- meta?? "" [obj env]
+(defn- meta?? "" ^Array [obj env]
   (var mobj nil)
   (when (and (array? obj)
              (= 3 (n# obj))
@@ -450,18 +448,18 @@
   [mobj obj])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fmtRegoSpecOps "" [alias fname]
+(defn- fmtRegoSpecOps "" ^String [alias fname]
   (str (parser/jsid :SPEC-OPS) "[\"" alias "\"] = " fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fmtSpecOps "" [fname attrs]
+(defn- fmtSpecOps "" ^String [fname attrs]
   (var ks (or (get attrs "opcode") [])
        out (->> (map #(fmtRegoSpecOps
                         (str %) fname) ks) (join ";\n")))
   (if (not-empty ks) (str out ";\n") out))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- writeFuncInfo "" [fname ast]
+(defn- writeFuncInfo "" ^String [fname ast]
   (var file (if ast.source
               (ast.source.slice
                 (+1 (ast.source.lastIndexOf "/"))) "?")
@@ -476,15 +474,15 @@
 (def- icache [])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- includeFile [fname ast]
+(defn- includeFile ^SourceNode [fname ast]
   (if (contains? icache fname)
     (node' ast)
-    (let [src (fs/readFileSync fname "utf-8")]
+    (let [src (eng/slurp fname)]
       (conj! icache fname)
       (txTree (parser/parse src fname) (eng/globalEnv )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- evalMeta "" [ast env]
+(defn- evalMeta "" ^Object [ast env]
   (var x
        (cond (array? ast)
              ast
@@ -508,12 +506,12 @@
     (cmd.slice (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertArity "" [kond ast]
+(defn- assertArity "" ^Any [kond ast]
   (if-not kond (error! :invalid-arity ast))
   (assertInfo ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertInfo "" [ast]
+(defn- assertInfo "" ^Any [ast]
   (if (and false
            ast
            (not (simple? ast))
@@ -522,6 +520,18 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;special-forms
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sf-juxt "" ^{:opcode ["juxt"] :tag SourceNode} [ast env]
+  (var ret (node' ast))
+  (ret.add ["function () {\n"
+            "let ret=[]," LARGS "=" ARRSLICE "(" JSARGS ");\n"])
+  (for [i 1 f nil sz (n# ast)
+        :while (< i sz) :recur (+1 i)]
+    (=> f $(gensym "F__"))
+    (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"
+              "ret.push(" f ".apply(this,____args));\n"]))
+  (ret.add "return ret;\n}") ret)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compose ""
   ^{:opcode ["comp"] :tag SourceNode} [ast env]
@@ -593,7 +603,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compOp "" ^{:opcode ["not=" "!="
                                "==" "="
-                               ">" ">=" "<" "<="]} [ast env]
+                               ">" ">=" "<" "<="]
+                      :tag SourceNode} [ast env]
   (assertArity (and (>= (n# ast) 3)
                     (odd? (n# ast))) ast)
   (var ret (node' ast)
@@ -611,9 +622,10 @@
 (defn- sf-arithOp
   ""
   ^{:opcode ["bitwise-lshift" "bitwise-rshift" "bitwise-zrshift"
-             "+" "-" "*" "div" "mod"
+             "+" "-" "*" "/" "div" "mod"
              "or" "and" "exp" "rem"
-             "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]}
+             "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]
+    :tag SourceNode}
   [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var e1 (tx* (1st ast) env)
@@ -631,7 +643,7 @@
         (== cmd "or") (=> cmd "||")
         (== cmd "exp") (=> cmd "**"))
   (if (and (== "-" cmd)
-           (= 2 (n# ast))) (ret.add "-"))
+           (= 2 (n# ast))) (ret.add "-1 * "))
   (for [i 1 sz (n# ast)
         :while (< i sz) : recur (+1 i)]
     (when (> sz 2)
@@ -641,7 +653,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
-  "" ^{:opcode ["do"]} [ast env]
+  "" ^{:opcode ["do"] :tag SourceNode} [ast env]
   (assertArity true ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
@@ -654,7 +666,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
-  "" ^{:opcode ["case"]} [ast env]
+  "" ^{:opcode ["case"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 4) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
@@ -688,7 +700,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-vardefs "" ^{:opcode ["def~-"
-                                "def~" "var~"]} [ast env]
+                                "def~" "var~"]
+                       :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast)
        cmd $(1st ast)
@@ -713,7 +726,8 @@
                             "const"
                             "def-"
                             "def"
-                            "var"]} [ast env]
+                            "var"]
+                   :tag SourceNode} [ast env]
   (assertArity (odd? (n# ast)) ast)
   (var ret (node' ast)
        cmd $(1st ast)
@@ -747,7 +761,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-inst?
-  "" ^{:opcode ["inst?"]} [ast env]
+  "" ^{:opcode ["inst?"] :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 3) ast)
   (var ret (node' ast))
   (wrap ret nil ["(" (tx* (.@2 ast) env)
@@ -755,7 +769,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-delete
-  "" ^{:opcode ["delete!"]} [ast env]
+  "" ^{:opcode ["delete!"] :tag SourceNode} [ast env]
   (assertArity (and (>= (n# ast) 2)
                     (< (n# ast) 4)) ast)
   (var ret (node' ast))
@@ -766,14 +780,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
-  "" ^{:opcode ["new"]} [ast env]
+  "" ^{:opcode ["new"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast))
   (wrap ret "new " (tx* (xfi ast (rest ast)) env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-throw
-  "" ^{:opcode ["throw"]} [ast env]
+  "" ^{:opcode ["throw"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
@@ -785,7 +799,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-opop
-  "" ^{:opcode ["++" "--" "++$" "--$"]} [ast env]
+  "" ^{:opcode ["++" "--" "++$" "--$"] :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast)
        cmd $(1st ast)
@@ -807,7 +821,8 @@
                 "bitwise-xor="
                 "bitwise-lshift="
                 "bitwise-rshift="
-                "bitwise-zrshift="]} [ast env]
+                "bitwise-zrshift="]
+       :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 3) ast)
   (var cmd $(1st ast)
        ret (node' ast))
@@ -826,7 +841,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set-in
-  "" ^{:opcode ["set-in!" "=>>"]} [ast env]
+  "" ^{:opcode ["set-in!" "=>>"] :tag SourceNode} [ast env]
   (assertArity (even? (n# ast)) ast)
   (var ret (node' ast)
        more #f
@@ -843,7 +858,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set
-  "" ^{:opcode ["set!" "=>"]} [ast env]
+  "" ^{:opcode ["set!" "=>"] :tag SourceNode} [ast env]
   (assertArity (odd? (n# ast)) ast)
   (var more #f
        ret (node' ast))
@@ -858,7 +873,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
-  "(fn [x y] ...)" ^{:opcode ["fn"]} [ast env]
+  "(fn [x y] ...)" ^{:opcode ["fn"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast)
        fargs nil
@@ -874,7 +889,8 @@
                  (txDo body env #t) "}"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-func "" ^{:opcode ["defn" "defn-"]} [ast env]
+(defn- sf-func "" ^{:opcode ["defn" "defn-"]
+                    :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var private? (ends? $(1st ast) "-")
        mtd? (== $(1st ast) "method")
@@ -918,7 +934,7 @@
                   (eng/globalEnv)))) (=>> *externs* fname fname)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-try "" ^{:opcode ["try"]} [ast env]
+(defn- sf-try "" ^{:opcode ["try"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var stmtQ (stmt? ast)
        sz (n# ast)
@@ -962,7 +978,7 @@
     (wrap ret "(function(){\n" "}).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-if "" ^{:opcode ["if"]} [ast env]
+(defn- sf-if "" ^{:opcode ["if"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 3) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
@@ -982,14 +998,16 @@
           ["(" a1 " ?\n" a2 " :\n" (or elze "null") ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-get "" ^{:opcode ["nth" "get"]} [ast env]
+(defn- sf-get "" ^{:opcode ["nth" "get"]
+                   :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 3) ast)
   (var ret (node' ast))
   (wrap ret nil [(tx* (xfi ast (2nd ast)) env)
                  "[" (tx* (xfi ast (.@2 ast)) env) "]"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-array "" ^{:opcode ["vec"]} [ast env]
+(defn- sf-array "" ^{:opcode ["vec"]
+                     :tag SourceNode} [ast env]
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
@@ -1004,7 +1022,8 @@
         (ret.add "\n]"))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-object "" ^{:opcode ["hashmap"]} [ast env]
+(defn- sf-object "" ^{:opcode ["hashmap"]
+                      :tag SourceNode} [ast env]
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
@@ -1020,7 +1039,7 @@
         (ret.add "\n}"))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-include "" [ast env]
+(defn- sf-include "" ^Array [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret []
        dir (path/dirname ast.source))
@@ -1033,7 +1052,7 @@
       (error! :invalid-include ast))
     (=> fname $(1st e))
     (if fname
-      (=> fname (fname.replace /[\"]/g "")))
+      (=> fname (fname.replace #/[\"]/g "")))
     (try
       (=> fname (fs/realpathSync
                   (str dir "/" fname)))
@@ -1048,7 +1067,7 @@
   (if (empty? ret) "" ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-require "" [ast env]
+(defn- sf-require "" ^SourceNode [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var~ as path v e refers renames)
   (var ret (node' ast))
@@ -1086,7 +1105,7 @@
                 "=" as "[\"" e "\"];\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-ns "" ^{:opcode ["ns"]} [ast env]
+(defn- sf-ns "" ^{:opcode ["ns"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret [] e nil
        [hints nsp] (meta?? (2nd ast) env))
@@ -1117,10 +1136,10 @@
          (conj! ret ))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-comment "" ^{:opcode ["comment"]} [ast env] "")
+(defn- sf-comment "" ^{:opcode ["comment"] :tag String} [ast env] "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-for "" ^{:opcode ["for"]} [ast env]
+(defn- sf-for "" ^{:opcode ["for"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
@@ -1132,7 +1151,7 @@
               body env stmtQ)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" [ret args body env stmtQ]
+(defn- sf-floop "" ^SourceNode [ret args body env stmtQ]
   (var vars [] recurs [])
   (var~ tst nb e)
   (for [i 0 sz (n# args)
@@ -1172,7 +1191,7 @@
     (wrap ret "(function() {\n"  "}).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-jscode "" ^{:opcode ["js#"]} [ast env]
+(defn- sf-jscode "" ^{:opcode ["js#"] :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var s $(2nd ast)
        name (parser/jsid "sf-jscode"))
@@ -1182,7 +1201,7 @@
       (s.slice 1 -1) s) (tnodeEx name) (node' ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-macro "" ^{:opcode ["defmacro"]} [ast env]
+(defn- sf-macro "" ^{:opcode ["defmacro"] :tag String} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var pms [] args (.@2 ast) body (slice ast 3))
   (var~ doc x e ev)
@@ -1215,7 +1234,8 @@
   "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-unary "" ^{:opcode ["not" "~" "!"]} [ast env]
+(defn- sf-unary "" ^{:opcode ["not" "~" "!"]
+                     :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 2) ast)
   (var [a0 a1] ast
        ret (node' ast))
@@ -1223,7 +1243,7 @@
   (ret.add ["(" $(tx* a0 env) $(tx* a1 env) ")"]) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- xfi "" [from to]
+(defn- xfi "" ^Any [from to]
   (cond
     (and from to)
     (let [tline (.-line to)
@@ -1237,20 +1257,20 @@
     :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spitExterns "" []
+(defn- spitExterns "" ^String []
   (var s "" ks (keys *externs*))
   (when (not-empty ks)
     (=> s (join ",\n" (map #(str % ": " %) ks))
         s (str "\n\nmodule.exports = {\n" s "\n};\n\n"))) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- banner "" []
+(defn- banner "" ^String []
   (str "/*" "Auto generated by Kirby - v"
        MODULE-VERSION " "
        (.firstNSP (eng/globalEnv)) " - " (new Date) "*/\n\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cleanCode "" [code]
+(defn- cleanCode "" ^String [code]
   (var tmp nil arr [])
   (doseq [s (code.split "\n")
           :let [tmp (s.trim)]]
@@ -1259,7 +1279,7 @@
   (join "\n" arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- transpile* "" [source fname options]
+(defn- transpile* "" ^Array [source fname options]
   (.resetNSPCache (eng/globalEnv))
   (=> *externs* {})
   (var ret (txTree (parser/parse source fname)
@@ -1290,18 +1310,17 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn transpile
-  "" [code file & [options]]
+  "" ^Array [code file & [options]]
   (try (transpile* code file (opt?? options {}))
        (catch e
          (println (.-stack e)) (throw e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST
-  "" [source fname]
+  "" ^String [source fname]
   (parser/dumpTree (parser/parse source fname) fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 (const version MODULE-VERSION)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

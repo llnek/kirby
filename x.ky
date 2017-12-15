@@ -1,5 +1,7 @@
 (ns czlab.kirby.poo)
 
-((comp x y z) 1)
+(var x (/ 3 4))
+
+
 
 

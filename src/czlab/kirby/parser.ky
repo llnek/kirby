@@ -29,31 +29,31 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mkToken "Create a token"
-  [source line col chunk] (new Token source line col chunk))
+  ^Token [source line col chunk] (new Token source line col chunk))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const REGEX {
-  id /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
-  id2 /^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
-  float /^[-+]?[0-9]+\.[0-9]+$/
-  int /^[-+]?[0-9]+$/
-  hex /^[-+]?0x/
-  dquoteHat /^"/
-  dquoteEnd /"$/
-  func /^function\b/
-  slash /\//g
-  query /\?/g
-  perc /%/g
-  bang /!/g
-  plus /\+/g
-  dash /-/g
-  quote /'/g
-  hash /#/g
-  at /@/g
-  less /</g
-  greater />/g
-  star /\*/g
-  wspace /\s/})
+  id #/^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
+  id2 #/^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
+  float #/^[-+]?[0-9]+\.[0-9]+$/
+  int #/^[-+]?[0-9]+$/
+  hex #/^[-+]?0x/
+  dquoteHat #/^"/
+  dquoteEnd #/"$/
+  func #/^function\b/
+  slash #/\//g
+  query #/\?/g
+  perc #/%/g
+  bang #/!/g
+  plus #/\+/g
+  dash #/-/g
+  quote #/'/g
+  hash #/#/g
+  at #/@/g
+  less #/</g
+  greater #/>/g
+  star #/\*/g
+  wspace #/\s/})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- REPLACERS
@@ -65,12 +65,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testid? "Returns true
               if a valid js identifier"
-  [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
+  ^Boolean [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsid "Escape to
            compliant js identifier"
-  [input]
+  ^String [input]
   (var pfx "" name $(input))
   (when (and name
              (starts? name "-"))
@@ -88,7 +88,7 @@
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- lexer "Lexical analyzer" [source fname]
+(defn- lexer "Lexical analyzer" ^Array [source fname]
   (var fform? #f esc? #f str? #f
        regex? #f comment? #f
        len (n# source)
@@ -189,11 +189,13 @@
                   (toke tline tcol "~@"))
               (toke tline tcol ch)))
         (+= token ch))
-      (and (= ch "/")
+      (and (= ch "#")
+           (= nx "/")
            (empty? token))
       (do (true! regex?)
           (=> tline line tcol col)
-          (+= token ch))
+          (++ pos)
+          (+= token nx))
       (or (= ch "[")(= ch "]")
           (= ch "{")(= ch "}")
           (= ch "(")(= ch ")"))
@@ -232,22 +234,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- popToken "Returns the next token,
                  updates the token index"
-  [tokens]
+  ^Token [tokens]
   (var t (peekToken tokens)) (++ tokens.pos) t)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- peekToken "Returns the next token,
                  without moving the token index"
-  [tokens] (nth tokens tokens.pos))
+  ^Token [tokens] (nth tokens tokens.pos))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prevToken "Returns the previous token"
-  [tokens] (nth tokens (-1 tokens.pos)))
+  ^Token [tokens] (nth tokens (-1 tokens.pos)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- copyTokenData "Attach source level information
                      to the node"
-  [token node]
+  ^Any [token node]
   (if (or (object? node)(array? node))
     (=>> node
          :source token.source
@@ -256,7 +258,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAtom "Process an atom"
-  [tokens]
+  ^Any [tokens]
   (var token (popToken tokens)
        ret nil tn token.value)
   (cond
@@ -288,7 +290,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readBlock "Process a LISP form"
-  [tokens head tail]
+  ^Array [tokens head tail]
   (var token (popToken tokens)
        ast [] ok? #t start token)
   (if (not= token.value head)
@@ -308,22 +310,22 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readList "Process an expression"
-  [cur tokens] (readBlock tokens "(" ")"))
+  ^Array [cur tokens] (readBlock tokens "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "Process a Vector"
-  [cur tokens]
+  ^Array [cur tokens]
   (into! :vector (readBlock tokens "[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readMap "Process a Hashmap"
-  [cur tokens]
+  ^Array [cur tokens]
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
                   then continue to parse"
-  [tokens func]
+  ^Any [tokens func]
   (var t (popToken tokens)
        ret (func tokens)
        a1 (1st ret))
@@ -332,7 +334,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- read* "Inner parser routine"
-  [tokens]
+  ^Any [tokens]
   (var tmp nil token (peekToken tokens))
   (if (nichts? token)
     undefined
@@ -379,11 +381,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- addAst
-  "" [ast f] (if-not (undef? f) (conj! ast f)) ast)
+  "" ^Array [ast f] (if-not (undef? f) (conj! ast f)) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn parse "Main parser routine"
-  [source & [fname]]
+  ^Array [source & [fname]]
   (var tokens (lexer source
                      (opt?? fname "*adhoc*"))
        f nil ast [] tlen (n# tokens))
@@ -394,7 +396,7 @@
     (addAst ast (read* tokens))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dumpInfo "" [tag ast]
+(defn- dumpInfo "" ^String [tag ast]
   (if (and ast
            (number? ast.line))
     (str "<"
@@ -405,7 +407,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dump* "Debug and dump the AST"
-  [tree]
+  ^String [tree]
   (var s "")
   (if (primitive? tree) (=> tree (.-value tree)))
   (cond
@@ -450,7 +452,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "Debug and dump the AST"
-  [tree fname]
+  ^String [tree fname]
   (str "<AbstractSyntaxTree file=\"" (escXml fname) "\">"
        (dump* tree) "</AbstractSyntaxTree>"))
 
