@@ -44,9 +44,9 @@
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertSymbol "" ^Any [k]
+(defn- assertSymbol "" [k]
   (if-not (inst? Symbol k)
-    (raise! "env.xxx key must be a symbol")))
+    (raise! "expecting symbol")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype LEXEnv [][nspaces []
@@ -55,40 +55,39 @@
   (constructor "Create and initialize
                a new env with these symbols,
                and optionally a parent env"
-    [parent vars exprs]
-    (if parent (=>> this :parent parent))
-    (for [i 0 e nil ev nil
-          sz (n# vars)
+    [parent vars vals]
+    (if parent (set-in! this :parent parent))
+    (for [i 0 e nil ev nil sz (n# vars)
           :while (< i sz) :recur (+1 i)]
-      (=> e (.@i vars)
-          ev (.-value e))
+      (set! e (.@i vars)
+            ev (.-value e))
       (cond
         (= ev "&")
-        (do (=>> this.data
-                 $(.@+i vars) (slice exprs i))
+        (do (set-in! this.data
+                     $(.@+i vars) (slice vals i))
             (break-out-of-loop!))
         (starts? ev "&")
-        (do (=>> this.data
-                 (rest ev) (slice exprs i))
+        (do (set-in! this.data
+                     (rest ev) (slice vals i))
             (break-out-of-loop!))
         :else
-        (=>> this.data ev (.@i exprs)))))
+        (set-in! this.data ev (.@i vals)))))
   (find "Find the env
         containing this symbol"
-    ^Boolean [k]
-    (assertSymbol k)
+    ^LEXEnv [k]
+    (expect! k)
     (cond
       (contains? this.data k.value) this
       (some? this.parent) (.find this.parent k)))
   (set "Bind this symbol,
        value to this env"
     ^Any [k v]
-    (assertSymbol k)
-    (=>> this.data k.value v) v)
+    (expect! k)
+    (set-in! this.data k.value v) v)
   (get "Get value of
        this symbol"
     ^Any [k]
-    (assertSymbol k)
+    (expect! k)
     (var env (.find this k))
     (if env (get env.data k.value) k.value))
   (select ""
@@ -96,9 +95,8 @@
     (reduce (fn [acc [k v]]
               (if (case what
                     :fn (fn? v)
-                    :var (not (fn? v))
-                    true)
-                (=>> acc $(k) v)) acc) {} (seq this.data)))
+                    :var (not (fn? v)) true)
+                (set-in! acc $(k) v)) acc) {} (seq this.data)))
   (prn "Print set of vars"
     ^String []
     (std/prn this.data))
@@ -123,17 +121,18 @@
     (n# this.nspaces))
   (resetNSPCache "Clear all namespaces"
     []
-    (=>> this :nspaces []) nil))
+    (set-in! this :nspaces []) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" ^Function []
-  (var that this
-       tmp #(apply that this ____args))
+  ;;run the old function with the new 'this'
+  (var orig this
+       cloned #(apply orig this ____args))
   (each-key
-    (fn [v k] (=>> tmp k v)) that) tmp)
+    (fn [v k] (=>> cloned k v)) orig) cloned)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prnStr "" ^String [&xs] (join " " (prnArr xs)))
@@ -157,20 +156,18 @@
     (slice obj)
     :object
     (reduce
-      (fn [acc en]
-        (=>> acc (1st en) (last en)) acc)
-      {}
-      (seq obj))
+      (fn [acc [k v]]
+        (set-in! acc k v) acc) {} (seq obj))
     :function
     (obj.clone)
-    ;else
+    ;;else
     (raise! "clone of non-collection: " oid)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cons "" ^Array [a b] (concat [a] b))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- conj "" ^Array [arr &xs]
+(defn- conj "" ^Array [arr & xs]
   (cond
     (list? arr)
     (into! :list
@@ -203,14 +200,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" ^Object [obj m]
   (var ret (clone obj))
-  (=>> ret :____meta m) ret)
+  (set-in! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" ^Map [obj]
   (if-not (or (array? obj)
               (object? obj)
               (fn? obj))
-    (raise! "can't get metadata from: " (typeid obj)))
+    (raise! "can't get meta from: " (typeid obj)))
   (get obj :____meta))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -218,7 +215,7 @@
   (filterJS (eval (s.toString))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- invokeJS "" ^Any [method &xs]
+(defn- invokeJS "" ^Any [method & xs]
   (var [obj f] (resolveJS method))
   (filterJS (apply f obj xs)))
 
@@ -350,7 +347,7 @@
 (defn- loadMacros "" []
   (when-not loadedMacros?
     (true! loadedMacros?)
-    (require "./macros.ky")) nil)
+    (require "./macros.ky")) loadedMacros?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setMacro "Register a new macro"

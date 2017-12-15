@@ -1,9 +1,9 @@
 (ns czlab.kirby.poo)
 
-(#_
-(var y 7777 x (+ 2 2)))
+(nil? 3 (* 3 4) 9)
+(nil? sss)
 
-(var x (/ 3 4))
+
 
 
 
