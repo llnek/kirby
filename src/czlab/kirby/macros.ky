@@ -395,7 +395,7 @@
 (defmacro take "" [coll cnt] `(slice ~coll 0 ~cnt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro constantly [x] `(fn [&xs] ~x))
+(defmacro constantly "" [x] `(fn [&xs] ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro drop "" [coll cnt] `(slice ~coll ~cnt))

@@ -1,5 +1,8 @@
 (ns czlab.kirby.poo)
 
+(#_
+(var y 7777 x (+ 2 2)))
+
 (var x (/ 3 4))
 
 

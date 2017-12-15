@@ -278,7 +278,7 @@
   ">"   (fn [a b] (> a b))
   ">="  (fn [a b] (>= a b))
 
-  "div"   (fn [a &xs] (reduce (fn [acc n] (div acc n)) a xs))
+  "/"   (fn [a &xs] (reduce (fn [acc n] (div acc n)) a xs))
   "+"   (fn [&xs] (reduce (fn [acc n] (+ acc n)) 0 xs))
   "-"   (fn [a &xs] (reduce (fn [acc n] (- acc n)) a xs))
   "*"   (fn [&xs] (reduce (fn [acc n] (* acc n)) 1 xs))

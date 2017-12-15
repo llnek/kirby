@@ -585,10 +585,51 @@
   out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn splitSeq "" ^Array [coll cnt]
+(defn split-seq "" ^Array [coll cnt]
   (if (< cnt (count coll))
     [(take coll cnt) (drop coll cnt)]
     [(slice coll 0) []]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn select-keys "" ^Map [coll keys]
+  (reduce
+    (fn [acc n]
+      (=>> acc
+           (str n)
+           (get coll (str n))) acc) {} (seq keys)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- doUpdateIn! "" [coll n func args err]
+  (var cur (cond
+             (number? n)
+             (if (and (array? coll)
+                      (< n (alen coll))) (nth coll n) (err n))
+             :else (get coll n))
+       v (apply func this (cons cur args)))
+  (=>> coll n v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn update-in! "" ^Any [coll keys func & xs]
+  (var err (fn [k] (raise! "update-in! failed, bad nested keys: " k)))
+  (var root coll
+       end (last-index keys))
+  (var~ m n)
+  (for [i 0 :while (<= i end) :recur (+1 i)]
+    (=> n (.@i keys))
+    (cond
+      (= i end)
+      (doUpdateIn! root n func xs err)
+      (number? n)
+      (if-not (and (array? root)
+                   (< n (alen root)))
+        (err n)
+        (=> root (nth root n)))
+      :else
+      (do (=> m (get root n))
+          (when (undef? m) (=> m {}) (=>> root n m))
+          (if-not (object? m) (err n))
+          (=> root m))))
+  coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
