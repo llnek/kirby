@@ -39,12 +39,17 @@
             (cons* 'cond* (rest* (rest* xs)))))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- macro_andp ```
+  (macro* _andp_* [&xs]
+    (if* (= 1 (count* xs)) `~(first* xs) `(and ~@xs))) ```)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertSymbol "" [k]
+(defn- expect! "" [k]
   (if-not (inst? Symbol k)
     (raise! "expecting symbol")))
 
@@ -669,7 +674,8 @@
 (defn init "" ^Boolean [ver]
   (when-not inited?
     (=> version ver g_env (newEnv))
-    (reval macro_cond macro_assert)
+    (reval macro_cond
+           macro_assert macro_andp)
     (loadMacros)
     (true! inited? )) inited?)
 

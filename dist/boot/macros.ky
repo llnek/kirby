@@ -97,10 +97,12 @@
 (defmacro nth "" [coll i] `(get ~coll ~i))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro even? "" [n] `(= 0 (kirbystdlibref/modulo ~n 2)))
+(defmacro even? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= 0 (kirbystdlibref/modulo ~x 2))) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro odd? "" [n] `(not (even? ~n)))
+(defmacro odd? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(not (even? ~x))) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro alen "" [coll] `(.-length ~coll))
@@ -118,37 +120,59 @@
 (defmacro whatis? "" [obj] `(Object.prototype.toString.call ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro regex? "" [obj] `(= (whatis? ~obj) "[object RegExp]"))
+(defmacro regex? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (whatis? ~x) "[object RegExp]")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro array? "" [obj] `(Array.isArray ~obj))
+(defmacro array? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(Array.isArray ~x)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro date? "" [obj] `(= (whatis? ~obj) "[object Date]"))
+(defmacro date? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (whatis? ~x) "[object Date]")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro boolean? "" [obj] `(= (typeof ~obj) "boolean"))
-(defmacro bool? "" [obj] `(boolean? ~obj))
+(defmacro bool? "" [&xs] `(boolean? ~@xs))
+(defmacro boolean? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "boolean")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro number? "" [obj] `(= (typeof ~obj) "number"))
-(defmacro num? "" [obj] `(number? ~obj))
+(defmacro num? "" [&xs] `(number? ~@xs))
+(defmacro number? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "number")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro string? "" [obj] `(= (typeof ~obj) "string"))
-(defmacro str? "" [obj] `(string? ~obj))
+(defmacro str? "" [&xs] `(string? ~@xs))
+(defmacro string? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "string")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro fn? "" [obj] `(= (typeof ~obj) "function"))
+(defmacro fn? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "function")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro undef? "" [obj] `(= (typeof ~obj) "undefined"))
+(defmacro undef? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "undefined")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro def? "" [obj] `(not= (typeof ~obj) "undefined"))
+(defmacro def? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(not= (typeof ~x) "undefined")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro nil? "" [obj] `(= ~obj null))
+(defmacro nil? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= ~x null)) xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro zero? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= ~x 0)) xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro neg? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(< ~x 0)) xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro pos? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(> ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro values "" [obj] `(Object.values ~obj))
@@ -160,10 +184,12 @@
 (defmacro assert "" [tst & msgs] `(if ~tst true (raise! ~@msgs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro false? "" [obj] `(= false ~obj))
+(defmacro false? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= ~x false)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro true? "" [obj] `(= true ~obj))
+(defmacro true? "" [&xs]
+  `(_andp_* ~@(map* (fn* [x] `(= ~x true)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-not "" [tst & xs] `(when (not ~tst) ~@xs))
@@ -395,7 +421,7 @@
 (defmacro take "" [coll cnt] `(slice ~coll 0 ~cnt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro constantly [x] `(fn [&xs] ~x))
+(defmacro constantly "" [x] `(fn [&xs] ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro drop "" [coll cnt] `(slice ~coll ~cnt))
@@ -475,6 +501,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
+
+;;(defmacro poop "" [&xs] (if* (= 1 (count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

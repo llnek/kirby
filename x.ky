@@ -1,7 +1,8 @@
 (ns czlab.kirby.poo)
 
 (nil? 3 (* 3 4) 9)
-(nil? sss)
+(date? xxx)
+
 
 
 
