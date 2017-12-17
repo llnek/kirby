@@ -496,25 +496,33 @@
     (if-not (undef? a3) a3) a2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- form* "" ^Any [ast env]
-  (var el (eval* ast env))
-  (var~ f)
+(defn- read* "" ^Array [ast env]
+  (var f nil
+       el (eval* ast env))
   (cond
     (or (vector? ast)
         (map? ast)
         (list? ast))
-    el
+    [false el]
     (array? el)
-    (do (set! f (1st el))
-        (if (fn? f)
-          (apply f this (rest el)) el))
-    :else el))
+    (do (=> f (1st el))
+        (cond
+          (and f (.-____ast f))
+          [true (.-____ast f) (f.____genenv (rest el))]
+          :else
+          [false (if (fn? f)
+                   (apply f f (rest el)) el) env]))
+    :else [false el]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fn->raw "Wrap the function body and args inside
                a native js function"
-  ^Function [fargs fbody env]
-  (doto #(compute fbody (new LEXEnv env fargs ____args))))
+  ^Function [fbody env fargs]
+  (var f #(compute fbody
+                   (new LEXEnv env fargs ____args)))
+  (set-in! f
+           :____ast fbody
+           :____genenv #(new LEXEnv env fargs %)) f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *spec-forms* {
@@ -531,7 +539,7 @@
           (eval* (a.slice 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
-  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
+  "lambda*" #(atom (fn->raw (.@2 %1) %2 (.@1 %1))) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]
@@ -548,7 +556,9 @@
                         (fn? fc)
                         (fc ast env)
                         :else
-                        (atom (form* ast env))))
+                        (let [[t? a1 e2]
+                              (read* ast env)]
+                          (if t? [a1 e2] (atom a1)))))
              (if (atom? res)
                res
                (do (set! env (2nd res))

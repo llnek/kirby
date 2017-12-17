@@ -353,7 +353,7 @@
   (xfi e1 ast)
   ;;handle macro calls
   (when mc
-    (=> ast (eng/inflateMacro ast env mc)
+    (=> ast (eng/expand?? ast env mc)
         ast (xfi orig (exprHint ast (not stmtQ))))
     (spreadInfo orig ast)
     (=> cmd (gcmd ast)))
@@ -531,6 +531,14 @@
     (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"
               "ret.push(" f ".apply(this,____args));\n"]))
   (ret.add "return ret;\n}") ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-deref ""
+  ^{:opcode ["deref"] :tag SourceNode} [ast env]
+  (assertArity (= (n# ast) 2) ast)
+  (var ret (node' ast))
+  (ret.add [(tx* (2nd ast) env) ".value"])
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compose ""

@@ -300,6 +300,13 @@ function sf_juxt(ast,env) {
 }
 SPEC_OPS["juxt"]=sf_juxt;
 
+function sf_deref(ast,env) {
+  let ret= nodeTag(tnode(),ast);
+  ret.add([eval_QQ(ast[1],env), ".value"]);
+  return ret;
+}
+SPEC_OPS["deref"]=sf_deref;
+
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 function sf_compose(ast,env) {
   let ret= nodeTag(tnode(),ast),
