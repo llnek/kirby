@@ -29,6 +29,9 @@
 (defmacro 2nd "" [x] `(second ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro 3rd "" [x] `(nth ~x 2))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trap! "" [&msgs]
   (let* [sz (count* msgs)]
     (if* (> sz 1)
@@ -98,11 +101,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro even? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= 0 (kirbystdlibref/modulo ~x 2))) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= 0 (kirbystdlibref/modulo ~x 2))) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro odd? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(not (even? ~x))) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(not (even? ~x))) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro alen "" [coll] `(.-length ~coll))
@@ -121,58 +124,59 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro regex? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (whatis? ~x) "[object RegExp]")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (whatis? ~x) "[object RegExp]")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro array? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(Array.isArray ~x)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(Array.isArray ~x)) xs)))
+(defmacro arr? "" [&xs] `(array? ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro date? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (whatis? ~x) "[object Date]")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (whatis? ~x) "[object Date]")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro bool? "" [&xs] `(boolean? ~@xs))
 (defmacro boolean? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "boolean")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "boolean")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro num? "" [&xs] `(number? ~@xs))
 (defmacro number? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "number")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "number")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro str? "" [&xs] `(string? ~@xs))
 (defmacro string? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "string")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "string")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro fn? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "function")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "function")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro undef? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= (typeof ~x) "undefined")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "undefined")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro def? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(not= (typeof ~x) "undefined")) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(not= (typeof ~x) "undefined")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro nil? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= ~x null)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= ~x null)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro zero? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= ~x 0)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro neg? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(< ~x 0)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(< ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro pos? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(> ~x 0)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(> ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro values "" [obj] `(Object.values ~obj))
@@ -185,11 +189,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro false? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= ~x false)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= ~x false)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro true? "" [&xs]
-  `(_andp_* ~@(map* (fn* [x] `(= ~x true)) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= ~x true)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-not "" [tst & xs] `(when (not ~tst) ~@xs))
@@ -233,6 +237,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro let "" [bindings & xs] `(do (var ~@bindings) ~@xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro single? "" [coll] `(= 1 (n# ~coll)))
+(defmacro dual? "" [coll] `(= 2 (n# ~coll)))
+(defmacro triple? "" [coll] `(= 3 (n# ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;trampoline
@@ -405,7 +414,7 @@
 (defmacro doto "" [target & xs]
   (let* [v (gensym*)]
     `(let [~v ~target]
-       ~@(map* (fn* [e]
+       ~@(map* (lambda* [e]
                     `(~(first* e) ~v ~@(rest* e))) xs) ~v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -501,8 +510,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
-
-;;(defmacro poop "" [&xs] (if* (= 1 (count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

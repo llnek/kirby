@@ -1,7 +1,16 @@
 (ns czlab.kirby.poo)
 
-(nil? 3 (* 3 4) 9)
-(date? xxx)
+(var dd (fn [aa] [(poo 2)]))
+(var~ b)
+(var z
+(loop [a (+ 2 3)]
+  (set! b 3)
+  (cond
+        true 10 false 20 :else 30)
+  (if true
+    3
+    (recur (* 5 6)))))
+
 
 
 

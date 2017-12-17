@@ -225,128 +225,98 @@
   (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- toolkit {
-
+(const- *runtime-funcs* {
   "macroexpand*" (fn [code & [env]]
                     (println
-                      (std/prn (expandMacro
+                      (std/prn (inflateMacro
                                  code (or env g_env)))))
-
   "macros*" (fn [&[fout]]
                (var s (std/prn CACHE))
                (if fout
                  (spit fout s)
                  (println s)))
-
   "env*" (fn [what & [env fout]]
                (var s (std/prn (.select (or env g_env) what)))
                (if fout
                  (spit fout s)
                  (println s)))
-
   "is-same?"  (fn [a b] (== a b))
   "is-nil?"  (fn [x] (nil? x))
-
   "obj-type*"  std/typeid
   "gensym*"  std/gensym
   "is-eq?"  std/eq?
   "is-some?"  std/some?
-
   "str*" (fn [&xs] (join "" xs))
-
   "slice*"  (fn [arr & xs]
               (Array.prototype.slice.apply arr xs))
-
   "throw*"  (fn [&xs]
               (throw (new Error (.join xs ""))))
-
   "#f?"  (fn [x] (false? x))
   "#t?"  (fn [x] (true? x))
   "is-str?"  (fn [x] (string? x))
-
   "is-keyword?"  std/keyword?
   "is-symbol?"  std/symbol?
   "keyword*"  std/keyword
   "symbol*"  std/symbol
-
   "println*"  prnLn
   "prn*"  prnStr
-
   "slurp*"  slurp
   "spit*" spit
-
   "<"   (fn [a b] (< a b))
   "<="  (fn [a b] (<= a b))
   ">"   (fn [a b] (> a b))
   ">="  (fn [a b] (>= a b))
-
   "/"   (fn [a &xs] (reduce (fn [acc n] (div acc n)) a xs))
   "+"   (fn [&xs] (reduce (fn [acc n] (+ acc n)) 0 xs))
   "-"   (fn [a &xs] (reduce (fn [acc n] (- acc n)) a xs))
   "*"   (fn [&xs] (reduce (fn [acc n] (* acc n)) 1 xs))
-
   "not=" (fn [a b] (not= a b))
   "=" (fn [a b] (= a b))
-
   "is-contains?" std/contains?
-
   "is-vector?"  std/vector?
   "is-list?"  std/list?
   "is-map?"  std/map?
   "hash-map*"  std/hashmap
   "vector*"  std/vector
   "list*"  std/list
-
   "values*"  (fn [x] (Object.values x))
   "keys*"  (fn [x] (Object.keys x))
   "get*"  (fn [m k] (get m k))
-
   "not*"  (fn [x] (if x #f #t))
   "dec*"  (fn [x] (-1 x))
   "inc*"  (fn [x] (+1 x))
-
   "is-even?"  (fn [n] (= 0 (std/modulo n 2)))
   "is-odd?"  (fn [n]  (= 1 (std/modulo n 2)))
-
   "is-sequential?"  std/sequential?
   "concat*"  std/concat*
   "count*"  std/count
   "cons*"  cons
-
   "rest*"  (fn [arr]
               (if arr (arr.slice 1) []))
   "nth*"  (fn [arr i] (get arr i))
   "first*"  (fn [arr] (get arr 0))
-
   "is-empty?" (fn [x] (= 0 (std/count x)))
   "not-empty*" std/not-empty
-
   "apply*"  fapply
   "map*"  fmap
-
-  "evens" (fn [n] (= 0 (mod n 2)))
-  "odds" (fn [n]  (= 1 (mod n 2)))
-  "type*" (fn [x] (typeof x))
-
+  "evens*" std/evens
+  "odds*" std/odds
   "meta*"  meta
   "conj*"  conj
   "seq*"  std/seq
-
   "is-atom?"  std/atom?
   "atom*"  std/atom
   "deref*"  std/deref
   "reset*"  std/reset!
   "swap*"  std/swap!
-
   "with-meta*"  withMeta
   "js-eval*"  evalJS
   "js*"  invokeJS
-
-})
+  "type*" (fn [x] (typeof x)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- loadedMacros? false)
-(def- CACHE {})
+(const- CACHE {})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- loadMacros "" []
@@ -358,13 +328,13 @@
 (defn setMacro "Register a new macro"
   [cmd func]
   (when (and cmd func)
-    (=> cmd $(cmd))
+    (set! cmd $(cmd))
     (when-not (contains? cmd "/")
       (var c (g_env.peekNSP))
       (if-not c (raise! "missing namespace"))
       (=> cmd (str c "/" cmd)))
     ;;(println "adding macro ==== " cmd)
-    (=>> CACHE cmd func)) nil)
+    (set-in! CACHE cmd func)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getMacro "Get macro"
@@ -398,7 +368,7 @@
   (and (sequential? x) (not-empty x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- quasiquote "" ^Array [ast]
+(defn- backtick "" ^Array [ast]
   (cond
     (not (isList? ast))
     ['quote ast]
@@ -408,11 +378,11 @@
     (and (isList? (1st ast))
          (== (1st (1st ast))
              "splice-unquote"))
-    ['concat* (2nd (1st ast)) (quasiquote (rest ast))]
+    ['concat* (2nd (1st ast)) (backtick (rest ast))]
     :else
     (let [a0 (1st ast)
           a1 (rest ast)]
-      ['cons* (quasiquote a0) (quasiquote a1)])))
+      ['cons* (backtick a0) (backtick a1)])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" ^Boolean [ast env]
@@ -421,7 +391,7 @@
        (getMacro $(1st ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn expandMacro "" ^Any [ast env]
+(defn inflateMacro "" ^Any [ast env]
   (var isM? (isMacroCall? ast env)
        mac nil
        cmd (if isM? (1st ast) ""))
@@ -431,7 +401,7 @@
         ast (mac.apply mac (rest ast)))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- evalAst "" ^Any [ast env]
+(defn- eval* "" ^Any [ast env]
   (cond
     (keyword? ast)
     (.-value ast)
@@ -463,7 +433,7 @@
     :else ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleAND "" ^Boolean [ast env]
+(defn- doAND "" ^Boolean [ast env]
   (var ret #t)
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -471,7 +441,7 @@
     (if-not ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleOR "" ^Boolean [ast env]
+(defn- doOR "" ^Boolean [ast env]
   (var ret nil)
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -479,7 +449,7 @@
     (if ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleLet "" ^Array [ast env]
+(defn- doLET "" ^Array [ast env]
   (var e (new LEXEnv env)
        a1 (.@1 ast))
   (for [i 0 sz (n# a1)
@@ -489,10 +459,10 @@
   [(.@2 ast) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleMacro "" [ast env]
+(defn- doMACRO "" [ast env]
   (var rc [(1st ast)
            (2nd ast)
-           (concat ['fn* (.@2 ast)] (ast.slice 3))]
+           (concat ['lambda* (.@2 ast)] (ast.slice 3))]
        a2 (.@2 rc)
        a1 (.@1 rc)
        cmd (str "czlab.kirby.macros/" a1)
@@ -501,7 +471,7 @@
   (setMacro cmd func) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleTry "" ^Any [ast env]
+(defn- doTRY "" ^Any [ast env]
   (var a1 (.@1 ast)
        a2 (.@2 ast))
   (try
@@ -517,7 +487,7 @@
         (throw ex)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleIf "" ^Any [ast env]
+(defn- doIF "" ^Any [ast env]
   (var c (compute (.@1 ast) env)
        a2 (.@2 ast)
        a3 (.@3 ast))
@@ -526,9 +496,9 @@
     (if-not (undef? a3) a3) a2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- handleForm "" ^Array [ast env]
+(defn- read* "" ^Array [ast env]
   (var f nil
-       el (evalAst ast env))
+       el (eval* ast env))
   (cond
     (or (vector? ast)
         (map? ast)
@@ -556,131 +526,89 @@
        :____genenv #(new LEXEnv env params %)) f)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- compute* "" ^Any [ast env]
-  (var ok? #t
-       cmd ""
-       ret nil
-       g1 (fn [a] (if (pairs? a) (1st a) "")))
-  (for []
-    (=> ast (expandMacro ast env)
-        cmd (g1 ast))
-    (->>
-      (cond
-        (not (array? ast))
-        (do->true
-          (=> ret (evalAst ast env)))
-        (empty? ast)
-        (do->true
-          (=> ret ast))
-        (== "and*" cmd)
-        (do->true
-          (=> ret (handleAND ast env)))
-        (== "or*" cmd)
-        (do->true
-          (=> ret (handleOR ast env)))
-        (== "def*" cmd)
-        (do->true
-          (=> ret (env.set a1
-                           (compute a2 env))))
-        (== "let*" cmd)
-        (do->false
-          (var rc (handleLet ast env))
-          (=> ast (1st rc)
-              env (2nd rc)))
-        (== "quote" cmd)
-        (do->true
-          (=> ret (2nd ast)))
-        (== "quasiquote" cmd)
-        (do->false
-          (=> ast
-              (quasiquote (2nd ast))))
-        (== "macro*" cmd)
-        (do->true
-          (=> ret (handleMacro ast env)))
-        (== "macroexpand" cmd)
-        (do->true
-          (=> ret (expandMacro (2nd ast) env)))
-        (== "try*" cmd)
-        (do->true
-          (=> ret (handleTry ast env)))
-        (== "do*" cmd)
-        (do->false
-          (evalAst (ast.slice 1 -1) env)
-          (=> ast (nth ast (last-index ast))))
-        (== "if*" cmd)
-        (do->false
-          (=> ast (handleIf ast env)))
-        (== "fn*" cmd)
-        (do->true
-          (=> ret
-              (fn-wrap compute
-                       (.@2 ast) env (.@1 ast))))
-        :else
-        (let [rc (handleForm ast env)
-              a1 (.@1 rc)
-              a2 (.@2 rc)]
-          (if (1st rc)
-            (do->false
-              (=> ast a1 env a2))
-            (do->true
-              (=> ret a1)))))
-      (=> ____break ))) ret)
+(const- *spec-forms* {
+  "and*" (fn [a e] [(doAND a e)])
+  "or*" (fn [a e] [(doOR a e)])
+  "def*" (fn [a e] [(e.set (.@1 a) (compute (.@2 a) e))])
+  "let*" (fn [a e] (doLET a e))
+  "quote" (fn [a e] [(2nd a)])
+  "syntax-quote" (fn [a e] [(backtick (2nd a)) e])
+  "macro*" (fn [a e] [(doMACRO a e)])
+  "try*" (fn [a e] [(doTRY a e)])
+  "do*" (fn [a e]
+          (eval* (a.slice 1 -1) e)
+          [(nth a (last-index a)) e])
+  "if*" (fn [a e] [(doIF a e) e])
+  "lambda*" (fn [a e]
+          [(fn-wrap compute
+                    (.@2 a) e (.@1 a))]) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn compute "" ^Any [ast env]
-  (if-not env (=> env g_env))
-  (var ret (compute* ast env))
+(defn compute "Interpret a expression" ^Any [expr cenv]
+  (var g1 #(if (pairs? %) (1st %) ""))
+  (var~ ret res tmp cmd fc)
+  (if-not cenv (set! cenv g_env))
+  (loop [env cenv
+         ast (inflateMacro expr cenv)]
+    (set! cmd $(g1 ast)
+          fc (get *spec-forms* cmd)
+          res (cond
+                (not (arr? ast)) [(eval* ast env)]
+                (empty? ast) [ast]
+                (fn? fc) (fc ast env)
+                :else
+                (do (set! tmp (read* ast env))
+                    (if (1st tmp)
+                      (slice tmp 1)
+                      (slice tmp 1 2)))))
+    (if (single? res)
+      (do->true (set! ret (1st res)))
+      (recur (2nd res)
+             (inflateMacro (1st res) (2nd res)))))
   (if (undef? ret) nil ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn newEnv "" ^LEXEnv []
+(defn newEnv "Create a new interpreter environment" ^LEXEnv []
   (do-with [ret (new LEXEnv)]
     (each-key (fn [v k]
-                (ret.set (symbol k) v)) toolkit)))
+                (ret.set (symbol k) v)) *runtime-funcs*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn runRepl "" []
-  (var rl (readline.createInterface process.stdin
-                                    process.stdout))
-  (rl.on
-    :line
-    (fn [line]
-      (try
-        (if line (println (reval line)))
-        (catch e (println e)))
-      (rl.setPrompt prefix  (alen prefix))
-      (rl.prompt )))
-  (rl.on
-    :close
-    (fn []
-      (println "Bye!")
-      (process.exit 0)))
+(defn runRepl "Start a interactive session" []
+  (var ss (readline/createInterface process.stdin
+                                    process.stdout)
+       z (alen prefix)
+       pt #(do (ss.setPrompt prefix z)
+               (ss.prompt ))
+       rl (fn [line]
+            (try (if line (println (reval line)))
+                 (catch e (println e))) (pt))
+       cl #(do (println "Bye!") (process.exit 0)))
+  (ss.on :close cl)
+  (ss.on :line rl)
   (init)
-  (println prefix "Kirby REPL v" version)
-  (rl.setPrompt prefix  (alen prefix))
-  (rl.prompt ) nil)
+  (println prefix "Kirby REPL v" *version*) (pt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- reval "" ^Any [c & xs]
-  (var f (comp prn compute readAST)
-       r (f c))
-  (doseq [x xs]
-    (=> r (f x))) r)
+(defn- reval "Eval one or more expressions" ^Any [expr & xs]
+  (var f (comp prn
+               compute readAST) ret (f expr))
+  (doseq [e xs] (set! ret (f e))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- inited? false
-      version "" g_env nil)
+      *version* "" g_env nil)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn init "" ^Boolean [ver]
+(defn init "Set up the runtime environment" ^Boolean [ver]
   (when-not inited?
-    (=> version ver g_env (newEnv))
+    (set! *version* ver g_env (newEnv))
     (reval macro_cond
            macro_assert macro_andp)
     (loadMacros)
-    (true! inited? )) inited?)
+    (true! inited?)) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn globalEnv "" [] g_env)
+(defn globalEnv "Returns the runtime environment" [] g_env)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

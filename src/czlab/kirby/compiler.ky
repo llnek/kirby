@@ -353,7 +353,7 @@
   (xfi e1 ast)
   ;;handle macro calls
   (when mc
-    (=> ast (eng/expandMacro ast env mc)
+    (=> ast (eng/inflateMacro ast env mc)
         ast (xfi orig (exprHint ast (not stmtQ))))
     (spreadInfo orig ast)
     (=> cmd (gcmd ast)))
@@ -390,7 +390,7 @@
     (=> ret (op ast env))
     (and (or (== cmd "splice-unquote")
              (== cmd "unquote")
-             (== cmd "quasiquote"))
+             (== cmd "syntax-quote"))
          (not (starts? nsp "czlab.kirby.")))
     (error! :outside-macro ast)
     :else
@@ -881,7 +881,7 @@
        [_ args] (meta?? (2nd ast) env))
   (if-not (array? args)
     (error! :invalid-fargs ast))
-  (=> fargs (doFuncArgs (xfi ast args) ast env))
+  (=> fargs (doFuncArgs (xfi ast args) env))
   (wrap ret nil ["function ("
                  (1st fargs)
                  ") {\n"
@@ -906,7 +906,7 @@
        [hints args] (meta?? (nth ast pargs) env))
   (if-not (array? args)
     (error! :invalid-fargs ast))
-  (=> fargs (doFuncArgs (xfi ast args) ast env))
+  (=> fargs (doFuncArgs (xfi ast args) env))
   (=> hints (or hints {}))
   (cond mtd?
         (do (if (.-static hints)
@@ -1226,7 +1226,7 @@
           (error! :syntax-error ast)
           :else
           (conj! pms e)))
-  (var a2 (concat ['fn* pms] body)
+  (var a2 (concat ['lambda* pms] body)
        func (eng/compute a2 env)
        a1 $(2nd ast))
   (=>> func :____macro #t :____doc doc)

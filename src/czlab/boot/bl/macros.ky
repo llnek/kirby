@@ -122,9 +122,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro array? "" [obj] `(Array.isArray ~obj))
-
+(defmacro arr? "" [obj] `(Array.isArray ~obj))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro date? "" [obj] `(= (whatis? ~obj) "[object Date]"))
+
+(defmacro triple? "" [c] `(= 3 (n# ~c)))
+(defmacro dual? "" [c] `(= 2 (n# ~c)))
+(defmacro single? "" [c] `(= 1 (n# ~c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro boolean? "" [obj] `(= (typeof ~obj) "boolean"))

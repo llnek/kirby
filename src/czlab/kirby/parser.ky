@@ -344,7 +344,7 @@
             #(['quote (read* tokens)]))
       "`" (skipParse
             tokens
-            #(['quasiquote (read* tokens)]))
+            #(['syntax-quote (read* tokens)]))
       "~" (skipParse
             tokens
             #(['unquote (read* tokens)]))
