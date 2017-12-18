@@ -21,7 +21,7 @@
                      Atom symbol swap!
                      atom vector vector?
                      typeid sequential?
-                     conj! count
+                     conj! count truthy? falsy?
                      last pop! opt??
                      keyword? symbol? seq]]))
 
@@ -46,6 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- CZMACROS "czlab.kirby.macros")
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -241,7 +242,7 @@
                  (spit fout s)
                  (println s)))
   "is-same?"  (fn [a b] (== a b))
-  "is-nil?"  (fn [x] (nil? x))
+  "is-nil?"  #(nil? %)
   "obj-type*"  std/typeid
   "gensym*"  std/gensym
   "is-eq?"  std/eq?
@@ -251,9 +252,9 @@
               (Array.prototype.slice.apply arr xs))
   "throw*"  (fn [&xs]
               (throw (new Error (.join xs ""))))
-  "#f?"  (fn [x] (false? x))
-  "#t?"  (fn [x] (true? x))
-  "is-str?"  (fn [x] (string? x))
+  "#f?"  #(false? %)
+  "#t?"  #(true? %)
+  "is-str?"  #(string? %)
   "is-keyword?"  std/keyword?
   "is-symbol?"  std/symbol?
   "keyword*"  std/keyword
@@ -279,23 +280,22 @@
   "hash-map*"  std/hashmap
   "vector*"  std/vector
   "list*"  std/list
-  "values*"  (fn [x] (Object.values x))
-  "keys*"  (fn [x] (Object.keys x))
-  "get*"  (fn [m k] (get m k))
-  "not*"  (fn [x] (if x #f #t))
-  "dec*"  (fn [x] (-1 x))
-  "inc*"  (fn [x] (+1 x))
-  "is-even?"  (fn [n] (= 0 (std/modulo n 2)))
-  "is-odd?"  (fn [n]  (= 1 (std/modulo n 2)))
+  "values*"  #(Object.values %)
+  "keys*"  #(Object.keys %)
+  "get*"  #(get %1 %2)
+  "not*"  #(if % #f #t)
+  "dec*"  #(-1 %)
+  "inc*"  #(+1 %)
+  "is-even?"  #(= 0 (std/modulo % 2))
+  "is-odd?"  #(= 1 (std/modulo % 2))
   "is-sequential?"  std/sequential?
   "concat*"  std/concat*
   "count*"  std/count
   "cons*"  cons
-  "rest*"  (fn [arr]
-              (if arr (arr.slice 1) []))
-  "nth*"  (fn [arr i] (get arr i))
-  "first*"  (fn [arr] (get arr 0))
-  "is-empty?" (fn [x] (= 0 (std/count x)))
+  "rest*"  #(if % (slice % 1) [])
+  "nth*"  #(get %1 %2)
+  "first*"  #(get % 0)
+  "is-empty?" #(= 0 (std/count %))
   "not-empty*" std/not-empty
   "apply*"  fapply
   "map*"  fmap
@@ -312,7 +312,7 @@
   "with-meta*"  withMeta
   "js-eval*"  evalJS
   "js*"  invokeJS
-  "type*" (fn [x] (typeof x)) })
+  "type*" #(typeof %) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- loadedMacros? false)
@@ -327,62 +327,61 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setMacro "Register a new macro"
   [cmd func]
-  (when (and cmd func)
-    (set! cmd $(cmd))
-    (when-not (contains? cmd "/")
-      (var c (g_env.peekNSP))
-      (if-not c (raise! "missing namespace"))
-      (=> cmd (str c "/" cmd)))
-    ;;(println "adding macro ==== " cmd)
-    (set-in! CACHE cmd func)) nil)
+  (do->nil
+    (when (and cmd
+               (fn? func))
+      (set! cmd $(cmd))
+      (when-not (contains? cmd "/")
+        (var c (.peekNSP g_env))
+        (if-not c (raise! "missing namespace"))
+        (set! cmd (str c "/" cmd)))
+      ;;(println "adding macro ==== " cmd)
+      (set-in! CACHE cmd func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getMacro "Get macro"
-  ^Function [cmd]
-  (var nsp nil ret nil)
-  (=> cmd $(cmd))
+(defn getMacro "Get macro" ^Function [cmd]
+  (set! cmd $(cmd))
+  (var~ nsp ret)
   (if (contains? cmd "/")
-    (=> ret (get CACHE cmd))
-    (do (=> nsp (g_env.peekNSP))
+    (set! ret (get CACHE cmd))
+    (do (set! nsp (.peekNSP g_env))
         (if nsp
-          (=> ret (get CACHE
-                       (str nsp "/" cmd))))
+          (set! ret (get CACHE
+                         (str nsp "/" cmd))))
         (if-not ret
-          (=> ret (get CACHE
-                       (str "czlab.kirby.macros/" cmd)))))) ret)
+          (set! ret
+                (get CACHE
+                     (str CZMACROS "/" cmd)))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dbg "" [obj] (println "DBG-RT: " (prn obj)) nil)
+(defn- dbg "" [x] (do->nil (println "DBG: " (prn x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readAST "Returns the AST"
-  ^Array [s]
+(defn- readAST "" ^Array [s]
   (var ret (parser/parse s))
-  (if (= 1 (n# ret))
-    (=> ret (1st ret))) ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- isList? "Returns true
-               if a non-empty list"
-  ^Boolean [x]
-  (and (sequential? x) (not-empty x)))
+  (if (single? ret)
+    (set! ret (1st ret))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- backtick "" ^Array [ast]
+  (var lst? #(and (sequential? %)
+                  (not-empty %)))
   (cond
-    (not (isList? ast))
+    (not (lst? ast))
     ['quote ast]
+    ;;
     (and (symbol? (1st ast))
          (== (1st ast) "unquote"))
     (2nd ast)
-    (and (isList? (1st ast))
-         (== (1st (1st ast))
-             "splice-unquote"))
+    ;;
+    (and (lst? (1st ast))
+         (symbol? (1st (1st ast)))
+         (== (1st (1st ast)) "splice-unquote"))
     ['concat* (2nd (1st ast)) (backtick (rest ast))]
+    ;;
     :else
-    (let [a0 (1st ast)
-          a1 (rest ast)]
-      ['cons* (backtick a0) (backtick a1)])))
+    ['cons* (backtick (1st ast))
+            (backtick (rest ast))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" ^Boolean [ast env]
@@ -392,44 +391,32 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn expand?? "" ^Any [ast env]
-  (var isM? (isMacroCall? ast env)
-       mac nil
-       cmd (if isM? (1st ast) ""))
+  (var~ cmd mac)
   (while (isMacroCall? ast env)
-    (=> cmd $(1st ast)
-        mac (getMacro cmd)
-        ast (mac.apply mac (rest ast)))) ast)
+    (set! cmd $(1st ast)
+          mac (getMacro cmd)
+          ast (apply mac this (rest ast)))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eval* "" ^Any [ast env]
   (cond
-    (keyword? ast)
-    (.-value ast)
-    (string? ast)
-    (std.unwrap-str ast)
-    (symbol? ast)
-    (env.get ast)
+    (string? ast) (std/unwrap-str ast)
+    (keyword? ast) (.-value ast)
+    (symbol? ast) (env.get ast)
+    ;complex data
     (pairs? ast)
     (map #(compute %1 env) ast)
     (list? ast)
     (into! :list (map #(compute %1 env) ast))
     (vector? ast)
     (into! :vector (map #(compute %1 env) ast))
-    (and #f (map? ast))
-    (reduce
-      (fn [acc en]
-        (=>> acc
-             (compute (1st en) env)
-             (compute (last en) env)) acc)
-      {}
-      (seq ast))
     (map? ast)
     (do-with [m {}]
       (for [i 0 sz (n# ast)
             :while (< i sz) :recur (+2 i)]
-        (=>> m
-             (compute (.@i ast) env)
-             (compute (.@+i ast) env))))
+        (set-in! m
+                 (compute (.@i ast) env)
+                 (compute (.@+i ast) env))))
     :else ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -437,7 +424,7 @@
   (var ret #t)
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
-    (=> ret (compute (.@i ast) env))
+    (set! ret (compute (.@i ast) env))
     (if-not ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -445,54 +432,49 @@
   (var ret nil)
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
-    (=> ret (compute (.@i ast) env))
+    (set! ret (compute (.@i ast) env))
     (if ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doLET "" ^Array [ast env]
   (var e (new LEXEnv env)
-       a1 (.@1 ast))
-  (for [i 0 sz (n# a1)
+       binds (2nd ast))
+  (for [i 0 sz (n# binds)
         :while (< i sz) :recur (+2 i)]
-    (e.set (.@i a1)
-           (compute (.@+i a1) e)))
-  [(.@2 ast) e])
+    (e.set (.@i binds)
+           (compute (.@+i binds) e)))
+  [(3rd ast) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doMACRO "" [ast env]
-  (var rc [(1st ast)
-           (2nd ast)
-           (concat ['lambda* (.@2 ast)] (ast.slice 3))]
-       a2 (.@2 rc)
-       a1 (.@1 rc)
-       cmd (str "czlab.kirby.macros/" a1)
-       func (compute  a2 env))
-  (=>> func :____macro #t)
-  (setMacro cmd func) nil)
+  (var f (->> (ast.slice 3)
+              (concat ['lambda* (3rd ast)]))
+       name (2nd ast))
+  (if-not (contains? name "/")
+    (set! name (str CZMACROS "/" name)))
+  (do->nil (setMacro name (compute f env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doTRY "" ^Any [ast env]
-  (var a1 (.@1 ast)
-       a2 (.@2 ast))
+  (var a3 (3rd ast))
   (try
-    (compute a1 env)
-    (catch ex
-      (if (and a2 (== "catch*"
-                      (1st a2)))
-        (if (inst? Error ex)
-          (=> ex (.-message ex)))
-        (compute (.@2 a2)
-                 (new LEXEnv
-                      env [(.@1 a2)] [ex]))
-        (throw ex)))))
+    (compute (2nd ast) env)
+    (catch e
+      (if (and a3 (== "catch*"
+                      (1st a3)))
+        (do (if (inst? Error e)
+              (set! e (.-message e)))
+            (compute (3rd a3)
+                     (new LEXEnv
+                          env [(2nd a3)] [e])))
+        (throw e)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doIF "" ^Any [ast env]
-  (var c (compute (.@1 ast) env)
+  (var kond (compute (.@1 ast) env)
        a2 (.@2 ast)
        a3 (.@3 ast))
-  (if (or (nil? c)
-          (false? c))
+  (if (falsy? kond)
     (if-not (undef? a3) a3) a2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
