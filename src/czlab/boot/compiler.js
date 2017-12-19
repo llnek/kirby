@@ -1623,6 +1623,7 @@ const sf_DASH_assoc_BANG = function(ast, env) {
 };
 SPEC_DASH_OPS["assoc!"] = sf_DASH_assoc_BANG;
 SPEC_DASH_OPS["=>>"] = sf_DASH_assoc_BANG;
+SPEC_DASH_OPS["set-in!"] = sf_DASH_assoc_BANG;
 ////////////////////////////////////////////////////////////////////////////////
 //fn: [sf-set] in file: compiler.ky,line: 868
 const sf_DASH_set = function(ast, env) {

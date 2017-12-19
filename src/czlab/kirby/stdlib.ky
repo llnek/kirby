@@ -26,7 +26,7 @@
       (fn [k v]
         (cond
           (fn? v)
-          (=> v "native-function")
+          (set! v "native-function")
           (object? v)
           (if (contains? cache v)
             (undef! v)
@@ -114,28 +114,28 @@
       (raise! "invalid lambda-arg " arg))
     ;;zero based arg so minus 1
     (-- v)
-    (=> this.value $(v)))
+    (set! this.value $(v)))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Primitive [][value nil]
   "Defining a primitive data type"
   (constructor "" [v]
-    (=> this.value v))
+    (set! this.value v))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Keyword [][value ""]
   "Defining a keyword"
   (constructor "" [name]
-    (=> this.value (rest name)))
+    (set! this.value (rest name)))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Symbol [][value ""]
   "Defining a symbol"
   (constructor "" [name]
-    (=> this.value name))
+    (set! this.value name))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -166,9 +166,10 @@
 (defn keyword->symbol
   "Convert a Keyword to Symbol" ^Symbol [k]
   (var s (new Symbol k.value))
-  (=>> s :source k.source
-         :line  k.line
-         :column k.column) s)
+  (assoc! s
+          :source k.source
+          :line  k.line
+          :column k.column) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg?
@@ -181,7 +182,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom [][value nil]
   "Defining a clojure-like Atom"
-  (constructor "" [val] (=> this.value val)))
+  (constructor "" [val] (set! this.value val)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom?
@@ -193,7 +194,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset!
-  "Set a new value to the Atom" [a v] (=> a.value v) nil)
+  "Set a new value to the Atom" [a v] (set! a.value v) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
@@ -205,7 +206,7 @@
   ^Any [a f & xs]
   (->> (concat [a.value] xs)
        (apply f this)
-       (=> a.value )) (get a :value))
+       (set! a.value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn typeid "Returns the type-id
@@ -276,7 +277,7 @@
             (false! ok?)
             (for [i 0 k nil ks (keys a)
                   :while (< i (alen ks)) :recur (+1 i)]
-              (=> k (.@i ks))
+              (set! k (.@i ks))
               (when-not (eq? (get a k)
                              (get b k))
                 (false! ok?)
@@ -304,11 +305,11 @@
   ^Array [type coll]
   (case type
     :vector
-    (=>> coll :____vec #t)
+    (assoc! coll :____vec #t)
     :list
-    (=>> coll :____list #t)
+    (assoc! coll :____list #t)
     :map
-    (=>> coll :____map #t)) coll)
+    (assoc! coll :____map #t)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
@@ -331,7 +332,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" ^Array [&xs] (=>> xs :____list #t) xs)
+  "Create a List" ^Array [&xs] (assoc! xs :____list #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
@@ -339,7 +340,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" ^Array [&xs] (=>> xs :____vec #t) xs)
+  "Create a Vector" ^Array [&xs] (assoc! xs :____vec #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
@@ -349,7 +350,7 @@
 (defn hashmap "Create a new Hashmap"
   ^Array [&xs]
   (if (odd? (alen xs))
-    (raise! "Invalid arity for hashmap")) (=>> xs :____map #t) xs)
+    (raise! "Invalid arity for hashmap")) (assoc! xs :____map #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
@@ -440,13 +441,13 @@
        ret {})
   (for [i 0
         :while (< i cz) :recur (+1 i)]
-    (=>> ret
-         $(.@i keys) (.@i vals)))
+    (assoc! ret
+            $(.@i keys) (.@i vals)))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn extendAttr "" ^Object [obj attr & [flags]]
-  (=> flags (opt?? flags
+  (set! flags (opt?? flags
                    {:enumerable #f :writable #t}))
   (Object.defineProperty obj attr flags) obj)
 
@@ -473,7 +474,8 @@
   (when mmap
     (for [i 0 sz (count xs)
           :while (< i sz) :recur (+2 i)]
-      (=>> mmap
+      ;the following will be macro'ed out
+      (assoc! mmap
            (.@i xs)
            (.@+i xs)))) mmap)
 
@@ -540,7 +542,7 @@
   (var out "\"")
   (for [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
-    (=> ch (ch@ s i))
+    (set! ch (ch@ s i))
     (cond
       (= ch "\"") (+= out "\\\"")
       (= ch "\n") (+= out "\\n")
@@ -557,13 +559,13 @@
   (if (and (starts? s "\"")
            (ends? s "\""))
     (do-with [out ""]
-      (=> s (s.slice 1 -1))
+      (set! s (s.slice 1 -1))
       (for [i 0 nx "" ch "" sz (count s)
             :while (< i sz) :recur (+1 i)]
-        (=> ch (ch@ s i))
+        (set! ch (ch@ s i))
         (if (= ch "\\")
           (do (++ i)
-              (=> nx (ch@ s i))
+              (set! nx (ch@ s i))
               (cond
                 (= nx "\"") (+= out "\"")
                 (= nx "\\") (+= out "\\")
@@ -581,13 +583,13 @@
   (var out "")
   (for [i 0 c nil sz (n# s)
         :while (< i sz) :recur (+1 i)]
-    (=> c (.@i s))
+    (set! c (.@i s))
     (cond
-      (= c "&") (=> c "&amp;")
-      (= c ">") (=> c "&gt;")
-      (= c "<") (=> c "&lt;")
-      (= c "\"") (=> c "&quot;")
-      (= c "'") (=> c "&apos;"))
+      (= c "&") (set! c "&amp;")
+      (= c ">") (set! c "&gt;")
+      (= c "<") (set! c "&lt;")
+      (= c "\"") (set! c "&quot;")
+      (= c "'") (set! c "&apos;"))
     (+= out c))
   out)
 
@@ -601,7 +603,7 @@
 (defn select-keys "" ^Map [coll keys]
   (reduce
     (fn [acc n]
-      (=>> acc
+      (assoc! acc
            (str n)
            (get coll (str n))) acc) {} (seq keys)))
 
@@ -613,7 +615,7 @@
                       (< n (alen coll))) (nth coll n) (err n))
              :else (get coll n))
        v (apply func this (cons cur args)))
-  (=>> coll n v))
+  (assoc! coll n v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn update-in! "" ^Any [coll keys func & xs]
@@ -622,7 +624,7 @@
        end (last-index keys))
   (var~ m n)
   (for [i 0 :while (<= i end) :recur (+1 i)]
-    (=> n (.@i keys))
+    (set! n (.@i keys))
     (cond
       (= i end)
       (doUpdateIn! root n func xs err)
@@ -630,12 +632,12 @@
       (if-not (and (array? root)
                    (< n (alen root)))
         (err n)
-        (=> root (nth root n)))
+        (set! root (nth root n)))
       :else
-      (do (=> m (get root n))
-          (when (undef? m) (=> m {}) (=>> root n m))
+      (do (set! m (get root n))
+          (when (undef? m) (set! m {}) (assoc! root n m))
           (if-not (object? m) (err n))
-          (=> root m))))
+          (set! root m))))
   coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
