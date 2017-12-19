@@ -1234,12 +1234,8 @@
           (error! :syntax-error ast)
           :else
           (conj! pms e)))
-  (var a2 (concat ['lambda* pms] body)
-       func (eng/compute a2 env)
-       a1 $(2nd ast))
-  (=>> func :____macro #t :____doc doc)
-  (eng/setMacro a1 func)
-  "")
+  (eng/compute ['macro*
+                (2nd ast) pms (1st body)] env) "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary "" ^{:opcode ["not" "~" "!"]

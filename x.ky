@@ -1,5 +1,6 @@
 (ns czlab.kirby.poo)
 
+(and (= 1 2)(* 3 4))
 (var dd (fn [aa] [(poo 2)]))
 (var~ b)
 (var z

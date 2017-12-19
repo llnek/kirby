@@ -27,7 +27,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_assert ```
-  (macro* assert* [c msg] (if* c true (throw* msg))) ```)
+  (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_cond ```
@@ -41,7 +41,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_andp ```
   (macro* _andp_* [&xs]
-    (if* (= 1 (count* xs)) `~(first* xs) `(and ~@xs))) ```)
+    (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
@@ -231,6 +231,9 @@
                     (println
                       (std/prn (expand??
                                  code (or env g_env)))))
+  "assert*" (fn [k msg]
+                (if-not k (raise! msg)))
+
   "macros*" (fn [&[fout]]
                (var s (std/prn CACHE))
                (if fout
@@ -446,13 +449,14 @@
   [(3rd ast) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;(macro* name args body)
 (defn- doMACRO "" [ast env]
-  (var f (->> (ast.slice 3)
-              (concat ['lambda* (3rd ast)]))
-       name (2nd ast))
+  (var name $(2nd ast))
   (if-not (contains? name "/")
     (set! name (str CZMACROS "/" name)))
-  (do->nil (setMacro name (compute f env))))
+  (do->nil (setMacro name
+                     (fn->raw (3rd ast)
+                              (.@3 ast) env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doTRY "" ^Any [ast env]
@@ -480,17 +484,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- form* "" ^Any [ast env]
   (var el (eval* ast env))
-  (var~ f)
   (cond
     (or (vector? ast)
-        (map? ast)
-        (list? ast))
-    el
+        (map? ast) (list? ast)) (atom el)
     (array? el)
-    (do (set! f (1st el))
-        (if (fn? f)
-          (apply f this (rest el)) el))
-    :else el))
+    (let [f (1st el)
+          c (if (fn? f) f.____code)]
+      (cond
+        (array? c)
+        [(2nd c)
+         (new LEXEnv (3rd c) (1st c) (rest el))]
+        (fn? f)
+        (atom (apply f this (rest el)))
+        :else (atom el)))
+    :else (atom el)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fn->raw "Wrap the function body and args inside
@@ -513,13 +520,17 @@
           (eval* (a.slice 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
-  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
+  "lambda*"
+  #(let [f (fn->raw (.@1 %1) (.@2 %1) %2)]
+     (set-in! f :____ast [(.@1 %1) (.@2 %1) %2])
+     (atom f)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]
   (var g1 #(if (pairs? %) (1st %) "")
        env (or cenv g_env)
        ret (loop [ast (expand?? expr env)]
+             ;(if-not (arr? ast) (set! ast (eval* ast env)))
              (var cmd $(g1 ast)
                   fc (get *spec-forms* cmd)
                   res (cond
@@ -530,7 +541,7 @@
                         (fn? fc)
                         (fc ast env)
                         :else
-                        (atom (form* ast env))))
+                        (form* ast env)))
              (if (atom? res)
                res
                (do (set! env (2nd res))
@@ -572,8 +583,7 @@
 (defn init "Set up the runtime environment" ^Boolean [ver]
   (when-not inited?
     (set! *version* ver g_env (newEnv))
-    (reval macro_cond
-           macro_assert macro_andp)
+    (reval macro_cond macro_andp)
     (loadMacros)
     (true! inited?)) inited?)
 

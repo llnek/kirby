@@ -213,8 +213,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro cond "" [&xs]
-  (let* [len (count* xs)]
-    (do* (assert* (is-even? len)
+  (let* [len (count* xs)
+         ok? (is-even? len)]
+    (do* (assert* ok?
                   "cond expects even args")
          (if* (> len 0)
            (let* [c (nth* xs 0)
