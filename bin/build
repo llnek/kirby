@@ -1,0 +1,12 @@
+#!/bin/sh
+N="node bin/boot.js"
+O=dist
+
+${N} -f src/czlab/kirby/stdlib.ky $O/stdlib.js
+${N} -f src/czlab/kirby/parser.ky $O/parser.js
+${N} -f src/czlab/kirby/engine.ky $O/engine.js
+${N} -f src/czlab/kirby/compiler.ky $O/compiler.js
+${N} -f src/czlab/kirby/main.ky $O/main.js
+cp src/czlab/kirby/macros.ky $O/
+
+

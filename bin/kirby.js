@@ -1,4 +1,4 @@
 #!/usr/bin/env node
-
-require("../dist/sync/main");
+console.log("running ../dist/main\n\n");
+require("../dist/main");
 

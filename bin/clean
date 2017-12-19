@@ -1,7 +1,0 @@
-#!/bin/sh
-cd dist/boot && rm *.js
-cd ../out && rm *.js
-cd ../dev && rm *.js
-cd ../rel && rm *.js
-cd ../..
-

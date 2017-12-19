@@ -310,16 +310,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readList "Process an expression"
-  ^Array [cur tokens] (readBlock tokens "(" ")"))
+  ^Array [tokens] (readBlock tokens "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readVector "Process a Vector"
-  ^Array [cur tokens]
+  ^Array [tokens]
   (into! :vector (readBlock tokens "[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readMap "Process a Hashmap"
-  ^Array [cur tokens]
+  ^Array [tokens]
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -333,51 +333,38 @@
   (copyTokenData t ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *spec-tokens* {
+  "'" #(['quote (read* %)])
+  "`" #(['syntax-quote (read* %)])
+  "~" #(['unquote (read* %)])
+  "~@" #(['splice-unquote (read* %)])
+  "^" #(let [tmp (read* %)]
+         ['with-meta (read* %) tmp])
+  "@" #(['deref (read* %)])
+  "$" #(do-with [y (read* %)]
+         (var x 'str)
+         (if (> (alen y) 1)
+           (set! y [x y]) (y.unshift x)))
+  "#" #(['lambda (read* %)])
+  "[" [#(readVector %)]
+  "(" [#(readList %)]
+  "{" [#(readMap %)]
+})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- read* "Inner parser routine"
   ^Any [tokens]
-  (var tmp nil token (peekToken tokens))
-  (if (nichts? token)
-    undefined
-    (case token.value
-      "'" (skipParse
-            tokens
-            #(['quote (read* tokens)]))
-      "`" (skipParse
-            tokens
-            #(['syntax-quote (read* tokens)]))
-      "~" (skipParse
-            tokens
-            #(['unquote (read* tokens)]))
-      "~@" (skipParse
-             tokens
-             #(['splice-unquote (read* tokens)]))
-      "^" (skipParse
-            tokens
-            (fn []
-              (=> tmp (read* tokens))
-              ['with-meta (read* tokens) tmp]))
-      "@" (skipParse
-            tokens
-            #(['deref (read* tokens)]))
-      "$" (skipParse
-            tokens
-            #(do-with [y (read* tokens)]
-               (var x 'str)
-               (if (> (alen y) 1)
-                 (=> y [x y])
-                 (y.unshift x))))
-      "#" (skipParse
-            tokens
-            #(['lambda (read* tokens)]))
-      "[" (readVector token tokens)
-      "(" (readList token tokens)
-      "{" (readMap token tokens)
-      (")" "]" "}")
-      (throwE token "unexpected " token.value)
-      (";" ",")
-      (do->undef (popToken tokens))
-      ;else
-      (readAtom tokens))))
+  (var token (peekToken tokens)
+       tval (if token token.value "")
+       func (get *spec-tokens* tval))
+  (cond
+    (array? func) (apply (1st func) this [tokens])
+    (fn? func) (skipParse tokens func)
+    (nichts? token) undefined
+    (or (== tval ";")(== tval ","))
+    (do->undef (popToken tokens))
+    :else
+    (readAtom tokens)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- addAst
