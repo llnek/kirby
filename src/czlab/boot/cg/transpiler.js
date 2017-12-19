@@ -836,7 +836,7 @@ function sf_set_in(ast,env) {
   }
   return ret;
 }
-
+SPEC_OPS["assoc!"]=sf_set_in;
 SPEC_OPS["set-in!"]=sf_set_in;
 SPEC_OPS["=>>"]=sf_set_in;
 //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

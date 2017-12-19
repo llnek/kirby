@@ -58,7 +58,7 @@
            (if err
              (throw err)
              (module._compile code fname))))
-  (set-in! require.extensions ".ky" f)
+  (assoc! require.extensions ".ky" f)
   (rt.init tx.version))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

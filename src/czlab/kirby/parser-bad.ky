@@ -1,0 +1,448 @@
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.kirby.parser
+  (:require ["./stdlib"
+             :as std
+             :refer [lambda-arg object? nichts? count
+                     into! vector conj! prn wrap-str
+                     list? vector? map? escXml
+                     symbol? keyword? lambda-arg?
+                     slice opt?? symbol primitive?
+                     keyword contains? list not-empty]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype Token [][]
+  (constructor [source line column value]
+    (=>> this
+         :source source
+         :value value
+         :line line
+         :column column))
+  (toString [] (.-value this)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mkToken "Create a token"
+  ^Token [source line col chunk] (new Token source line col chunk))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const REGEX {
+  id #/^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
+  id2 #/^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
+  float #/^[-+]?[0-9]+\.[0-9]+$/
+  int #/^[-+]?[0-9]+$/
+  hex #/^[-+]?0x/
+  dquoteHat #/^"/
+  dquoteEnd #/"$/
+  func #/^function\b/
+  slash #/\//g
+  query #/\?/g
+  perc #/%/g
+  bang #/!/g
+  plus #/\+/g
+  dash #/-/g
+  quote #/'/g
+  hash #/#/g
+  at #/@/g
+  less #/</g
+  greater #/>/g
+  star #/\*/g
+  wspace #/\s/})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- REPLACERS
+  [[REGEX.query "_QUERY_"] [REGEX.bang "_BANG_"] [REGEX.dash "_DASH_"]
+   [REGEX.quote "_QUOTE_"] [REGEX.hash "_HASH_"] [REGEX.plus "_PLUS_"]
+   [REGEX.perc "_PERC_"] [REGEX.at "_AT_"] [REGEX.less "_LT_"]
+   [REGEX.greater "_GT_"] [REGEX.star "_STAR_"]])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn testid? "Returns true
+              if a valid js identifier"
+  ^Boolean [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn jsid "Escape to
+           compliant js identifier"
+  ^String [input]
+  (var pfx "" name $(input))
+  (when (and name
+             (starts? name "-"))
+    (=> pfx "-" name (rest name)))
+  (if (testid? name)
+    (reduce
+      (fn [acc x]
+        (=> acc
+            (acc.replace (1st x) (2nd x)))
+        (if (ends? acc (2nd x))
+          (acc.slice 0 -1)
+          acc))
+      (.replace (str pfx name)
+                REGEX.slash ".") REPLACERS)
+    (if (= pfx "") name (str pfx name))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- lexer "Lexical analyzer" ^Array [source fname]
+  (var fform? #f esc? #f str? #f
+       regex? #f comment? #f
+       len (n# source)
+       token "" line 1
+       ch nil nx nil
+       col 0 pos 0
+       tline line
+       tree []
+       tcol col
+       toke
+       (fn [ln col s s?]
+         (when (opt?? s? (not-empty s))
+           (when (and (starts? s "&")
+                      (not= s "&&")
+                      (> (alen s) 1))
+             (conj! tree (mkToken fname ln col "&"))
+             (=> s (rest s)))
+           (conj! tree (mkToken fname ln col s))) ""))
+  (while (< pos len)
+    (=> ch (ch@ source pos))
+    (++ col)
+    (++ pos)
+    (=> nx (ch@ source pos))
+    (when (= ch "\n")
+      (=> col 0)
+      (++ line)
+      (if comment? (false! comment?)))
+    (cond
+      comment? nil
+      esc? (do (false! esc?)
+               (+= token ch))
+      regex?
+      (do (if (= ch "\\")
+            (true! esc?))
+          (+= token ch)
+          (when (= ch "/")
+            (false! regex?)
+            (when (contains? "gimuy" nx)
+              (+= token nx)
+              (++ pos))
+            (=> token (toke tline tcol token))))
+      fform?
+      (if (and (= ch "`")
+               (= nx "`")
+               (= (ch@ source (+1 pos)) "`"))
+        (do (false! fform?)
+            (+= pos 2)
+            (+= token "\"")
+            (=> token (toke tline tcol token true)))
+        (cond (= ch "\"") (+= token "\\\"")
+              (= ch "\n") (+= token "\\n")
+              (= ch "\\")
+              (if (or (= nx "n")(= nx "r")(= nx "u")
+                      (= nx "t")(= nx "f")(= nx "v"))
+                (+= token ch)
+                (+= token "\\\\"))
+              :else (+= token ch)))
+      (and (= ch "`")
+           (= nx "`")
+           (= (ch@ source (+1 pos)) "`")
+           (empty?  token))
+      (do (=> tline line tcol col)
+          (+= pos 2)
+          (true! fform?)
+          (+= token "\""))
+      (= ch "\"")
+      (if-not str?
+        (do (=> tline line tcol col)
+            (true! str?)
+            (+= token ch))
+        (do (false! str?)
+            (+= token ch)
+            (=> token
+                (toke tline tcol token #t))))
+      ;;must be after the check for string
+      str?
+      (do (if (= ch "\n") (=> ch "\\n"))
+          (if (= ch "\\") (=> esc? #t))
+          (+= token ch))
+      (or (= ch "'") (= ch "`")
+          (= ch "$") (= ch "@") (= ch "^"))
+      (if (and (empty? token)
+               (not (REGEX.wspace.test nx)))
+        (do (=> tline line tcol col)
+            (toke tline tcol ch))
+        (+= token ch))
+      (and (= ch "&")
+           (= nx "&"))
+      (do (if (empty? token) (=> tline line tcol col))
+          (+= token (str ch nx))
+          (++ pos))
+      (= ch "~")
+      (if (and (empty? token)
+               (not (REGEX.wspace.test nx)))
+        (do (=> tline line tcol col)
+            (if (= nx "@")
+              (do (++ pos)
+                  (toke tline tcol "~@"))
+              (toke tline tcol ch)))
+        (+= token ch))
+      (and (= ch "#")
+           (= nx "/")
+           (empty? token))
+      (do (true! regex?)
+          (=> tline line tcol col)
+          (++ pos)
+          (+= token nx))
+      (or (= ch "[")(= ch "]")
+          (= ch "{")(= ch "}")
+          (= ch "(")(= ch ")"))
+      (do (=> token (toke tline tcol token) tline line tcol col)
+          (toke tline tcol ch))
+      (= ch ";")
+      (=> token (toke tline tcol token) tline line tcol col comment? #t)
+      (or (= ch ",")
+          (REGEX.wspace.test ch))
+      (->> (-> (if (= ch "\n")
+                 (-1 tline) tline)
+               (toke tcol token))
+           (=> token))
+      :else
+      (do (if (empty? token)
+            (=> tline line tcol col))
+          (+= token ch))))
+  ;;check for errors
+  (var tmp {:source fname :line tline :column col})
+  (if fform? (throwE tmp "unterminated free-form"))
+  (if esc? (throwE tmp "incomplete escape"))
+  (if str? (throwE tmp "unterminated string"))
+  (if regex? (throwE tmp "unterminated regex definition"))
+  tree)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- throwE "Raise an error"
+  [token & msgs]
+  (var s (join "" msgs))
+  (if token
+    (raise! s
+            "\nnear line: "
+            token.line "\nin file: " token.source)
+    (raise! s "\nnear EOF")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- popToken "Returns the next token,
+                 updates the token index"
+  ^Token [tokens]
+  (var t (peekToken tokens)) (++ tokens.pos) t)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- peekToken "Returns the next token,
+                 without moving the token index"
+  ^Token [tokens] (nth tokens tokens.pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prevToken "Returns the previous token"
+  ^Token [tokens] (nth tokens (-1 tokens.pos)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- copyTokenData "Attach source level information
+                     to the node"
+  ^Any [token node]
+  (if (or (object? node)(array? node))
+    (=>> node
+         :source token.source
+         :line token.line
+         :column token.column)) node)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readAtom "Process an atom"
+  ^Any [tokens]
+  (var token (popToken tokens)
+       ret nil tn token.value)
+  (cond
+    (empty? tn)
+    (undef! ret)
+    (REGEX.float.test tn)
+    (=> ret (float tn))
+    (or (REGEX.hex.test tn)
+        (REGEX.int.test tn))
+    (=> ret (int tn))
+    (and (starts? tn "\"")
+         (ends? tn "\""))
+    (=> ret (std/unwrap-str tn))
+    (starts? tn ":")
+    (=> ret (keyword tn))
+    (starts? tn "%")
+    (=> ret (lambda-arg tn))
+    (or (= "nil" tn)
+        (= "null" tn))
+    (nil! ret)
+    (or (= "#t" tn)
+        (= "true" tn))
+    (true! ret)
+    (or (= "#f" tn)
+        (= "false" tn))
+    (false! ret)
+    :else (=> ret (symbol tn)))
+  (copyTokenData token ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readBlock "Process a LISP form"
+  ^Array [tokens head tail]
+  (var token (popToken tokens)
+       ast [] ok? #t start token)
+  (if (not= token.value head)
+    (throwE token "expected '" head "'"))
+  (for [cur (peekToken tokens)]
+    (cond
+      (nichts? cur)
+      (throwE start "expected '" tail "', got EOF")
+      (= tail cur.value)
+      (break-out-of-loop!)
+      :else
+      (do (addAst ast (read* tokens))
+          (=> cur (peekToken tokens)))))
+  ;;skip the tail token
+  (popToken tokens)
+  (copyTokenData start ast))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readList "Process an expression"
+  ^Array [tokens] (readBlock tokens "(" ")"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readVector "Process a Vector"
+  ^Array [tokens]
+  (into! :vector (readBlock tokens "[" "]")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readMap "Process a Hashmap"
+  ^Array [tokens]
+  (into! :map (readBlock tokens "{" "}")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- skipParse "Advance the token index,
+                  then continue to parse"
+  ^Any [tokens func]
+  (var t (popToken tokens)
+       ret (func tokens)
+       a1 (1st ret))
+  (copyTokenData t a1)
+  (copyTokenData t ret))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *spec-tokens* {
+  "'" #(['quote (read* %)])
+  "`" #(['syntax-quote (read* %)])
+  "~" #(['unquote (read* %)])
+  "~@" #(['splice-unquote (read* %)])
+  "^" #(let [tmp (read* %)]
+         ['with-meta (read* %) tmp])
+  "@" #(['deref (read* %)])
+  "$" #(do-with [y (read* %)]
+         (var x 'str)
+         (if (> (alen y) 1)
+           (set! y [x y]) (y.unshift x)))
+  "#" #(['lambda (read* %)])
+  "[" [#(readVector %)]
+  "(" [#(readList %)]
+  "{" [#(readMap %)]
+})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- read* "Inner parser routine"
+  ^Any [tokens]
+  (var token (peekToken tokens)
+       tval (if token token.value "")
+       func (get *spec-tokens* tval))
+  (cond
+    (array? func) (apply (1st func) this [tokens])
+    (fn? func) (skipParse tokens func)
+    (nichts? token) undefined
+    (or (== tval ";")(== tval ","))
+    (do->undef (popToken tokens))
+    :else
+    (readAtom tokens)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- addAst
+  "" ^Array [ast f] (if-not (undef? f) (conj! ast f)) ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn parse "Main parser routine"
+  ^Array [source & [fname]]
+  (var tokens (lexer source
+                     (opt?? fname "*adhoc*"))
+       f nil ast [] tlen (n# tokens))
+  (=> tokens.pos 0)
+  (if false
+    (each #(println "token=" (.-name %)) tokens))
+  (while (< tokens.pos tlen)
+    (addAst ast (read* tokens))) ast)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dumpInfo "" ^String [tag ast]
+  (if (and ast
+           (number? ast.line))
+    (str "<"
+         tag
+         " line=" "\"" ast.line "\""
+         " column=" "\"" ast.column "\"" ">")
+    (str "<" tag ">")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dump* "Debug and dump the AST"
+  ^String [tree]
+  (var s "")
+  (if (primitive? tree) (=> tree (.-value tree)))
+  (cond
+    (vector? tree)
+    (str (dumpInfo "vector" tree)
+         (join "" (map #(dump* %) tree))
+         "</vector>")
+    (map? tree)
+    (str (dumpInfo "map" tree)
+         (join "" (map #(dump* %) tree))
+         "</map>")
+    (list? tree)
+    (str (dumpInfo "list" tree)
+         (join "" (map #(dump* %) tree))
+         "</list>")
+    (array? tree)
+    (str (dumpInfo "sexpr" tree)
+         (join "" (map #(dump* %) tree))
+         "</sexpr>")
+    (lambda-arg? tree)
+    (str (dumpInfo "lambda-arg" tree)
+         "%" (+1 (int (.-value tree))) "</lambda-arg>")
+    (keyword? tree)
+    (str (dumpInfo "keyword" tree)
+         (escXml (.-value tree)) "</keyword>")
+    (symbol? tree)
+    (str (dumpInfo "symbol" tree)
+         (escXml (.-value tree)) "</symbol>")
+    (string? tree)
+    (str "<string>" (escXml (wrap-str tree)) "</string>")
+    (number? tree)
+    (str "<number>" tree "</number>")
+    (nil? tree)
+    (str "<reserved>" "null" "</reserved>")
+    (true? tree)
+    (str "<boolean>" true "</boolean>")
+    (false? tree)
+    (str "<boolean>" false  "</boolean>")
+    (undef? tree)
+    (str "<reserved>" "undefined" "</reserved>")
+    :else (throw "Bad AST")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dumpTree "Debug and dump the AST"
+  ^String [tree fname]
+  (str "<AbstractSyntaxTree file=\"" (escXml fname) "\">"
+       (dump* tree) "</AbstractSyntaxTree>"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+

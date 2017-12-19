@@ -62,22 +62,22 @@
                a new env with these symbols,
                and optionally a parent env"
     [parent vars vals]
-    (if parent (set-in! this :parent parent))
+    (if parent (assoc! this :parent parent))
     (for [i 0 e nil ev nil sz (n# vars)
           :while (< i sz) :recur (+1 i)]
       (set! e (.@i vars)
             ev (.-value e))
       (cond
         (= ev "&")
-        (do (set-in! this.data
+        (do (assoc! this.data
                      $(.@+i vars) (slice vals i))
             (break-out-of-loop!))
         (starts? ev "&")
-        (do (set-in! this.data
+        (do (assoc! this.data
                      (rest ev) (slice vals i))
             (break-out-of-loop!))
         :else
-        (set-in! this.data ev (.@i vals)))))
+        (assoc! this.data ev (.@i vals)))))
   (find "Find the env
         containing this symbol"
     ^LEXEnv [k]
@@ -89,7 +89,7 @@
        value to this env"
     ^Any [k v]
     (expect! k)
-    (set-in! this.data k.value v) v)
+    (assoc! this.data k.value v) v)
   (get "Get value of
        this symbol"
     ^Any [k]
@@ -102,7 +102,7 @@
               (if (case what
                     :fn (fn? v)
                     :var (not (fn? v)) true)
-                (set-in! acc $(k) v)) acc) {} (seq this.data)))
+                (assoc! acc $(k) v)) acc) {} (seq this.data)))
   (prn "Print set of vars"
     ^String []
     (std/prn this.data))
@@ -127,7 +127,7 @@
     (n# this.nspaces))
   (resetNSPCache "Clear all namespaces"
     []
-    (set-in! this :nspaces []) nil))
+    (assoc! this :nspaces []) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))
@@ -163,7 +163,7 @@
     :object
     (reduce
       (fn [acc [k v]]
-        (set-in! acc k v) acc) {} (seq obj))
+        (assoc! acc k v) acc) {} (seq obj))
     :function
     (obj.clone)
     ;;else
@@ -206,7 +206,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" ^Object [obj m]
   (var ret (clone obj))
-  (set-in! ret :____meta m) ret)
+  (assoc! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" ^Map [obj]
@@ -339,7 +339,7 @@
         (if-not c (raise! "missing namespace"))
         (set! cmd (str c "/" cmd)))
       ;;(println "adding macro ==== " cmd)
-      (set-in! CACHE cmd func))))
+      (assoc! CACHE cmd func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getMacro "Get macro" ^Function [cmd]
@@ -417,7 +417,7 @@
     (do-with [m {}]
       (for [i 0 sz (n# ast)
             :while (< i sz) :recur (+2 i)]
-        (set-in! m
+        (assoc! m
                  (compute (.@i ast) env)
                  (compute (.@+i ast) env))))
     :else ast))
@@ -522,7 +522,7 @@
   "if*" #([(doIF %1 %2) %2])
   "lambda*"
   #(let [f (fn->raw (.@1 %1) (.@2 %1) %2)]
-     (set-in! f :____ast [(.@1 %1) (.@2 %1) %2])
+     (assoc! f :____ast [(.@1 %1) (.@2 %1) %2])
      (atom f)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

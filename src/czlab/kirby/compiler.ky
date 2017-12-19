@@ -598,7 +598,7 @@
             :while (< x sz) :recur (+2 x)]
         (=>> czargs x $(.@x czargs)))
       (m.splice pos 0
-        (concat ['set-in! 'this] czargs)))
+        (concat ['assoc! 'this] czargs)))
     (m.unshift mtd)
     (ret.add [(sf-func m env #f) "\n"]))
   (ret.add "}\n")
@@ -848,8 +848,8 @@
                  " " cmd " " (tx* (.@2 ast) env)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-set-in
-  "" ^{:opcode ["set-in!" "=>>"] :tag SourceNode} [ast env]
+(defn- sf-assoc!
+  "" ^{:opcode ["assoc!" "=>>"] :tag SourceNode} [ast env]
   (assertArity (even? (n# ast)) ast)
   (var ret (node' ast)
        more #f
