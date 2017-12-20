@@ -522,7 +522,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;special-forms
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sf-juxt "" ^{:opcode ["juxt"] :tag SourceNode} [ast env]
+(defn sf-juxt
+
+  "Takes a set of functions and returns a fn that is the juxtaposition
+of those fns.  The returned fn takes a variable number of args, and
+returns a vector containing the result of applying each fn to the
+args (left-to-right).
+((juxt a b c) x) => [(a x) (b x) (c x)]"
+
+  ^{:opcode ["juxt"] :tag SourceNode} [ast env]
+
+  (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast))
   (ret.add ["function () {\n"
             "let ret=[]," LARGS "=" ARRSLICE "(" JSARGS ");\n"])
@@ -530,20 +540,30 @@
         :while (< i sz) :recur (+1 i)]
     (set! f $(gensym "F__"))
     (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"
-              "ret.push(" f ".apply(this,____args));\n"]))
-  (ret.add "return ret;\n}") ret)
+              "ret.push(" f ".apply(this," LARGS "));\n"]))
+  (ret.add "return ret;\n}"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-deref ""
+(defn- sf-deref
+
+  "Returns an atom's current state."
+
   ^{:opcode ["deref"] :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast))
-  (ret.add [(tx* (2nd ast) env) ".value"])
-  ret)
+  (ret.add [(tx* (2nd ast) env) ".value"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-compose ""
+(defn- sf-compose
+
+  "Takes a set of functions and returns a fn that is the composition
+of those fns.  The returned fn takes a variable number of args,
+applies the rightmost of fns to the args, the next
+fn (right-to-left) to the result, etc."
+
   ^{:opcode ["comp"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast)
        end (last-index ast))
@@ -557,11 +577,11 @@
       (ret.add ["let " r "=" f ".apply(this," LARGS ");\n"])
       (ret.add ["let " r "=" f "(" prev ");\n"]))
     (set! prev r))
-  (ret.add ["return " prev ";\n"])
-  (ret.add "}"))
+  (ret.add ["return " prev ";\n" "}"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-quote ""
+(defn- sf-quote
+  "Returns the unevaluated form"
   ^{:opcode ["quote"] :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast))
@@ -586,13 +606,14 @@
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
   (doseq [m mtds]
-    ;;doc string?
+    ;;maybe doc string?
     (set! mtd 'method
-        pos (if (str? (2nd m)) 3 2))
+          m1 (1st m)
+          pos (if (str? (2nd m)) 3 2))
     ;;pass line info
-    (xfi (1st m) mtd)
-    (xfi (1st m) m)
-    (when (and (== $(1st m)
+    (each #(xfi m1 %) [mtd m])
+    ;;maybe set member defaults
+    (when (and (== $(m1)
                    "constructor")
                (not-empty czargs))
       (for [x 0 sz (n# czargs)
@@ -600,27 +621,34 @@
         (set-in! czargs x $(.@x czargs)))
       (m.splice pos 0
         (concat ['assoc! 'this] czargs)))
+    ;fake a keyword 'method' in front
     (m.unshift mtd)
+    ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
-  (ret.add "}\n")
+  ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
+  ;maybe export this type?
   (if (and (not private?)
-           (= 1 (.countNSPCache
-                  (eng/globalEnv))))
-      (assoc! *externs* czname czname)) ret)
+           (one? (.countNSPCache (eng/globalEnv))))
+    (assoc! *externs* czname czname))
+  (ret.add "}\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-compOp "" ^{:opcode ["not=" "!="
-                               "==" "="
-                               ">" ">=" "<" "<="]
-                      :tag SourceNode} [ast env]
+(defn- sf-compOp "Handle comparison operators."
+
+  ^{:opcode ["not=" "!="
+             "==" "="
+             ">" ">=" "<" "<="]
+    :tag SourceNode} [ast env]
+
   (assertArity (and (>= (n# ast) 3)
                     (odd? (n# ast))) ast)
+
   (var ret (node' ast)
-       cmd $(1st ast))
+       a0 (1st ast) cmd $(a0))
   (cond (== cmd "not=") (set-in! ast 0 '!==)
         (== cmd "=") (set-in! ast 0 '===))
-  (for [i 1 op (tx* (1st ast) env)
+  (for [i 1 op (tx* a0 env)
         :while (< i (last-index ast)) :recur (+1 i)]
     (if (not= i 1) (ret.add " && "))
     (ret.add [(tx* (.@i ast) env)
@@ -629,28 +657,32 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-arithOp
-  ""
+  "Handles math operators"
   ^{:opcode ["bitwise-lshift" "bitwise-rshift" "bitwise-zrshift"
              "+" "-" "*" "/" "div" "mod"
              "or" "and" "exp" "rem"
              "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]
     :tag SourceNode}
   [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var e1 (tx* (1st ast) env)
-       cmd $(e1) ret (node' ast))
-  (cond (== cmd "bitwise-zrshift") (set! cmd ">>>")
-        (== cmd "bitwise-rshift") (set! cmd ">>")
-        (== cmd "bitwise-lshift") (set! cmd "<<")
-        (== cmd "bitwise-and") (set! cmd "&")
-        (== cmd "bitwise-or") (set! cmd "|")
-        (== cmd "bitwise-not") (set! cmd "~")
-        (== cmd "bitwise-xor") (set! cmd "^")
-        (== cmd "rem") (set! cmd "%")
-        (== cmd "div") (set! cmd "/")
-        (== cmd "and") (set! cmd "&&")
-        (== cmd "or") (set! cmd "||")
-        (== cmd "exp") (set! cmd "**"))
+       ret (node' ast)
+       cmd (case $(e1)
+             "bitwise-zrshift" ">>>"
+             "bitwise-rshift" ">>"
+             "bitwise-lshift" "<<"
+             "bitwise-and" "&"
+             "bitwise-or" "|"
+             "bitwise-not" "~"
+             "bitwise-xor" "^"
+             "rem" "%"
+             "div" "/"
+             "and" "&&"
+             "or" "||"
+             "exp" "**"
+             $(e1)))
+  ;handle negative number e.g. (- -2)= -1*-2
   (if (and (== "-" cmd)
            (= 2 (n# ast))) (ret.add "-1 * "))
   (for [i 1 sz (n# ast)
@@ -662,7 +694,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-do
-  "" ^{:opcode ["do"] :tag SourceNode} [ast env]
+
+  "Evaluates the expressions in order and returns the value of the last. If no
+expressions are supplied, returns nil."
+
+  ^{:opcode ["do"] :tag SourceNode} [ast env]
+
   (assertArity true ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
@@ -675,7 +712,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-case
-  "" ^{:opcode ["case"] :tag SourceNode} [ast env]
+
+  "Takes an expression, and a set of clauses.
+ Each clause can take the form of either:
+ test-constant result-expr
+ (test-constant1 ... test-constantN)  result-expr
+ The test-constants are not evaluated. They must be compile-time
+literals, and need not be quoted.  If the expression is equal to a
+test-constant, the corresponding result-expr is returned. A single
+default expression can follow the clauses, and its value will be
+returned if no clause matches."
+
+  ^{:opcode ["case"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 4) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
@@ -683,23 +732,26 @@
        brk ";\nbreak;\n"
        gs $(gensym "C__"))
   (var~ e t c dft)
+  ;look for any default clause
   (if (odd? (n# ast))
     (set! dft (1st (pop! ast))))
   (for [i 2 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (set! e (.@i ast)
-        c (.@+i ast))
+          c (.@+i ast)
+          c (tx* c env))
     (if (pairs? e)
       (for [j 0 sz (n# e)
             :while (< j sz) :recur (+1 j)]
         (ret.add ["case " (tx* (.@j e) env) ":\n"])
         (if (= j (last-index e))
-          (ret.add [gs "=" (tx* c env) brk])))
-      (ret.add ["case " (tx* e env) ":\n"
-                gs "=" (tx* c env) brk])))
+          (ret.add [gs "=" c brk])))
+      (ret.add ["case " (tx* e env) ":\n" gs "=" c brk])))
+  ;maybe add the default clause
   (if dft
     (ret.add ["default:\n"
               gs "=" (tx* dft env) brk]))
+  ;wrap the switch construct around it
   (wrap ret ["switch (" (tx* tst env) ") {\n"] "}")
   (if stmtQ
     (wrap ret ["let " gs ";\n"] "")
@@ -708,9 +760,10 @@
           ["return " gs ";}).call(this)"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-vardefs "" ^{:opcode ["def~-"
-                                "def~" "var~"]
-                       :tag SourceNode} [ast env]
+(defn- sf-vardefs
+  "For JS style var defs with no rvalue, e.g. let x,y;"
+  ^{:opcode ["def~-" "def~" "var~"]
+    :tag SourceNode} [ast env]
   (assertArity (>= (n# ast) 2) ast)
   (var ret (node' ast)
        cmd $(1st ast)
@@ -724,19 +777,20 @@
     (assoc! keys s nil)
     (if (> i 1) (ret.add ","))
     (ret.add s))
-  (wrap ret (str cmd " ") ";\n")
+  ;;exports
   (if (and (not private?)
-           (= 1 (.countNSPCache
-                  (eng/globalEnv))))
-    (each-key (fn [v k] (assoc! *externs* k k)) keys)) ret)
+           (one? (.countNSPCache (eng/globalEnv))))
+    (each-key (fn [v k] (assoc! *externs* k k)) keys))
+  (wrap ret (str cmd " ") ";\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-var "" ^{:opcode ["const-"
-                            "const"
-                            "def-"
-                            "def"
-                            "var"]
-                   :tag SourceNode} [ast env]
+(defn- sf-var
+
+  "Creates a variable with an initial value"
+
+  ^{:opcode ["const-" "const" "def-" "def" "var"]
+    :tag SourceNode} [ast env]
+
   (assertArity (odd? (n# ast)) ast)
   (var ret (node' ast)
        cmd $(1st ast)
@@ -833,18 +887,19 @@
                 "bitwise-zrshift="]
        :tag SourceNode} [ast env]
   (assertArity (= (n# ast) 3) ast)
-  (var cmd $(1st ast)
-       ret (node' ast))
-  (cond
-    (== cmd "bitwise-zrshift=") (set! cmd ">>>=")
-    (== cmd "bitwise-rshift=") (set! cmd ">>=")
-    (== cmd "bitwise-lshift=") (set! cmd "<<=")
-    (== cmd "bitwise-xor=") (set! cmd "^=")
-    (== cmd "bitwise-or=") (set! cmd "|=")
-    (== cmd "bitwise-and=") (set! cmd "&=")
-    (== cmd "div=") (set! cmd "/=")
-    (== cmd "rem=") (set! cmd "%=")
-    (== cmd "exp=") (set! cmd "**="))
+  (var ret (node' ast)
+       cmd
+       (case $(1st ast)
+         "bitwise-zrshift=" ">>>="
+         "bitwise-rshift=" ">>="
+         "bitwise-lshift=" "<<="
+         "bitwise-xor=" "^="
+         "bitwise-or=" "|="
+         "bitwise-and=" "&="
+         "div=" "/="
+         "rem=" "%="
+         "exp=" "**="
+         $(1st ast)))
   (wrap ret nil [(tx* (2nd ast) env)
                  " " cmd " " (tx* (.@2 ast) env)]))
 

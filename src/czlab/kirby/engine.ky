@@ -520,10 +520,7 @@
           (eval* (a.slice 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
-  "lambda*"
-  #(let [f (fn->raw (.@1 %1) (.@2 %1) %2)]
-     (assoc! f :____ast [(.@1 %1) (.@2 %1) %2])
-     (atom f)) })
+  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]
