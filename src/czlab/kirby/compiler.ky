@@ -595,7 +595,7 @@ fn (right-to-left) to the result, etc."
   (assertArity (>= (n# ast) 4) ast)
   (var ret (node' ast))
   (var~ mtd pos n m)
-  (var private? (ends? $(1st ast) "-")
+  (var pub? (not (ends? $(1st ast) "-"))
        czname (tx* (2nd ast) env)
        par (1st (.@2 ast))
        czargs (.@3 ast)
@@ -628,7 +628,7 @@ fn (right-to-left) to the result, etc."
   ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
-  (if (and (not private?)
+  (if (and pub?
            (one? (.countNSPCache (eng/globalEnv))))
     (assoc! *externs* czname czname))
   (ret.add "}\n"))
@@ -768,7 +768,7 @@ returned if no clause matches."
   (var ret (node' ast)
        cmd $(1st ast)
        keys {}
-       private? (not= cmd "def~"))
+       pub? (== cmd "def~"))
   (if (starts? cmd "def")
     (set! cmd "var") (set! cmd "let"))
   (for [i 1 s nil sz (n# ast)
@@ -778,7 +778,7 @@ returned if no clause matches."
     (if (> i 1) (ret.add ","))
     (ret.add s))
   ;;exports
-  (if (and (not private?)
+  (if (and pub?
            (one? (.countNSPCache (eng/globalEnv))))
     (each-key (fn [v k] (assoc! *externs* k k)) keys))
   (wrap ret (str cmd " ") ";\n"))
@@ -796,43 +796,49 @@ returned if no clause matches."
        cmd $(1st ast)
        keys []
        tmp nil vname nil
-       private? (and (not= cmd "const")
-                     (not= cmd "def")))
+       pub? (or (== cmd "def")
+                (== cmd "const")))
   (var~ rval rc lhs rhs)
   (set! cmd (if (starts? cmd "const")
             "const"
             (if (== cmd "var") "let" "var")))
+  ;deal with 1 level destruction
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (set! lhs (.@i ast)
-        rhs (.@+i ast)
-        rval (tx* rhs env))
+          rhs (.@+i ast)
+          rval (tx* rhs env))
     (if (symbol? lhs)
-      (do (set! lhs (tx* lhs env)
-              tmp [cmd " " lhs "=" rval ";\n"])
+      (do (set! lhs (tx* lhs env))
           (conj! keys lhs)
-          (ret.add tmp))
+          (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
-              rhs (destruct* lhs out env ast))
-          (ret.add ["let "
-                    (tx* rhs env)
-                    "=" rval ";\n" $(out)]))))
-  (when (and (not private?)
-             (= 1 (.countNSPCache
-                    (eng/globalEnv))))
-    (each (fn [k] (assoc! *externs* k k)) keys)) ret)
+                rhs (destruct* lhs out env))
+          (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
+  (if (and pub?
+           (one? (.countNSPCache (eng/globalEnv))))
+    (each #(assoc! *externs* % %) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-inst?
-  "" ^{:opcode ["inst?"] :tag SourceNode} [ast env]
+
+  "Evaluates x and tests if it is an instance of the class
+  c. Returns true or false.
+  (inst? c x)"
+
+  ^{:opcode ["inst?"] :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 3) ast)
-  (var ret (node' ast))
-  (wrap ret nil ["(" (tx* (.@2 ast) env)
-                 " instanceof " (tx* (2nd ast) env) ")"]))
+  (wrap (node' ast) nil ["(" (tx* (3rd ast) env)
+                         " instanceof " (tx* (2nd ast) env) ")"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-delete
-  "" ^{:opcode ["delete!"] :tag SourceNode} [ast env]
+
+  "Delete an object or property of an object."
+
+  ^{:opcode ["delete!"] :tag SourceNode} [ast env]
+
   (assertArity (and (>= (n# ast) 2)
                     (< (n# ast) 4)) ast)
   (var ret (node' ast))
@@ -843,15 +849,26 @@ returned if no clause matches."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
-  "" ^{:opcode ["new"] :tag SourceNode} [ast env]
+
+  "The args, if any, are evaluated from left to right,
+  and passed to the constructor of the class
+  named by Classname. The constructed object is returned.
+  e.g.
+  (new Error 'a' 3)"
+
+  ^{:opcode ["new"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
-  (var ret (node' ast))
-  (wrap ret "new " (tx* (xfi ast (rest ast)) env)))
+  (wrap (node' ast) "new " (tx* (xfi ast (rest ast)) env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-throw
-  "" ^{:opcode ["throw"] :tag SourceNode} [ast env]
-  (assertArity (>= (n# ast) 2) ast)
+
+  "Throw an exception"
+
+  ^{:opcode ["throw"] :tag SourceNode} [ast env]
+
+  (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast)
        stmtQ (stmt? ast))
   (ret.add ["throw " (tx* (xfi ast (2nd ast)) env)])
@@ -862,33 +879,35 @@ returned if no clause matches."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-opop
-  "" ^{:opcode ["++" "--" "++$" "--$"] :tag SourceNode} [ast env]
+
+  "Unary operator for increment & decrement"
+  ^{:opcode ["++" "--" "++$" "--$"] :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 2) ast)
   (var ret (node' ast)
        cmd $(1st ast)
        a2 (tx* (2nd ast) env))
-  (if (ends? cmd "$")
-    (ret.add [a2 (cmd.slice 0 -1)])
-    (ret.add [cmd a2])) ret)
+  (ret.add
+    (if (ends? cmd "$")
+      [a2 (cmd.slice 0 -1)] [cmd a2])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-x-eq
-  "" ^{:opcode ["+="
-                "-="
-                "*="
-                "div="
-                "rem="
-                "exp="
-                "bitwise-and="
-                "bitwise-or="
-                "bitwise-xor="
-                "bitwise-lshift="
-                "bitwise-rshift="
-                "bitwise-zrshift="]
+
+  "Compound assignment operators"
+
+  ^{:opcode ["+=" "-=" "*="
+             "div=" "rem=" "exp="
+             "bitwise-and="
+             "bitwise-or="
+             "bitwise-xor="
+             "bitwise-lshift="
+             "bitwise-rshift="
+             "bitwise-zrshift="]
        :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 3) ast)
-  (var ret (node' ast)
-       cmd
+  (var cmd
        (case $(1st ast)
          "bitwise-zrshift=" ">>>="
          "bitwise-rshift=" ">>="
@@ -900,21 +919,26 @@ returned if no clause matches."
          "rem=" "%="
          "exp=" "**="
          $(1st ast)))
-  (wrap ret nil [(tx* (2nd ast) env)
-                 " " cmd " " (tx* (.@2 ast) env)]))
+  (wrap (node' ast)
+        nil
+        [(tx* (2nd ast) env)
+         " " cmd " " (tx* (3rd ast) env)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-setin!
-  "" ^{:opcode ["set-in!" "assoc!" "=>>"] :tag SourceNode} [ast env]
+
+  "Object property assignment or array index setter."
+
+  ^{:opcode ["set-in!"
+             "assoc!" "=>>"] :tag SourceNode} [ast env]
+
   (assertArity (even? (n# ast)) ast)
   (var ret (node' ast)
        more #f
        obj (tx* (2nd ast) env))
   (for [i 2 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
-    (when (> i 2)
-      (ret.add ",")
-      (true! more))
+    (when (> i 2) (ret.add ",") (true! more))
     (ret.add [obj
               "[" (tx* (xfi ast (.@i ast)) env) "]"
               "=" (tx* (xfi ast (.@+i ast)) env)]))
@@ -922,58 +946,67 @@ returned if no clause matches."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-set
-  "" ^{:opcode ["set!" "=>"] :tag SourceNode} [ast env]
+
+  "Set value(s) to variable(s).
+  e.g. (set! a 2 b 4 ...)"
+
+  ^{:opcode ["set!" "=>"] :tag SourceNode} [ast env]
+
   (assertArity (odd? (n# ast)) ast)
   (var more #f
        ret (node' ast))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
-    (when (> i 1)
-      (ret.add ",")
-      (true! more))
+    (when (> i 1) (ret.add ",") (true! more))
     (ret.add [(tx* (.@i ast) env)
               "=" (tx* (xfi ast (.@+i ast)) env)]))
   (if more (wrap ret "(" ")")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-fn
-  "(fn [x y] ...)" ^{:opcode ["fn"] :tag SourceNode} [ast env]
+
+  "Defines an anonymous function. See defn.
+  (fn attrs? [x y] ...)"
+
+  ^{:opcode ["fn"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
-  (var ret (node' ast)
-       fargs nil
-       body (xfi ast (slice ast 2))
+  (var body (xfi ast (slice ast 2))
        [_ args] (meta?? (2nd ast) env))
   (if-not (array? args)
     (error! :invalid-fargs ast))
-  (set! fargs (doFuncArgs (xfi ast args) env))
-  (wrap ret nil ["function ("
-                 (1st fargs)
-                 ") {\n"
-                 (2nd fargs)
-                 (txDo body env #t) "}"]))
+  (var fargs (doFuncArgs (xfi ast args) env))
+  (wrap (node' ast)
+        nil
+        ["function (" (1st fargs) ") {\n"
+         (2nd fargs) (txDo body env #t) "}"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-func "" ^{:opcode ["defn" "defn-"]
-                    :tag SourceNode} [ast env]
+(defn- sf-func
+
+  "Defines a function. Use defn- to indicate privacy (no export).
+  (defn name doc-string? attr-map? [params*] ...)"
+
+  ^{:opcode ["defn" "defn-"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
-  (var private? (ends? $(1st ast) "-")
+  (var pub? (not (ends? $(1st ast) "-"))
        mtd? (== $(1st ast) "method")
        fname0 $(2nd ast)
        fname $(tx* (2nd ast) env)
        dot? (contains? fname ".")
-       fargs nil
        ret (node' ast
                   (tnodeEx fname))
-       [doc pargs] (if (str? (.@2 ast))
+       [doc pargs] (if (str? (3rd ast))
                      [(nth ast 2) 3] [nil 2])
        body (xfi ast (slice ast (+1 pargs)))
-       [hints args] (meta?? (nth ast pargs) env))
+       [attrs args] (meta?? (nth ast pargs) env))
   (if-not (array? args)
     (error! :invalid-fargs ast))
-  (set! fargs (doFuncArgs (xfi ast args) env))
-  (set! hints (or hints {}))
+  (var fargs (doFuncArgs (xfi ast args) env))
+  (set! attrs (or attrs {}))
   (cond mtd?
-        (do (if (.-static hints)
+        (do (if (.-static attrs)
               (ret.add "static "))
             (ret.add [fname " ("])
             (if (== fname "constructor")
@@ -982,24 +1015,36 @@ returned if no clause matches."
         (ret.add [fname " = function ("])
         :else
         (ret.add ["const " fname " = function ("]))
-  (ret.add [(1st fargs)
-            ") {\n"
-            (2nd fargs)
-            (txDo body env #t) "};\n"])
-  (if (not-empty hints)
-    (ret.add (fmtSpecOps fname hints)))
+  (ret.add [(1st fargs) ") {\n"
+            (2nd fargs) (txDo body env #t) "};\n"])
+  (if (not-empty attrs)
+    (ret.add (fmtSpecOps fname attrs)))
   (if doc
     (ret.prepend (writeDoc doc)))
-  (ret.prepend (writeFuncInfo fname0 ast))
-  (if (and (not private?)
+  (if (and pub?
            (not dot?)
            (not mtd?)
-           (= 1 (.countNSPCache
-                  (eng/globalEnv)))) (assoc! *externs* fname fname)) ret)
+           (one? (.countNSPCache (eng/globalEnv))))
+    (assoc! *externs* fname fname))
+  (ret.prepend (writeFuncInfo fname0 ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-try "" ^{:opcode ["try"] :tag SourceNode} [ast env]
+(defn- sf-try
+
+  "The exprs are evaluated and, if no exceptions occur, the value of the last
+is returned. If an exception occurs and catch clauses are provided, each is
+examined in turn and the first for which the thrown exception is an instance
+of the named class is considered a matching catch clause. If there is a
+matching catch clause, its exprs are evaluated in a context in which name is
+bound to the thrown exception, and the value of the last is the return value
+of the function. If there is no matching catch clause, the exception
+propagates out of the function. Before returning, normally or abnormally,
+any finally exprs will be evaluated for their side effects."
+
+  ^{:opcode ["try"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
+
   (var stmtQ (stmt? ast)
        sz (n# ast)
        ret (node' ast))
@@ -1042,18 +1087,27 @@ returned if no clause matches."
     (wrap ret "(function(){\n" "}).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-if "" ^{:opcode ["if"] :tag SourceNode} [ast env]
+(defn- sf-if
+
+  "Evaluates test. If truthy evaluates 'then' otherwise 'else'.
+
+  (if test then else)
+  (if test then)"
+
+  ^{:opcode ["if"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 3) ast)
   (var stmtQ (stmt? ast)
        ret (node' ast)
+       ;test is always an expression
        a1 (exprHint (xfi ast (2nd ast)) true)
-       a2 (exprHint (xfi ast (.@2 ast)) (not stmtQ))
+       a2 (exprHint (xfi ast (3rd ast)) (not stmtQ))
        m? (> (n# ast) 3)
        a3 (if m? (xfi ast (.@3 ast)))
        elze (if m? (exprHint a3 (not stmtQ))))
   (set! a1 (tx* a1 env)
-      a2 (tx* a2 env)
-      elze (tx* elze env))
+        a2 (tx* a2 env)
+        elze (tx* elze env))
   (wrap ret
         nil
         (if stmtQ
@@ -1062,16 +1116,33 @@ returned if no clause matches."
           ["(" a1 " ?\n" a2 " :\n" (or elze "null") ")"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-get "" ^{:opcode ["nth" "get"]
-                   :tag SourceNode} [ast env]
+(defn- sf-get
+
+  "Returns the named property of an object,
+  or value at the index of an array.
+
+  (get obj \"age\")
+  (nth obj 3)"
+
+  ^{:opcode ["nth" "get"] :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 3) ast)
-  (var ret (node' ast))
-  (wrap ret nil [(tx* (xfi ast (2nd ast)) env)
-                 "[" (tx* (xfi ast (.@2 ast)) env) "]"]))
+  (wrap (node' ast)
+        nil [(tx* (xfi ast (2nd ast)) env)
+             "[" (tx* (xfi ast (3rd ast)) env) "]"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-array "" ^{:opcode ["vec"]
-                     :tag SourceNode} [ast env]
+(defn- sf-array
+
+  "Creates a new vector containing the args.
+
+  (vec \"hello\" \"world\")
+  (vec 1 2 3)
+  [1 2 3]
+  [\"hello\" \"world\"]"
+
+  ^{:opcode ["vec"] :tag SourceNode} [ast env]
+
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
@@ -1083,11 +1154,18 @@ returned if no clause matches."
               :while (< i sz) :recur (+1 i)]
           (if (> i pos) (ret.add ",\n"))
           (ret.add (tx* (xfi ast (.@i ast)) env)))
-        (ret.add "\n]"))) ret)
+        (ret.add "\n]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-object "" ^{:opcode ["hashmap"]
-                      :tag SourceNode} [ast env]
+(defn- sf-object
+
+  "Returns a new object with supplied key-mappings.
+
+  (hashmap \"a\" 1 \"b\" 2)
+  {:a 1 :b 2}"
+
+  ^{:opcode ["hash-map" "hashmap"] :tag SourceNode} [ast env]
+
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
@@ -1100,46 +1178,66 @@ returned if no clause matches."
           (if (> i pos) (ret.add ",\n"))
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
-        (ret.add "\n}"))) ret)
+        (ret.add "\n}"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-include "" ^Array [ast env]
+(defn- sf-include
+
+  "Include another kirby file.
+
+  (:include [\"./common.ky\"])
+  (:include [\"./common.ky\"]
+            [\"./other.ky\"])"
+
+  ^Array [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var ret []
        dir (path/dirname ast.source))
-  (var~ fname e)
+  (var~ fpath e)
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast))
     (if (or (not (array? e))
             (not= 1 (n# e)))
       (error! :invalid-include ast))
-    (set! fname $(1st e))
-    (if fname
-      (set! fname (fname.replace #/[\"]/g "")))
+    (set! fpath $(1st e))
+    (if fpath
+      (set! fpath (fpath.replace #/[\"]/g "")))
     (try
-      (set! fname (fs/realpathSync
-                  (str dir "/" fname)))
+      (set! fpath (fs/realpathSync
+                    (str dir "/" fpath)))
       (catch e
         (error! :file-access ast)))
     (try
-      (conj! ret (includeFile fname ast))
+      (conj! ret (includeFile fpath ast))
       (catch e
         (error! :file-read ast))
       (finally
+        ;TODO: check if pop is always true
         (.popNSP (eng/globalEnv)))))
   (if (empty? ret) "" ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-require "" ^SourceNode [ast env]
+(defn- sf-require
+
+  "Loads libs.
+
+  (:require [\"z\" :rename {hello goodbye}])
+  (:require [\"a\" :as A])
+  (:require [\"b\"]
+            [\"c\" :refer [hello world]])"
+
+  ^SourceNode [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var~ as path v e refers renames)
   (var ret (node' ast))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast)
-        as $(gensym "R__")
-        refers nil renames nil)
+          as $(gensym "R__")
+          refers nil renames nil)
     (if (or (not (array? e))
             (< (n# e) 3)) (error! :invalid-require ast))
     (set! path $(1st e))
@@ -1164,15 +1262,25 @@ returned if no clause matches."
     (for [i 0 sz (n# renames)
           :while (< i sz) :recur (+2 i)]
       (set! e (tx* (.@i renames) env)
-          v (tx* (.@+i renames) env))
+            v (tx* (.@+i renames) env))
       (ret.add ["const " v
                 "=" as "[\"" e "\"];\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-ns "" ^{:opcode ["ns"] :tag SourceNode} [ast env]
+(defn- sf-ns
+
+  "(ns name doc-string? attr-map? references*)
+
+  Creates a namespace, references can be zero or more of:
+  (:require ...)
+
+  (ns ^{:doc \"some doc\"} hello.world.core ...)"
+
+  ^{:opcode ["ns"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var ret [] e nil
-       [hints nsp] (meta?? (2nd ast) env))
+       [attrs nsp] (meta?? (2nd ast) env))
   (if-not (symbol? nsp)
     (error! :invalid-namespace ast))
   (.pushNSP (eng/globalEnv) $(nsp))
@@ -1187,6 +1295,7 @@ returned if no clause matches."
                (== "require" $(1st e)))
           (conj! ret (sf-require (xfi ast e)))))
   ;;force a internal reference to stdlib for user files
+  ;;unless processing internal files
   (set! nsp (.peekNSP (eng/globalEnv)))
   (cond
     (or (= nsp "czlab.kirby.macros")
@@ -1203,19 +1312,30 @@ returned if no clause matches."
 (defn- sf-comment "" ^{:opcode ["comment"] :tag String} [ast env] "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-for "" ^{:opcode ["for"] :tag SourceNode} [ast env]
+(defn- sf-for
+
+  "Generates native (js) for loop.
+
+  (for [initial-vars :while test :recur update-vars] ...)"
+
+  ^{:opcode ["for"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
+
   (var stmtQ (stmt? ast)
        ret (node' ast)
        body (exprHint (xfi ast (slice ast 2)) #f))
   (if (empty? body)
-    (node' ast)
+    ret
     (sf-floop ret
               (xfi ast (2nd ast))
-              body env stmtQ)) ret)
+              body env stmtQ)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop "" ^SourceNode [ret args body env stmtQ]
+(defn- sf-floop
+  "For loop implementation"
+  ^SourceNode [ret args body env stmtQ]
+
   (var vars [] recurs [])
   (var~ tst nb e)
   (for [i 0 sz (n# args)
@@ -1237,7 +1357,8 @@ returned if no clause matches."
     (ret.add [(tx* (.@i vars) env)
               "=" $(tx* (.@+i vars) env)]))
   (ret.add (if (empty? vars)
-             "let ____break=false;" ",____break=false;"))
+             (str "let " BREAK "=false;")
+             (str "," BREAK "=false;")))
   (set! nb '(not ____break))
   (xfi ret nb)
   (if tst
@@ -1255,7 +1376,14 @@ returned if no clause matches."
     (wrap ret "(function() {\n"  "}).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-jscode "" ^{:opcode ["js#"] :tag SourceNode} [ast env]
+(defn- sf-jscode
+
+  "Inject raw native (js) code fragment.
+
+  (js# \"console.log('hi');\")"
+
+  ^{:opcode ["js#"] :tag SourceNode} [ast env]
+
   (assertArity (>= (n# ast) 2) ast)
   (var s $(2nd ast)
        name (parser/jsid "sf-jscode"))
@@ -1265,9 +1393,18 @@ returned if no clause matches."
       (s.slice 1 -1) s) (tnodeEx name) (node' ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-macro "" ^{:opcode ["defmacro"] :tag String} [ast env]
-  (assertArity (>= (n# ast) 2) ast)
-  (var pms [] args (.@2 ast) body (slice ast 3))
+(defn- sf-macro
+
+  "Like defn, but the resulting function name is declared as a
+macro and will be used as a macro by the compiler when it is
+called.
+
+  (defmacro macro-name [args] ...)"
+
+  ^{:opcode ["defmacro"] :tag String} [ast env]
+
+  (assertArity (>= (n# ast) 4) ast)
+  (var pms [] args (3rd ast) body (slice ast 3))
   (var~ doc x e ev)
   (when (str? args)
     (set! doc args args (.@3 ast) body (slice ast 4)))
@@ -1290,20 +1427,25 @@ returned if no clause matches."
           (error! :syntax-error ast)
           :else
           (conj! pms e)))
+  ;ask engine to compile this macro and stores it
   (eng/compute ['macro*
                 (2nd ast) pms (1st body)] env) "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-unary "" ^{:opcode ["not" "~" "!"]
-                     :tag SourceNode} [ast env]
+(defn- sf-unary
+
+  "Special unary operators."
+
+  ^{:opcode ["not" "~" "!"] :tag SourceNode} [ast env]
+
   (assertArity (= (n# ast) 2) ast)
   (var [a0 a1] ast
        ret (node' ast))
   (if (== a0 "not") (set! a0 '!))
-  (ret.add ["(" $(tx* a0 env) $(tx* a1 env) ")"]) ret)
+  (ret.add ["(" $(tx* a0 env) $(tx* a1 env) ")"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- xfi "" ^Any [from to]
+(defn- xfi "Transfer source map info" ^Any [from to]
   (cond
     (and from to)
     (let [tline (.-line to)
@@ -1317,14 +1459,14 @@ returned if no clause matches."
     :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spitExterns "" ^String []
+(defn- spitExterns "Write out export info" ^String []
   (var s "" ks (keys *externs*))
   (when (not-empty ks)
     (set! s (join ",\n" (map #(str % ": " %) ks))
         s (str "\n\nmodule.exports = {\n" s "\n};\n\n"))) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- banner "" ^String []
+(defn- banner "Banner text for the target file" ^String []
   (str "/*" "Auto generated by Kirby - v"
        MODULE-VERSION " "
        (.firstNSP (eng/globalEnv)) " - " (new Date) "*/\n\n"))
@@ -1339,7 +1481,13 @@ returned if no clause matches."
   (join "\n" arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- transpile* "" ^Array [source fname options]
+(defn- transpile*
+
+  "Compiles a source file, returning the translated source and
+  possible error object."
+
+  ^Array [source fname options]
+
   (.resetNSPCache (eng/globalEnv))
   (set! *externs* {})
   (var ret (txTree (parser/parse source fname)
@@ -1370,14 +1518,17 @@ returned if no clause matches."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn transpile
-  "" ^Array [code file & [options]]
+
+  "Compile kirby file to target source"
+  ^Array [code file & [options]]
+
   (try (transpile* code file (opt?? options {}))
        (catch e
          (println (.-stack e)) (throw e))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST
-  "" ^String [source fname]
+  "Dump AST to xml" ^String [source fname]
   (parser/dumpTree (parser/parse source fname) fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
