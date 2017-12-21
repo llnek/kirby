@@ -10,15 +10,19 @@
   czlab.kirby.stdlib)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn not-empty "If coll is empty,
-                returns nil, else coll"
-  ^Boolean [coll]
+(defn not-empty
+
+  "If coll is empty, returns nil, else coll"
+  [coll]
+
   (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn stringify "JSON stringify without
-                circular object reference"
+(defn stringify
+
+  "JSON stringify without circular object reference"
   ^String [obj]
+
   (var cache [])
   (if obj
     (JSON/stringify
@@ -33,18 +37,25 @@
             (conj! cache v))) v))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn opt?? "If cur is not defined,
-            returns other else returns cur"
+(defn opt??
+
+  "If cur is not defined, returns other else cur"
   ^Any [cur other]
+
   (if (def? cur) cur other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn conj! "If coll is a list,
-            prepends to head of coll else appends all to end"
+(defn conj!
+
+  "conj[oin]. Returns coll with the xs
+  'added'. (conj! nil item) returns [item].
+  If coll is a list, prepends else appends to coll."
+
   ^Array [coll & xs]
-  (if (list? coll)
-    (coll.unshift.apply coll (xs.reverse))
-    (coll.push.apply coll xs)) coll)
+  (var c (or coll []))
+  (if (list? c)
+    (->> (xs.reverse)
+         (c.unshift.apply c)) (c.push.apply c xs)) c)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj "Like conj! but
@@ -57,36 +68,52 @@
              (into :list coll)
              (map? coll)
              (into :map coll)
+             (nichts? coll)
+             []
              :else (slice coll)))
   (apply conj! this (concat [c] xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pop! "Removes the first element if list,
-           else removes the last element,
-           returning the element
-           and the altered collection"
+(defn pop!
+
+  "Removes the first element if list,
+  else removes the last element,
+  returning the element
+  and the altered collection"
+
   ^Array [coll]
-  (var r (if (list? coll) (coll.shift) (coll.pop))) [r coll])
+  (var r (if (list? coll)
+           (coll.shift) (coll.pop))) [r coll])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop "Like pop! but returns a new collection"
   ^Array [coll]
-  (var r (if (list? coll) (1st coll) (last coll)))
-  [r (if (list? coll) (coll.slice 1) (coll.slice 0 -1))])
+  (var r (if (list? coll)
+           (1st coll) (last coll)))
+  [r (if (list? coll)
+       (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dumpObj "" ^String [obj]
-  (reduce (fn [acc [k v]]
-                (+= acc
-                    (str (prn k)
-                         " : "
-                         (prn v) "\n")))
-            ""
-            (seq obj)))
+(defn- dumpObj
+
+  "Stringify a native (js) object"
+  ^String [obj]
+
+  (str "{ "
+    (reduce (fn [acc [k v]]
+                  (+= acc
+                      (str (prn k)
+                           " : "
+                           (prn v) "\n")))
+              ""
+              (seq obj)) " }"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn prn "Print the input data as string"
+(defn prn
+
+  "Print the input data as string"
   ^String [obj & [r?]]
+
   (var pa (fn [arr s e]
             (str s (join " " (map prn arr)) e)))
   (case (typeid obj)
@@ -94,7 +121,7 @@
     :atom (str "(atom " (prn obj.value) ")")
     :keyword (str ":" obj.value)
     :symbol obj.value
-    :object (dumpObj obj) ;;(stringify obj)
+    :object (dumpObj obj)
     :vector (pa obj "[" "]")
     :map (pa obj "{" "}")
     (:array :list) (pa obj "(" ")")
@@ -639,6 +666,17 @@
           (if-not (object? m) (err n))
           (set! root m))))
   coll)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- merge! "" [base m]
+  (var ret (or base {})
+       src (or m {}))
+  (each-key (fn [v k]
+              (set-in! ret k v)) src) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn merge "" [&maps]
+  (reduce (fn [acc n] (merge! acc n)) {} maps))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

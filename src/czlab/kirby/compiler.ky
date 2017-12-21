@@ -12,7 +12,7 @@
   (:require ["./stdlib"
              :as std
              :refer [lambda-arg? hashmap pairs? into!
-                     contains? last typeid
+                     merge contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
                      not-empty conj! list?
@@ -355,7 +355,7 @@
   ;;handle macro calls
   (when mc
     (set! ast (eng/expand?? ast env mc)
-        ast (xfi orig (exprHint ast (not stmtQ))))
+          ast (xfi orig (exprHint ast (not stmtQ))))
     (spreadInfo orig ast)
     (set! cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
@@ -648,6 +648,7 @@ fn (right-to-left) to the result, etc."
        a0 (1st ast) cmd $(a0))
   (cond (== cmd "not=") (set-in! ast 0 '!==)
         (== cmd "=") (set-in! ast 0 '===))
+  (set! a0 (1st ast))
   (for [i 1 op (tx* a0 env)
         :while (< i (last-index ast)) :recur (+1 i)]
     (if (not= i 1) (ret.add " && "))
@@ -1279,12 +1280,21 @@ any finally exprs will be evaluated for their side effects."
   ^{:opcode ["ns"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (var ret [] e nil
+  (var ret [] doc nil e nil
+       mobj nil pos 2
        [attrs nsp] (meta?? (2nd ast) env))
   (if-not (symbol? nsp)
     (error! :invalid-namespace ast))
   (.pushNSP (eng/globalEnv) $(nsp))
-  (set! ast (xfi ast (slice ast 2)))
+  (when (string? (.@pos ast))
+    (set! attrs (or attrs {}))
+    (set-in! attrs :doc (.@pos ast)) (++ pos))
+  (when (map? (.@pos ast))
+    (set! mobj (evalMeta (.@pos ast) env)
+          attrs (merge attrs mobj))
+    (++ pos)
+    (assoc! nsp :____meta attrs))
+  (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast))
