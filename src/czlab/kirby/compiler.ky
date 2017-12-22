@@ -1129,8 +1129,9 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (= (n# ast) 3) ast)
   (wrap (node' ast)
-        nil [(tx* (xfi ast (2nd ast)) env)
-             "[" (tx* (xfi ast (3rd ast)) env) "]"]))
+        nil ["kirbystdlibref.getProp("
+             (tx* (xfi ast (2nd ast)) env)
+             "," (tx* (xfi ast (3rd ast)) env) ")"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-array

@@ -1,6 +1,18 @@
 (ns czlab.kirby.poo)
 
-(nil? x)
+(defn getProp "" [obj prop & [own?]]
+  (set! own? (opt?? own? true))
+  (cond
+    (string? prop)
+    (if (and own?
+             (not (Object.hasOwnProperty prop)))
+      undefined
+      (js# "obj[prop]"))
+    (number? prop)
+    (js# "obj[prop]")
+    :else
+    undefined))
+
 
 
 

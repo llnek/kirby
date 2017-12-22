@@ -109,6 +109,20 @@
               (seq obj)) " }"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getProp "" [obj prop & [own?]]
+  (set! own? (opt?? own? true))
+  (cond
+    (string? prop)
+    (if (and own?
+             (not (Object.hasOwnProperty prop)))
+      undefined
+      (js# "obj[prop]"))
+    (number? prop)
+    (js# "obj[prop]")
+    :else
+    undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn
 
   "Print the input data as string"
