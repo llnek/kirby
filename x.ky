@@ -1,18 +1,18 @@
-(ns czlab.kirby.poo)
+(ns czlab.kirby.poo); "poo doco" {:author "kl"})
 
-(defn getProp "" [obj prop & [own?]]
-  (set! own? (opt?? own? true))
-  (cond
-    (string? prop)
-    (if (and own?
-             (not (Object.hasOwnProperty prop)))
-      undefined
-      (js# "obj[prop]"))
-    (number? prop)
-    (js# "obj[prop]")
-    :else
-    undefined))
-
+(deftype LambdaArg [][value ""]
+  "Defining a lambda positional argument"
+  (constructor "" [arg]
+    {:pre [(poo 3)]}
+    (var name (if (= arg "%")
+                "1" (rest arg))
+         v (int name))
+    (if-not (> v 0)
+      (raise! "invalid lambda-arg " arg))
+    ;;zero based arg so minus 1
+    (-- v)
+    (set! this.value $(v)))
+  (toString "" [] this.value))
 
 
 
