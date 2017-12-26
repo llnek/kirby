@@ -1172,3 +1172,8 @@ module.exports = {
   update_DASH_in_BANG: update_DASH_in_BANG,
   merge: merge
 };
+
+a={a : 1, b : 2, c : { d : a}}
+z=stringify(a)
+
+console.log(z)
