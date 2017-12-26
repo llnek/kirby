@@ -135,56 +135,66 @@
 
   ;use a cache to store already referenced objects
   ;to prevent circular references
-  (prn* [] obj [false nil] r?))
+  (var cache []
+       f (fn [v & [k]]
+           (cond (fn? v)
+                 (set! v "native-fn")
+                 (object? v)
+                 (if (contains? cache v)
+                   (undef! v)
+                   (conj! cache v))) v))
+  (if obj (prn* obj r? f) ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prn*
 
-  "" [bin obj r?]
+  "" [obj r? func]
 
   (var oid (typeid obj)
-       c? (complex? obj)
-       f #(prn* bin % r?))
-
-  (if (and c?
-           (contains? bin obj))
+       delims {:vector ["[" "]"]
+               :list ["'(" ")"]
+               :array ["(" ")"]
+               :map ["{" "}"]
+               :object ["{" "}"]}
+       dms (get delims oid)
+       farr (fn [oid obj f]
+              (var c []
+                   x nil
+                   dms (get delims oid))
+              (for [i 0 sz (n# obj)
+                    :while (< i sz) :recur (+1 i)]
+                (set! x (f (.@i obj) i))
+                (conj! c (prn* (if (undef? x) null x) r? f)))
+              (str (1st dms) (join " " c) (last dms))))
+  (case oid
+    :atom
+    (str "(atom " (func obj.value) ")")
+    :lambda-arg
+    (str "%" (+1 (int obj.value)))
+    :keyword
+    (str ":" obj.value)
+    :symbol
+    obj.value
+    :object
+    (str (1st dms)
+         (reduce
+           (fn [acc [k v]]
+             (var x (func v k))
+             (if (undef? x)
+               acc
+               (+= acc (str (prn* k r? func)
+                            ":"
+                            (prn* v r? func) ","))))
+           "" (seq obj)) (last dms))
+    (:vector :map :array :list)
+    (farr oid obj func)
+    :string
+    (if r? (wrap-str obj) obj)
+    (:null :nil)
     "null"
-    (do (if c? (conj! bin obj))
-        (case oid
-          :atom
-          (if-some+ [s (f obj.value)]
-                    (str "(atom " s ")") "")
-          :lambda-arg
-          (str "%" (+1 (int obj.value)))
-          :keyword
-          (str ":" obj.value)
-          :symbol
-          obj.value
-          :object
-          (str "{"
-               (reduce
-                 (fn [acc [k v]]
-                   (if (and (complex? v)
-                            (contains? bin v))
-                     acc
-                     (+= acc
-                         (str (prn* bin k r?)
-                              ":"
-                              (prn* bin v r?) "\n"))))
-                 "" (seq obj)) "}")
-          :vector
-          (str "[" (join " " (map f obj)) "]")
-          :map
-          (str "{" (join " " (map f obj)) "}")
-          :array
-          (str "(" (join " " (map f obj)) ")")
-          :list
-          (str "(list" (join " " (map f obj)) ")")
-          :string
-          (if r? (wrap-str obj) obj)
-          (:null :nil)
-          "null"
-          (obj.toString)))))
+    (if (array? obj)
+      (farr :array obj func)
+      (obj.toString))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype LambdaArg [][value ""]
