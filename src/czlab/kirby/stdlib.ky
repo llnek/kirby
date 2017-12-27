@@ -143,7 +143,11 @@
 
   "" [obj r? func]
 
-  (var pfx (fn [x] (prn* x r? func)))
+  (var pfx #(prn* % r? func)
+       parr (if (arr? obj)
+              #(wrap-str
+                 (prnArr* obj
+                          r? func) %1 %2)))
   (case (typeid obj)
     :atom
     (wrap-str (func nil obj.value) "(atom" ")")
@@ -164,19 +168,17 @@
         (.join  ",")
         (wrap-str "{" "}"))
     :vector
-    (wrap-str (prnArr* obj r? func) "[" "]")
+    (parr "[" "]")
     :map
-    (wrap-str (prnArr* obj r? func) "{" "}")
-    :array
-    (wrap-str (prnArr* obj r? func) "(" ")")
+    (parr "{" "}")
     :list
-    (wrap-str (prnArr* obj r? func) "'(" ")")
+    (parr "'(" ")")
     :string
     (if r? (quote-str obj) obj)
     (:null :nil)
     "null"
     (if (array? obj)
-      (wrap-str (prnArr* obj r? func) "(" ")") (obj.toString))))
+      (parr "(" ")") (obj.toString))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype LambdaArg [][value ""]
