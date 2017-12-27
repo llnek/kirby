@@ -18,20 +18,25 @@
   (if (empty? coll) nil coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- noCRef
+  "Use a cache to store already referenced objects
+  to prevent circular references" []
+  (var cache [])
+  (fn [k v]
+    (cond (fn? v)
+          (set! v "native-fn")
+          (object? v)
+          (if (contains? cache v)
+            (undef! v)
+            (conj! cache v))) v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn stringify
 
   "JSON stringify (no cyclical obj-ref)"
   ^String [obj]
 
-  (var cache []
-       f (fn [_ v]
-           (cond (fn? v)
-                 (set! v "native-fn")
-                 (object? v)
-                 (if (contains? cache v)
-                   (undef! v)
-                   (conj! cache v))) v))
-  (if obj (JSON/stringify obj f)))
+  (if obj (JSON/stringify obj (noCRef))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn opt??
@@ -90,6 +95,8 @@
   [r (if (list? coll)
        (coll.slice 1) (coll.slice 0 -1))])
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn wrap-str "" [obj start end] (str start obj end))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getProp
@@ -112,63 +119,34 @@
     undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dumpObj
-
-  "Stringify a native (js) object"
-  ^String [obj cache]
-
-  (str "{ "
-    (reduce (fn [acc [k v]]
-              (if (contains? cache v)
-                acc
-                (+= acc
-                    (str (prn k)
-                         " : " (prn v) "\n"))))
-            ""
-            (seq obj)) " }"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn
 
   "Print data as string - use to dump an AST node"
   ^String [obj & [r?]]
 
-  ;use a cache to store already referenced objects
-  ;to prevent circular references
-  (var cache []
-       f (fn [v & [k]]
-           (cond (fn? v)
-                 (set! v "native-fn")
-                 (object? v)
-                 (if (contains? cache v)
-                   (undef! v)
-                   (conj! cache v))) v))
+  (var f (noCRef))
+  (if (complex? obj)
+    (set! obj (f nil obj)))
   (if obj (prn* obj r? f) ""))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- prnArr* "Print a array-like object" [obj r? f]
+  (var c [] x nil)
+  (each (fn [v i]
+          (set! x (f i v)
+                x (if (undef? x) null x))
+          (conj! c (prn* x r? f))) obj)
+  (join " " c))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prn*
 
   "" [obj r? func]
 
-  (var oid (typeid obj)
-       delims {:vector ["[" "]"]
-               :list ["'(" ")"]
-               :array ["(" ")"]
-               :map ["{" "}"]
-               :object ["{" "}"]}
-       dms (get delims oid)
-       farr (fn [oid obj f]
-              (var c []
-                   x nil
-                   dms (get delims oid))
-              (for [i 0 sz (n# obj)
-                    :while (< i sz) :recur (+1 i)]
-                (set! x (f (.@i obj) i))
-                (conj! c (prn* (if (undef? x) null x) r? f)))
-              (str (1st dms) (join " " c) (last dms))))
-  (case oid
+  (var pfx (fn [x] (prn* x r? func)))
+  (case (typeid obj)
     :atom
-    (str "(atom " (func obj.value) ")")
+    (wrap-str (func nil obj.value) "(atom" ")")
     :lambda-arg
     (str "%" (+1 (int obj.value)))
     :keyword
@@ -176,25 +154,29 @@
     :symbol
     obj.value
     :object
-    (str (1st dms)
-         (reduce
-           (fn [acc [k v]]
-             (var x (func v k))
-             (if (undef? x)
-               acc
-               (+= acc (str (prn* k r? func)
-                            ":"
-                            (prn* v r? func) ","))))
-           "" (seq obj)) (last dms))
-    (:vector :map :array :list)
-    (farr oid obj func)
+    (-> (reduce (fn [acc [k v]]
+                  (var x (func k v))
+                  (if-not (undef? x)
+                    (conj! acc
+                           (str (pfx k)
+                                ":" (pfx x)))) acc)
+                [] (seq obj))
+        (.join  ",")
+        (wrap-str "{" "}"))
+    :vector
+    (wrap-str (prnArr* obj r? func) "[" "]")
+    :map
+    (wrap-str (prnArr* obj r? func) "{" "}")
+    :array
+    (wrap-str (prnArr* obj r? func) "(" ")")
+    :list
+    (wrap-str (prnArr* obj r? func) "'(" ")")
     :string
-    (if r? (wrap-str obj) obj)
+    (if r? (quote-str obj) obj)
     (:null :nil)
     "null"
     (if (array? obj)
-      (farr :array obj func)
-      (obj.toString))))
+      (wrap-str (prnArr* obj r? func) "(" ")") (obj.toString))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype LambdaArg [][value ""]
@@ -644,7 +626,7 @@
    :result (fn [v] (fn [c] (c v)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrap-str "" ^String [s]
+(defn quote-str "" ^String [s]
   (var out "\"")
   (for [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
@@ -661,7 +643,7 @@
   (+= out "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unwrap-str "" ^String [s]
+(defn unquote-str "" ^String [s]
   (if (and (starts? s "\"")
            (ends? s "\""))
     (do-with [out ""]

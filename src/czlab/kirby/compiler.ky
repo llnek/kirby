@@ -263,11 +263,11 @@
         "null"
         (primitive? a)
         (do (set! a a.value s $(a))
-            (cond (string? a) (std/wrap-str a)
+            (cond (string? a) (std/quote-str a)
                   (nil? a) "null"
                   :else s))
         (string? a)
-        (std/wrap-str a)
+        (std/quote-str a)
         :else (jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -292,11 +292,11 @@
              "(\"" a "\")")
         (primitive? a)
         (do (set! a a.value)
-            (cond (string? a) (std/wrap-str a)
+            (cond (string? a) (std/quote-str a)
                   (nil? a) "null"
                   :else $(a)))
         (string? a)
-        (std/wrap-str a)
+        (std/quote-str a)
         :else $(a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -414,7 +414,7 @@
 (defn- writeDoc "Convert to jsdoc" ^Array [doc]
   (var out [])
   (if doc
-    (->> (.split (std/unwrap-str doc) "\n")
+    (->> (.split (std/unquote-str doc) "\n")
          (each #(let [s (.trim (str %))]
                   (if (not-empty s)
                     (conj! out (str "//" s "\n"))))))) out)

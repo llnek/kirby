@@ -404,7 +404,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eval* "" ^Any [ast env]
   (cond
-    (string? ast) (std/unwrap-str ast)
+    (string? ast) (std/unquote-str ast)
     (keyword? ast) (.-value ast)
     (symbol? ast) (env.get ast)
     ;complex data
