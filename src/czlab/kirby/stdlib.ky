@@ -96,7 +96,9 @@
        (coll.slice 1) (coll.slice 0 -1))])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn wrap-str "" [obj start end] (str start obj end))
+(defn wrap-str
+  "Prepend and append
+  strings to the object." [obj start end] (str start obj end))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getProp
@@ -130,13 +132,12 @@
   (if obj (prn* obj r? f) ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- prnArr* "Print a array-like object" [obj r? f]
-  (var c [] x nil)
-  (each (fn [v i]
-          (set! x (f i v)
-                x (if (undef? x) null x))
-          (conj! c (prn* x r? f))) obj)
-  (join " " c))
+(defn- prnArr* "Print an array" [obj r? f]
+  (join " "
+        (map (fn [v i]
+               (var x (f i v))
+               (-> (opt?? x null)
+                   (prn* r? f))) obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prn*
@@ -217,7 +218,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive?
-  "Returns true if primitive" ^Boolean [obj] (inst? Primitive obj))
+  "Returns true if primitive" [obj] (inst? Primitive obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive
@@ -225,7 +226,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol?
-  "Returns true if a symbol" ^Boolean [obj] (inst? Symbol obj))
+  "Returns true if a symbol" [obj] (inst? Symbol obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol
@@ -233,7 +234,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword?
-  "Returns true if a keyword" ^Boolean [obj] (inst? Keyword obj))
+  "Returns true if a keyword" [obj] (inst? Keyword obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword
@@ -250,7 +251,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg?
-  "Returns true if a Lambda Arg" ^Boolean [obj] (inst? LambdaArg obj))
+  "Returns true if a Lambda Arg" [obj] (inst? LambdaArg obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambda-arg
@@ -263,7 +264,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom?
-  "Returns true if an Atom" ^Boolean [atm] (inst? Atom atm))
+  "Returns true if an Atom" [atm] (inst? Atom atm))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom
@@ -271,7 +272,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset!
-  "Set a new value to the Atom" [a v] (set! a.value v) nil)
+  "Set a new value to the Atom" [a v] (do->nil (set! a.value v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
@@ -288,7 +289,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn typeid "Returns the type-id
              of this object"
-  ^Keyword [obj]
+  [obj]
   (cond
     (lambda-arg? obj) :lambda-arg
     (keyword? obj) :keyword
@@ -309,22 +310,20 @@
     (raise! "Unknown type [" (type obj) "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn complex? "" [x]
-  (or (array? x) (object? x)))
+(defn complex?
+  "True if x is an array
+  or js object." [x] (or (array? x) (object? x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn simple? "" [x]
+(defn simple? "True if x is a
+              primitive value type" [x]
   (or (undef? obj)
-      (nil? obj)
-      (false? obj)
-      (true? obj)
-      (string? obj)
-      (number? obj)))
+      (nil? obj) (false? obj) (true? obj) (string? obj) (number? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn value? "Returns true
-             if a simple value"
-  ^Boolean [obj]
+             if a simple LISP value"
+  [obj]
   (or (nil? obj)
       (vector? obj)
       (list? obj)
@@ -335,52 +334,57 @@
       (number? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn sequential? "Returns true if coll
+(defn sequential? "True if coll
                   implements Sequential"
-  ^Boolean [arr]
-  (and (array? arr) (not (map? arr))))
+  [arr] (and (array? arr) (not (map? arr))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn eq? "Tests if two things are equal"
-  ^Boolean [a b]
-  (var ta (typeid a)
-       ok? #t
-       tb (typeid b))
-  (if-not (or (= ta tb)
-              (and (sequential? a)
-                   (sequential? b)))
-    #f
-    (case ta
-      (:map :list :vector)
-      (do (if (not= (alen a)
-                    (alen b))
-            (false! ok?)
-            (for [i 0 sz (alen a)
-                  :while (< i sz) :recur (+1 i)]
-              (when-not (eq? (.@i a)
-                             (.@i b))
-                (false! ok?)
-                (break-out-of-loop!)))) ok?)
-      :object
-      (do (if-not (= (count a)
-                     (count b))
-            (false! ok?)
-            (for [i 0 k nil ks (keys a)
-                  :while (< i (alen ks)) :recur (+1 i)]
-              (set! k (.@i ks))
-              (when-not (eq? (get a k)
-                             (get b k))
-                (false! ok?)
-                (break-out-of-loop!)))) ok?)
-      (:symbol :keyword)
-      (= a.value b.value)
-      ;;else
-      (= a b))))
+(defn- map2Obj "" [m]
+  (var ret {})
+  (var~ k v)
+  (for [i 0 sz (n# m)
+        :while (< i sz) :recur (+2 i)]
+    (set! k (.@i m)
+          v (.@+i m))
+    (assoc! ret (str k) v)) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn eq? "True if both are equal" [a b]
+  (var k nil ok? true)
+  (cond
+    (and (map? a) (map? b)
+         (= (alen a) (alen b)))
+    (eq? (map2Obj a) (map2Obj b))
+    (and (array? a) (array? b)
+         (= (alen a) (alen b)))
+    (do (for [i 0 sz (alen a)
+              :while (and ok? (< i sz)) :recur (+1 i)]
+          (when-not (eq? (.@i a)
+                         (.@i b)) (false! ok?))) ok?)
+    (and (inst? LambdaArg a)
+         (inst? LambdaArg b))
+    (= a.value b.value)
+    (and (inst? Symbol a)
+         (inst? Symbol b))
+    (= a.value b.value)
+    (and (inst? Keyword a)
+         (inst? Keyword b))
+    (= a.value b.value)
+    (and (object? a)
+         (object? b)
+         (= (n# a) (n# b)))
+    (do (for [i 0 ks (keys a) sz (n# ks)
+              :while (and ok? (< i sz)) :recur (+1 i)]
+          (set! k (.@i ks))
+          (when-not (eq? (get a k)
+                         (get b k)) (false! ok?))) ok?)
+    :else
+    (= a b)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object? "Returns true
-              if a js object"
-  ^Boolean [obj]
+              if a js object" [obj]
   (if-not (or (nil? obj)
               (array? obj)) (= (type obj) "object")))
 
@@ -409,16 +413,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pairs? "Returns true if
-             a LISP list, not data"
-  ^Boolean [obj]
+             a LISP list, not data" [obj]
   (and (array? obj)
-       (not (vector? obj))
-       (not (map? obj))
-       (not (list? obj))))
+       (not (vector? obj)) (not (map? obj)) (not (list? obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "Returns true if a List"
-  ^Boolean [obj] (and (array? obj) obj.____list))
+  [obj] (and (array? obj) obj.____list))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
@@ -426,7 +427,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
-  ^Boolean [obj] (and (array? obj) obj.____vec))
+  [obj] (and (array? obj) obj.____vec))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
@@ -434,7 +435,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
-  ^Boolean [obj] (and (array? obj) obj.____map))
+  [obj] (and (array? obj) obj.____map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn hashmap "Create a new Hashmap"
@@ -451,24 +452,19 @@
     (object? obj) (Object.entries obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn contains? "Returns true
-                if item is inside"
-  ^Boolean [coll x]
+(defn contains? "True if item is inside" [coll x]
   (cond
     (or (array? coll)
         (string? coll)) (coll.includes x)
-    (object? coll) (coll.hasOwnProperty x)
-    :else false))
+    (object? coll) (coll.hasOwnProperty x) :else false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn nichts? "Returns true if object is
-              either null of undefined"
-  ^Boolean [obj] (or (undef? obj) (nil? obj)))
+(defn nichts? "True if object is
+              either null of undefined" [obj] (or (undef? obj) (nil? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn some? "Returns true if object is
-            defined and not null"
-  ^Boolean [obj] (not (nichts? obj)))
+(defn some? "True if object is
+            defined and not null" [obj] (not (nichts? obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn count "Count the number of elements inside"
@@ -485,20 +481,16 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" ^Array [coll start step]
   (var ret [])
-  (for [i start sz (alen coll)
-        :while (< i sz) :recur (+ i step)]
-    (conj! ret (.@i coll)))
-  ret)
+  (for [i start sz (n# coll)
+        :while (< i sz) :recur (+ i step)] (conj! ret (.@i coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "Collect every
-            2nd item starting at 0"
-  ^Array [coll] (every coll 0 2))
+            2nd item starting at 0" ^Array [coll] (every coll 0 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odds "Collect every
-           2nd item starting at 1"
-  ^Array [coll] (every coll 1 2))
+           2nd item starting at 1" ^Array [coll] (every coll 1 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn modulo "Modulo"
@@ -517,23 +509,19 @@
             (alen c2) (alen c1))
        ret [])
   (for [i 0
-        :while (< i cz) :recur (+1 i)]
-    (conj! ret (.@i c1) (.@i c2)))
-  ret)
+        :while (< i cz) :recur (+1 i)] (conj! ret (.@i c1) (.@i c2))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn zipmap "Returns a map with the
+(defn zipmap "Returns an object with the
              keys mapped to the corresponding vals"
-  ^Map [keys vals]
+  ^Object [keys vals]
   (var cz (if (< (alen keys)
                  (alen vals))
             (alen keys) (alen vals))
        ret {})
   (for [i 0
         :while (< i cz) :recur (+1 i)]
-    (assoc! ret
-            $(.@i keys) (.@i vals)))
-  ret)
+    (assoc! ret $(.@i keys) (.@i vals))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn extendAttr "" ^Object [obj attr & [flags]]
@@ -560,27 +548,25 @@
       (Array.prototype.slice.call coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc! "" ^Map [mmap & xs]
+(defn assoc! "" ^Object [mmap & xs]
   (when mmap
-    (for [i 0 sz (count xs)
+    (for [i 0 sz (n# xs)
           :while (< i sz) :recur (+2 i)]
-      ;the following will be macro'ed out
-      (assoc! mmap
-           (.@i xs)
-           (.@+i xs)))) mmap)
+      ;the following assoc!
+      ;will be compiled out
+      (assoc! mmap (.@i xs) (.@+i xs)))) mmap)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc! "" ^Map [mmap & xs]
+(defn dissoc! "" ^Object [mmap & xs]
   (when mmap
     (doseq [n xs]
       (delete! mmap n))) mmap)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn truthy? "" [a] (not (falsy? a)))
+(defn truthy? "LISP truthy" [a] (not (falsy? a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn falsy? "" [a]
-  (or (nil? a)(false? a)))
+(defn falsy? "LISP falsy" [a] (or (nil? a)(false? a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
@@ -592,7 +578,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def m-maybe
   {:bind (fn [mv mf]
-           (if (nil? mv) nil (mf mv)))
+           (if-not (nil? mv) (mf mv)))
    :result #(%1)
    :zero nil})
 
@@ -601,9 +587,7 @@
   {:bind (fn [mv mf]
            (reduce
              (fn [acc v]
-               (concat acc v))
-             []
-             (map mf mv)))
+               (concat acc v)) [] (map mf mv)))
    :result #(concat [] %)
    :zero []
    :plus #(reduce
@@ -628,7 +612,7 @@
    :result (fn [v] (fn [c] (c v)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn quote-str "" ^String [s]
+(defn quote-str "Add quotes around a string" ^String [s]
   (var out "\"")
   (for [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
@@ -645,7 +629,7 @@
   (+= out "\""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unquote-str "" ^String [s]
+(defn unquote-str "Removes quotes around a string" ^String [s]
   (if (and (starts? s "\"")
            (ends? s "\""))
     (do-with [out ""]
@@ -669,7 +653,7 @@
     s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn escXml "" ^String [s]
+(defn escXml "Escape XML special chars" ^String [s]
   (var out "")
   (for [i 0 c nil sz (n# s)
         :while (< i sz) :recur (+1 i)]
@@ -684,13 +668,13 @@
   out)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn split-seq "" ^Array [coll cnt]
+(defn split-seq "Split a collection into 2 parts" ^Array [coll cnt]
   (if (< cnt (count coll))
     [(take coll cnt) (drop coll cnt)]
     [(slice coll 0) []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn select-keys "" ^Map [coll keys]
+(defn select-keys "Get a subset of keys" ^Object [coll keys]
   (reduce
     (fn [acc n]
       (assoc! acc
@@ -708,8 +692,17 @@
   (assoc! coll n v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn update-in! "" ^Any [coll keys func & xs]
-  (var err (fn [k] (raise! "update-in! failed, bad nested keys: " k)))
+(defn update-in!
+
+  "'Updates' a value in a nested associative structure, where ks is a
+sequence of keys and f is a function that will take the old value
+and any supplied args and return the new value, and returns a new
+nested structure.  If any levels do not exist, hash-maps will be
+created."
+
+  ^Any [coll keys func & xs]
+
+  (var err #(raise! "update-in! failed, bad nested keys: " %))
   (var root coll
        end (last-index keys))
   (var~ m n)
@@ -738,8 +731,13 @@
               (set-in! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn merge "" [&maps]
-  (reduce (fn [acc n] (merge! acc n)) {} maps))
+(defn merge
+
+  "Returns a map that consists of the rest of the maps conj-ed onto
+the first.  If a key occurs in more than one map, the mapping from
+the latter (left-to-right) will be the mapping in the result."
+
+  [&maps] (reduce (fn [acc n] (merge! acc n)) {} maps))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
