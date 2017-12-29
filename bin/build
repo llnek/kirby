@@ -7,6 +7,7 @@ ${N} -f src/czlab/kirby/parser.ky $O/parser.js
 ${N} -f src/czlab/kirby/engine.ky $O/engine.js
 ${N} -f src/czlab/kirby/compiler.ky $O/compiler.js
 ${N} -f src/czlab/kirby/main.ky $O/main.js
+${N} -f src/czlab/kirby/testing.ky $O/testing.js
 cp src/czlab/kirby/macros.ky $O/
 
 

@@ -12,7 +12,7 @@
     ["./stdlib"
      :as std
      :refer [lambda-arg object? nichts? count
-             into! vector conj! prn wrap-str
+             into! vector conj! prn quote-str
              list? vector? map? escXml
              symbol? keyword? lambda-arg?
              slice opt?? symbol primitive?
@@ -272,7 +272,7 @@
     (set! ret (int tn))
     (and (starts? tn "\"")
          (ends? tn "\""))
-    (set! ret (std/unwrap-str tn))
+    (set! ret (std/unquote-str tn))
     (starts? tn ":")
     (set! ret (keyword tn))
     (starts? tn "%")
@@ -425,7 +425,7 @@
     (str (dumpInfo "symbol" tree)
          (escXml (.-value tree)) "</symbol>")
     (string? tree)
-    (str "<string>" (escXml (wrap-str tree)) "</string>")
+    (str "<string>" (escXml (quote-str tree)) "</string>")
     (number? tree)
     (str "<number>" tree "</number>")
     (nil? tree)

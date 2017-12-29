@@ -371,10 +371,7 @@
   (let* [tst (gensym*)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (if (> (alen (if (or (string? ~tst)
-                            (array? ~tst))
-                      ~tst
-                      (keys ~tst))) 0) ~then ~else))))
+       (if (> (n# ~tst) 0) ~then ~else))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-some "" [binding then & [else]]
@@ -395,9 +392,7 @@
   (let* [tst (gensym*)]
     `(let [~tst ~(nth* binding 1)
            ~(first* binding) ~tst]
-       (when (> (alen (if (or (string? ~tst)
-                              (array? ~tst))
-                        ~tst (keys ~tst))) 0) ~@xs))))
+       (when (> (n# ~tst) 0) ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-some "" [binding &xs]

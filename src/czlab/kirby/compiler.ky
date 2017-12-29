@@ -1515,10 +1515,13 @@ called.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
-  (var s "" ks (keys *externs*))
-  (when (not-empty ks)
+  (var s "" ks (keys *externs*)
+       z (str "____namespaceid: " "\"" *ns* "\""))
+  (if (not-empty ks)
     (set! s (join ",\n" (map #(str % ": " %) ks))
-        s (str "\n\nmodule.exports = {\n" s "\n};\n\n"))) s)
+          s (str z ",\n" s))
+    (set! s (str z "\n")))
+  (str "\n\nmodule.exports = {\n" s "\n};\n\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []

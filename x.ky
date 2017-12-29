@@ -1,4 +1,8 @@
-(ns czlab.kirby.poo); "poo doco" {:author "kl"})
+(ns poo.face
+  (:require ["./dist/testing" :as t]))
+
+(t/xxx)
+
 
 
 
