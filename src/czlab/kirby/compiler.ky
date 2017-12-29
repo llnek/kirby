@@ -30,7 +30,6 @@
   :invalid-fargs "Invalid function args"
   :invalid-catch "Invalid catch clause"
   :invalid-try "Invalid try clause"
-  :invalid-include "Invalid include clause"
   :invalid-require "Invalid require clause"
   :invalid-namespace "Invalid namespace clause"
   :destruct-args "Bad destructure args"
@@ -343,7 +342,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" ^SourceNode [ast env]
-  (var nsp (.peekNSP (eng/globalEnv))
+  (var nsp (.curNSP (eng/globalEnv))
        stmtQ (stmt? ast)
        ret (node' ast)
        cmd (gcmd ast)
@@ -480,17 +479,6 @@
   (str (.repeat "/" len) "\n" s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- icache [])
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- includeFile ^SourceNode [fname ast]
-  (if (contains? icache fname)
-    (node' ast)
-    (let [src (eng/slurp fname)]
-      (conj! icache fname)
-      (txTree (parser/parse src fname) (eng/globalEnv )))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- evalMeta "" ^Object [ast env]
   (var x
        (cond (array? ast)
@@ -508,7 +496,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" ^String [cmd]
   (var lib "kirbystdlibref."
-       nsp (.peekNSP (eng/globalEnv)))
+       nsp (.curNSP (eng/globalEnv)))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
            (= nsp.id "czlab.kirby.stdlib"))
@@ -638,7 +626,7 @@ fn (right-to-left) to the result, etc."
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
   (if (and pub?
-           (one? (.countNSPCache (eng/globalEnv))))
+           (.curNSP (eng/globalEnv)))
     (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
@@ -789,7 +777,7 @@ returned if no clause matches."
     (ret.add s))
   ;;exports
   (if (and pub?
-           (one? (.countNSPCache (eng/globalEnv))))
+           (.curNSP (eng/globalEnv)))
     (each-key (fn [v k] (assoc! *externs* k k)) keys))
   (wrap ret (str cmd " ") ";\n"))
 
@@ -826,7 +814,7 @@ returned if no clause matches."
                 rhs (destruct* lhs out env))
           (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
   (if (and pub?
-           (one? (.countNSPCache (eng/globalEnv))))
+           (.curNSP (eng/globalEnv)))
     (each #(assoc! *externs* % %) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1047,7 +1035,7 @@ returned if no clause matches."
   (if (and pub?
            (not dot?)
            (not mtd?)
-           (one? (.countNSPCache (eng/globalEnv))))
+           (.curNSP (eng/globalEnv)))
     (assoc! *externs* fname fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
@@ -1207,46 +1195,6 @@ any finally exprs will be evaluated for their side effects."
         (ret.add "\n}"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-include
-
-  "Include another kirby file.
-
-  (:include [\"./common.ky\"])
-  (:include [\"./common.ky\"]
-            [\"./other.ky\"])"
-
-  ^Array [ast env]
-
-  (assertArity (>= (n# ast) 2) ast)
-  (var genv (eng/globalEnv)
-       ret []
-       dir (path/dirname ast.source))
-  (var~ fpath e)
-  (for [i 1 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i ast))
-    (if (or (not (array? e))
-            (not= 1 (n# e)))
-      (error! :invalid-include ast))
-    (set! fpath $(1st e))
-    (if fpath
-      (set! fpath (fpath.replace #/[\"]/g "")))
-    (try
-      (set! fpath (fs/realpathSync
-                    (str dir "/" fpath)))
-      (catch e
-        (error! :file-access ast)))
-    (try
-      (conj! ret (includeFile fpath ast))
-      (catch e
-        (error! :file-read ast))
-      (finally
-        ;TODO: check if pop is always true
-        (.popNSP genv)
-        (set! *ns* (.-id (.peekNSP genv))))))
-  (if (empty? ret) "" ret))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require
 
   "Loads libs.
@@ -1320,22 +1268,19 @@ any finally exprs will be evaluated for their side effects."
           attrs (merge attrs mobj))
     (++ pos)
     (assoc! nsp :____meta attrs))
-  (.pushNSP (eng/globalEnv) $(nsp) attrs)
+  (.setNSP (eng/globalEnv) $(nsp) attrs)
   (set! *ns* $(nsp))
   (println (str "Processing namespace: " *ns*))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast))
-    (cond (and (pairs? e)
-               (== "include" $(1st e)))
-          (conj! ret (sf-include (xfi ast e)))
-          (and (pairs? e)
+    (when (and (pairs? e)
                (== "require" $(1st e)))
-          (conj! ret (sf-require (xfi ast e)))))
+      (conj! ret (sf-require (xfi ast e)))))
   ;;force a internal reference to stdlib for user files
   ;;unless processing internal files
-  (set! nsp (.peekNSP (eng/globalEnv)))
+  (set! nsp (.curNSP (eng/globalEnv)))
   (cond
     (or (= nsp.id "czlab.kirby.macros")
         (= nsp.id "czlab.kirby.stdlib"))
@@ -1526,7 +1471,7 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
   (var {:keys [id meta]}
-       (.firstNSP (eng/globalEnv)))
+       (.curNSP (eng/globalEnv)))
   (str "/*" "Auto generated by Kirby v" MOD-VER " - " (new Date) "\n"
        "  " id "\n"
        (if meta (std/prn meta true) "") "\n"
@@ -1549,7 +1494,6 @@ called.
 
   ^Array [source fname options]
 
-  (.resetNSPCache (eng/globalEnv))
   (set! *externs* {}
         *ns* nil)
   (var ret (txTree (parser/parse source fname)
