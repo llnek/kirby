@@ -55,8 +55,8 @@
     (raise! "expecting symbol")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype LEXEnv [][data {} deps {}
-                   nsp nil parent nil]
+(deftype LEXEnv [][nsp nil parent nil
+                   data {} libs {} vars {}]
   "Lexical Environment"
   (constructor "Create and initialize
                a new env with these symbols,
@@ -112,18 +112,22 @@
                     {:id $(nsp) :meta info})))
   (curNSP "Returns the
            current namespace" [] this.nsp)
-  (getREQ "" [alias] (get this.deps alias))
+  (getLib "" [alias] (get this.libs alias))
   (addVar "" [alias sym]
-    (if-some [r (getREQ alias)]
-      (assoc! r.syms (str sym) sym)))
-  (hasVar? "" [alias sym]
-    (if-some [r (getREQ alias)]
-      (contains? r.syms (str sym)) false))
-  (addREQ "" [module alias]
-    (if (contains? this.deps alias)
-      (raise! "Module alias already added: " alias))
-    (assoc! this.deps
-            alias {:id alias :dep module :syms {} })))
+    (when-some [r (this.getLib alias)]
+      (var s (str sym)
+           m (get this.vars s))
+      (if m
+        (raise! "var: " s " already added to: " m))
+      (assoc! r.vars s sym)
+      (assoc! this.vars s alias)) nil)
+  (hasVar? "" [sym]
+    (contains? this.vars (str sym)))
+  (addLib "" [alias lib]
+    (if (contains? this.libs alias)
+      (raise! "Library alias already added: " alias))
+    (assoc! this.libs
+            alias {:id alias :lib lib :vars {} }) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))
@@ -581,7 +585,7 @@
     (true! inited?)) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn globalEnv "Returns the runtime environment" [] g_env)
+(defn genv "Returns the runtime environment" [] g_env)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

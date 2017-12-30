@@ -16,9 +16,9 @@
                      prn primitive map? vector?
                      opt?? some? primitive?
                      not-empty conj! list?
-                     gensym count pop! slice
+                     gensym count pop! carve
                      symbol keyword symbol? keyword?]]
-            ["./engine" :as eng]
+            ["./engine" :as rt]
             ["./parser" :as parser :refer [jsid]])
   (:require ["fs" :as fs]
             ["path" :as path]
@@ -45,10 +45,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ARRSLICE "Array.prototype.slice.call")
+(const- KBPFX "czlab.kirby.")
+(const- KBMACROS (str KBPFX "macros"))
+(const- KBSTDLIB (str KBPFX "stdlib"))
 (const- JSARGS "arguments")
 (const- LARGS "____args")
 (const- BREAK "____break")
 (const- MOD-VER "1.0.0")
+(const- EXPKEY "da57bc0172fb42438a11e6e8778f36fb")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
@@ -342,19 +346,19 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" ^SourceNode [ast env]
-  (var nsp (.curNSP (eng/globalEnv))
+  (var nsp (.curNSP (rt/genv))
        stmtQ (stmt? ast)
        ret (node' ast)
        cmd (gcmd ast)
        e1 (1st ast)
        orig ast
        op nil tmp nil
-       mc (eng/getMacro cmd))
+       mc (rt/getMacro cmd))
   (xfi e1 ret)
   (xfi e1 ast)
   ;;handle macro calls
   (when mc
-    (set! ast (eng/expand?? ast env mc)
+    (set! ast (rt/expand?? ast env mc)
           ast (xfi orig (exprHint ast (not stmtQ))))
     (spreadInfo orig ast)
     (set! cmd (gcmd ast)))
@@ -489,14 +493,14 @@
              (into! :map [(keyword ":tag") ast])
              :else
              (error! :invalid-meta ast))
-       v (eng/compute x env))
+       v (rt/compute x env))
   ;(console.log (str "meta-obj=" (JSON/stringify v)))
   v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" ^String [cmd]
   (var lib "kirbystdlibref."
-       nsp (.curNSP (eng/globalEnv)))
+       nsp (.curNSP (rt/genv)))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
            (= nsp.id "czlab.kirby.stdlib"))
@@ -626,7 +630,7 @@ fn (right-to-left) to the result, etc."
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
   (if (and pub?
-           (.curNSP (eng/globalEnv)))
+           (.curNSP (rt/genv)))
     (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
@@ -777,7 +781,7 @@ returned if no clause matches."
     (ret.add s))
   ;;exports
   (if (and pub?
-           (.curNSP (eng/globalEnv)))
+           (.curNSP (rt/genv)))
     (each-key (fn [v k] (assoc! *externs* k k)) keys))
   (wrap ret (str cmd " ") ";\n"))
 
@@ -814,7 +818,7 @@ returned if no clause matches."
                 rhs (destruct* lhs out env))
           (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
   (if (and pub?
-           (.curNSP (eng/globalEnv)))
+           (.curNSP (rt/genv)))
     (each #(assoc! *externs* % %) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1035,7 +1039,7 @@ returned if no clause matches."
   (if (and pub?
            (not dot?)
            (not mtd?)
-           (.curNSP (eng/globalEnv)))
+           (.curNSP (rt/genv)))
     (assoc! *externs* fname fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
@@ -1207,7 +1211,8 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (var~ as path v e refers renames)
+  (var~ as path v
+        libPath e refers renames)
   (var ret (node' ast))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1229,16 +1234,24 @@ any finally exprs will be evaluated for their side effects."
             (== v "rename")
             (do (set! renames (.@+j e))
                 (++ j))))
+    (set! libPath (tx* path env))
     (ret.add ["const " (parser/jsid as)
-              "= require(" (tx* path env) ");\n"])
-    (for [i 0 sz (n# refers)
+              "= require(" libPath ");\n"])
+    (.addLib (rt/genv)
+             $(as)
+             (std/unquote-str libPath))
+    (for [i 0 r nil sz (n# refers)
           :while (< i sz) :recur (+1 i)]
-      (set! v (tx* (.@i refers) env))
+      (set! r (.@i refers)
+            v (tx* r env))
+      (.addVar (rt/genv) $(as) $(r))
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
-    (for [i 0 sz (n# renames)
+    (for [i 0 r nil sz (n# renames)
           :while (< i sz) :recur (+2 i)]
       (set! e (tx* (.@i renames) env)
-            v (tx* (.@+i renames) env))
+            r (.@+i renames)
+            v (tx* r env))
+      (.addVar (rt/genv) $(as) $(r))
       (ret.add ["const " v
                 "=" as "[\"" e "\"];\n"]))) ret)
 
@@ -1268,8 +1281,10 @@ any finally exprs will be evaluated for their side effects."
           attrs (merge attrs mobj))
     (++ pos)
     (assoc! nsp :____meta attrs))
-  (.setNSP (eng/globalEnv) $(nsp) attrs)
+  (.setNSP (rt/genv) $(nsp) attrs)
   (set! *ns* $(nsp))
+  (if (= *ns* KBMACROS)
+    (.addLib (rt/genv) KBMACROS "./macros.ky"))
   (println (str "Processing namespace: " *ns*))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
@@ -1280,7 +1295,7 @@ any finally exprs will be evaluated for their side effects."
       (conj! ret (sf-require (xfi ast e)))))
   ;;force a internal reference to stdlib for user files
   ;;unless processing internal files
-  (set! nsp (.curNSP (eng/globalEnv)))
+  (set! nsp (.curNSP (rt/genv)))
   (cond
     (or (= nsp.id "czlab.kirby.macros")
         (= nsp.id "czlab.kirby.stdlib"))
@@ -1412,8 +1427,11 @@ called.
           :else
           (conj! pms e)))
   ;ask engine to compile this macro and stores it
-  (eng/compute ['macro*
-                (2nd ast) pms (1st body)] env) "")
+  (var mname (2nd ast))
+  (if (= *ns* KBMACROS)
+    (.addVar (rt/genv) KBMACROS mname))
+  (rt/compute ['macro*
+                mname pms (1st body)] env) "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary
@@ -1459,9 +1477,16 @@ called.
     :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- xxx "" []
+  (var x { :ns *ns* })
+  x)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
   (var s "" ks (keys *externs*)
-       z (str "____namespaceid: " "\"" *ns* "\""))
+       blah "ss"
+       z (str EXPKEY ": {" blah "}")
+       y (str "____namespaceid: " "\"" *ns* "\""))
   (if (not-empty ks)
     (set! s (join ",\n" (map #(str % ": " %) ks))
           s (str z ",\n" s))
@@ -1471,7 +1496,7 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
   (var {:keys [id meta]}
-       (.curNSP (eng/globalEnv)))
+       (.curNSP (rt/genv)))
   (str "/*" "Auto generated by Kirby v" MOD-VER " - " (new Date) "\n"
        "  " id "\n"
        (if meta (std/prn meta true) "") "\n"
@@ -1497,7 +1522,7 @@ called.
   (set! *externs* {}
         *ns* nil)
   (var ret (txTree (parser/parse source fname)
-                   (eng/globalEnv))
+                   (rt/genv))
        {:keys [source-map format]} options
        fbase (path/basename fname ".ky")
        extra (spitExterns)
@@ -1515,6 +1540,7 @@ called.
                 "\n//# sourceMappingURL="
                 (path/relative (path/dirname fname) smap)))
          (str ret extra)))
+  (println (std/prn (get (rt/genv) "libs") true))
   (try
     (if format (set! cstr
                    (esfmt/format cstr fopts)))

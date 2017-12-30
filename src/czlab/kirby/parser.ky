@@ -15,7 +15,7 @@
              into! vector conj! prn quote-str
              list? vector? map? escXml
              symbol? keyword? lambda-arg?
-             slice opt?? symbol primitive?
+             carve opt?? symbol primitive?
              keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

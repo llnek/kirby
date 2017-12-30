@@ -540,7 +540,7 @@
                       (fn [x] (+1 x))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn slice "" ^Array [coll & [start end]]
+(defn carve "" ^Array [coll & [start end]]
   (if (def? end)
     (Array.prototype.slice.call coll start end)
     (if (def? start)
