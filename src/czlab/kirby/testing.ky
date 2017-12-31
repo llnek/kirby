@@ -7,12 +7,7 @@
 ;; You must not remove this notice, or any other, from this software.
 (ns ^{:doc "Kirby's unit test framework."
       :author "Kenneth Leung"}
-  czlab.kirby.testing
-
-  (:require ["./stdlib" :as std]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro deftest- "" [name & body] `(def- ~name (fn [] ~@body)))
+  czlab.kirby.testing)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro deftest "" [name & body] `(def ~name (fn [] ~@body)))
@@ -26,7 +21,10 @@
   `(let [____ret ~form]
      (if-not ____ret (throw (or ~msg "assertion error")))))
 
-(defn xxx "" [] (console.log "poo poo"))
+
+
+(defn poo "" [] nil)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

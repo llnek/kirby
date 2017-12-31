@@ -8,6 +8,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.compiler
+  (:require ["google-closure-library" :as goog])
   (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
@@ -23,6 +24,9 @@
   (:require ["fs" :as fs]
             ["path" :as path]
             ["esformatter" :as esfmt]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(goog.require "goog.crypt.base64")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ERRORS-MAP {
@@ -1290,9 +1294,10 @@ any finally exprs will be evaluated for their side effects."
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast))
-    (when (and (pairs? e)
-               (== "require" $(1st e)))
-      (conj! ret (sf-require (xfi ast e)))))
+    (when (pairs? e)
+      (cond
+        (== "require" $(1st e))
+        (conj! ret (sf-require (xfi ast e))))))
   ;;force a internal reference to stdlib for user files
   ;;unless processing internal files
   (set! nsp (.curNSP (rt/genv)))
@@ -1485,7 +1490,7 @@ called.
 (defn- spitExterns "Write out export info" ^String []
   (var s "" ks (keys *externs*)
        blah "ss"
-       z (str EXPKEY ": {" blah "}")
+       z (str EXPKEY ": {" "}")
        y (str "____namespaceid: " "\"" *ns* "\""))
   (if (not-empty ks)
     (set! s (join ",\n" (map #(str % ": " %) ks))
