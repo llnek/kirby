@@ -14,7 +14,7 @@
   (:require ["./stdlib"
              :as std
              :refer [lambda-arg? hashmap pairs? into!
-                     merge contains? last typeid
+                     seq merge contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
                      not-empty conj! list?
@@ -602,7 +602,8 @@ fn (right-to-left) to the result, etc."
   (var ret (node' ast))
   (var~ mtd pos n m)
   (var pub? (not (ends? $(1st ast) "-"))
-       czname (tx* (2nd ast) env)
+       czname0 (2nd ast)
+       czname (tx* czname0 env)
        par (1st (.@2 ast))
        czargs (.@3 ast)
        [doc mtds] (if (str? (.@4 ast))
@@ -637,7 +638,7 @@ fn (right-to-left) to the result, etc."
   ;maybe export this type?
   (if (and pub?
            (.curNSP (rt/genv)))
-    (assoc! *externs* czname czname))
+    (assoc! *externs* czname0 czname))
   (ret.add "}\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -779,16 +780,17 @@ returned if no clause matches."
        pub? (== cmd "def~"))
   (if (starts? cmd "def")
     (set! cmd "var") (set! cmd "let"))
-  (for [i 1 s nil sz (n# ast)
+  (for [i 1 x nil s nil sz (n# ast)
         :while (< i sz) :recur (+1 i)]
-    (set! s (tx* (.@i ast) env))
-    (assoc! keys s nil)
+    (set! x (.@i ast)
+          s (tx* x env))
+    (assoc! keys x s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
   ;;exports
   (if (and pub?
            (.curNSP (rt/genv)))
-    (each-key (fn [v k] (assoc! *externs* k k)) keys))
+    (each-key #(assoc! *externs* %2 %1) keys))
   (wrap ret (str cmd " ") ";\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -802,7 +804,7 @@ returned if no clause matches."
   (assertArity (odd? (n# ast)) ast)
   (var ret (node' ast)
        cmd $(1st ast)
-       keys []
+       keys {}
        tmp nil vname nil
        pub? (or (== cmd "def")
                 (== cmd "const")))
@@ -811,21 +813,22 @@ returned if no clause matches."
             "const"
             (if (== cmd "var") "let" "var")))
   ;deal with 1 level destruction
-  (for [i 1 sz (n# ast)
+  (for [i 1 x nil sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (set! lhs (.@i ast)
           rhs (.@+i ast)
           rval (tx* rhs env))
     (if (symbol? lhs)
-      (do (set! lhs (tx* lhs env))
-          (conj! keys lhs)
+      (do (set! x lhs
+                lhs (tx* lhs env))
+          (assoc! keys x lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
                 rhs (destruct* lhs out env))
           (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
   (if (and pub?
            (.curNSP (rt/genv)))
-    (each #(assoc! *externs* % %) keys)) ret)
+    (each-key #(assoc! *externs* %2 %1) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-inst?
@@ -1046,7 +1049,7 @@ returned if no clause matches."
            (not dot?)
            (not mtd?)
            (.curNSP (rt/genv)))
-    (assoc! *externs* fname fname))
+    (assoc! *externs* fname0 fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1497,10 +1500,16 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
   (var w {:ns *ns* :macros *macros*}
-       r {EXPKEY  w})
-  (if (not-empty *externs*)
-    (set! r (std/merge r *externs*)))
-  (str "\n\nmodule.exports = " (std/prn r true)))
+       ws (std/prn w true)
+       s2 ""
+       s1 (str (std/quote-str EXPKEY)  ":" ws))
+  (when (not-empty *externs*)
+    (set! s2
+          (str ",\n"
+               (join ",\n"
+                     (map (fn [[k v]]
+                            (str (std/quote-str k) ":" v)) (seq *externs*))))))
+  (str "\n\nmodule.exports = {\n" s1 s2 "\n};\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
@@ -1528,7 +1537,7 @@ called.
 
   ^Array [source fname options]
 
-  (set! *externs* {}
+  (set! *externs* { }
         *macros* {}
         *ns* nil)
   (var ret (txTree (parser/parse source fname)
