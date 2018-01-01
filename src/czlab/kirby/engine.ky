@@ -46,7 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- CZMACROS "czlab.kirby.macros")
+(const- STD-MACROS "czlab.kirby.stdlib")
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -338,7 +338,7 @@
         (var c (.curNSP g_env))
         (if-not c (raise! "missing namespace"))
         (set! cmd (str c.id "/" cmd)))
-      ;;(println "adding macro ==== " cmd)
+      (println "adding macro ==== " cmd)
       (assoc! CACHE cmd func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -354,13 +354,13 @@
         (if-not ret
           (set! ret
                 (get CACHE
-                     (str CZMACROS "/" cmd)))))) ret)
+                     (str STD-MACROS "/" cmd)))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [x] (do->nil (println "DBG: " (prn x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readAST "" ^Array [s]
+(defn readAST "" ^Array [s]
   (var ret (parser/parse s))
   (if (single? ret)
     (set! ret (1st ret))) ret)
@@ -451,9 +451,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;(macro* name args body)
 (defn- doMACRO "" [ast env]
-  (var name $(2nd ast))
+  (var name $(2nd ast)
+       nsp (.curNSP g_env))
+  (set! nsp (if nsp nsp.id STD-MACROS))
   (if-not (contains? name "/")
-    (set! name (str CZMACROS "/" name)))
+    (set! name (str nsp "/" name)))
   (do->nil (setMacro name
                      (fn->raw (3rd ast)
                               (.@3 ast) env))))
@@ -581,7 +583,7 @@
   (when-not inited?
     (set! *version* ver g_env (newEnv))
     (reval macro_cond macro_andp)
-    (loadMacros)
+    ;;(loadMacros)
     (true! inited?)) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

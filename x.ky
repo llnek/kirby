@@ -1,7 +1,10 @@
 (ns poo.face
-  (:require ["./dist/testing" :as t]))
+  (:require ["/tmp/stdlib" :as t]))
 
-(t/xxx)
+(if-not true
+  (console.log "sdfdsf"))
+
+
 
 
 
