@@ -8,7 +8,8 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.compiler
-  (:require ["google-closure-library" :as goog])
+  ;;implicitly a var 'goog' is created
+  (:require ["google-closure-library" :as google])
   (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
@@ -26,7 +27,7 @@
             ["esformatter" :as esfmt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(goog.require "goog.crypt.base64")
+(do->nil (goog.require "goog.crypt.base64"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ERRORS-MAP {
@@ -60,6 +61,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
+      *macros* nil
       *ns* nil
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
@@ -1409,9 +1411,12 @@ called.
 
   (assertArity (>= (n# ast) 4) ast)
   (var pms [] args (3rd ast) body (slice ast 3))
-  (var~ doc x e ev)
+  (var~ mname mobj doc x e ev)
   (when (str? args)
     (set! doc args args (.@3 ast) body (slice ast 4)))
+  (set! x (meta?? args env))
+  (set! args (last x))
+  (set! mobj (1st x))
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i args) ev $(e))
@@ -1432,11 +1437,19 @@ called.
           :else
           (conj! pms e)))
   ;ask engine to compile this macro and stores it
-  (var mname (2nd ast))
+  (set! mname (2nd ast)
+        ast ['macro* mname pms (1st body)])
+  ;try to register it
   (if (= *ns* KBMACROS)
     (.addVar (rt/genv) KBMACROS mname))
-  (rt/compute ['macro*
-                mname pms (1st body)] env) "")
+  ;if not private, need to export it
+  (if-not (and mobj
+               (true? (get mobj :private)))
+    (set-in! *macros*
+             mname
+             (std/prn ast true)))
+  ;compile it
+  (rt/compute ast env) "")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-unary
@@ -1482,21 +1495,12 @@ called.
     :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- xxx "" []
-  (var x { :ns *ns* })
-  x)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
-  (var s "" ks (keys *externs*)
-       blah "ss"
-       z (str EXPKEY ": {" "}")
-       y (str "____namespaceid: " "\"" *ns* "\""))
-  (if (not-empty ks)
-    (set! s (join ",\n" (map #(str % ": " %) ks))
-          s (str z ",\n" s))
-    (set! s (str z "\n")))
-  (str "\n\nmodule.exports = {\n" s "\n};\n\n"))
+  (var w {:ns *ns* :macros *macros*}
+       r {EXPKEY  w})
+  (if (not-empty *externs*)
+    (set! r (std/merge r *externs*)))
+  (str "\n\nmodule.exports = " (std/prn r true)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
@@ -1525,6 +1529,7 @@ called.
   ^Array [source fname options]
 
   (set! *externs* {}
+        *macros* {}
         *ns* nil)
   (var ret (txTree (parser/parse source fname)
                    (rt/genv))
@@ -1545,7 +1550,7 @@ called.
                 "\n//# sourceMappingURL="
                 (path/relative (path/dirname fname) smap)))
          (str ret extra)))
-  (println (std/prn (get (rt/genv) "libs") true))
+  ;(println (std/prn (get (rt/genv) "libs") true))
   (try
     (if format (set! cstr
                    (esfmt/format cstr fopts)))

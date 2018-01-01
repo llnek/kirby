@@ -2,10 +2,6 @@
   poo.face
 (null)
 */
+require("google-closure-library");
+console.log(goog)
 
-const t = require("./dist/testing");
-const kirbystdlibref = require("kirby");
-t.xxx()
-module.exports = {
-  ____namespaceid: "poo.face"
-};
