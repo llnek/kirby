@@ -1,5 +1,5 @@
-(ns poo.face
-  (:require ["/tmp/stdlib" :as t]))
+(ns poo.face)
+
 
 (if-not true
   (console.log "sdfdsf"))

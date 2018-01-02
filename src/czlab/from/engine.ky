@@ -46,7 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- CZMACROS "czlab.kirby.macros")
+(const- STD-MACROS "czlab.kirby.stdlib")
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -55,8 +55,8 @@
     (raise! "expecting symbol")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype LEXEnv [][nspaces []
-                   data {} parent nil]
+(deftype LEXEnv [][nsp nil parent nil
+                   data {} libs {} vars {}]
   "Lexical Environment"
   (constructor "Create and initialize
                a new env with these symbols,
@@ -106,29 +106,28 @@
   (prn "Print set of vars"
     ^String []
     (std/prn this.data))
-  (pushNSP "Add a namespace"
+  (setNSP "Set current namespace"
     [nsp & info]
-    (do->nil (conj! this.nspaces
+    (do->nil (set! this.nsp
                     {:id $(nsp) :meta info})))
-  (peekNSP "Returns the
-           last added namespace"
-    ^Map []
-    (last this.nspaces))
-  (popNSP "Return and remove
-          the last added namespace"
-    ^Map []
-    (1st (pop! this.nspaces)))
-  (firstNSP "Get the first
-            added namespace"
-    ^Map []
-    (1st this.nspaces))
-  (countNSPCache "Count n# of
-                 added namespaces"
-    ^Integer []
-    (n# this.nspaces))
-  (resetNSPCache "Clear all namespaces"
-    []
-    (do->nil (assoc! this :nspaces []))))
+  (curNSP "Returns the
+           current namespace" [] this.nsp)
+  (getLib "" [alias] (get this.libs alias))
+  (addVar "" [alias sym]
+    (when-some [r (this.getLib alias)]
+      (var s (str sym)
+           m (get this.vars s))
+      (if m
+        (raise! "var: " s " already added to: " m))
+      (assoc! r.vars s sym)
+      (assoc! this.vars s alias)) nil)
+  (hasVar? "" [sym]
+    (contains? this.vars (str sym)))
+  (addLib "" [alias lib]
+    (if (contains? this.libs alias)
+      (raise! "Library alias already added: " alias))
+    (assoc! this.libs
+            alias {:id alias :lib lib :vars {} }) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))
@@ -336,7 +335,7 @@
                (fn? func))
       (set! cmd $(cmd))
       (when-not (contains? cmd "/")
-        (var c (.peekNSP g_env))
+        (var c (.curNSP g_env))
         (if-not c (raise! "missing namespace"))
         (set! cmd (str c.id "/" cmd)))
       ;;(println "adding macro ==== " cmd)
@@ -348,20 +347,20 @@
   (var~ nsp ret)
   (if (contains? cmd "/")
     (set! ret (get CACHE cmd))
-    (do (set! nsp (.peekNSP g_env))
+    (do (set! nsp (.curNSP g_env))
         (if nsp
           (set! ret (get CACHE
                          (str nsp.id "/" cmd))))
         (if-not ret
           (set! ret
                 (get CACHE
-                     (str CZMACROS "/" cmd)))))) ret)
+                     (str STD-MACROS "/" cmd)))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [x] (do->nil (println "DBG: " (prn x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readAST "" ^Array [s]
+(defn readAST "" ^Array [s]
   (var ret (parser/parse s))
   (if (single? ret)
     (set! ret (1st ret))) ret)
@@ -452,9 +451,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;(macro* name args body)
 (defn- doMACRO "" [ast env]
-  (var name $(2nd ast))
+  (var name $(2nd ast)
+       nsp (.curNSP g_env))
+  (set! nsp (if nsp nsp.id STD-MACROS))
   (if-not (contains? name "/")
-    (set! name (str CZMACROS "/" name)))
+    (set! name (str nsp "/" name)))
   (do->nil (setMacro name
                      (fn->raw (3rd ast)
                               (.@3 ast) env))))
@@ -582,11 +583,11 @@
   (when-not inited?
     (set! *version* ver g_env (newEnv))
     (reval macro_cond macro_andp)
-    (loadMacros)
+    ;;(loadMacros)
     (true! inited?)) inited?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn globalEnv "Returns the runtime environment" [] g_env)
+(defn genv "Returns the runtime environment" [] g_env)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

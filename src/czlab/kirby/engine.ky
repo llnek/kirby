@@ -338,7 +338,7 @@
         (var c (.curNSP g_env))
         (if-not c (raise! "missing namespace"))
         (set! cmd (str c.id "/" cmd)))
-      (println "adding macro ==== " cmd)
+      ;;(println "adding macro ==== " cmd)
       (assoc! CACHE cmd func))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

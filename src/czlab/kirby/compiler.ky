@@ -524,7 +524,7 @@
 (defn- loadRLib "" [info env]
   (var {:keys [ns macros]} info)
   (var~ ast s)
-  (println "loadlib has " (n# macros) " macros")
+  ;(println "loadlib has " (n# macros) " macros")
   (each-key
     (fn [v k]
       (set! ast (rt/readAST v)
@@ -646,7 +646,7 @@ fn (right-to-left) to the result, etc."
   ;maybe export this type?
   (if (and pub?
            (.curNSP (rt/genv)))
-    (assoc! *externs* czname0 czname))
+    (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -792,7 +792,7 @@ returned if no clause matches."
         :while (< i sz) :recur (+1 i)]
     (set! x (.@i ast)
           s (tx* x env))
-    (assoc! keys x s)
+    (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
   ;;exports
@@ -829,7 +829,7 @@ returned if no clause matches."
     (if (symbol? lhs)
       (do (set! x lhs
                 lhs (tx* lhs env))
-          (assoc! keys x lhs)
+          (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
                 rhs (destruct* lhs out env))
@@ -1057,7 +1057,7 @@ returned if no clause matches."
            (not dot?)
            (not mtd?)
            (.curNSP (rt/genv)))
-    (assoc! *externs* fname0 fname))
+    (assoc! *externs* fname fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1217,7 +1217,7 @@ any finally exprs will be evaluated for their side effects."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- require! "" [path]
-  (println "require path = " path)
+  ;(println "require path = " path)
   (require path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1264,8 +1264,7 @@ any finally exprs will be evaluated for their side effects."
     (let [rlib (require! libp)
           info (get rlib EXPKEY)]
       (if info
-        (loadRLib info env)
-        (println "WHAT!!!! no lib")))
+        (loadRLib info env)))
     (.addLib (rt/genv) $(as) libp)
 
     (for [i 0 r nil sz (n# refers)
@@ -1527,17 +1526,16 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
   (var s2 ""
-       s1 (str (std/quote-str EXPKEY)
-               ":"
-               "{ \"ns\": "
+       s1 (str EXPKEY
+               ": { ns: "
                (std/quote-str *ns*)
-               ", \"macros\": ____macros }"))
+               ", macros: ____macros }"))
   (when (not-empty *externs*)
     (set! s2
           (str ",\n"
                (join ",\n"
                      (map (fn [[k v]]
-                            (str (std/quote-str k) ":" v)) (seq *externs*))))))
+                            (str k ":" v)) (seq *externs*))))))
   (str "\n\nmodule.exports = {\n" s1 s2 "\n};\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
