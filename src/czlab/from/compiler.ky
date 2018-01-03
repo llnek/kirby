@@ -15,8 +15,10 @@
                      seq merge contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
+                     unquote-str quote-str
                      not-empty conj! list?
-                     gensym count pop! carve
+                     difference carve
+                     gensym count pop!
                      symbol keyword symbol? keyword?]]
             ["./engine" :as rt]
             ["./parser" :as parser :refer [jsid]])
@@ -46,7 +48,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ARRSLICE "Array.prototype.slice.call")
 (const- KBPFX "czlab.kirby.")
-(const- KBMACROS (str KBPFX "macros"))
 (const- KBSTDLIB (str KBPFX "stdlib"))
 (const- JSARGS "arguments")
 (const- LARGS "____args")
@@ -267,11 +268,11 @@
         "null"
         (primitive? a)
         (do (set! a a.value s $(a))
-            (cond (string? a) (std/quote-str a)
+            (cond (string? a) (quote-str a)
                   (nil? a) "null"
                   :else s))
         (string? a)
-        (std/quote-str a)
+        (quote-str a)
         :else (jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -296,11 +297,11 @@
              "(\"" a "\")")
         (primitive? a)
         (do (set! a a.value)
-            (cond (string? a) (std/quote-str a)
+            (cond (string? a) (quote-str a)
                   (nil? a) "null"
                   :else $(a)))
         (string? a)
-        (std/quote-str a)
+        (quote-str a)
         :else $(a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -418,7 +419,7 @@
 (defn- writeDoc "Convert to jsdoc" ^Array [doc]
   (var out [])
   (if doc
-    (->> (.split (std/unquote-str doc) "\n")
+    (->> (.split (unquote-str doc) "\n")
          (each #(let [s (.trim (str %))]
                   (if (not-empty s)
                     (conj! out (str "//" s "\n"))))))) out)
@@ -617,6 +618,7 @@ fn (right-to-left) to the result, etc."
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
+  (.addVar (rt/genv) czname0)
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -639,6 +641,7 @@ fn (right-to-left) to the result, etc."
         (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
+    (.addVar (rt/genv) (str czname0 "." m1))
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
@@ -792,6 +795,8 @@ returned if no clause matches."
         :while (< i sz) :recur (+1 i)]
     (set! x (.@i ast)
           s (tx* x env))
+    (if-not (== "let" cmd)
+      (.addVar (rt/genv) x))
     (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
@@ -829,6 +834,8 @@ returned if no clause matches."
     (if (symbol? lhs)
       (do (set! x lhs
                 lhs (tx* lhs env))
+          (if-not (== "let" cmd)
+            (.addVar (rt/genv) x))
           (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
@@ -1021,6 +1028,8 @@ returned if no clause matches."
        body (xfi ast (slice ast (+1 pargs)))
        b1 (1st body)
        [attrs args] (meta?? (nth ast pargs) env))
+  (if-not mtd?
+    (.addVar (rt/genv) fname0))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (var fargs (doFuncArgs (xfi ast args) env))
@@ -1234,15 +1243,15 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (>= (n# ast) 2) ast)
   (var~ as path v
-        libPath libp e refers renames)
+        libpath e refers renames)
   (var ret (node' ast))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast)
           as $(gensym "R__")
           refers nil renames nil)
-    (if (or (not (array? e))
-            (< (n# e) 3)) (error! :invalid-require ast))
+    (if-not (and (array? e)
+                 (string? (1st e))) (error! :invalid-require ast))
     (set! path $(1st e))
     (for [j 1 sz (n# e)
           :while (< j sz) :recur (+1 j)]
@@ -1256,29 +1265,30 @@ any finally exprs will be evaluated for their side effects."
             (== v "rename")
             (do (set! renames (.@+j e))
                 (++ j))))
-    (set! libPath (tx* path env)
-          libp (std/unquote-str libPath))
+    (set! libpath (tx* path env))
     (ret.add ["const " (parser/jsid as)
-              "= require(" libPath ");\n"])
+              "= require(" libpath ");\n"])
     ;load the lib
-    (let [rlib (require! libp)
+    (let [rlib (require! (unquote-str libpath))
           info (get rlib EXPKEY)]
       (if info
         (loadRLib info env)))
-    (.addLib (rt/genv) $(as) libp)
+    (.addLib (rt/genv) $(as) rlib)
 
     (for [i 0 r nil sz (n# refers)
           :while (< i sz) :recur (+1 i)]
       (set! r (.@i refers)
             v (tx* r env))
-      (.addVar (rt/genv) $(as) $(r))
+      ;try to pull into *ns*
+      (.addVar (rt/genv) $(r))
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
     (for [i 0 r nil sz (n# renames)
           :while (< i sz) :recur (+2 i)]
       (set! e (tx* (.@i renames) env)
             r (.@+i renames)
             v (tx* r env))
-      (.addVar (rt/genv) $(as) $(r))
+      ;try to pull into *ns*
+      (.addVar (rt/genv) $(r))
       (ret.add ["const " v
                 "=" as "[\"" e "\"];\n"]))) ret)
 
@@ -1310,8 +1320,6 @@ any finally exprs will be evaluated for their side effects."
     (assoc! nsp :____meta attrs))
   (.setNSP (rt/genv) $(nsp) attrs)
   (set! *ns* $(nsp))
-  (if (= *ns* KBMACROS)
-    (.addLib (rt/genv) KBMACROS "./macros.ky"))
   (println (str "Processing namespace: " *ns*))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
@@ -1461,8 +1469,7 @@ called.
   (set! mname (2nd ast)
         ast ['macro* mname pms (1st body)])
   ;try to register it
-  (if (= *ns* KBMACROS)
-    (.addVar (rt/genv) KBMACROS mname))
+  (.addVar (rt/genv) mname)
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1517,19 +1524,23 @@ called.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitMacros "" []
-  (-> (map (fn [[k v]]
-             (str (std/quote-str k)
-                  ":" (std/quote-str v))) (seq *macros*))
-      (.join ",\n")
-      (std/wrap-str  "const ____macros = {\n" "};\n")))
+  (if (empty? *macros*)
+    ""
+    (-> (map (fn [[k v]]
+             (str (quote-str k)
+                  ":" (quote-str v))) (seq *macros*))
+        (.join ",\n")
+        (std/wrap-str  "const ____macros = {\n" "};\n"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
-  (var s2 ""
+  (var mc (if (empty? *macros*)
+            "{}" "____macros")
+       s2 ""
        s1 (str EXPKEY
                ": { ns: "
-               (std/quote-str *ns*)
-               ", macros: ____macros }"))
+               (quote-str *ns*)
+               ", macros: " mc " }"))
   (when (not-empty *externs*)
     (set! s2
           (str ",\n"
@@ -1564,12 +1575,10 @@ called.
 
   ^Array [source fname options]
 
-  (set! *externs* { }
-        *macros* {}
-        *ns* nil)
-  (var ret (txTree (parser/parse source fname)
-                   (rt/genv))
-       {:keys [source-map format]} options
+  (set! *externs* { } *macros* {} *ns* nil)
+  (var gv (rt/genv)
+       ret (txTree (parser/parse source fname) gv)
+       {:keys [source-map format verbose]} options
        fbase (path/basename fname ".ky")
        macros (spitMacros)
        extra (spitExterns)
@@ -1588,12 +1597,18 @@ called.
                 "\n//# sourceMappingURL="
                 (path/relative (path/dirname fname) smap)))
          (str ret macros extra)))
-  ;(println (std/prn (get (rt/genv) "libs") true))
   (try
     (if format (set! cstr
                    (esfmt/format cstr fopts)))
     (catch e (set! err e)))
   (set! cstr (cleanCode cstr))
+  (var mcs (keys *macros*)
+       lbs (keys (get gv :libs))
+       vas (keys (get gv :vars)))
+  (when verbose
+    (println "<macros>\n" (std/prn mcs #t))
+    (println "<libs>\n" (std/prn lbs #t))
+    (println "<vars>\n" (std/prn (difference vas mcs) #t)))
   (vec (if (empty? cstr) "" (str (banner) cstr)) err))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

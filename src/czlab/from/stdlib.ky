@@ -1243,5 +1243,18 @@ the latter (left-to-right) will be the mapping in the result."
   [&maps] (reduce (fn [acc n] (merge! acc n)) {} maps))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn difference
+  "Return a set that is the first set
+  without elements of the other set."
+  [a b]
+
+  (var ret [] z nil)
+  (for [i 0 sz (n# a)
+        :while (< i sz) :recur (+1 i)]
+    (set! z (.@i a))
+    (if-not (contains? b z) (conj! ret z)))
+  ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

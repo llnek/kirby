@@ -1,7 +1,8 @@
 (ns poo.face)
 
+(defmacro x "" [] `(= 2 3))
 
-(if-not true
+(defn- x "" []
   (console.log "sdfdsf"))
 
 

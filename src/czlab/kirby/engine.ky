@@ -113,21 +113,19 @@
   (curNSP "Returns the
            current namespace" [] this.nsp)
   (getLib "" [alias] (get this.libs alias))
-  (addVar "" [alias sym]
-    (when-some [r (this.getLib alias)]
-      (var s (str sym)
-           m (get this.vars s))
-      (if m
-        (raise! "var: " s " already added to: " m))
-      (assoc! r.vars s sym)
-      (assoc! this.vars s alias)) nil)
+  (addVar "" [sym]
+    (do->nil (var s (str sym)
+                  m (get this.vars s))
+             (if m
+               (raise! "var: " s " already added"))
+             (assoc! this.vars s sym)))
   (hasVar? "" [sym]
     (contains? this.vars (str sym)))
   (addLib "" [alias lib]
-    (if (contains? this.libs alias)
-      (raise! "Library alias already added: " alias))
-    (assoc! this.libs
-            alias {:id alias :lib lib :vars {} }) nil))
+    (do->nil
+      (if (contains? this.libs alias)
+        (raise! "Library alias already added: " alias))
+      (assoc! this.libs alias lib))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))

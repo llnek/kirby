@@ -105,10 +105,11 @@
   (var gopt
        (->
          (getopt/create
-           [[:w "watch" "auto-compile changed files"]
+           [[:v "verbose" "show details of the source"]
+            [:w "watch" "auto-compile changed files"]
             [:m "source-map" "generate source maps"]
             [:f "format" "format source code"]
-            [:v "version" "show version"]
+            [:V "version" "show version"]
             [:r "repl" "start a repl"]
             [:h "help" "show help"]
             [:t "show-ast" "show AST"]])
