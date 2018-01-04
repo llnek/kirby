@@ -1,8 +1,11 @@
-(ns poo.face
-  (:require ["/wdrive/mygit/kirby/dist/compiler" :as c]))
+(ns poo.face)
 
-(defn y "" []
- (c/dummy 1 2 34))
+(defn swap! "Change value inside the Atom,
+            returning the new value"
+  ^Any [a f & xs]
+  (->> (concat [a.value] xs)
+       (apply f this)
+       (set! a.value )) (get a :value))
 
 
 

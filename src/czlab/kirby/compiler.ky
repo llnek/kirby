@@ -243,10 +243,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree "" ^SourceNode [root env]
-  (var ret (node' root))
-  (doseq [r root
-          :let [t (tx* r env)]
-          :when (some? t)] (ret.add [t "\n"])) ret)
+  (var ms [] os []
+       n1 (1st root)
+       ret (node' root))
+  (if-not (== "ns" (1st n1))
+    (raise! "(ns ...) must be first form in file"))
+  (conj! ms n1)
+  (for [i 1 t nil sz (n# root)
+        :while (< i sz) :recur (+1 i)]
+    (set! t (.@i root))
+    (if (and (array? t)
+             (== "defmacro" (1st t)))
+      (conj! ms t)
+      (conj! os t)))
+  (var f (fn [c]
+           (doseq [r c
+                   :let [t (tx* r env)]
+                   :when (some? t)]
+             (ret.add [t "\n"]))))
+  (f ms)
+  (f os)
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txForm "" ^Any [expr env]
@@ -1660,7 +1677,6 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const version MOD-VER)
 
-(defmacro dummy "" [&xs] `(+ ~@xs))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 

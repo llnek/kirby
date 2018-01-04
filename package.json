@@ -22,7 +22,7 @@
   "directories": {
     "lib": "./dist"
   },
-  "main": "./dist/compiler.js",
+  "main": "./dist/stdlib.js",
   "bin": {
     "kirby": "./bin/kirby.js"
   },

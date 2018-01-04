@@ -508,8 +508,22 @@
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro deftest
+  "" [name & body] `(def ~name (fn [] ~@body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro testing "" [title & body]
+  `(do (println "testing: " ~title) ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensure "" [form & [msg]]
+  `(let [____ret ~form]
+     (if-not ____ret (throw (or ~msg "assertion error")))))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
+;;MACROS-EOF
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
