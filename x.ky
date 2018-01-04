@@ -1,11 +1,12 @@
 (ns poo.face)
 
-(defn swap! "Change value inside the Atom,
-            returning the new value"
-  ^Any [a f & xs]
-  (->> (concat [a.value] xs)
-       (apply f this)
-       (set! a.value )) (get a :value))
+(deftest xxx
+
+  (testing
+    (ensure (= 2 4) "dfd")
+    (ensure (= 1 2) "dfd")))
+
+
 
 
 

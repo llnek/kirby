@@ -510,17 +510,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro deftest
-  "" [name & body] `(def ~name (fn [] ~@body)))
+  "" [name & body] `(const ~name #([~@body])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro testing "" [title & body]
-  `(do (println "testing: " ~title) ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure "" [form & [msg]]
-  `(let [____ret ~form]
-     (if-not ____ret (throw (or ~msg "assertion error")))))
-
+(defmacro ensure "" [form msg]
+  `(let [m ~msg]
+     (try (if ~form
+            (str "passed: " m)
+            (str "failed: " m))
+          (catch e (str "failed: " m)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;MACROS-EOF
