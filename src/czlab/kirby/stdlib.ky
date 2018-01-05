@@ -1282,11 +1282,14 @@ the latter (left-to-right) will be the mapping in the result."
           (catch e (str "failed: " m)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensureThrown "" [form msg]
+(defmacro ensureThrown "" [expected form msg]
   `(let [m ~msg]
      (try ~form
           (str "failed: " m)
-          (catch e (str "passed: " m)))))
+          (catch e
+            (if (= expected (type e))
+              (str "passed: " m)
+              (str "failed: " m))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest "" [test & [title]]
