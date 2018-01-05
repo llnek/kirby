@@ -257,7 +257,7 @@
         (set! recur
               (fn []
                 (set! _x_ arguments)
-                (js# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
+                (raw# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
                 undefined))
         (recur ~@os)) this)))
 
@@ -508,17 +508,6 @@
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro deftest
-  "" [name & body] `(const ~name #([~@body])))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure "" [form msg]
-  `(let [m ~msg]
-     (try (if ~form
-            (str "passed: " m)
-            (str "failed: " m))
-          (catch e (str "failed: " m)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;MACROS-EOF
@@ -632,7 +621,7 @@
              (string? prop)
              (not (obj.hasOwnProperty prop)))
       undefined
-      (js# "obj[prop]"))
+      (raw# "obj[prop]"))
     undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1266,6 +1255,56 @@ the latter (left-to-right) will be the mapping in the result."
     (set! z (.@i a))
     (if-not (contains? b z) (conj! ret z)))
   ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn percent "" ^Number [numerator denominator]
+  (* 100 (div numerator denominator)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toFixed "" ^String [num digits]
+  (set! digits (opt?? digits 2))
+  (.toFixed (Number num) digits))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;testing stuff
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro deftest
+  "" [name & body] `(const ~name #(vec ~@body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensure "" [form msg]
+  `(let [m ~msg]
+     (try (if ~form
+            (str "passed: " m)
+            (str "failed: " m))
+          (catch e (str "failed: " m)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensureThrown "" [form msg]
+  `(let [m ~msg]
+     (try ~form
+          (str "failed: " m)
+          (catch e (str "passed: " m)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runtest "" [test & [title]]
+  (set! title (opt?? title "test"))
+  (var now (new Date)
+       results (test)
+       sum (n# results)
+       ok (n# (filter #(starts? % "p") results))
+       ps (toFixed (percent ok sum)))
+  (->> [(.repeat "+" 78)
+        title now
+        (.repeat "+" 78)
+        (join "\n" results)
+        (.repeat "=" 78)
+        (str "Passed: " ok "/" sum " [" ps "%]")
+        (str "Failed: " (- sum ok))
+        (str "CPU Time: " (- (new Date) now) "ms")]
+       (join "\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

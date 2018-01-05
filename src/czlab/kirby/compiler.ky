@@ -495,7 +495,7 @@
                 (+1 (ast.source.lastIndexOf "/"))) "?")
        s (str "//fn: ["
               fname "] in file: "
-              file ",line: " (or ast.line "?") "\n")
+              file ", line: " (or ast.line "?") "\n")
        len (alen s))
   (if (< len 80)  (set! len 80))
   (str (.repeat "/" len) "\n" s))
@@ -1460,9 +1460,9 @@ any finally exprs will be evaluated for their side effects."
 
   "Inject raw native (js) code fragment.
 
-  (js# \"console.log('hi');\")"
+  (raw# \"console.log('hi');\")"
 
-  ^{:opcode ["js#"] :tag SourceNode} [ast env]
+  ^{:opcode ["raw#"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (var s $(2nd ast)
