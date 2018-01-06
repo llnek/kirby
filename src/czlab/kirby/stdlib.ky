@@ -246,7 +246,7 @@
 (defmacro triple? "" [coll] `(= 3 (n# ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;trampoline
+;;
 (defmacro loop "" [bindings & more]
   (let*
     [es (evens* bindings)
@@ -1274,22 +1274,30 @@ the latter (left-to-right) will be the mapping in the result."
   "" [name & body] `(const ~name #(vec ~@body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure "" [form msg]
-  `(let [m ~msg]
-     (try (if ~form
-            (str "passed: " m)
-            (str "failed: " m))
-          (catch e (str "failed: " m)))))
+(defn ensureTest "" [cnd msg]
+  (set! msg (or msg "test"))
+  (try (str (if cnd "passed:" "failed:") " " msg)
+       (catch e (str "failed: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensureThrown "" [expected form msg]
-  `(let [m ~msg]
-     (try ~form
-          (str "failed: " m)
-          (catch e
-            (if (= expected (type e))
-              (str "passed: " m)
-              (str "failed: " m))))))
+(defmacro ensure "" [form & [msg]]
+  `(kirbystdlibref/ensureTest ~form ~msg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ensureTestThrown "" [expected error msg]
+  (set! msg (or msg "test"))
+  (if (nil? error)
+    (str "failed: " msg)
+    (if (= expected (type error))
+      (str "passed: " msg)
+      (str "failed: " msg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensureThrown "" [expected form & [msg]]
+  `(try ~form
+        (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
+        (catch e
+          (kirbystdlibref/ensureTestThrown ~expected e ~msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest "" [test & [title]]

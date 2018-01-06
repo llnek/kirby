@@ -1220,12 +1220,12 @@ any finally exprs will be evaluated for their side effects."
   (if (empty? ast)
     (ret.add "[]")
     (do (if-not (vector? ast) (set! pos 1))
-        (ret.add "[\n")
+        (ret.add "[ ")
         (for [i pos sz (n# ast)
               :while (< i sz) :recur (+1 i)]
-          (if (> i pos) (ret.add ",\n"))
+          (if (> i pos) (ret.add ", "))
           (ret.add (tx* (xfi ast (.@i ast)) env)))
-        (ret.add "\n]"))))
+        (ret.add " ]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-object
@@ -1243,13 +1243,13 @@ any finally exprs will be evaluated for their side effects."
   (if (empty? ast)
     (ret.add "{}")
     (do (if-not (map? ast) (set! pos 1))
-        (ret.add "{\n")
+        (ret.add "{ ")
         (for [i pos sz (n# ast)
               :while (< i sz) :recur (+2 i)]
-          (if (> i pos) (ret.add ",\n"))
+          (if (> i pos) (ret.add ", "))
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
-        (ret.add "\n}"))))
+        (ret.add " }"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- require! "" [path]

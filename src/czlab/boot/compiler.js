@@ -2407,7 +2407,7 @@ const sf_DASH_floop = function(ret, args, body, env, stmtQ) {
 ////////////////////////////////////////////////////////////////////////////////
 //fn: [sf-jscode] in file: compiler.ky,line: 1414
 //Inject raw native (js) code fragment.
-//(js# "console.log('hi');")
+//(raw# "console.log('hi');")
 const sf_DASH_jscode = function(ast, env) {
   assertArity((kirbystdlibref.count(ast) >= 2), ast);
   let s = [
@@ -2418,7 +2418,7 @@ const sf_DASH_jscode = function(ast, env) {
     s.slice(1, -1) :
     s)));
 };
-SPEC_DASH_OPS["js#"] = sf_DASH_jscode;
+SPEC_DASH_OPS["raw#"] = sf_DASH_jscode;
 ////////////////////////////////////////////////////////////////////////////////
 //fn: [sf-macro] in file: compiler.ky,line: 1431
 //Like defn, but the resulting function name is declared as a

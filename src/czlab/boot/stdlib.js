@@ -1241,7 +1241,7 @@ const ____macros = {
   "single?": "(macro* single? (coll) (syntax-quote (= 1 (n# (unquote coll)))))",
   "dual?": "(macro* dual? (coll) (syntax-quote (= 2 (n# (unquote coll)))))",
   "triple?": "(macro* triple? (coll) (syntax-quote (= 3 (n# (unquote coll)))))",
-  "loop": "(macro* loop (bindings & more) (let* [es (evens* bindings) os (odds* bindings)] (syntax-quote ((fn [] (var _x_ null recur null _f_ (fn [(splice-unquote es)] (splice-unquote more)) _r_ _f_) (set! recur (fn [] (set! _x_ arguments) (js# \"if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}\") undefined)) (recur (splice-unquote os))) this))))",
+  "loop": "(macro* loop (bindings & more) (let* [es (evens* bindings) os (odds* bindings)] (syntax-quote ((fn [] (var _x_ null recur null _f_ (fn [(splice-unquote es)] (splice-unquote more)) _r_ _f_) (set! recur (fn [] (set! _x_ arguments) (raw# \"if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}\") undefined)) (recur (splice-unquote os))) this))))",
   "concat": "(macro* concat (coll x) (syntax-quote (.concat (unquote coll) (unquote x))))",
   "join": "(macro* join (sep coll) (syntax-quote (.join (unquote coll) (unquote sep))))",
   "do-with": "(macro* do-with (binding & xs) (let* [f (nth* binding 0)] (syntax-quote (let [(unquote f) (unquote (nth* binding 1))] (splice-unquote xs) (unquote f)))))",
