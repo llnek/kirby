@@ -820,7 +820,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn simple? "True if x is a
-              primitive value type" [x]
+              primitive value type" [obj]
   (or (undef? obj)
       (nil? obj) (false? obj) (true? obj) (string? obj) (number? obj)))
 

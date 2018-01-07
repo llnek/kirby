@@ -183,15 +183,79 @@
 
   (ensure (s/not-empty [2]) "not-empty")
   (ensure (= 2 (s/opt?? undefined 2)) "opt??")
-  (ensure (let [a [1] b (conj a 2 3)]
-            (and (= 1 (n# a)) (= 3 (n# b)) (= 3 (last b)))) "conj")
+  (ensure (let [a [1] b (s/conj a 2 3)]
+            (and (= 1 (n# a)) (= 3 (n# b)) (= 3 (s/last b)))) "conj")
+  (ensure (let [c [9 8 7]
+                [a b] (s/pop! c)]
+            (and (= 7 a) (= 2 (n# c)))) "pop!")
+  (ensure (let [c [9 8 7]
+                [a b] (s/pop c)]
+            (and (= 7 a) (= 3 (n# c)))) "pop")
+  (ensure (= "xaaaz" (s/wrap-str "aaa" "x" "z")) "wrap-str")
+  (ensure (undef? (s/getProp {:a 1 :z 5} :x)) "getProp,false")
+  (ensure (= 5 (s/getProp {:a 1 :z 5} :z)) "getProp,true")
+  (ensure (fn? (s/getProp
+                 {:a 1 :z 5}
+                 :toString false)) "getProp,false")
+  (ensure (= "(1 2 3)" (s/prn [1 2 3])) "prn")
+  (ensure (let [p (s/primitive 2)
+                v (.-value p)]
+            (and (s/primitive? p)
+                 (= v 2))) "primitive,primitive?")
+  (ensure (let [a (s/lambda-arg "%9")
+                v (.-value a)]
+            (and (s/lambda-arg? a)
+                 (= v "8"))) "lambda-arg,lambda-arg?")
+  (ensure (let [a (s/lambda-arg "%")
+                v (.-value a)]
+            (and (s/lambda-arg? a)
+                 (= v "0"))) "lambda-arg,%,lambda-arg?")
+  (ensure (let [k (s/keyword ":hello")
+                v (.-value k)]
+            (and (s/keyword? k)
+                 (= v "hello"))) "keyword,keyword?")
+  (ensure (let [s (std/symbol "hello")
+                v (.-value s)]
+            (and (std/symbol? s)
+                 (= v "hello"))) "symbol,symbol?")
+  (ensure (let [a (s/atom "hello")
+                w (deref a)
+                v @a]
+            (and (s/atom? a)
+                 (= w v)
+                 (= v "hello"))) "atom,atom?")
+  (ensure (s/symbol?
+            (s/keyword->symbol (s/keyword ":pooh"))) "keyword->symbol")
+  (ensure (= 8 (let [a (s/atom 3)]
+                 (s/reset! a 8) @a)) "reset!")
+  (ensure (= 8 (let [a (s/atom 3)]
+                 (s/swap! a (fn [old more]
+                              (+ old more)) 5) @a)) "swap!")
+  (ensure (= :atom (s/typeid (s/atom 2))) "typeid")
+  (ensure (and (s/complex? [1])
+               (s/complex? {:a 1})) "complex?")
+  (ensure (and (false? (s/complex? 2))
+               (false? (s/complex? "a"))) "not complex?")
+  (ensure (and (s/simple? 1)
+               (s/simple? nil)) "simple?")
+  (ensure (and (false? (s/simple? []))
+               (false? (s/simple? {}))) "not simple?")
+  (ensure (and (s/value? 3)
+               (not (s/value? (fn [] nil)))) "value?")
+  (ensure (s/sequential? [1 2 3]) "sequential?")
+  (ensure (s/eq? [1 2] [1 2]) "eq? -> array")
+  (ensure (s/eq? {:a 1 :b 2} {:b 2 :a 1}) "eq? -> object")
+
+  (ensure (s/object? {:a 1}) "object?")
+  (ensure (s/object? 1) "not object?")
+  (ensure (= 3 (s/last [1 2 3])))
 
 
   (ensureThrown "object" (raise! "hello" "world") "raise!")
   (ensureThrown "string" (trap! "hello" "world") "trap!")
   (ensure (= "hello" (.-message (merror "hello"))) "merror"))
 
-(console.log (std/runtest xxx "fucker"))
+(console.log (std/runtest xxx "zzzzzz"))
 
 
 
