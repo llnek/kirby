@@ -1034,6 +1034,11 @@
   (Object.defineProperty obj attr flags) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cons
+  "Returns a new seq where x is the first element and seq is
+  the rest." [x coll] (.concat [x] coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- gensym-counter (atom 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1276,8 +1281,8 @@ the latter (left-to-right) will be the mapping in the result."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensureTest "" [cnd msg]
   (set! msg (or msg "test"))
-  (try (str (if cnd "passed:" "failed:") " " msg)
-       (catch e (str "failed: " msg))))
+  (try (str (if cnd "passed:" "FAILED:") " " msg)
+       (catch e (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensure "" [form & [msg]]
@@ -1287,10 +1292,10 @@ the latter (left-to-right) will be the mapping in the result."
 (defn ensureTestThrown "" [expected error msg]
   (set! msg (or msg "test"))
   (if (nil? error)
-    (str "failed: " msg)
+    (str "FAILED: " msg)
     (if (= expected (type error))
       (str "passed: " msg)
-      (str "failed: " msg))))
+      (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensureThrown "" [expected form & [msg]]

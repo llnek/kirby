@@ -14,7 +14,7 @@
 (def- s std TMPVAR nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest xxx
+(deftest test-stdlib
 
   (ensure (not (empty? [1])) "not empty?")
   (ensure (empty? []) "empty?")
@@ -223,7 +223,7 @@
                 v @a]
             (and (s/atom? a)
                  (= w v)
-                 (= v "hello"))) "atom,atom?")
+                 (= v "hello"))) "atom,atom?,deref")
   (ensure (s/symbol?
             (s/keyword->symbol (s/keyword ":pooh"))) "keyword->symbol")
   (ensure (= 8 (let [a (s/atom 3)]
@@ -246,16 +246,94 @@
   (ensure (s/eq? [1 2] [1 2]) "eq? -> array")
   (ensure (s/eq? {:a 1 :b 2} {:b 2 :a 1}) "eq? -> object")
 
+  (ensure (not (s/object? 1)) "not object?")
   (ensure (s/object? {:a 1}) "object?")
-  (ensure (s/object? 1) "not object?")
-  (ensure (= 3 (s/last [1 2 3])))
+  (ensure (= 3 (s/last [1 2 3])) "last")
+  (ensure (s/list? (s/into! :list [1 2 3])) "into!")
+  (ensure (let [x (s/list 1 2 3)
+                y (s/into :list x)]
+            (s/conj! x 4)
+            (and (= 4 (n# x))
+                 (= 3 (n# y)) (s/list? y))) "into")
+  (ensure (s/pairs? [1 2 3]))
+  (ensure (s/list? (s/list 1 2 3)) "list,list?")
+  (ensure (s/vector? (s/vector 1 2 3)) "vector,vector?")
+  (ensure (s/map? (s/hashmap :a 1 :b 2 :c 3)) "hashmap,map?")
+  (ensure (= 3 (n# (s/seq "abc"))) "seq")
+  (ensure (s/contains? [1 2 3] 2) "contains?")
+  (ensure (and (s/nichts? nil)
+               (s/nichts? undefined)) "nichts?")
+  (ensure (s/some? false) "some?")
+  (ensure (= 3 (s/count [1 2 3])) "count")
+  (ensure (= 4 (n# (s/concat* [1 2] 3 4))) "concat*")
+  (ensure (= 3 (s/last (s/evens [1 2 3 4]))) "evens")
+  (ensure (= 4 (s/last (s/odds [1 2 3 4]))) "odds")
+  (ensure (and (= 1 (s/modulo 10 3))
+               (= 2 (s/modulo -10 3))) "modulo")
+  (ensure (s/eq? [1 5 2 6]
+                 (s/interleave [1 2 3] [5 6])) "interleave")
+  (ensure (s/eq? [5 1 6 2]
+                 (s/interleave [5 6] [1 2 3])) "interleave")
+  (ensure (s/eq? {:a 1 :b 2}
+                 (s/zipmap [:a :b] [1 2 3])) "zipmap")
+  (ensure (s/eq? {:a 5 :b 6}
+                 (s/zipmap [:a :b :c] [5 6])) "zipmap")
+  (ensure (let [g (s/gensym "X")]
+            (and (s/symbol? g)
+                 (starts? (.-value g) "X"))) "gensym")
+  (ensure (= 1 (get (s/carve [1 2] 0 -1) 0)) "carve,a,b")
+  (ensure (= 2 (get (s/carve [1 2] 1) 0)) "carve,a")
+  (ensure (s/eq? {:a 1 :b 2}
+                 (s/assoc! {} :a 1 :b 2)) "assoc!")
+  (ensure (s/eq? {:c 3}
+                 (s/dissoc! {:a 1 :b 2 :c 3} :a :b)) "dissoc!")
+  (ensure (and (s/falsy? false)
+               (s/falsy? nil)) "falsy?")
+  (ensure (and (not (s/truthy? nil))
+               (not (s/truthy? false))) "truthy?")
+
+  (ensure (let [x (s/quote-str "abc")]
+            (and (starts? x "\"")
+                 (ends? x "\""))) "quote-str")
+  (ensure (= "abc"
+             (s/unquote-str "\"abc\"")) "unquote-str")
+  (ensure (= "&lt;&gt;&amp;&quot;&apos;"
+             (s/escXml "<>&\"'")) "escXml")
+  (ensure (let [[x y]
+                (s/split-seq [1 2 3 4 5] 3)]
+            (and (s/eq? [1 2 3] x)
+                 (s/eq? [4 5] y))) "split-seq")
+  (ensure (s/eq? {:a 1 :c 3}
+                 (s/select-keys
+                   {:a 1 :b 2 :c 3} [:a :c])) "select-keys")
+  (ensure (s/eq? {:a {:b {:c 9}}}
+                 (s/update-in!
+                   {:a {:b {:c 4}}}
+                   [:a :b :c]
+                   (fn [old n] (+ old n)) 5)) "update-in")
+  (ensure (s/eq? {:a 1 :b 2}
+                 (s/merge {:a 1} {:b 2})) "merge")
+  (ensure (s/eq? [1 2 4]
+                 (s/difference
+                   [1 2 3 4 5] [3 5])) "difference")
+  (ensure (= 50 (s/percent 20 40)) "percent")
+  (ensure (= "3.333" (s/toFixed (/ 10 3) 3)) "toFixed")
+
+  (ensure (s/eq? [4 5]
+                 ((juxt (fn [a] (+ 1 a))
+                        (fn [b] (+ 2 b))) 3)) "juxt")
+
+  (ensure (= 14
+             ((comp (fn [a] (+ 1 a))
+                    (fn [b c] (+ b c))) 3 10)) "comp")
 
 
   (ensureThrown "object" (raise! "hello" "world") "raise!")
   (ensureThrown "string" (trap! "hello" "world") "trap!")
   (ensure (= "hello" (.-message (merror "hello"))) "merror"))
 
-(console.log (std/runtest xxx "zzzzzz"))
+(println (std/runtest test-stdlib
+                      "Kirby stdlib test-suite"))
 
 
 
