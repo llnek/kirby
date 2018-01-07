@@ -16,7 +16,7 @@
              :refer [pairs? stringify contains?
                      atom? list? map? some?
                      LambdaArg Keyword
-                     not-empty object?
+                     nichts? not-empty object?
                      Symbol into! prn
                      Atom symbol swap!
                      atom vector vector?
@@ -24,6 +24,11 @@
                      conj! count truthy? falsy?
                      last pop! opt??
                      keyword? symbol? seq]]))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const EXPKEY "da57bc0172fb42438a11e6e8778f36fb")
+(const KBSTDLR "kirbystdlibref")
+(const KBPFX "czlab.kirby.")
+(const KBSTDLIB (str KBPFX "stdlib"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_assert ```
@@ -113,12 +118,14 @@
   (curNSP "Returns the
            current namespace" [] this.nsp)
   (getLib "" [alias] (get this.libs alias))
-  (addVar "" [sym]
+  (addVar "" [sym info]
     (do->nil (var s (str sym)
                   m (get this.vars s))
              (if m
                (raise! "var: " s " already added"))
-             (assoc! this.vars s sym)))
+             (assoc! this.vars s info)))
+  (getVar "" [sym]
+    (get this.vars (str sym)))
   (hasVar? "" [sym]
     (contains? this.vars (str sym)))
   (addLib "" [alias lib]
@@ -341,18 +348,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getMacro "Get macro" ^Function [cmd]
+  (var~ skip nsp mname)
   (set! cmd $(cmd))
-  (var~ nsp ret)
-  (if (contains? cmd "/")
-    (set! ret (get CACHE cmd))
-    (do (set! nsp (.curNSP g_env))
-        (if nsp
-          (set! ret (get CACHE
-                         (str nsp.id "/" cmd))))
-        (if-not ret
-          (set! ret
-                (get CACHE
-                     (str STD-MACROS "/" cmd)))))) ret)
+  (cond
+    (contains? cmd "/")
+    (let [[p c](cmd.split "/")
+          tmp nil
+          lib (.getLib (genv) p)]
+      (set! mname c)
+      (cond
+        (= KBSTDLR p)
+        (set! nsp KBSTDLIB)
+        (nichts? lib)
+        (set! skip true)
+        :else
+        (if-not (get lib EXPKEY)
+          (set! skip true)
+          (set! nsp (get (get lib EXPKEY) :ns)))))
+    :else
+    (let [m (.getVar (genv) cmd)]
+      (set! mname cmd
+            nsp (if m (get m :ns) KBSTDLIB))))
+  (if-not skip
+    (get CACHE (str nsp "/" mname))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [x] (do->nil (println "DBG: " (prn x))))
@@ -527,7 +545,6 @@
   (var g1 #(if (pairs? %) (1st %) "")
        env (or cenv g_env)
        ret (loop [ast (expand?? expr env)]
-             ;(if-not (arr? ast) (set! ast (eval* ast env)))
              (var cmd $(g1 ast)
                   fc (get *spec-forms* cmd)
                   res (cond

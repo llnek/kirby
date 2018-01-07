@@ -327,6 +327,8 @@
              ((comp (fn [a] (+ 1 a))
                     (fn [b c] (+ b c))) 3 10)) "comp")
 
+  (ensure (s/eq? [1 2 "3"]
+                 (quote [1 2 "3"])) "quote")
 
   (ensureThrown "object" (raise! "hello" "world") "raise!")
   (ensureThrown "string" (trap! "hello" "world") "trap!")

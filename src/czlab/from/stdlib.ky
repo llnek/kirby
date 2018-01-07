@@ -246,7 +246,7 @@
 (defmacro triple? "" [coll] `(= 3 (n# ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;trampoline
+;;
 (defmacro loop "" [bindings & more]
   (let*
     [es (evens* bindings)
@@ -257,7 +257,7 @@
         (set! recur
               (fn []
                 (set! _x_ arguments)
-                (js# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
+                (raw# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
                 undefined))
         (recur ~@os)) this)))
 
@@ -508,8 +508,9 @@
 (defmacro monad-continuation "" [monads bindings & body]
   `(do-monad (.-continuation monads) ~bindings ~@body))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
+;;MACROS-EOF
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -620,7 +621,7 @@
              (string? prop)
              (not (obj.hasOwnProperty prop)))
       undefined
-      (js# "obj[prop]"))
+      (raw# "obj[prop]"))
     undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -819,7 +820,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn simple? "True if x is a
-              primitive value type" [x]
+              primitive value type" [obj]
   (or (undef? obj)
       (nil? obj) (false? obj) (true? obj) (string? obj) (number? obj)))
 
@@ -1031,6 +1032,11 @@
   (set! flags (opt?? flags
                    {:enumerable #f :writable #t}))
   (Object.defineProperty obj attr flags) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cons
+  "Returns a new seq where x is the first element and seq is
+  the rest." [x coll] (.concat [x] coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- gensym-counter (atom 0))
@@ -1254,6 +1260,67 @@ the latter (left-to-right) will be the mapping in the result."
     (set! z (.@i a))
     (if-not (contains? b z) (conj! ret z)))
   ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn percent "" ^Number [numerator denominator]
+  (* 100 (div numerator denominator)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn toFixed "" ^String [num digits]
+  (set! digits (opt?? digits 2))
+  (.toFixed (Number num) digits))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;testing stuff
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro deftest
+  "" [name & body] `(const ~name #(vec ~@body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ensureTest "" [cnd msg]
+  (set! msg (or msg "test"))
+  (try (str (if cnd "passed:" "FAILED:") " " msg)
+       (catch e (str "FAILED: " msg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensure "" [form & [msg]]
+  `(kirbystdlibref/ensureTest ~form ~msg))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ensureTestThrown "" [expected error msg]
+  (set! msg (or msg "test"))
+  (if (nil? error)
+    (str "FAILED: " msg)
+    (if (= expected (type error))
+      (str "passed: " msg)
+      (str "FAILED: " msg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro ensureThrown "" [expected form & [msg]]
+  `(try ~form
+        (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
+        (catch e
+          (kirbystdlibref/ensureTestThrown ~expected e ~msg))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn runtest "" [test & [title]]
+  (set! title (opt?? title "test"))
+  (var now (new Date)
+       results (test)
+       sum (n# results)
+       ok (n# (filter #(starts? % "p") results))
+       ps (toFixed (percent ok sum)))
+  (->> [(.repeat "+" 78)
+        title now
+        (.repeat "+" 78)
+        (join "\n" results)
+        (.repeat "=" 78)
+        (str "Passed: " ok "/" sum " [" ps "%]")
+        (str "Failed: " (- sum ok))
+        (str "CPU Time: " (- (new Date) now) "ms")]
+       (join "\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

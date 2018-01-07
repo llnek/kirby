@@ -545,7 +545,6 @@
   (var g1 #(if (pairs? %) (1st %) "")
        env (or cenv g_env)
        ret (loop [ast (expand?? expr env)]
-             ;(if-not (arr? ast) (set! ast (eval* ast env)))
              (var cmd $(g1 ast)
                   fc (get *spec-forms* cmd)
                   res (cond

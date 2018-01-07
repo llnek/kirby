@@ -20,7 +20,9 @@
                      difference carve
                      gensym count pop!
                      symbol keyword symbol? keyword?]]
-            ["./engine" :as rt]
+            ["./engine"
+             :as rt
+             :refer [KBSTDLR KBSTDLIB KBPFX EXPKEY]]
             ["./parser" :as parser :refer [jsid]])
   (:require ["fs" :as fs]
             ["path" :as path]
@@ -47,13 +49,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ARRSLICE "Array.prototype.slice.call")
-(const- KBPFX "czlab.kirby.")
-(const- KBSTDLIB (str KBPFX "stdlib"))
 (const- JSARGS "arguments")
 (const- LARGS "____args")
 (const- BREAK "____break")
 (const- MOD-VER "1.0.0")
-(const- EXPKEY "da57bc0172fb42438a11e6e8778f36fb")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
@@ -244,10 +243,27 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree "" ^SourceNode [root env]
-  (var ret (node' root))
-  (doseq [r root
-          :let [t (tx* r env)]
-          :when (some? t)] (ret.add [t "\n"])) ret)
+  (var ms [] os []
+       n1 (1st root)
+       ret (node' root))
+  (if-not (== "ns" (1st n1))
+    (raise! "(ns ...) must be first form in file"))
+  (conj! ms n1)
+  (for [i 1 t nil sz (n# root)
+        :while (< i sz) :recur (+1 i)]
+    (set! t (.@i root))
+    (if (and (array? t)
+             (== "defmacro" (1st t)))
+      (conj! ms t)
+      (conj! os t)))
+  (var f (fn [c]
+           (doseq [r c
+                   :let [t (tx* r env)]
+                   :when (some? t)]
+             (ret.add [t "\n"]))))
+  (f ms)
+  (f os)
+  ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txForm "" ^Any [expr env]
@@ -290,10 +306,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" ^String [a]
   (cond (keyword? a)
-        (str (maybeStripStdlib "kirbystdlibref.keyword")
+        (str (maybeStripStdlib (str KBSTDLR ".keyword"))
              "(\":" a "\")")
         (symbol? a)
-        (str (maybeStripStdlib "kirbystdlibref.symbol")
+        (str (maybeStripStdlib (str KBSTDLR ".symbol"))
              "(\"" a "\")")
         (primitive? a)
         (do (set! a a.value)
@@ -479,7 +495,7 @@
                 (+1 (ast.source.lastIndexOf "/"))) "?")
        s (str "//fn: ["
               fname "] in file: "
-              file ",line: " (or ast.line "?") "\n")
+              file ", line: " (or ast.line "?") "\n")
        len (alen s))
   (if (< len 80)  (set! len 80))
   (str (.repeat "/" len) "\n" s))
@@ -501,7 +517,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" ^String [cmd]
-  (var lib "kirbystdlibref."
+  (var lib (str KBSTDLR ".")
        nsp (.curNSP (rt/genv)))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
@@ -532,7 +548,7 @@
             s (std/symbol (str ns "/" $(2nd ast))))
       (set-in! ast 1 s)
       (rt/compute ast env))
-    macros))
+    macros) ns)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;special-forms
@@ -609,7 +625,7 @@ fn (right-to-left) to the result, etc."
   [ast env]
   (assertArity (>= (n# ast) 4) ast)
   (var ret (node' ast))
-  (var~ mtd pos n m)
+  (var~ mtd pos n m cn)
   (var pub? (not (ends? $(1st ast) "-"))
        czname0 (2nd ast)
        czname (tx* czname0 env)
@@ -618,7 +634,9 @@ fn (right-to-left) to the result, etc."
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
-  (.addVar (rt/genv) czname0)
+  (.addVar (rt/genv)
+           czname0
+           {:ns *ns* :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -626,6 +644,7 @@ fn (right-to-left) to the result, etc."
     ;;maybe doc string?
     (set! mtd 'method
           m1 (1st m)
+          cn (str czname0 "." m1)
           pos (if (str? (2nd m)) 3 2))
     ;;pass line info
     (each #(xfi m1 %) [mtd m])
@@ -641,7 +660,9 @@ fn (right-to-left) to the result, etc."
         (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
-    (.addVar (rt/genv) (str czname0 "." m1))
+    (.addVar (rt/genv)
+             cn
+             {:ns *ns* :alias cn :type :method})
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
@@ -796,7 +817,9 @@ returned if no clause matches."
     (set! x (.@i ast)
           s (tx* x env))
     (if-not (== "let" cmd)
-      (.addVar (rt/genv) x))
+      (.addVar (rt/genv)
+               $(x)
+               {:ns *ns* :alias $(x) :type :var}))
     (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
@@ -835,7 +858,9 @@ returned if no clause matches."
       (do (set! x lhs
                 lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (.addVar (rt/genv) x))
+            (.addVar (rt/genv)
+                     $(x)
+                     {:ns *ns* :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
@@ -1029,7 +1054,9 @@ returned if no clause matches."
        b1 (1st body)
        [attrs args] (meta?? (nth ast pargs) env))
   (if-not mtd?
-    (.addVar (rt/genv) fname0))
+    (.addVar (rt/genv)
+             fname0
+             {:ns *ns* :alias fname0 :type :fn}))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (var fargs (doFuncArgs (xfi ast args) env))
@@ -1169,7 +1196,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (= (n# ast) 3) ast)
   (var cmd
-       (maybeStripStdlib "kirbystdlibref.getProp"))
+       (maybeStripStdlib (str KBSTDLR ".getProp")))
   (wrap (node' ast)
         nil [cmd "("
              (tx* (xfi ast (2nd ast)) env)
@@ -1193,12 +1220,12 @@ any finally exprs will be evaluated for their side effects."
   (if (empty? ast)
     (ret.add "[]")
     (do (if-not (vector? ast) (set! pos 1))
-        (ret.add "[\n")
+        (ret.add "[ ")
         (for [i pos sz (n# ast)
               :while (< i sz) :recur (+1 i)]
-          (if (> i pos) (ret.add ",\n"))
+          (if (> i pos) (ret.add ", "))
           (ret.add (tx* (xfi ast (.@i ast)) env)))
-        (ret.add "\n]"))))
+        (ret.add " ]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-object
@@ -1216,13 +1243,13 @@ any finally exprs will be evaluated for their side effects."
   (if (empty? ast)
     (ret.add "{}")
     (do (if-not (map? ast) (set! pos 1))
-        (ret.add "{\n")
+        (ret.add "{ ")
         (for [i pos sz (n# ast)
               :while (< i sz) :recur (+2 i)]
-          (if (> i pos) (ret.add ",\n"))
+          (if (> i pos) (ret.add ", "))
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
-        (ret.add "\n}"))))
+        (ret.add " }"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- require! "" [path]
@@ -1242,8 +1269,8 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (var~ as path v
-        libpath e refers renames)
+  (var~ rlib as path v mcs nsp
+        info libpath e refers renames)
   (var ret (node' ast))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1269,26 +1296,44 @@ any finally exprs will be evaluated for their side effects."
     (ret.add ["const " (parser/jsid as)
               "= require(" libpath ");\n"])
     ;load the lib
-    (let [rlib (require! (unquote-str libpath))
-          info (get rlib EXPKEY)]
-      (if info
-        (loadRLib info env)))
+    (set! rlib (require! (unquote-str libpath))
+          info (get rlib EXPKEY))
+    (if info
+      (set! mcs (get info :macros)
+            nsp (loadRLib info env)))
     (.addLib (rt/genv) $(as) rlib)
-
-    (for [i 0 r nil sz (n# refers)
+    (set! mcs (or mcs {}))
+    (for [i 0 t nil r nil rs nil
+          f nil m nil sz (n# refers)
           :while (< i sz) :recur (+1 i)]
       (set! r (.@i refers)
-            v (tx* r env))
-      ;try to pull into *ns*
-      (.addVar (rt/genv) $(r))
+            rs $(r)
+            v (tx* r env)
+            f (get rlib (parser/jsid rs))
+            m (get mcs rs))
+      (if f (set! t (typeid f)))
+      (if m (set! t :marco))
+      (if-not (or f m) (raise! "Unknown var " rs))
+      (.addVar (rt/genv)
+               rs
+               {:ns nsp :alias rs :type t})
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
-    (for [i 0 r nil sz (n# renames)
+    (for [i 0 t nil r nil rs nil
+          ro nil f nil m nil sz (n# renames)
           :while (< i sz) :recur (+2 i)]
-      (set! e (tx* (.@i renames) env)
+      (set! ro (.@i renames)
+            e (tx* ro env)
             r (.@+i renames)
-            v (tx* r env))
-      ;try to pull into *ns*
-      (.addVar (rt/genv) $(r))
+            rs $(r)
+            v (tx* r env)
+            f (get rlib (parser/jsid $(ro)))
+            m (get mcs $(ro)))
+      (if f (set! t (typeid f)))
+      (if m (set! t :marco))
+      (if-not (or f m) (raise! "Unknown var " ro))
+      (.addVar (rt/genv)
+               rs
+               {:ns nsp :alias $(ro) :type t})
       (ret.add ["const " v
                 "=" as "[\"" e "\"];\n"]))) ret)
 
@@ -1333,11 +1378,11 @@ any finally exprs will be evaluated for their side effects."
   ;;unless processing internal files
   (set! nsp (.curNSP (rt/genv)))
   (cond
-    (or (= nsp.id "czlab.kirby.macros")
-        (= nsp.id "czlab.kirby.stdlib"))
+    (= nsp.id (str KBPFX "stdlib"))
     nil
-    (starts? nsp.id "czlab.kirby.")
-    (conj! ret "const kirbystdlibref=std;\n")
+    (starts? nsp.id KBPFX)
+    (conj! ret
+           (str "const " KBSTDLR "=std;\n"))
     :else
     (->> (xfi ast '(require ["kirby" :as kirbystdlibref]))
          (sf-require )
@@ -1415,9 +1460,9 @@ any finally exprs will be evaluated for their side effects."
 
   "Inject raw native (js) code fragment.
 
-  (js# \"console.log('hi');\")"
+  (raw# \"console.log('hi');\")"
 
-  ^{:opcode ["js#"] :tag SourceNode} [ast env]
+  ^{:opcode ["raw#"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (var s $(2nd ast)
@@ -1469,7 +1514,9 @@ called.
   (set! mname (2nd ast)
         ast ['macro* mname pms (1st body)])
   ;try to register it
-  (.addVar (rt/genv) mname)
+  (.addVar (rt/genv)
+           mname
+           {:ns *ns* :alias nil :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1605,6 +1652,7 @@ called.
   (var mcs (keys *macros*)
        lbs (keys (get gv :libs))
        vas (keys (get gv :vars)))
+  ;(println (std/prn (get gv :vars) true))
   (when verbose
     (println "<macros>\n" (std/prn mcs #t))
     (println "<libs>\n" (std/prn lbs #t))
