@@ -462,7 +462,7 @@
              (Object.entries ~t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-monad "" [monad bindings & body]
+(defmacro domonad "" [monad bindings & body]
   `((fn [mo]
       (var res
            (fn [&xs]
@@ -490,23 +490,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-identity "" [monads bindings & body]
-  `(do-monad (.-identity monads) ~bindings ~@body))
+  `(domonad (.-identity monads) ~bindings ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-maybe "" [monads bindings & body]
-  `(do-monad (.-maybe monads) ~bindings ~@body))
+  `(domonad (.-maybe monads) ~bindings ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-array "" [monads bindings & body]
-  `(do-monad (.-array monads) ~bindings ~@body))
+  `(domonad (.-array monads) ~bindings ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-state "" [monads bindings & body]
-  `(do-monad (.-state monads) ~bindings ~@body))
+  `(domonad (.-state monads) ~bindings ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro monad-continuation "" [monads bindings & body]
-  `(do-monad (.-continuation monads) ~bindings ~@body))
+  `(domonad (.-continuation monads) ~bindings ~@body))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1078,47 +1078,45 @@
 (defn falsy? "LISP falsy" [a] (or (nil? a)(false? a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;monads
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-identity
-  {:bind (fn [mv mf] (mf mv))
-   :result #(%1)})
+(defn flatten
+  "Flatten an array" [xs]
+  (reduce (fn [acc v] (concat acc v)) [] xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-maybe
+;;monads
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const m-identity
+  {:bind (fn [mv mf] (mf mv)) :unit #(%1)})
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const m-maybe
   {:bind (fn [mv mf]
            (if-not (nil? mv) (mf mv)))
-   :result #(%1)
+   :unit #(%1)
    :zero nil})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-array
-  {:bind (fn [mv mf]
-           (reduce
-             (fn [acc v]
-               (concat acc v)) [] (map mf mv)))
-   :result #(concat [] %)
+(const m-list
+  {:bind (fn [mv mf] (flatten (map mf mv)))
+   :unit #(concat [] %)
    :zero []
-   :plus #(reduce
-            (fn [acc v]
-              (concat acc v)) [] ____args)})
+   :plus #(flatten ____args)})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-state
+;mv=> (fn [state] ... [value new-state])
+(const m-state
   {:bind (fn [mv mf]
-           (fn [s]
-             (var x (mv s))
-             ((mf (1st x)) (2nd x))))
-   :result (fn [v]
-             (fn [s]
-               (concat [] [v s])))})
+           (fn [state]
+             (let [[value newState] (mv state)]
+               ((mf value) newState))))
+   :unit (fn [v] #([v %1]))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def m-continuation
   {:bind (fn [mv mf]
-           (fn [c]
-             (mv (fn [v] ((mf v) c)))))
-   :result (fn [v] (fn [c] (c v)))})
+           (fn [cont]
+             (mv (fn [value] ((mf value) cont)))))
+   :unit (fn [value] (fn [cont] (cont value)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
