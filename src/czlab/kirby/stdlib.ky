@@ -470,44 +470,21 @@
                           (zlen? xs))
                       (def? mo.zero))
                mo.zero
-               (mo.result.apply mo xs))))
-      (do-bind mo.bind
-               ~bindings
-               (res.apply this ~@body))) ~monad))
+               (apply mo.unit mo xs))))
+      (dobind mo.bind
+              ~bindings
+              (apply res mo ~@body))) ~monad))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-bind "" [bindfunc bindings & body]
-  (let* [a2 (nth* bindings 1)
+(defmacro dobind "" [bindfunc bindings & body]
+  (let* [mv (nth* bindings 1)
          a1 (nth* bindings 0)
          more (rest* (rest* bindings))]
-    `(~bindfunc ~a2
+    `(~bindfunc ~mv
                 (fn [~a1]
                   ~(if* (not-empty* more)
-                        `(do-bind ~bindfunc
-                                  ~more
-                                  ~@body)
+                        `(dobind ~bindfunc ~more ~@body)
                         `(do ~@body))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-identity "" [monads bindings & body]
-  `(domonad (.-identity monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-maybe "" [monads bindings & body]
-  `(domonad (.-maybe monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-array "" [monads bindings & body]
-  `(domonad (.-array monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-state "" [monads bindings & body]
-  `(domonad (.-state monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-continuation "" [monads bindings & body]
-  `(domonad (.-continuation monads) ~bindings ~@body))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;MACROS-EOF
