@@ -62,9 +62,8 @@
 (defmacro int "" [x] `(parseInt ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro println "" [&msgs]
-  `(if console
-     (console.log (join "" (vec ~@msgs)))))
+(defn println "" [&msgs]
+  (if console (console.log (join "" msgs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro delay "" [f t] `(setTimeout ~f ~t))
@@ -461,30 +460,6 @@
                (~func (nth e 1) (nth e 0)))
              (Object.entries ~t)))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro domonad "" [monad bindings & body]
-  `((fn [mo]
-      (var res
-           (fn [&xs]
-             (if (and (or (nil? xs)
-                          (zlen? xs))
-                      (def? mo.zero))
-               mo.zero
-               (apply mo.unit mo xs))))
-      (dobind mo.bind
-              ~bindings
-              (apply res mo ~@body))) ~monad))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro dobind "" [bindfunc bindings & body]
-  (let* [mv (nth* bindings 1)
-         a1 (nth* bindings 0)
-         more (rest* (rest* bindings))]
-    `(~bindfunc ~mv
-                (fn [~a1]
-                  ~(if* (not-empty* more)
-                        `(dobind ~bindfunc ~more ~@body)
-                        `(do ~@body))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;MACROS-EOF
@@ -1096,6 +1071,29 @@
    :unit (fn [value] (fn [cont] (cont value)))})
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro dobind "" [mbind steps expr]
+  (let* [mv (nth* steps 1)
+         a1 (nth* steps 0)
+         more (rest* (rest* steps))]
+    `(~mbind ~mv
+             (fn [~a1]
+               ~(if* (not-empty* more)
+                     `(dobind ~mbind ~more ~expr)
+                     `(do ~expr))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro domonad
+  "Monad comprehension. Takes the name of a monad, a vector of steps
+   given as binding-form, and a result value
+   specified by body."
+  [monad steps body]
+  `((fn [{:keys [bind unit zero] :as mo}]
+      (var ret #(if (and (kirbystdlibref/nichts? %)
+                         (def? zero)) zero (unit %)))
+      (dobind bind ~steps (ret ~body))) ~monad))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
   (var out "\"")
   (for [i 0 ch "" sz (count s)
@@ -1260,20 +1258,20 @@ the latter (left-to-right) will be the mapping in the result."
        (catch e (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure "" [form & [msg]]
+(defmacro ensure "" [form msg]
   `(kirbystdlibref/ensureTest ~form ~msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensureTestThrown "" [expected error msg]
-  (set! msg (or msg "test"))
   (if (nil? error)
     (str "FAILED: " msg)
-    (if (= expected (type error))
+    (if (or (= expected (type error))
+            (= expected "any"))
       (str "passed: " msg)
       (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensureThrown "" [expected form & [msg]]
+(defmacro ensureThrown "" [expected form msg]
   `(try ~form
         (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
         (catch e

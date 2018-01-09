@@ -330,14 +330,29 @@
   (ensure (s/eq? [1 2 "3"]
                  (quote [1 2 "3"])) "quote")
 
+
+  (ensure (= 3 (domonad s/m-identity
+                        (a 1 b (inc a)) (+ a b))) "identity monad")
+  (ensureThrown "any"
+                (domonad s/m-identity
+                         (a nil
+                          b a
+                          c (.toString b)) (+ a b c)) "identity monad->boom")
+
+  (ensure (= 3 (domonad s/m-maybe
+                        (a 1 b (inc a)) (+ a b))) "maybe monad")
+  (ensure (nil? (domonad s/m-maybe
+                         (a 1
+                          b (inc a)
+                          c nil) (+ a b c))) "maybe monad->nil")
+
   (ensureThrown "object" (raise! "hello" "world") "raise!")
   (ensureThrown "string" (trap! "hello" "world") "trap!")
   (ensure (= "hello" (.-message (merror "hello"))) "merror"))
 
-(println (std/runtest test-stdlib
+
+  (s/println (std/runtest test-stdlib
                       "Kirby stdlib test-suite"))
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

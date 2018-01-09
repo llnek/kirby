@@ -198,6 +198,8 @@
               (ret.add ["let "
                         (tx* e env)
                         "=" as "[\"" $(e) "\"];\n"])))
+        (== e "as")
+        (++ i)
         :else
         (error! :unknown-keyword coll))
       :else
@@ -260,7 +262,7 @@
            (doseq [r c
                    :let [t (tx* r env)]
                    :when (some? t)]
-             (ret.add [t "\n"]))))
+             (ret.add [t ";\n"]))))
   (f ms)
   (f os)
   ret)
