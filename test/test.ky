@@ -14,6 +14,20 @@
 (def- s std TMPVAR nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;for testing state monad
+(defn- mult3 "" [x] (* 3 x))
+(defn- add2 "" [x] (+ 2 x))
+;wrapper so that the actual computation is inside
+;a state-monadic value, together with the log msg
+(defn- exlog "" [expr log]
+  (fn [s]
+    (var v (.-value s)
+         v' (expr v)
+         msg (str log "(" v ")")
+         log' (std/concat (.-log s) msg))
+    [v' {:value v' :log log'}]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest test-stdlib
 
   (ensure (not (empty? [1])) "not empty?")
@@ -332,19 +346,63 @@
 
 
   (ensure (= 3 (domonad s/m-identity
-                        (a 1 b (inc a)) (+ a b))) "identity monad")
+                        [a 1 b (inc a)] (+ a b))) "identity monad")
   (ensureThrown "any"
                 (domonad s/m-identity
-                         (a nil
+                         [a nil
                           b a
-                          c (.toString b)) (+ a b c)) "identity monad->boom")
+                          c (.toString b)] (+ a b c)) "identity monad->boom")
 
   (ensure (= 3 (domonad s/m-maybe
-                        (a 1 b (inc a)) (+ a b))) "maybe monad")
+                        [a 1 b (inc a)] (+ a b))) "maybe monad")
   (ensure (nil? (domonad s/m-maybe
-                         (a 1
+                         [a 1
                           b (inc a)
-                          c nil) (+ a b c))) "maybe monad->nil")
+                          c nil] (+ a b c))) "maybe monad->nil")
+
+  (ensure (s/eq? [5,{:value 5 :log ["mult3(1)" "add2(3)"]}]
+                 ((domonad s/m-state
+                           [c1 (exlog mult3 "mult3")
+                            c2 (exlog add2 "add2")]
+                           c2) {:value 1 :log []})) "state monad")
+
+  (ensure (= 3 (std/run-cont
+                 (domonad std/m-continuation
+                          [x ((fn [v] (fn [c] (c v))) 1)
+                           y ((fn [v] (fn [c] (c v))) 2)]
+                          (+ x y)))) "continuation monad")
+
+  (ensure (let [f (fn [v] (fn [s] [v s]))
+                lhs (s/m-state.bind (s/m-state.unit 911) f)
+                rhs (f 911)
+                lf (lhs "hello")
+                rt (rhs "hello")]
+            (and (= (1st lf)(1st rt))
+                 (= (s/last lf)(s/last rt))))
+          "monad rule 1: bind(unit(x), f) ≡ f(x)")
+
+  (ensure (let [mv (fn [s] [3 s])
+                lhs (s/m-state.bind mv s/m-state.unit)
+                lf (lhs "hello")
+                rt (mv "hello")]
+            (and (= (1st lf)(1st rt))
+                 (= (s/last lf)(s/last rt))))
+          "monad rule 2: bind(m, unit) ≡ m")
+
+  (ensure (let [f (fn [v] (fn [s] [3 s]))
+                g (fn [v] (fn [s] [5 s]))
+                bb s/m-state.bind
+                mv (fn [s] [7 s])
+                lhs (bb (bb mv f) g)
+                rhs (bb mv (fn [v] (bb (f v) g)))
+                lf (lhs "hello")
+                rt (rhs "hello")]
+            (and (= (1st lf)(1st rt))
+                 (= (s/last lf)(s/last rt))))
+          (str "monad rule 3:"
+               " bind(bind(m, f), g)"
+               " ≡ bind(m, v ⇒ bind(f(v), g))"))
+
 
   (ensureThrown "object" (raise! "hello" "world") "raise!")
   (ensureThrown "string" (trap! "hello" "world") "trap!")
@@ -353,6 +411,8 @@
 
   (s/println (std/runtest test-stdlib
                       "Kirby stdlib test-suite"))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
