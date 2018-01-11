@@ -4,20 +4,21 @@
     "language",
     "kirby",
     "compiler",
-    "lisp"
+    "lisp",
+    "clojurescript"
   ],
-  "description": "",
+  "description": "A clojure-like language which compiles to javascript",
   "name": "kirby",
-  "author": "",
+  "author": "Kenneth Leung",
   "version": "1.0.0",
   "licenses": [
     {
       "type": "MIT",
-      "url": ""
+      "url": "http://www.opensource.org/licenses/MIT"
     }
   ],
   "engines": {
-    "node": ">=0.4.0"
+    "node": ">=0.10.0"
   },
   "directories": {
     "lib": "./dist"
@@ -26,26 +27,20 @@
   "bin": {
     "kirby": "./bin/kirby.js"
   },
-  "homepage": "",
-  "bugs": "",
+  "homepage": "https://github.com/llnek/kirby",
+  "bugs": { 
+    "url" : "https://github.com/llnek/kirby/issues"
+  },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/llnek/kirby.git"
   },
   "devDependencies": {
-    "brfs": "^1.4.3",
-    "browserify": "^14.4.0",
-    "tinix": "0.0.15",
-    "underscore": "^1.8.2"
   },
   "scripts": {
-    "test": "kirby test/test.kirby test/test.js && node test/test.js",
-    "prepublish": "kirby src/lexer.kirby lib/lexer.js && kirby src/compiler.kirby lib/compiler.js && kirby src/core.kirby lib/core.js && kirby src/repl.kirby lib/repl.js && kirby src/require.kirby lib/require.js && browserify -t brfs lib/browser.js > lib/browser-bundle.js && kirby test/test.kirby test/test.js"
   },
-  "preferGlobal": true,
   "dependencies": {
     "esformatter": "^0.10.0",
-    "google-closure-library": "^20171203.0.0",
     "node-getopt": "^0.2.3",
     "source-map": "^0.5.7",
     "watch": "^1.0.2"

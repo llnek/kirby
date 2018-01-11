@@ -1,2 +1,4 @@
-# kalaso
-Clojurescript like transpiler to javascript
+# kirby
+
+Clojure-like language which compiles to javascript.
+
