@@ -62,9 +62,8 @@
 (defmacro int "" [x] `(parseInt ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro println "" [&msgs]
-  `(if console
-     (console.log (join "" (vec ~@msgs)))))
+(defn println "" [&msgs]
+  (if console (console.log (join "" msgs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro delay "" [f t] `(setTimeout ~f ~t))
@@ -460,53 +459,6 @@
        (each (fn [e]
                (~func (nth e 1) (nth e 0)))
              (Object.entries ~t)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-monad "" [monad bindings & body]
-  `((fn [mo]
-      (var res
-           (fn [&xs]
-             (if (and (or (nil? xs)
-                          (zlen? xs))
-                      (def? mo.zero))
-               mo.zero
-               (mo.result.apply mo xs))))
-      (do-bind mo.bind
-               ~bindings
-               (res.apply this ~@body))) ~monad))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-bind "" [bindfunc bindings & body]
-  (let* [a2 (nth* bindings 1)
-         a1 (nth* bindings 0)
-         more (rest* (rest* bindings))]
-    `(~bindfunc ~a2
-                (fn [~a1]
-                  ~(if* (not-empty* more)
-                        `(do-bind ~bindfunc
-                                  ~more
-                                  ~@body)
-                        `(do ~@body))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-identity "" [monads bindings & body]
-  `(do-monad (.-identity monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-maybe "" [monads bindings & body]
-  `(do-monad (.-maybe monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-array "" [monads bindings & body]
-  `(do-monad (.-array monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-state "" [monads bindings & body]
-  `(do-monad (.-state monads) ~bindings ~@body))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro monad-continuation "" [monads bindings & body]
-  `(do-monad (.-continuation monads) ~bindings ~@body))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -942,10 +894,18 @@
   [obj] (and (array? obj) obj.____map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hashmap "Create a new Hashmap"
+(defn arraymap "Create a new array map"
   ^Array [&xs]
   (if (odd? (alen xs))
-    (raise! "Invalid arity for hashmap")) (assoc! xs :____map #t) xs)
+    (raise! "Invalid arity for arraymap"))
+  (assoc! xs :____map #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn object "Create a new js object"
+  ^Object [&xs]
+  (if (odd? (alen xs))
+    (raise! "Invalid arity for object"))
+  (zipmap (evens xs) (odds xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
@@ -1078,47 +1038,130 @@
 (defn falsy? "LISP falsy" [a] (or (nil? a)(false? a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn flatten
+  "Flatten an array" [xs]
+  (reduce (fn [acc v] (concat acc v)) [] xs))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn identity "Returns its argument." [x] x)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-identity
-  {:bind (fn [mv mf] (mf mv))
-   :result #(%1)})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad
+
+  "Define a monad by defining the monad operations. The definitions
+   are written like bindings to the monad operations bind and
+   unit (required) and zero and plus (optional)."
+
+  [docstring operations]
+
+  `(do (var~ bind unit zero plus)
+       (let [~@operations]
+         (hashmap
+           :bind bind :unit unit :zero zero :plus plus))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-maybe
-  {:bind (fn [mv mf]
-           (if-not (nil? mv) (mf mv)))
-   :result #(%1)
-   :zero nil})
+(defmacro defmonad
+
+  "Define a named monad by defining the monad operations. The definitions
+   are written like bindings to the monad operations bind and
+   unit (required) and zero and plus (optional)."
+
+  [name & [docs operations]]
+  (let* [ds (if* (is-str? docs) docs "")
+         ps (if* (is-str? docs)
+                 operations
+                 (if* (is-array? docs) docs))
+         _ (assert* (is-array? ps)
+                    "no macro operations")]
+    `(const ~name (monad ~ds ~ps))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-array
-  {:bind (fn [mv mf]
-           (reduce
-             (fn [acc v]
-               (concat acc v)) [] (map mf mv)))
-   :result #(concat [] %)
-   :zero []
-   :plus #(reduce
-            (fn [acc v]
-              (concat acc v)) [] ____args)})
+(defmonad m-identity
+
+  "Monad describing plain computations. This monad does in fact nothing
+  at all. It is useful for testing, for combination with monad
+  transformers, and for code that is parameterized with a monad."
+
+  [ bind (fn [mv mf] (mf mv)) unit #(%1)] )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-state
-  {:bind (fn [mv mf]
-           (fn [s]
-             (var x (mv s))
-             ((mf (1st x)) (2nd x))))
-   :result (fn [v]
-             (fn [s]
-               (concat [] [v s])))})
+(defmonad m-maybe
+
+  "Monad describing computations with possible failures. Failure is
+  represented by nil, any other value is considered valid. As soon as
+  a step returns nil, the whole computation will yield nil as well."
+
+  [bind (fn [mv mf]
+          (if-not (nil? mv) (mf mv))) unit #(%1) zero nil] )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-continuation
-  {:bind (fn [mv mf]
-           (fn [c]
-             (mv (fn [v] ((mf v) c)))))
-   :result (fn [v] (fn [c] (c v)))})
+(defmonad m-list
+
+  "Monad describing multi-valued computations, i.e. computations
+  that can yield multiple values. Any object implementing the seq
+  protocol can be used as a monadic value."
+
+  [bind (fn [mv mf] (flatten (map mf mv)))
+   unit #(concat [] %)
+   zero []
+   plus #(flatten ____args) ])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmonad m-state
+
+  "Monad describing stateful computations. The monadic values have the
+  structure (fn [old-state] [result new-state])."
+
+  [bind (fn [mv mf]
+          (fn [state]
+            (let [[value newState] (mv state)]
+              ((mf value) newState))))
+   unit (fn [v] #([v %1])) ])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmonad m-continuation
+
+  "Monad describing computations in continuation-passing style. The monadic
+  values are functions that are called with a single argument representing
+  the continuation of the computation, to which they pass their result."
+
+  [bind (fn [mv mf]
+          (fn [cont]
+            (mv (fn [value] ((mf value) cont)))))
+   unit (fn [value] (fn [cont] (cont value))) ])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro dobind "" [mbind steps expr]
+  (let* [mv (nth* steps 1)
+         a1 (nth* steps 0)
+         more (rest* (rest* steps))]
+    `(~mbind ~mv
+             (fn [~a1]
+               ~(if* (not-empty* more)
+                     `(dobind ~mbind ~more ~expr)
+                     `(do ~expr))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro domonad
+  "Monad comprehension. Takes the name of a monad, a vector of steps
+   given as binding-form, and a result value
+   specified by body."
+  [monad steps body]
+  `((fn [{:keys [bind unit zero] :as mo}]
+      (var ret #(if (and (kirbystdlibref/nichts? %)
+                         (def? zero)) zero (unit %)))
+      (dobind bind ~steps (ret ~body))) ~monad))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn run-cont
+  "Execute the computation cont
+  in the cont monad and return its result."
+  [cont]
+  (cont identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
@@ -1285,20 +1328,20 @@ the latter (left-to-right) will be the mapping in the result."
        (catch e (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensure "" [form & [msg]]
+(defmacro ensure "" [form msg]
   `(kirbystdlibref/ensureTest ~form ~msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn ensureTestThrown "" [expected error msg]
-  (set! msg (or msg "test"))
   (if (nil? error)
     (str "FAILED: " msg)
-    (if (= expected (type error))
+    (if (or (= expected (type error))
+            (= expected "any"))
       (str "passed: " msg)
       (str "FAILED: " msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ensureThrown "" [expected form & [msg]]
+(defmacro ensureThrown "" [expected form msg]
   `(try ~form
         (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
         (catch e

@@ -15,7 +15,7 @@
              :as std
              :refer [pairs? stringify contains?
                      atom? list? map? some?
-                     LambdaArg Keyword
+                     LambdaArg Keyword println
                      nichts? not-empty object?
                      Symbol into! prn
                      Atom symbol swap!

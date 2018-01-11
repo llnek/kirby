@@ -16,7 +16,7 @@
   (:require ["./compiler" :as tx]
             ["./stdlib"
              :as std
-             :refer [object?]]
+             :refer [object? println]]
             ["./engine" :as rt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -63,7 +63,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doWatch "" [cwd]
-  (println "Watching" cwd "for file changes...")
+  (std/println "Watching" cwd "for file changes...")
   (watch/watchTree
     cwd
     {:ignoreDirectoryPattern #/node_modules/

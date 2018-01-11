@@ -11,7 +11,7 @@
   (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
-             :refer [lambda-arg? pairs? into!
+             :refer [lambda-arg? pairs? into! println
                      seq merge contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
