@@ -285,9 +285,11 @@
   "is-vector?"  std/vector?
   "is-list?"  std/list?
   "is-map?"  std/map?
-  "hash-map*"  std/hashmap
+  "is-array?"  (fn [x] (Array/isArray x))
+  "object*"  std/object
   "vector*"  std/vector
   "list*"  std/list
+  "hashmap*"  std/hashmap
   "values*"  #(Object.values %)
   "keys*"  #(Object.keys %)
   "get*"  #(get %1 %2)

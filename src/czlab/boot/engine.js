@@ -546,6 +546,7 @@ const _STAR_runtime_DASH_funcs_STAR = {
   "is-vector?": std.vector_QUERY,
   "is-list?": std.list_QUERY,
   "is-map?": std.map_QUERY,
+  "is-array?": function(x) {return Array.isArray(x);},
   "hash-map*": std.hashmap,
   "vector*": std.vector,
   "list*": std.list,

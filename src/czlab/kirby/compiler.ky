@@ -11,7 +11,7 @@
   (:require ["source-map" :as smap])
   (:require ["./stdlib"
              :as std
-             :refer [lambda-arg? hashmap pairs? into!
+             :refer [lambda-arg? pairs? into!
                      seq merge contains? last typeid
                      prn primitive map? vector?
                      opt?? some? primitive?
@@ -1237,7 +1237,7 @@ any finally exprs will be evaluated for their side effects."
   (hashmap \"a\" 1 \"b\" 2)
   {:a 1 :b 2}"
 
-  ^{:opcode ["hash-map" "hashmap"] :tag SourceNode} [ast env]
+  ^{:opcode ["hashmap"] :tag SourceNode} [ast env]
 
   (assertArity true ast)
   (var pos 0

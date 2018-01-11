@@ -272,7 +272,9 @@
   (ensure (s/pairs? [1 2 3]))
   (ensure (s/list? (s/list 1 2 3)) "list,list?")
   (ensure (s/vector? (s/vector 1 2 3)) "vector,vector?")
-  (ensure (s/map? (s/hashmap :a 1 :b 2 :c 3)) "hashmap,map?")
+  (ensure (s/map? (s/arraymap :a 1 :b 2 :c 3)) "arraymap,map?")
+  (ensure (s/object? (s/object :a 1 :b 2 :c 3)) "object,object?")
+
   (ensure (= 3 (n# (s/seq "abc"))) "seq")
   (ensure (s/contains? [1 2 3] 2) "contains?")
   (ensure (and (s/nichts? nil)

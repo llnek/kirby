@@ -894,10 +894,18 @@
   [obj] (and (array? obj) obj.____map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn hashmap "Create a new Hashmap"
+(defn arraymap "Create a new array map"
   ^Array [&xs]
   (if (odd? (alen xs))
-    (raise! "Invalid arity for hashmap")) (assoc! xs :____map #t) xs)
+    (raise! "Invalid arity for arraymap"))
+  (assoc! xs :____map #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn object "Create a new js object"
+  ^Object [&xs]
+  (if (odd? (alen xs))
+    (raise! "Invalid arity for object"))
+  (zipmap (evens xs) (odds xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
@@ -1035,43 +1043,96 @@
   (reduce (fn [acc v] (concat acc v)) [] xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn identity "" [x] x)
+(defn identity "Returns its argument." [x] x)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const m-identity
-  {:bind (fn [mv mf] (mf mv)) :unit #(%1)})
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro monad
+
+  "Define a monad by defining the monad operations. The definitions
+   are written like bindings to the monad operations bind and
+   unit (required) and zero and plus (optional)."
+
+  [docstring operations]
+
+  `(do (var~ bind unit zero plus)
+       (let [~@operations]
+         (hashmap
+           :bind bind :unit unit :zero zero :plus plus))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const m-maybe
-  {:bind (fn [mv mf]
-           (if-not (nil? mv) (mf mv)))
-   :unit #(%1)
-   :zero nil})
+(defmacro defmonad
+
+  "Define a named monad by defining the monad operations. The definitions
+   are written like bindings to the monad operations bind and
+   unit (required) and zero and plus (optional)."
+
+  [name & [docs operations]]
+  (let* [ds (if* (is-str? docs) docs "")
+         ps (if* (is-str? docs)
+                 operations
+                 (if* (is-array? docs) docs))
+         _ (assert* (is-array? ps)
+                    "no macro operations")]
+    `(const ~name (monad ~ds ~ps))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const m-list
-  {:bind (fn [mv mf] (flatten (map mf mv)))
-   :unit #(concat [] %)
-   :zero []
-   :plus #(flatten ____args)})
+(defmonad m-identity
+
+  "Monad describing plain computations. This monad does in fact nothing
+  at all. It is useful for testing, for combination with monad
+  transformers, and for code that is parameterized with a monad."
+
+  [ bind (fn [mv mf] (mf mv)) unit #(%1)] )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;mv=> (fn [state] ... [value new-state])
-(const m-state
-  {:bind (fn [mv mf]
-           (fn [state]
-             (let [[value newState] (mv state)]
-               ((mf value) newState))))
-   :unit (fn [v] #([v %1]))})
+(defmonad m-maybe
+
+  "Monad describing computations with possible failures. Failure is
+  represented by nil, any other value is considered valid. As soon as
+  a step returns nil, the whole computation will yield nil as well."
+
+  [bind (fn [mv mf]
+          (if-not (nil? mv) (mf mv))) unit #(%1) zero nil] )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def m-continuation
-  {:bind (fn [mv mf]
-           (fn [cont]
-             (mv (fn [value] ((mf value) cont)))))
-   :unit (fn [value] (fn [cont] (cont value)))})
+(defmonad m-list
+
+  "Monad describing multi-valued computations, i.e. computations
+  that can yield multiple values. Any object implementing the seq
+  protocol can be used as a monadic value."
+
+  [bind (fn [mv mf] (flatten (map mf mv)))
+   unit #(concat [] %)
+   zero []
+   plus #(flatten ____args) ])
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmonad m-state
+
+  "Monad describing stateful computations. The monadic values have the
+  structure (fn [old-state] [result new-state])."
+
+  [bind (fn [mv mf]
+          (fn [state]
+            (let [[value newState] (mv state)]
+              ((mf value) newState))))
+   unit (fn [v] #([v %1])) ])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmonad m-continuation
+
+  "Monad describing computations in continuation-passing style. The monadic
+  values are functions that are called with a single argument representing
+  the continuation of the computation, to which they pass their result."
+
+  [bind (fn [mv mf]
+          (fn [cont]
+            (mv (fn [value] ((mf value) cont)))))
+   unit (fn [value] (fn [cont] (cont value))) ])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro dobind "" [mbind steps expr]
@@ -1096,7 +1157,11 @@
       (dobind bind ~steps (ret ~body))) ~monad))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn run-cont "" [cont] (cont identity))
+(defn run-cont
+  "Execute the computation cont
+  in the cont monad and return its result."
+  [cont]
+  (cont identity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
