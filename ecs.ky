@@ -1,45 +1,53 @@
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
 (ns ^{:doc ""
       :author "Kenneth Leung"}
+
   czlab.rygel.ecs
+
   (:require ["kirby"
-             :as k :refer [sort! some? nichts? conj!]]))
+             :as k
+             :refer [atom swap! find
+                     sort! some? nichts? conj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ctorEngine "" []
-  {:systems []
-   :nodes {}
-   :types {}
-   :updating? (atom false) })
+(defn reifyEngine "" []
+  (k/atom {:entities {}
+           :systems []
+           :registry {}
+           :updating? false}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ctorSystem "" [] {:typeId nil})
+(defn reifySystem
+  "" [type] (k/atom {:typeId type}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ctorNode "" [engine n eid]
-  {:engine engine :eid eid :name n})
+(defn reifyComponent "" [type]
+  (k/atom {:typeId type :auto? #f :entity nil}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ctorComponent "" []
-  {:typeId nil :auto #f :node nil})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getNodes
-  "Find all the nodes inside this engine,
+(defn getEntities
+  "Find all the entities inside this engine,
   which contains these component types"
   [engine & componentTypes]
   (var cmin Number.SAFE_MAX_INTEGER
-       {:keys [nodes types]} engine
-       ret []
-       ccs []
-       missed? #f)
-  (var~ smallestCache c cid)
-  ;;find shortest cache, doing an intersection
+       {:keys [entities
+               registry]} engine
+       ret [] ccs [] missed? false)
+  (var~ smallest c cid)
+  ;;find smallest cache, do intersection
   (for [i 0 sz (n# componentTypes)
         :while (< i sz) :recur (+1 i)]
     ;does the engine know this component type,
     ;if so, find the collection
     (set! cid (.@i componentTypes)
-          c (get types cid))
+          c (get registry cid))
     (cond
       (nichts? c)
       ;unknown so matching will be 0
@@ -49,144 +57,70 @@
       ;if the size is smaller, point to it
       (let [cz (n# c)]
         (when (< cz cmin)
-          (set! smallestCache c cmin cz))
+          (set! smallest c cmin cz))
         (conj! ccs c))))
   (when (and (not missed?)
              (not-empty ccs))
-    (var ccsz (n# ccs))
-    ;;use the shortest cache as the baseline
+    (var sum 0
+         ccsz (n# ccs))
+    ;;use the smallest as baseline
     (each
       (fn [eid]
-        (var sum 0)
+        (set! sum 0)
         ;;look for intersection
-        (each #(if (or (= % smallestCache)
+        (each #(if (or (= % smallest)
                        (contains? % eid)) (++ sum)) ccs)
         ;;if found in all caches means
         ;;this node(eid) has all the req'd components
         (if (= sum ccsz)
-          (if-some [obj (get nodes eid)] (conj! ret obj))))
-      (keys smallestCache))) ret)
+          (if-some [obj (get entities eid)] (conj! ret obj))))
+      (keys smallest))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getNodes
-  "Get all the nodes inside this engine"
+(defn getAllEntities
+  "Get all the entities inside this engine"
   [engine]
-  (var {:keys [nodes]} engine) (values nodes))
+  (var {:keys [entities]} engine) (values entities))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *idAtom* (atom 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn generateEid "" []
-  (swap! *idAtom*
-         (fn [v]
-           (if-not (< v Number.SAFE_MAX_INTEGER)
-             (trap! "too many entities"))
-           (+1 v))))
+  (str "e" (swap! *idAtom*
+                    (fn [v]
+                      (if-not (< v Number.SAFE_MAX_INTEGER)
+                        (trap! "too many entities"))
+                      (+1 v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn reifyNode "" [engine n take?]
-  (var {:keys [nodes]} engine
+(defn reifyEntity "" [engine n take?]
+  (var {:keys [entities]} engine
        eid (generateEid)
-       e (ctorNode engine n eid))
-  (assoc! nodes eid e)
+       e (k/atom {:engine engine
+                  :eid eid
+                  :name n
+                  :bodyparts {}}))
+  (assoc! entities eid e)
   (if take? (.take! e)) e)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn purgeNode "Get rid of this node" [engine node]
-  (var eid (get node :eid)
-       {:keys [nodes garbo] engine})
-  (.die! node)
-  (assoc! garbo eid node)
-  (dissoc! nodes eid))
+(defn purgeEntity
+  "Get rid of this node" [engine entity]
+  (var eid (get @entity :eid))
+  (swap! entity
+         (fn [e] (assoc! e :dead #t) e))
+  (swap! engine
+         (fn [e] (dissoc! e.entities eid) e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn purgeNodes "Get rid of all nodes" [engine]
-  (var {:keys [nodes]} engine)
-  (each-key (fn [v k]
-               (dissoc! nodes k)
-               (delete! v)) nodes)
-  (doHouseKeeping))
+(defn purgeEntities
+  "Get rid of all nodes" [engine]
+  (swap! engine
+         (fn [e] (assoc! e :nodes {}) e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn regoSystem "" [engine s]
-  (var {:keys [systems]} engine)
-  (conj! systems s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn purgeSystem "" [engine s]
-  (.purge (get engine :systems) s))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn purgeSystems "" [engine]
-  (.clear (get engine :systems)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn update "" [engine time]
-  (swap! (get engine :updating) (fn [] true))
-  (var {:keys [systems]} engine)
-  (var~ s)
-  (for [i 0 sz (n# systems)
-        :while (< i sz) :recur (+1 i)]
-    (set! s (.@i systems))
-    (when (.active? s)
-      (if-not (.update s time)
-        (break-out-of-loop!))))
-  (doHouseKeeping)
-  (swap! (get engine :updating) (fn [] false)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn ignite "" [engine initNodes initSystems]
-  (initNodes engine)
-  (initSystems engine)
-  (var {:keys [systems]} engine)
-  (each #(.preamble %) systems))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn doHouseKeeping "" [engine]
-  (var {:keys [garbo]} engine)
-  (each #(delete! %) garbo)
-  (.splice garbo 0))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dtorTypeRegistry "" [types]
-  (var {:keys [rego]} types)
-  (each #(delete! %) (values rego))
-  (resetObject! rego))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getCache "" [types comType]
-  (var {:keys [rego]} types)
-  (.find rego comType))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unbind "" [types comType e]
-  (var {:keys [rego]} types)
-  (when-some [it (.find rego comType)]
-    (var eid (.eid e)
-         m (.second it)
-         it2 (.find m eid))
-    (if it2
-      (.erase m it2))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn bind "" [registry c e]
-  (var {:keys [rego]} registry
-       cid (.cid c) eid (.eid e))
-  (var ~ m)
-  (if-some [it (.find rego cid)]
-    (set! m (.second it))
-    (do (set! m (new CompoCache))
-        (assoc! rego cid m)))
-  (assoc! m eid c))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addSystem "" [engine sys]
+(defn regoSystem "" [engine system]
   (var {:keys [systems]} engine
        compFn (fn [s1 s2]
                 (if (< s1.priority
@@ -194,80 +128,111 @@
                   -1
                   (if (> s1.priority
                          s2.priority) 1 0))))
-  (conj! systems sys)
+  (conj! systems system)
   (sort! compfn systems))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn purgeSystem "" [engine system]
+  (var {:keys [systems]} engine)
+  (for [i 0 sz (n# systems)
+        :while (< i sz) :recur (+1 i)]
+    (when (= system (.@i systems))
+      (.splice systems i 1)
+      (break-out-of-loop!))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn purgeSystems "" [engine]
+  (assoc! engine :systems {}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateEngine "" [engine time]
+  (swap! (get engine :updating) (fn [_] true))
+  (var {:keys [systems]} engine)
+  (var~ s)
+  (for [i 0 sz (n# systems)
+        :while (< i sz) :recur (+1 i)]
+    (set! s (.@i systems))
+    (when (get s :active?)
+      (if-not (updateSystem s time)
+        (break-out-of-loop!))))
+  (doHouseKeeping)
+  (swap! (get engine :updating) (fn [_] false)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn ignite "" [engine initNodes initSystems]
+  (initNodes engine)
+  (initSystems engine)
+  (var {:keys [systems]} engine)
+  (each #(preambleSystem %) systems))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn doHouseKeeping "" [engine]
+  (var {:keys [garbo]} engine)
+  (assoc! engine :garbo {}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getCache "" [engine comType]
+  (var {:keys [types]} engine) (get types comType))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn unbind "" [engine comType node]
+  (var {:keys [types]} engine
+       eid (get node :eid))
+  (if-some [m (get types comType)] (dissoc! m eid)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn bind "" [engine component node]
+  (var {:keys [types]} engine
+       eid (get node :eid)
+       cid (get component :typeId)
+       m (get types cid))
+  (when (nichts? m)
+    (set! m {})
+    (assoc! types cid m))
+  (assoc! m eid component))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getSystem "" [engine systemType]
   (var {:keys [systems]} engine)
-  (find systems #(= (.id s) systemType)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
+  (find systems #(= (get % :typeId) systemType)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dtorNode "" [node]
-  (var {:keys [engine]} node
-       {:keys [rego]} engine
-       {:keys [parts]} node)
-  (var~ c)
-  (for [i 0 sz (n# parts)
-        :while (< i sz) :recur (+1 i)]
-    (set! it (.@i parts)
-          c (.second it))
-    (unbind rego c node)
-    ;;only delete if the object is not a reference-counted
-    (if-not (.auto? c)
-      (delete! c))))
+  (var {:keys [engine parts]} node)
+  (each-key
+    (fn [v k]
+      (unbind engine k node)) parts))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn checkin "" [node c]
+(defn checkin "" [node component]
   (var {:keys [engine parts]} node
-       {:keys [rego]} engine
-       z (.typeid c))
-  (assert (! (has? node z)) "")
-  (bind rego c node)
-  (assoc! c :node node)
-  (assoc! parts z c))
+       cid (get component :typeId))
+  (assert (! (has? node cid))
+          "Cannot add Component again")
+  (bind engine component node)
+  (assoc! component :node node)
+  (assoc! parts cid component))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn purge "" [node comType]
-  (var {:keys [engine parts]} node
-       {:keys [rego]} engine)
-  (var~ c)
-  (when-some [it (.find parts comType)]
-    (set! c (.second it))
-    (.erase parts it)
-    (unbind rego c node)
-    (if-not (.auto? c) (delete! c))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn get "" [node comType]
   (var {:keys [engine parts]} node)
-  (if-some [it  (.find parts comType)]
-    (.second it)))
+  (dissoc! parts comType)
+  (unbind engine comType node))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getAll "" [node]
+(defn getComponent "" [node comType]
   (var {:keys [parts]} node)
-  (values parts))
+  (get parts comType))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn has? "" [node comType]
-  (var {:keys [parts]} node)
-  (some? (.find parts comType)))
+(defn getAllComponents "" [node]
+  (var {:keys [parts]} node) (values parts))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hasComponent? "" [node comType]
+  (var {:keys [parts]} node) (contains? parts comType))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
-
-
-
-
-
-
-
 
 

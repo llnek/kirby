@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -754,6 +754,21 @@
   If no comparator is supplied, uses compare"
   [comp coll]
   (if (fn? comp) (.sort coll comp) (.sort comp)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn find
+
+  "Returns the value of the first element
+  in the collection that satisfies the
+  provided predicate function"
+  [coll pred]
+
+  (var ret nil c nil)
+  (for [i 0 sz (n# coll)
+        :while (< i sz) :recur (+1 i)]
+    (set! c (.@i coll))
+    (do->break!
+      (if (pred c) (set! ret c)))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
