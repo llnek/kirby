@@ -767,8 +767,9 @@
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (set! c (.@i coll))
-    (do->break!
-      (if (pred c) (set! ret c)))) ret)
+    (when (pred c)
+      (set! ret c)
+      (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref

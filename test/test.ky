@@ -346,6 +346,16 @@
   (ensure (s/eq? [1 2 "3"]
                  (quote [1 2 "3"])) "quote")
 
+  (ensure (= 3 (s/find [2 4 8 3 6 7] #(odd? %))) "find")
+  (ensure (s/eq? [2 3 4 9] (s/sort! [3 9 4 2])) "simple sort!")
+  (ensure (s/eq? [{:a 2}
+                  {:a 3}
+                  {:a 4}
+                  {:a 9}]
+                 (s/sort! (fn [x y]
+                            (if (< x.a y.a) -1
+                              (if (> x.a y.a) 1 0)))
+                          [{:a 3} {:a 9} {:a 4} {:a 2}])) "object sort!")
 
   (ensure (= 3 (domonad s/m-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")
@@ -414,7 +424,7 @@
   (s/println (std/runtest test-stdlib
                       "Kirby stdlib test-suite"))
 
-
+(s/println (s/find [2 4 8 3 6 7] #(odd? %)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
