@@ -17,43 +17,63 @@
                      object? sort! some? nichts? conj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const SPV {
+  :PreUpdate 100
+  :NetPlay    200
+  :AI     300
+  :Motion     400
+  :Move       500
+  :Logic   600
+  :Collide  700
+  :Resolve    800
+  :Render     900
+  :Error -1 })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createEngine
+
   "Create an engine, the core of ECS."
-  []
-  (atom {:entities {}
-         :systems []
-         :config {}
-         :registry {}
-         :updating? false}))
+  [attrs]
+
+  (atom (merge attrs
+               {:entities {}
+                :systems []
+                :config {}
+                :registry {}
+                :updating? false})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createSystem
+
   "Create a new system.  Each system must be provided with
   a user defined worker function and a priority value"
-  [type priority worker]
-  {:pre [(fn? worker)]}
-  (atom {:update worker :typeId type
-         :priority priority :active? #f}))
+
+  [type priority preamble worker]
+  {:pre [(fn? preamble)(fn? worker)]}
+  (atom {:preamble preamble :update worker
+         :typeId type :priority priority :active? #f}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createComponent "" [type attrs]
   {:pre [(object? attrs)]}
-  (atom (merge attrs {:typeId type :auto? #f :entity nil})))
+  (atom (merge attrs {:typeId type :entity nil})))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createEntity "" [engine n]
-  (var {:keys [entities]} @engine
-       eid (generateEid)
-       e (atom {:engine engine
-                :eid eid
-                :name n
-                :bodyparts {}}))
-  (assoc! entities eid e) e)
+(defn createEntity "" [engine attrs]
+  (var eid (generateEid)
+       ent (atom (merge attrs
+                        {:engine engine
+                         :dead? #f
+                         :eid eid
+                         :bodyparts {} })))
+  (swap! engine
+         (fn [e] (assoc! e.entities eid ent) e)) ent)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createPooledEntity "" [engine n take?]
-  (var e (createEntity engine n))
-  (if take? (takeEntity! e) e))
+(defn createPoolable "" [engine attrs & [take?]]
+  (var e (createEntity engine
+                       (merge attrs {:status #f})))
+  (if take? (takePoolable! e) e))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getEntities
@@ -81,8 +101,8 @@
       ;if the size is smaller, point to it
       (let [cz (n# c)]
         (when (< cz cmin)
-          (set! smallest c cmin cz))
-        (conj! ccs c))))
+          (set! cmin cz
+                smallest c)) (conj! ccs c))))
   (when (and (not missed?)
              (not-empty ccs))
     (var sum 0
@@ -102,9 +122,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getAllEntities
-  "Get all the entities inside this engine"
-  [engine]
-  (var {:keys [entities]} @engine) (values entities))
+  "Get all the entities."
+  [engine] (values (.-entities @engine)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *idAtom* (atom 0))
@@ -117,89 +136,92 @@
                       (trap! "too many entities")) (+1 v)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn takeEntity! "" [entity]
+(defn takePoolable! "" [entity]
   (swap! entity
          (fn [e] (assoc! e :status #t) e)) entity)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dropEntity! "" [entity]
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn freePoolable! "" [entity]
   (swap! entity
          (fn [e] (assoc! e :status #f) e)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deleteEntity "" [entity]
+(defn popEntity "" [entity]
   (dosync
     (var {:keys [engine eid]} @entity)
-    (swap! engine (fn [e] (dissoc! e.entities eid) e))
+    (swap! engine (fn [e]
+                    (dissoc! e.entities eid) e))
     (swap! entity
            (fn [e]
              (assoc! e :dead? #t)
-             (each-key
-               (fn [v k]
-                 (unbindComponent engine k entity)) e.bodyparts) e))) nil)
+             (each #(subComp engine % entity) (keys e.bodyparts)) e))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deleteEntities
-  "Get rid of all nodes" [engine]
+(defn popAllEntities
+  "Get rid of all entities" [engine]
   (swap! engine
-         (fn [e] (assoc! e :entities {}) e)) nil)
+         (fn [e] (assoc! e
+                         :registry {}
+                         :entities {}) e)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addSystem "" [engine system]
-  (var {:keys [systems]} @engine
-       ;high to low
+(defn pushSystem "" [engine system]
+  (var ;low to high
        compFn (fn [s1 s2]
                 (if (< s1.priority
                        s2.priority)
-                  1
+                  -1
                   (if (> s1.priority
-                         s2.priority) -1 0))))
-  (conj! systems system)
-  (sort! compfn systems) nil)
+                         s2.priority) 1 0))))
+  (swap! engine
+         (fn [e]
+           (conj! e.systems system)
+           (sort! compfn e.systems) e)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deleteSystem "" [engine system]
-  (var ret #f {:keys [systems]} @engine)
-  (for [i 0 sz (n# systems)
-        :while (< i sz) :recur (+1 i)]
-    (when (= system (.@i systems))
-      (.splice systems i 1)
-      (true! ret)
-      (break-out-of-loop!))) ret)
+(defn popSystem "" [engine system]
+  (var ret #f)
+  (swap! engine
+         (fn [e]
+           (for [i 0 sz (n# e.systems)
+                :while (< i sz) :recur (+1 i)]
+             (when (= system (.@i e.systems))
+               (.splice e.systems i 1)
+               (true! ret)
+               (break-out-of-loop!))) e)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deleteSystems "" [engine]
+(defn popAllSystems "" [engine]
   (swap! engine (fn [e] (assoc! e :systems []) e)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateEngine "" [engine time]
   (swap! engine (fn [e] (assoc! e :updating? #t) e))
   (var {:keys [systems]} @engine)
-  (var~ s)
+  (var~ s s')
   (for [i 0 sz (n# systems)
         :while (< i sz) :recur (+1 i)]
-    (set! s (.@i systems))
-    (when (get s :active?)
-      (if-not (s.update time)
-        (break-out-of-loop!))))
+    (set! s (.@i systems)
+          s' @s)
+    (when (get s' :active?)
+      (if-not (.update s' time) (break-out-of-loop!))))
   (doHouseKeeping)
   (swap! engine (fn [e] (assoc! e :updating? #f) e)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn igniteEngine "" [engine initNodes initSystems]
   ((comp initSystems initNodes) engine)
-  (var {:keys [systems]} @engine)
-  (each (fn [s] (s.preamble)) systems) nil)
+  (each #(.preamble (deref %)) (.-systems @engine)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn doHouseKeeping "" [engine] nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn getComCache "" [engine comType]
-  (var {:keys [registry]} @engine) (get registry comType))
+(defn getCompCache
+  "" [engine comType] (get (.-registry @engine) comType))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unbindComponent "" [engine comType entity]
+(defn subComp "" [engine comType entity]
   (var eid (get @entity :eid))
   (swap! engine
          (fn [e]
@@ -208,7 +230,7 @@
   nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn bindComponent "" [engine component entity]
+(defn addComp "" [engine component entity]
   (var eid (get @entity :eid)
        cid (get @component :typeId))
   (swap! engine
@@ -217,29 +239,27 @@
            (when (nichts? m)
              (set! m {})
              (assoc! e.registry cid m))
-           (assoc! m eid component) e))
-  nil)
+           (assoc! m eid component) e)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getSystem "" [engine systemType]
-  (var {:keys [systems]} @engine)
-  (find systems #(= (get % :typeId) systemType)))
+  (find (.-systems @engine) #(= (get (deref %) :typeId) systemType)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addComponent "" [entity component]
+(defn bindComponent "" [entity component]
   (dosync
     (swap! component (fn [c] (assoc! c :entity entity) c))
     (var cid (get @component :typeId))
     (assert (! (hasComponent? entity cid)) "Cannot add Component again")
-    (bindComponent engine component entity)
+    (addComp engine component entity)
     (swap! entity (fn [e] (assoc! e.bodyparts cid component) e))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn deleteComponent "" [entity comType]
+(defn unbindComponent "" [entity comType]
   (swap! entity
          (fn [e]
            (dissoc! e.bodyparts comType)
-           (unbindComponent e.engine comType entity) e)) nil)
+           (subComp e.engine comType entity) e)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponent
@@ -254,10 +274,8 @@
   (contains? (get @entity :bodyparts) comType))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;EOF
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool "" [own?]
-  (atom {:cache [] :own? own? :batch 0}))
+  (atom {:cache [] :own? own? :ctor nil :batch 0}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn presetPool
@@ -268,7 +286,7 @@
            (dotimes [x count]
              (if-some [obj (ctor)]
                (conj! p.cache obj)))
-           (assoc! p :ctor ctor :batch count) p)))
+           (assoc! p :ctor ctor :batch count) p)) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn selectFromPool
@@ -290,7 +308,7 @@
   (for [i 0 sz (n# cache)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i cache))
-    (when (get @e :status)
+    (when-not (get @e :status)
       (set! ret e)
       (break-out-of-loop!)))
   (cond
@@ -301,24 +319,58 @@
         (getFromPool pool false))
     :else nil))
 
-
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn takeFromPool
   "Get a free object from the pool and flag it as in-use"
   [pool create?]
   (var ret (getFromPool pool create?))
   (if ret
-    (takeEntity! ret)) ret)
+    (takePoolable! ret)) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getFromPoolAt
+  "" [pool pos] (nth (.-cache @pool) pos))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn checkIntoPool "" [pool obj]
+  (swap! pool
+         (fn [p] (conj! p.cache obj) p)) obj)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn clearPool "" [pool]
+  (var {:keys [own?]} @pool)
+  (swap! pool
+         (fn [p] (k/resetVec! p.cache) p)) nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getActivesInPool "" [pool]
+  (filter #(get (deref %) :status) (.-cache @pool)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn countActivesInPool
+  "Get the count of active objects" [pool]
+  (var sum 0)
+  (each #(if (get (deref %) :status) (++ sum)) (.-cache @pool)) sum)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn foreachInPool "" [pool callback]
+  (each (fn [ent]
+          (if (get @ent :status) (callback ent))) (.-cache @pool)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn someInPool?
+  "" [pool test] (some test (.-cache @pool)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resetPool
   "Hibernate (status off) all objects in the pool" [pool]
-
   (swap! pool
          (fn [p]
            (each (fn [obj]
                    (swap! obj
                           (fn [e]
-                            (assoc! e :status #f) e))) p.cache) p)))
+                            (assoc! e :status #f) e))) p.cache) p)) nil)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
 
