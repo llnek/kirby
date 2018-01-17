@@ -327,6 +327,9 @@
                    {:a {:b {:c 4}}}
                    [:a :b :c]
                    (fn [old n] (+ old n)) 5)) "update-in")
+  (ensure (= 4 (s/get-in
+                 {:a [2 4 {:c 4}]} [:a 2 :c])) "get-in")
+
   (ensure (s/eq? {:a 1 :b 2}
                  (s/merge {:a 1} {:b 2})) "merge")
   (ensure (s/eq? [1 2 4]
@@ -421,10 +424,8 @@
   (ensure (= "hello" (.-message (merror "hello"))) "merror"))
 
 
-  (s/println (std/runtest test-stdlib
-                      "Kirby stdlib test-suite"))
-
-(s/println (s/find [2 4 8 3 6 7] #(odd? %)))
+(s/println (std/runtest test-stdlib
+                        "Kirby stdlib test-suite"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
