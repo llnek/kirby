@@ -1009,6 +1009,30 @@
     (rem x N)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn partition
+
+  "Returns a sequence of lists of n items each."
+
+  ^Array [n coll]
+  (loop [ret []
+         [x y] (split-seq coll n)]
+    (if (not-empty x) (conj! ret x))
+    (if (empty? y)
+      ret
+      (recur ret (split-seq y n)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn split-str
+
+ "Returns a sequence of strings of n characters each."
+  [n string]
+
+  (var ret [])
+  (for [i 0 sz (n# string) :while (< i sz)]
+    (conj! ret (.substr string i n))
+    (set! i (+ i n))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "Returns a seq of the first item
                  in each coll, then the second, etc"
   ^Array [c1 c2]

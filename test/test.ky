@@ -360,6 +360,12 @@
                               (if (> x.a y.a) 1 0)))
                           [{:a 3} {:a 9} {:a 4} {:a 2}])) "object sort!")
 
+  (ensure (s/eq? [[1 2 3] [4 5 6] [7 8]]
+                 (s/partition 3 [1 2 3 4 5 6 7 8])) "partition")
+
+  (ensure (s/eq? ["123" "456" "78"]
+                 (s/split-str 3 "12345678")) "split-str")
+
   (ensure (= 3 (domonad s/m-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")
   (ensureThrown "any"
@@ -427,7 +433,7 @@
 (s/println (std/runtest test-stdlib
                         "Kirby stdlib test-suite"))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 
