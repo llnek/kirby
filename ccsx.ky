@@ -45,8 +45,8 @@
   (var f /^#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})$/
        s /^#([0-9a-fA-F])([0-9a-fA-F])([0-9a-fA-F])$/
        len (n# color)
-       arr (cond (= len 7) (.exec f color)
-                 (= len 4) (.exec s color)))
+       arr (or (.exec f color)
+               (.exec s color)))
   (when arr
     (set! arr (slice arr 1))
     (map #(parseInt (str "0x" %))
@@ -57,279 +57,159 @@
   (var arr (splitHexColor color))
   (cc.color (1st arr) (2nd arr (3rd arr))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxMusic "" [cfg music repeat?]
+  (var fp (.getMusic @cfg music))
+  (try
+    (.playMusic cc.audioEngine fp repeat?)
+    (catch e
+      (cc.log "failed to play music: %s" music))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void sfxMusic(const sstr &music, bool repeat) {
-  auto fp= XCFG()->getMusic(music);
-  try {
-    CC_AUDIO()->playBackgroundMusic(fp.c_str(), repeat);
-  } catch (...) {
-    CCLOG("failed to play music: %s", music.c_str());
-  }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn sfxPlay "" [cfg sound]
+  (var fp (.getEffect @cfg sound))
+  (try
+    (.playEffect cc.audioEngine fp)
+    (catch e
+      (cc.log "failed to play sound: %s" sound))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void sfxPlay(const sstr &sound) {
-  auto fp= XCFG()->getEffect(sound);
-  try {
-    CC_AUDIO()->playEffect(fp.c_str());
-  } catch (...) {
-    CCLOG("failed to play sound: %s", sound.c_str());
-  }
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pauseEffects "" [] (.pauseAllEffects cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void pauseEffects() {
-  CC_AUDIO()->pauseAllEffects();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pauseMusic "" [] (.pauseMusic cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void pauseMusic() {
-  CC_AUDIO()->pauseBackgroundMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pauseAudio "" [] (pauseEffects) (pauseMusic))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void pauseAudio() {
-  pauseEffects();
-  pauseMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resumeEffects "" [] (.resumeAllEffects cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void resumeEffects() {
-  CC_AUDIO()->resumeAllEffects();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resumeMusic "" [] (.resumeMusic cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void resumeMusic() {
-  CC_AUDIO()->resumeBackgroundMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resumeAudio "" [] (resumeEffects) (resumeMusic))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void resumeAudio() {
-  resumeEffects();
-  resumeMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn stopEffects "" [] (.stopAllEffects cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void stopEffects() {
-  CC_AUDIO()->stopAllEffects();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn stopMusic "" [] (.stopMusic cc.audioEngine))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void stopMusic() {
-  CC_AUDIO()->stopBackgroundMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn stopAudio "" [] (stopEffects) (stopMusic))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-void stopAudio() {
-  stopEffects();
-  stopMusic();
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcOffsets "" ^cc.Size [sz]
+  (cc.size (/ sz.width *golden-ratio*)
+           (/ sz.height *golden-ratio*)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_SZ calcOffsets(const CCT_SZ &sz) {
-  return CCT_SZ(sz.width/GOLDEN_RATIO, sz.height/GOLDEN_RATIO);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createSpriteBatch
+  "" ^cc.SpriteBatchNode [cfg name]
+  (new cc.SpriteBatchNode (.getImage @cfg name)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::SpriteBatchNode* reifySpriteBatch(const sstr &name) {
-  return c::SpriteBatchNode::createWithTexture( CC_TCAC()->addImage( XCFG()->getImage(name)));
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createAudioIcons "" [cfg]
+  (var off "sound_off.png"
+       on "sound_on.png")
+  [(createMenuBtn off off) (createMenuBtn on on)])
 
-//////////////////////////////////////////////////////////////////////////////
-//
-const s_arr<c::MenuItem*,2> createAudioIcons() {
-  auto n3="sound_off.png";
-  auto n2="sound_on.png";
-  return s_arr<c::MenuItem*,2> { createMenuBtn(n3,n3),
-    createMenuBtn(n2,n2) };
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn calcDist "" [nodea nodeb]
+  (cc.pDistance (.getPosition nodea) (.getPosition nodeb)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-const s_arr<c::MenuItem*,2> reifyAudioIcons() {
-  auto n3="sound_off.png";
-  auto n2="sound_on.png";
-  return s_arr<c::MenuItem*,2> { reifyMenuBtn(n3,n3),
-    reifyMenuBtn(n2,n2) };
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn normalize "" [nodea nodeb]
+  (cc.pNormalize (cc.pSub (.getPosition nodeb)
+                          (.getPosition nodea))))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-float calcDist(not_null<c::Node*> a, not_null<c::Node*> b) {
-  return c::ccpDistance(a->getPosition(), b->getPosition());
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createTTFMenuText "" [font pt txt color]
+  (var z (createTTFLabel font pt txt))
+  (.setColor z color)
+  (new cc.MenuItemLabel z))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-const CCT_PT normalize(not_null<c::Node*> a, not_null<c::Node*> b) {
-  return c::ccpNormalize(
-          c::ccpSub(b->getPosition(), a->getPosition()));
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createBMFMenuText "" [font txt color]
+  (var z (createBMFLabel font txt))
+  (.setColor z color)
+  (new cc.MenuItemLabel z))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* reifyMenuText(const sstr &fnt, float pt, const sstr &txt, const c::Color3B &c) {
-  auto z= reifyLabel(fnt, pt, txt);
-    z->setColor(c);
-  return c::MenuItemLabel::create(z);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createMenuBtnSprite "" [cfg normal selected]
+  (new cc.MenuItemSprite (createSprite normal) (createSprite selected)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* reifyMenuText(const sstr &fnt, const sstr &txt, const c::Color3B &c) {
-  auto z= reifyBmfLabel(fnt,txt);
-    z->setColor(c);
-  return c::MenuItemLabel::create(z);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createMenuBtnImage "" [src normal selected]
+  (new cc.MenuItemImage (.getImage @cfg normal) (.getImage @cfg selected)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* reifyMenuBtn(const sstr &n) {
-  return reifyMenuBtn(n,n);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn pointInBox?
+  "Test if this point is inside this rectangle"
+  [box x y]
+  (and (>= x box.left)
+       (<= x box.right)
+       (>= y box.bottom) (<= y box.top)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* reifyMenuBtn(const sstr &n, const sstr &s) {
-  return c::MenuItemSprite::create(reifySprite(n), reifySprite(s));
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn positionInBox? "" [box pos] (pointInBox? box pos.x pos.y))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* createMenuBtn(const sstr &n) {
-  return createMenuBtn(n,n);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn white "" [] (cc.color 255 255 255))
+(defn black "" [] (cc.color 0 0 0))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::MenuItem* createMenuBtn(const sstr &n, const sstr &s) {
-  return c::MenuItemImage::create(
-           XCFG()->getImage(n), XCFG()->getImage(s));
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createBMFLabel "" [cfg font text]
+  (doto (new cc.LabelBMFont
+             text
+             (.getFont @cfg font)) (.setOpacity (* 0.9 255))))
 
-//////////////////////////////////////////////////////////////////////////////
-// Test if this point is inside this rectangle
-bool pointInBox(const Box4 &box, float x, float y) {
-  return x >= box.left && x <= box.right &&
-    y >= box.bottom && y <= box.top;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createBMFLabelAtPos "" [cfg font text x y]
+  (doto (createBMFLabel cfg font text) (.setPosition f x y)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-bool pointInBox(const Box4 &box, const CCT_PT& pos) {
-  return pointInBox(box, pos.x, pos.y);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createTTFLabel "" [font sz text]
+  (new cc.LabelTTF text (.getFont @cfg font) sz))
 
-//////////////////////////////////////////////////////////////////////////
-//
-const c::Color3B white() { return c::Color3B::WHITE; }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createTTFLabelAtPos "" [font sz text x y]
+  (doto (createTTFLabel font sz text) (.setPosition x y)))
 
-//////////////////////////////////////////////////////////////////////////
-//
-const c::Color3B black() { return c::Color3B::BLACK; }
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn collided?
+  "Test collision of 2 sprites"
+  [nodea nodeb]
+  (if (and nodea nodeb) (.intersectsRect (bbox a) (bbox b)) false))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::Label* reifyBmfLabel(const sstr &font, const sstr &text) {
-  auto f= c::Label::createWithBMFont( XCFG()->getFont(font), text);
-  f->setOpacity(0.9 * 255);
-  return f;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn setDevRes "" [x y resolutionPolicy]
+  (-> (.getOpenGLView cc.director)
+      (.setDesignResolutionSize x y resolutionPolicy)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::Label* reifyBmfLabel(float x, float y, const sstr &font, const sstr &text) {
-  auto f= reifyBmfLabel(font, text);
-  f->setPosition(x,y);
-  return f;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isTapped? "" [node tap]
+  (var bb (.getBoundingBox node))
+  (<= (.distance tap (.getPosition node)) (* 0.8 bb.size.width)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::Label* reifyLabel(const sstr &font, float sz, const sstr &text) {
-  return c::Label::createWithTTF(text, XCFG()->getFont(font), sz);
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deltaX "" [nodea nodeb]
+  (- (.getPositionX nodeb) (.getPositionX nodea)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-c::Label* reifyLabel(float x, float y,
-  const sstr &font,
-  float sz,
-  const sstr &text) {
-  auto t = reifyLabel(font, sz, text);
-  t->setPosition(x,y);
-  return t;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn deltaY "" [nodea nodeb]
+  (- (.getPositionY nodeb) (.getPositionY nodea)))
 
-//////////////////////////////////////////////////////////////////////////
-// Test collision of 2 sprites
-bool collide(not_null<c::Node*> a, not_null<c::Node*> b) {
-  return (N_NIL(a) && N_NIL(b)) ? bbox(a).intersectsRect( bbox(b)) : false;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn isPortrait? "" [] (var s screen) (> s.height s.width))
 
-//////////////////////////////////////////////////////////////////////////
-//
-void setDevRes(float x, float y, ResolutionPolicy pcy) {
-  CC_DTOR()->getOpenGLView()->setDesignResolutionSize(x, y, pcy);
-}
 
-//////////////////////////////////////////////////////////////////////////
-//
-bool isTapped(not_null<c::Node*> node, const CCT_PT &tap) {
-  return tap.distance(node->getPosition()) <= node->getBoundingBox().size.width * 0.8;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn readJson "" [fpath]
+  (JSON/parse (jsb.fileUtils.getStringFromFile fpath)))
 
-//////////////////////////////////////////////////////////////////////////////
-//
-float deltaX(not_null<c::Node*> a, not_null<c::Node*> b) {
-  return a->getPositionX() - b->getPositionX();
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-float deltaY(not_null<c::Node*> a, not_null<c::Node*> b) {
-  return a->getPositionY() - b->getPositionY();
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-bool isPortrait() {
-  auto s=screen();
-  return s.height > s.width;
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-c::Array* readXmlAsList(const sstr &fpath) {
-  return c::Array::createWithContentsOfFile(fpath.c_str());
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-c::Dictionary* readXmlAsDict(const sstr &fpath) {
-  return c::Dictionary::createWithContentsOfFile(fpath.c_str());
-}
-
-//////////////////////////////////////////////////////////////////////////
-//
-j::json readJson(const sstr &fpath) {
-  auto s= CC_FILER()->getStringFromFile(fpath);
-  return j::json::parse(s);
-}
 
 //////////////////////////////////////////////////////////////////////////
 //
