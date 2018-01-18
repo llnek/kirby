@@ -273,6 +273,8 @@
     (and (starts? tn "\"")
          (ends? tn "\""))
     (set! ret (std/unquote-str tn))
+    (starts? tn "::")
+    (set! ret (keyword (str ":" tn)))
     (starts? tn ":")
     (set! ret (keyword tn))
     (starts? tn "%")
