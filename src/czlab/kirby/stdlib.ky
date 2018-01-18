@@ -993,6 +993,15 @@
         :while (< i sz) :recur (+ i step)] (conj! ret (.@i coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn copyVector "" [from to]
+  (if (and (array? from)
+           (array? to))
+    (var fc (n# from) tc (n# to))
+    (if-not (< fc tc)
+      (each (fn [v i]
+              (set-in! to i (get from i))) to))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "Collect every
             2nd item starting at 0" ^Array [coll] (every coll 0 2))
 
