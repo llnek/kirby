@@ -18,6 +18,7 @@
                      unquote-str quote-str
                      not-empty conj! list?
                      difference carve
+                     setnsp! getnsp
                      gensym count pop!
                      symbol keyword symbol? keyword?]]
             ["./engine"
@@ -57,7 +58,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       *macros* nil
-      *ns* nil
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
 
@@ -279,9 +279,7 @@
   (cond (lambda-arg? a)
         (str LARGS "[" s "]")
         (keyword? a)
-        (do (if (starts? s "::")
-              (set! s (str *ns* "/" (.slice s 2))))
-            (node' a (tnodeEx s (str "\"" s "\""))))
+        (node' a (tnodeEx s (str "\"" s "\"")))
         (symbol? a)
         (node' a (tnodeEx (jsid s) (jsid s)))
         (nil? a)
@@ -640,7 +638,7 @@ fn (right-to-left) to the result, etc."
                     [nil (slice ast 4)]))
   (.addVar (rt/genv)
            czname0
-           {:ns *ns* :alias czname0 :type :class})
+           {:ns (getnsp) :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -666,7 +664,7 @@ fn (right-to-left) to the result, etc."
     (m.unshift mtd)
     (.addVar (rt/genv)
              cn
-             {:ns *ns* :alias cn :type :method})
+             {:ns (getnsp) :alias cn :type :method})
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
@@ -823,7 +821,7 @@ returned if no clause matches."
     (if-not (== "let" cmd)
       (.addVar (rt/genv)
                $(x)
-               {:ns *ns* :alias $(x) :type :var}))
+               {:ns (getnsp) :alias $(x) :type :var}))
     (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
@@ -864,7 +862,7 @@ returned if no clause matches."
           (if-not (== "let" cmd)
             (.addVar (rt/genv)
                      $(x)
-                     {:ns *ns* :alias $(x) :type :var}))
+                     {:ns (getnsp) :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
@@ -1060,7 +1058,7 @@ returned if no clause matches."
   (if-not mtd?
     (.addVar (rt/genv)
              fname0
-             {:ns *ns* :alias fname0 :type :fn}))
+             {:ns (getnsp) :alias fname0 :type :fn}))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (var fargs (doFuncArgs (xfi ast args) env))
@@ -1368,8 +1366,8 @@ any finally exprs will be evaluated for their side effects."
     (++ pos)
     (assoc! nsp :____meta attrs))
   (.setNSP (rt/genv) $(nsp) attrs)
-  (set! *ns* $(nsp))
-  (println (str "Processing namespace: " *ns*))
+  (setnsp! $(nsp))
+  (println (str "Processing namespace: " (getnsp)))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1520,7 +1518,7 @@ called.
   ;try to register it
   (.addVar (rt/genv)
            mname
-           {:ns *ns* :alias nil :type :macro})
+           {:ns (getnsp) :alias nil :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1590,7 +1588,7 @@ called.
        s2 ""
        s1 (str EXPKEY
                ": { ns: "
-               (quote-str *ns*)
+               (quote-str (getnsp))
                ", macros: " mc " }"))
   (when (not-empty *externs*)
     (set! s2
@@ -1626,7 +1624,10 @@ called.
 
   ^Array [source fname options]
 
-  (set! *externs* { } *macros* {} *ns* nil)
+  ;;start clean
+  (set! *externs* { } *macros* {})
+  (setnsp! nil)
+  ;;ok
   (var gv (rt/genv)
        ret (txTree (parser/parse source fname) gv)
        {:keys [source-map format verbose]} options

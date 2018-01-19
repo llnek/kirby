@@ -224,10 +224,13 @@
                 v (.-value a)]
             (and (s/lambda-arg? a)
                  (= v "0"))) "lambda-arg,%,lambda-arg?")
+
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
             (and (s/keyword? k)
+                 (false? k.pfx)
                  (= v "hello"))) "keyword,keyword?")
+
   (ensure (let [s (std/symbol "hello")
                 v (.-value s)]
             (and (std/symbol? s)
