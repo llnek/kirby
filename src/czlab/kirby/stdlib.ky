@@ -994,8 +994,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn copyVector "" [from to]
-  (if (and (array? from)
-           (array? to))
+  (when (and (array? from)
+             (array? to))
     (var fc (n# from) tc (n# to))
     (if-not (< fc tc)
       (each (fn [v i]
