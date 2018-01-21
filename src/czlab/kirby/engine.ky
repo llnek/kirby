@@ -10,25 +10,30 @@
   czlab.kirby.engine
   (:require ["readline" :as readline])
   (:require ["fs" :as fs])
-  (:require ["./parser" :as parser]
+  (:require ["./kernel" :as k :refer [LambdaArg lambda-arg
+                                      lambda-arg?
+                                      Symbol symbol symbol?
+                                      Keyword keyword keyword?]]
+            ["./parser" :as parser]
             ["./stdlib"
              :as std
              :refer [pairs? stringify contains?
                      atom? list? map? some?
-                     LambdaArg Keyword println
+                     println
                      nichts? not-empty object?
-                     Symbol into! prn
-                     Atom symbol swap!
+                     into! prn
+                     Atom swap!
                      atom vector vector?
                      typeid sequential?
                      conj! count truthy? falsy?
-                     last pop! opt??
-                     keyword? symbol? seq]]))
+                     last pop! opt?? seq]]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const EXPKEY "da57bc0172fb42438a11e6e8778f36fb")
 (const KBSTDLR "kirbystdlibref")
 (const KBPFX "czlab.kirby.")
 (const KBSTDLIB (str KBPFX "stdlib"))
+(const KBKERNEL (str KBPFX "kernel"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_assert ```
@@ -51,7 +56,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- STD-MACROS "czlab.kirby.stdlib")
+(const- STD-MACROS "czlab.kirby.kernel")
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -60,7 +65,7 @@
     (raise! "expecting symbol")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype LEXEnv [][nsp nil parent nil
+(deftype LEXEnv [][parent nil
                    data {} libs {} vars {}]
   "Lexical Environment"
   (constructor "Create and initialize
@@ -111,28 +116,36 @@
   (prn "Print set of vars"
     ^String []
     (std/prn this.data))
-  (setNSP "Set current namespace"
-    [nsp & info]
-    (do->nil (set! this.nsp
-                    {:id $(nsp) :meta info})))
-  (curNSP "Returns the
-           current namespace" [] this.nsp)
-  (getLib "" [alias] (get this.libs alias))
+  ;;
+  (getLib "" [alias]
+    (if this.parent
+      (.getLib this.parent alias)
+      (get this.libs alias)))
   (addVar "" [sym info]
-    (do->nil (var s (str sym)
-                  m (get this.vars s))
-             (if m
-               (raise! "var: " s " already added"))
-             (assoc! this.vars s info)))
+    (if this.parent
+      (.addVar this.parent sym info)
+      (do->nil (var s (str sym)
+                    m (get this.vars s))
+               (if m
+                 (raise! "var: " s " already added"))
+               (assoc! this.vars s info))))
   (getVar "" [sym]
-    (get this.vars (str sym)))
-  (hasVar? "" [sym]
-    (contains? this.vars (str sym)))
+    (if this.parent
+      (.getVar this.parent sym)
+      (get this.vars (str sym))))
+
+  (hasVar "" [sym]
+    (if this.parent
+      (.hasVar this.parent sym)
+      (contains? this.vars (str sym))))
+
   (addLib "" [alias lib]
-    (do->nil
-      (if (contains? this.libs alias)
-        (raise! "Library alias already added: " alias))
-      (assoc! this.libs alias lib))))
+    (if this.parent
+      (.addLib this.parent alias lib)
+      (do->nil
+        (if (contains? this.libs alias)
+          (raise! "Library alias already added: " alias))
+        (assoc! this.libs alias lib)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr "" [arr] `(map #(prn %) ~arr))
@@ -342,7 +355,7 @@
                (fn? func))
       (set! cmd $(cmd))
       (when-not (contains? cmd "/")
-        (var c (.curNSP g_env))
+        (var c (k/peekNSP))
         (if-not c (raise! "missing namespace"))
         (set! cmd (str c.id "/" cmd)))
       ;;(println "adding macro ==== " cmd)
@@ -360,7 +373,7 @@
       (set! mname c)
       (cond
         (= KBSTDLR p)
-        (set! nsp KBSTDLIB)
+        (set! nsp KBKERNEL)
         (nichts? lib)
         (set! skip true)
         :else
@@ -370,7 +383,7 @@
     :else
     (let [m (.getVar (genv) cmd)]
       (set! mname cmd
-            nsp (if m (get m :ns) KBSTDLIB))))
+            nsp (if m (get m :ns) KBKERNEL))))
   (if-not skip
     (get CACHE (str nsp "/" mname))))
 
@@ -470,7 +483,7 @@
 ;;(macro* name args body)
 (defn- doMACRO "" [ast env]
   (var name $(2nd ast)
-       nsp (.curNSP g_env))
+       nsp (k/peekNSP))
   (set! nsp (if nsp nsp.id STD-MACROS))
   (if-not (contains? name "/")
     (set! name (str nsp "/" name)))

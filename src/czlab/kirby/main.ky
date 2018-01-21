@@ -13,11 +13,13 @@
             ["watch" :as watch]
             ["path" :as path]
             ["fs" :as fs])
-  (:require ["./compiler" :as tx]
+  (:require
+            ["./kernel" :as k]
             ["./stdlib"
              :as std
              :refer [object? println]]
-            ["./engine" :as rt]))
+            ["./engine" :as rt]
+            ["./compiler" :as tx]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- error! "" [msg] (println msg) (process.exit 1))
@@ -26,7 +28,10 @@
 (defn- compileSource "" [opt]
   (var [fin fout] opt.argv
        options opt.options)
-  (if-not fin (error! "No source file"))
+  ;get absolute path
+  (if-not fin
+    (error! "No source file")
+    (set! fin (path/resolve fin)))
   (if-not (ends? fin ".ky")
     (error! "Source file extension not '.ky'"))
   (if-not fout
@@ -50,14 +55,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
   (var c (require "./compiler")
-       w (process/cwd)
        f (fn [module fname]
-           (var [code err]
-             (c.transpile
-                (rt/slurp fname) (path/relative w fname)))
+           (var fin (path/resolve fname)
+                [code err] (c.transpile (rt/slurp fin) fin))
            (if err
              (throw err)
-             (module._compile code fname))))
+             (module._compile code fin))))
   (assoc! require.extensions ".ky" f)
   (rt.init tx.version))
 
