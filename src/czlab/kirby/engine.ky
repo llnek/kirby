@@ -30,6 +30,7 @@
 (const KBSTDLR "kirbystdlibref")
 (const KBPFX "czlab.kirby.")
 (const KBSTDLIB (str KBPFX "stdlib"))
+(const KBENGINE (str KBPFX "engine"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_assert ```
@@ -130,10 +131,8 @@
       (assoc! this.libs alias lib))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro prnArr "" [arr] `(map #(prn %) ~arr))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
+(defmacro prnArr
+  "" ^:private [arr] `(map #(prn %) ~arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" ^Function []
@@ -367,10 +366,19 @@
           (set! nsp (get (get lib EXPKEY) :ns)))))
     :else
     (let [m (.getVar (genv) cmd)]
-      (set! mname cmd
-            nsp (if m (get m :ns) KBSTDLIB))))
-  (if-not skip
-    (get CACHE (str nsp "/" mname))))
+      (set! mname cmd)
+      (if m
+        (set! nsp (get m :ns))
+        (set! nsp nil))))
+  (when-not skip
+    (when (nil? nsp)
+      (if (get CACHE (str KBSTDLIB "/" mname))
+        (set! nsp KBSTDLIB)))
+    (when (nil? nsp)
+      (if (get CACHE (str KBENGINE "/" mname))
+        (set! nsp KBENGINE)))
+    (when (string? nsp)
+      (get CACHE (str nsp "/" mname)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- dbg "" [x] (do->nil (println "DBG: " (prn x))))
@@ -420,7 +428,7 @@
 (defn- eval* "" ^Any [ast env]
   (cond
     (string? ast) (std/unquote-str ast)
-    (keyword? ast) (.-value ast)
+    (keyword? ast) (.toString ast)
     (symbol? ast) (env.get ast)
     ;complex data
     (pairs? ast)

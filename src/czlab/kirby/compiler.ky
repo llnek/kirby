@@ -280,7 +280,7 @@
   (cond (lambda-arg? a)
         (str LARGS "[" s "]")
         (keyword? a)
-        (node' a (tnodeEx s (str "\"" s "\"")))
+        (node' a (tnodeEx s (str "\"" a "\"")))
         (symbol? a)
         (node' a (tnodeEx (jsid s) (jsid s)))
         (nil? a)
@@ -310,10 +310,10 @@
 (defn- quoteSingle "" ^String [a]
   (cond (keyword? a)
         (str (maybeStripStdlib (str KBSTDLR ".keyword"))
-             "(\":" a "\")")
+             "(\"" a.value "\")")
         (symbol? a)
         (str (maybeStripStdlib (str KBSTDLR ".symbol"))
-             "(\"" a "\")")
+             "(\"" a.value "\")")
         (primitive? a)
         (do (set! a a.value)
             (cond (string? a) (quote-str a)
@@ -730,7 +730,7 @@ fn (right-to-left) to the result, etc."
   (if (and (== "-" cmd)
            (= 2 (n# ast))) (ret.add "-1 * "))
   (for [i 1 sz (n# ast)
-        :while (< i sz) : recur (+1 i)]
+        :while (< i sz) :recur (+1 i)]
     (when (> sz 2)
       (if (> i 1) (ret.add cmd)))
     (ret.add (tx* (.@i ast) env)))

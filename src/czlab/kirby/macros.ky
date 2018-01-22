@@ -9,18 +9,6 @@
       :author "Kenneth Leung"}
   czlab.kirby.stdlib)
 
-(defmacro assert* "" [c msg] `(if* ~c true (throw* ~msg)))
-
-(defmacro cond* "" [&xs]
-    (if* (> (count* xs) 0)
-      (list* 'if*
-            (first* xs)
-            (nth* xs 1)
-            (cons* 'cond* (rest* (rest* xs))))))
-
-(defmacro _andp_* "" [&xs]
-    (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))
 
@@ -552,6 +540,23 @@
         (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
         (catch e
           (kirbystdlibref/ensureTestThrown ~expected e ~msg))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro assert*
+  "" [c msg] `(if* ~c true (throw* ~msg)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro cond* "" [&xs]
+  (if* (> (count* xs) 0)
+    (list* 'if*
+          (first* xs)
+          (nth* xs 1)
+          (cons* 'cond* (rest* (rest* xs))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro _andp_* "" [&xs]
+  (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

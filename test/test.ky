@@ -8,6 +8,7 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.test.stdlib
+  (:require ["./macros" :only :macros])
   (:require ["kirby" :as std :refer [println]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -227,7 +228,15 @@
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
             (and (s/keyword? k)
-                 (= v "hello"))) "keyword,keyword?")
+                 (= v ":hello"))) "keyword,keyword?")
+
+  (ensure (let [k (s/keyword "::hello")
+                v (.toString k)]
+            (console.log v)
+            (and (s/keyword? k)
+                 (= v "czlab.kirby.test.stdlib/hello")))
+          "scoped,keyword,keyword?")
+
   (ensure (let [s (std/symbol "hello")
                 v (.-value s)]
             (and (std/symbol? s)

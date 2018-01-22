@@ -216,7 +216,7 @@
     (set! this.value name))
   (toString "" []
     (cond (starts? this.value "::")
-          (str (peekNSP) "/" (.slice this.value 2))
+          (str (.-id (peekNSP)) "/" (.slice this.value 2))
           (starts? this.value ":") (.slice this.value 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
