@@ -13,13 +13,12 @@
             ["watch" :as watch]
             ["path" :as path]
             ["fs" :as fs])
-  (:require ["./macros"]
-            ["./kernel" :as k]
+  (:require ["./macros" :only :macros]
+            ["./compiler" :as tx]
             ["./stdlib"
              :as std
              :refer [object? println]]
-            ["./engine" :as rt]
-            ["./compiler" :as tx]))
+            ["./engine" :as rt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- error! "" [msg] (println msg) (process.exit 1))
@@ -28,7 +27,6 @@
 (defn- compileSource "" [opt]
   (var [fin fout] opt.argv
        options opt.options)
-  ;get absolute path
   (if-not fin
     (error! "No source file")
     (set! fin (path/resolve fin)))
@@ -54,14 +52,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- init "" []
-  (var c (require "./compiler")
-       f (fn [module fname]
-           (var fin (path/resolve fname)
-                [code err] (c.transpile (rt/slurp fin) fin))
-           (if err
-             (throw err)
-             (module._compile code fin))))
-  (assoc! require.extensions ".ky" f)
   (rt.init tx.version))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

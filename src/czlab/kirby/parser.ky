@@ -8,19 +8,16 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.parser
+  (:require ["./macros" :only :macros])
   (:require
-    ["./macros" :refer :none]
-    ["./kernel"
-     :as k
-     :refer [lambda-arg lambda-arg?
-             symbol? keyword?
-             symbol primitive? keyword ]]
     ["./stdlib"
      :as std
-     :refer [object? nichts? count
+     :refer [lambda-arg object? nichts? count
              into! vector conj! prn quote-str
              list? vector? map? escXml println
-             carve opt?? contains? list not-empty]]))
+             symbol? keyword? lambda-arg?
+             carve opt?? symbol primitive?
+             keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Token [][]

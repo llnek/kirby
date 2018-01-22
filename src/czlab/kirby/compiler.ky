@@ -1,32 +1,26 @@
-;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-
 (ns ^{:doc ""
       :author "Kenneth Leung"}
-
   czlab.kirby.compiler
-
   (:require ["source-map" :as smap])
-  (:require ["./macros" :refer :none])
-  (:require ["./kernel"
-             :as kn
-             :refer [lambda-arg? primitive primitive?
-                     symbol keyword symbol? keyword?]]
+  (:require ["./macros" :only :macros]
             ["./stdlib"
              :as std
-             :refer [seq merge contains? last typeid
-                     pairs? into! println
-                     prn map? vector?
-                     opt?? some?
+             :refer [lambda-arg? pairs? into! println
+                     seq merge contains? last typeid
+                     prn primitive map? vector?
+                     opt?? some? primitive?
                      unquote-str quote-str
                      not-empty conj! list?
                      difference carve
-                     gensym count pop!]]
+                     gensym count pop!
+                     symbol keyword symbol? keyword?]]
             ["./engine"
              :as rt
              :refer [KBSTDLR KBSTDLIB KBPFX EXPKEY]]
@@ -64,6 +58,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       *macros* nil
+      *ns* nil
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
 
@@ -250,7 +245,7 @@
           :column ast.column) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txTree "" ^SourceNode [root fname env]
+(defn- txTree "" ^SourceNode [root env]
   (var ms [] os []
        n1 (1st root)
        ret (node' root))
@@ -372,7 +367,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" ^SourceNode [ast env]
-  (var nsp (kn/peekNSP)
+  (var nsp (std/peekNSP)
        stmtQ (stmt? ast)
        ret (node' ast)
        cmd (gcmd ast)
@@ -526,7 +521,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- maybeStripStdlib "" ^String [cmd]
   (var lib (str KBSTDLR ".")
-       nsp (kn/peekNSP))
+       nsp (std/peekNSP))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
            (= nsp.id "czlab.kirby.stdlib"))
@@ -642,9 +637,9 @@ fn (right-to-left) to the result, etc."
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
-  (.addVar env
+  (.addVar (rt/genv)
            czname0
-           {:ns (.-id (kn/peekNSP)) :alias czname0 :type :class})
+           {:ns *ns* :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -668,16 +663,16 @@ fn (right-to-left) to the result, etc."
         (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
-    (.addVar env
+    (.addVar (rt/genv)
              cn
-             {:ns (.-id (kn/peekNSP)) :alias cn :type :method})
+             {:ns *ns* :alias cn :type :method})
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
   (if (and pub?
-           (kn/peekNSP))
+           (std/peekNSP))
     (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
@@ -825,15 +820,15 @@ returned if no clause matches."
     (set! x (.@i ast)
           s (tx* x env))
     (if-not (== "let" cmd)
-      (.addVar env
+      (.addVar (rt/genv)
                $(x)
-               {:ns (.-id (kn/peekNSP)) :alias $(x) :type :var}))
+               {:ns *ns* :alias $(x) :type :var}))
     (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
   ;;exports
   (if (and pub?
-           (kn/peekNSP))
+           (std/peekNSP))
     (each-key #(assoc! *externs* %2 %1) keys))
   (wrap ret (str cmd " ") ";\n"))
 
@@ -866,16 +861,16 @@ returned if no clause matches."
       (do (set! x lhs
                 lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (.addVar env
+            (.addVar (rt/genv)
                      $(x)
-                     {:ns (.-id (kn/peekNSP)) :alias $(x) :type :var}))
+                     {:ns *ns* :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
                 rhs (destruct* lhs out env))
           (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
   (if (and pub?
-           (kn/peekNSP))
+           (std/peekNSP))
     (each-key #(assoc! *externs* %2 %1) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1062,9 +1057,9 @@ returned if no clause matches."
        b1 (1st body)
        [attrs args] (meta?? (nth ast pargs) env))
   (if-not mtd?
-    (.addVar env
+    (.addVar (rt/genv)
              fname0
-             {:ns (.-id (kn/peekNSP)) :alias fname0 :type :fn}))
+             {:ns *ns* :alias fname0 :type :fn}))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (var fargs (doFuncArgs (xfi ast args) env))
@@ -1100,7 +1095,7 @@ returned if no clause matches."
   (if (and pub?
            (not dot?)
            (not mtd?)
-           (kn/peekNSP))
+           (std/peekNSP))
     (assoc! *externs* fname fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
@@ -1277,28 +1272,28 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (var~ rlib as mpath v mcs nsp
-        rpath refer_none refer_all
+  (var~ rlib as rpath v mcs nsp macros_only
         info libpath e refers renames)
-  (var dirname (path/dirname ast.source)
-       ret (node' ast))
+  (var ret (node' ast)
+       fdir (path/dirname ast.source))
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast)
           as $(gensym "R__")
-          refer_none #f refer_all #f
+          macros_only #f
           refers nil renames nil)
     (if-not (and (array? e)
                  (string? (1st e))) (error! :invalid-require ast))
     (set! rpath $(1st e))
-    (if (.includes rpath "./")
-      (set! mpath (path/resolve dirname rpath))
-      (set! mpath rpath))
     (for [j 1 sz (n# e)
           :while (< j sz) :recur (+1 j)]
       (set! v (.@j e))
       (cond (== v "as")
             (do (set! as $(.@+j e))
+                (++ j))
+            (== v "only")
+            (do (if (== "macros" $(.@+j e))
+                  (true! macros_only))
                 (++ j))
             (== v "refer")
             (do (set! refers (.@+j e))
@@ -1306,25 +1301,23 @@ any finally exprs will be evaluated for their side effects."
             (== v "rename")
             (do (set! renames (.@+j e))
                 (++ j))))
-    (set! libpath (tx* mpath env))
-    (set! rpath (tx* rpath env))
-    (when (keyword? refers)
-      (cond (== :none refers) (true! refer_none)
-            (== :all refers) (true! refer_all)))
-    (if-not refer_none
+    (if (.includes rpath "./")
+      (set! libpath (path/resolve fdir rpath))
+      (set! libpath rpath))
+    (set! libpath (tx* libpath env))
+    (if-not macros_only
       (ret.add ["const " (parser/jsid as)
-                "= require(" rpath ");\n"]))
+                "= require(" (tx* rpath env) ");\n"]))
     ;load the lib
     (set! rlib (require! (unquote-str libpath))
           info (get rlib EXPKEY))
     (if info
       (set! mcs (get info :macros)
             nsp (loadRLib info env)))
-    (.addLib env $(as) rlib)
+    (.addLib (rt/genv) $(as) rlib)
     (set! mcs (or mcs {}))
     (for [i 0 t nil r nil rs nil
-          f nil m nil sz
-          (if (array? refers)(n# refers) 0)
+          f nil m nil sz (n# refers)
           :while (< i sz) :recur (+1 i)]
       (set! r (.@i refers)
             rs $(r)
@@ -1334,7 +1327,7 @@ any finally exprs will be evaluated for their side effects."
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
       (if-not (or f m) (raise! "Unknown var " rs))
-      (.addVar env
+      (.addVar (rt/genv)
                rs
                {:ns nsp :alias rs :type t})
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
@@ -1351,7 +1344,7 @@ any finally exprs will be evaluated for their side effects."
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
       (if-not (or f m) (raise! "Unknown var " ro))
-      (.addVar env
+      (.addVar (rt/genv)
                rs
                {:ns nsp :alias $(ro) :type t})
       (ret.add ["const " v
@@ -1383,8 +1376,9 @@ any finally exprs will be evaluated for their side effects."
           attrs (merge attrs mobj))
     (++ pos)
     (assoc! nsp :____meta attrs))
-  (kn/pushNSP $(nsp) attrs)
-  (println (str "Processing namespace: " $(nsp)))
+  (std/pushNSP $(nsp) attrs)
+  (set! *ns* $(nsp))
+  (println (str "Processing namespace: " *ns*))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1395,11 +1389,9 @@ any finally exprs will be evaluated for their side effects."
         (conj! ret (sf-require (xfi ast e))))))
   ;;force a internal reference to stdlib for user files
   ;;unless processing internal files
-  (set! nsp (kn/peekNSP))
+  (set! nsp (std/peekNSP))
   (cond
-    (or (= nsp.id (str KBPFX "kernel"))
-        (= nsp.id (str KBPFX "macros"))
-        (= nsp.id (str KBPFX "stdlib")))
+    (= nsp.id (str KBPFX "stdlib"))
     nil
     (starts? nsp.id KBPFX)
     (conj! ret
@@ -1535,9 +1527,9 @@ called.
   (set! mname (2nd ast)
         ast ['macro* mname pms (1st body)])
   ;try to register it
-  (.addVar env
+  (.addVar (rt/genv)
            mname
-           {:ns (.-id (kn/peekNSP)) :alias nil :type :macro})
+           {:ns *ns* :alias nil :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1607,7 +1599,7 @@ called.
        s2 ""
        s1 (str EXPKEY
                ": { ns: "
-               (quote-str (.-id (kn/peekNSP)))
+               (quote-str *ns*)
                ", macros: " mc " }"))
   (when (not-empty *externs*)
     (set! s2
@@ -1619,7 +1611,8 @@ called.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
-  (var {:keys [id meta]} (kn/peekNSP))
+  (var {:keys [id meta]}
+       (std/peekNSP))
   (str "/*" "Auto generated by Kirby v" MOD-VER " - " (new Date) "\n"
        "  " id "\n"
        (if meta (std/prn meta true) "") "\n"
@@ -1642,11 +1635,9 @@ called.
 
   ^Array [source fname options]
 
-  ;;start clean
-  (set! *externs* { } *macros* {})
-  ;;ok
+  (set! *externs* { } *macros* {} *ns* nil)
   (var gv (rt/genv)
-       ret (txTree (parser/parse source fname) fname gv)
+       ret (txTree (parser/parse source fname) gv)
        {:keys [source-map format verbose]} options
        fbase (path/basename fname ".ky")
        macros (spitMacros)

@@ -12,7 +12,7 @@ else
 fi
 
 #compile files
-for n in macros kernel stdlib parser engine compiler main
+for n in macros stdlib parser engine compiler main
 do
   ${COMPILER} -f src/czlab/kirby/${n}.ky
 done

@@ -5,10 +5,21 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-(ns ^{:doc ""
+(ns ^{:doc "Kirby's standard core library."
       :author "Kenneth Leung"}
+  czlab.kirby.stdlib)
 
-  czlab.kirby.macros)
+(defmacro assert* "" [c msg] `(if* ~c true (throw* ~msg)))
+
+(defmacro cond* "" [&xs]
+    (if* (> (count* xs) 0)
+      (list* 'if*
+            (first* xs)
+            (nth* xs 1)
+            (cons* 'cond* (rest* (rest* xs))))))
+
+(defmacro _andp_* "" [&xs]
+    (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty? "" [coll] `(= 0 (kirbystdlibref/count ~coll)))
@@ -526,6 +537,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing stuff
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro deftest
   "" [name & body] `(const ~name #(vec ~@body)))
 
@@ -541,12 +554,9 @@
           (kirbystdlibref/ensureTestThrown ~expected e ~msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro binding [bindings & more]
-  (let* [es (evens* bindings)
-         os (odds* bindings)]
-    `((fn [~@es] ~@more) ~@os)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
+
+
 
 
