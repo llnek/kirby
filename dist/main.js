@@ -74,6 +74,7 @@ const compileSource = function(opt) {
 ////////////////////////////////////////////////////////////////////////////////
 //fn: [init] in file: main.ky, line: 51
 const init = function() {
+  /*
   let c = require("./compiler");
   let w = process.cwd();
   let f = function(module, fname) {
@@ -87,6 +88,7 @@ const init = function() {
       module._compile(code, fname));
   };
   require.extensions[".ky"] = f;
+  */
   return rt.init(tx.version);
 };
 ////////////////////////////////////////////////////////////////////////////////

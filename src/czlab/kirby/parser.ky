@@ -9,6 +9,7 @@
       :author "Kenneth Leung"}
   czlab.kirby.parser
   (:require
+    ["./macros" :refer :none]
     ["./kernel"
      :as k
      :refer [lambda-arg lambda-arg?

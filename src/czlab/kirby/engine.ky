@@ -10,6 +10,7 @@
   czlab.kirby.engine
   (:require ["readline" :as readline])
   (:require ["fs" :as fs])
+  (:require ["./macros" :refer :none])
   (:require ["./kernel" :as k :refer [LambdaArg lambda-arg
                                       lambda-arg?
                                       Symbol symbol symbol?
@@ -34,6 +35,7 @@
 (const KBPFX "czlab.kirby.")
 (const KBSTDLIB (str KBPFX "stdlib"))
 (const KBKERNEL (str KBPFX "kernel"))
+(const KBMACROS (str KBPFX "macros"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- macro_assert ```
@@ -373,7 +375,7 @@
       (set! mname c)
       (cond
         (= KBSTDLR p)
-        (set! nsp KBKERNEL)
+        (set! nsp KBMACROS)
         (nichts? lib)
         (set! skip true)
         :else
@@ -383,7 +385,7 @@
     :else
     (let [m (.getVar (genv) cmd)]
       (set! mname cmd
-            nsp (if m (get m :ns) KBKERNEL))))
+            nsp (if m (get m :ns) KBMACROS))))
   (if-not skip
     (get CACHE (str nsp "/" mname))))
 

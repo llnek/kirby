@@ -657,7 +657,7 @@ const getMacro = function(cmd) {
   let ret= kirbystdlibref.getProp(CACHE, [nsp, "/", mname].join(""));
   if (ret) return ret;
   if (nsp === KBSTDLIB) {
-    nsp="czlab.kirby.kernel";
+    nsp="czlab.kirby.macros";
     ret= kirbystdlibref.getProp(CACHE, [nsp, "/", mname].join(""));
   }
   return ret;

@@ -1619,6 +1619,8 @@ const sf_DASH_require = function(ast, env) {
   assertArity((kirbystdlibref.count(ast) >= 2), ast);
   let rlib,
     as,
+    refer_none,refer_all,
+    rpath,
     mpath,
     v,
     mcs,
@@ -1633,15 +1635,16 @@ const sf_DASH_require = function(ast, env) {
   let ret = node_QUOTE(ast);
   for (let i = 1, sz = kirbystdlibref.count(ast), ____break = false; ((!____break) && (i < sz)); i = (i + 1)) {
     (e = ast[i], as = [gensym("R__")].join(""), refers = null, renames = null);
+    refer_none=false; refer_all=false;
     if ( (!((Array.isArray(e)) && ((typeof (kirbystdlibref.getProp(e, 0)) === "string")))) ) {
       error_BANG("invalid-require", ast);
     } else {
       null;
     }
-    mpath = [kirbystdlibref.getProp(e, 0)].join("");
-    if (mpath.includes("./")) {
-      mpath=path.resolve(dirname,mpath);
-    }
+    rpath = [kirbystdlibref.getProp(e, 0)].join("");
+    if (rpath.includes("./")) {
+      mpath=path.resolve(dirname,rpath);
+    } else { mpath=rpath; }
     for (let j = 1, sz = kirbystdlibref.count(e), ____break = false; ((!____break) && (j < sz)); j = (j + 1)) {
       v = e[j];
       if ( (v == "as") ) {
@@ -1662,14 +1665,40 @@ const sf_DASH_require = function(ast, env) {
       }
     }
     libpath = tx_STAR(mpath, env);
-    ret.add(["const ", parser.jsid(as), "= require(", libpath, ");\n"]);
+    rpath = tx_STAR(rpath, env);
+    if (keyword_QUERY(refers)) {
+      if (refers == "none") {
+        refer_none=true;
+      }
+      if (refers == "all") {
+        refer_all=true;
+      }
+    }
+    if (! refer_none) {
+      ret.add(["const ", parser.jsid(as),
+               "= require(", rpath, ");\n"]);
+    }
     (rlib = require_BANG(unquote_DASH_str(libpath)), info = kirbystdlibref.getProp(rlib, EXPKEY));
     if (info) {
       (mcs = kirbystdlibref.getProp(info, "macros"), nsp = loadRLib(info, env));
     }
     rt.genv().addLib([as].join(""), rlib);
+    if (refer_all) {
+      refers=[];
+      Object.keys(rlib).forEach(function(k){
+        if (k != EXPKEY) {
+          refers.push(symbol(k));
+        }
+      });
+    }
     mcs = (mcs || {});
-    for (let i = 0, t = null, r = null, rs = null, f = null, m = null, sz = kirbystdlibref.count(refers), ____break = false; ((!____break) && (i < sz)); i = (i + 1)) {
+    let sz=0;
+    if (Array.isArray(refers)) {
+      sz= refers.length;
+    }
+    for (let i = 0, t = null, r = null,
+         rs = null, f = null, m = null,
+         ____break = false; ((!____break) && (i < sz)); i = (i + 1)) {
       (r = refers[i], rs = [r].join(""), v = tx_STAR(r, env), f = kirbystdlibref.getProp(rlib, parser.jsid(rs)), m = kirbystdlibref.getProp(mcs, rs));
       if (f) {
         t = typeid(f);
@@ -1690,7 +1719,13 @@ const sf_DASH_require = function(ast, env) {
       ret.add(["const ", v, "=", as, "[\"", v, "\"];\n"]);
     }
     for (let i = 0, t = null, r = null, rs = null, ro = null, f = null, m = null, sz = kirbystdlibref.count(renames), ____break = false; ((!____break) && (i < sz)); i = (i + 2)) {
-      (ro = renames[i], e = tx_STAR(ro, env), r = renames[i + 1], rs = [r].join(""), v = tx_STAR(r, env), f = kirbystdlibref.getProp(rlib, parser.jsid([ro].join(""))), m = kirbystdlibref.getProp(mcs, [ro].join("")));
+      (ro = renames[i],
+        e = tx_STAR(ro, env),
+        r = renames[i + 1],
+        rs = [r].join(""),
+        v = tx_STAR(r, env),
+        f = kirbystdlibref.getProp(rlib, parser.jsid([ro].join(""))),
+        m = kirbystdlibref.getProp(mcs, [ro].join("")));
       if (f) {
         t = typeid(f);
       }
@@ -1759,6 +1794,7 @@ const sf_DASH_ns = function(ast, env) {
   }
   nsp = rt.genv().curNSP();
   if ( (nsp.id === [KBPFX, "kernel"].join("")) ||
+       (nsp.id === [KBPFX, "macros"].join("")) ||
        (nsp.id === [KBPFX, "stdlib"].join("")) ) {
     null;
   } else {

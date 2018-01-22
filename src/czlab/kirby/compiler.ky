@@ -12,6 +12,7 @@
   czlab.kirby.compiler
 
   (:require ["source-map" :as smap])
+  (:require ["./macros" :refer :none])
   (:require ["./kernel"
              :as kn
              :refer [lambda-arg? primitive primitive?
@@ -1277,6 +1278,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (>= (n# ast) 2) ast)
   (var~ rlib as mpath v mcs nsp
+        rpath refer_none refer_all
         info libpath e refers renames)
   (var dirname (path/dirname ast.source)
        ret (node' ast))
@@ -1284,12 +1286,14 @@ any finally exprs will be evaluated for their side effects."
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i ast)
           as $(gensym "R__")
+          refer_none #f refer_all #f
           refers nil renames nil)
     (if-not (and (array? e)
                  (string? (1st e))) (error! :invalid-require ast))
-    (set! mpath $(1st e))
-    (when (.includes mpath "./")
-      (set! mpath (path/resolve dirname mpath)))
+    (set! rpath $(1st e))
+    (if (.includes rpath "./")
+      (set! mpath (path/resolve dirname rpath))
+      (set! mpath rpath))
     (for [j 1 sz (n# e)
           :while (< j sz) :recur (+1 j)]
       (set! v (.@j e))
@@ -1303,8 +1307,13 @@ any finally exprs will be evaluated for their side effects."
             (do (set! renames (.@+j e))
                 (++ j))))
     (set! libpath (tx* mpath env))
-    (ret.add ["const " (parser/jsid as)
-              "= require(" libpath ");\n"])
+    (set! rpath (tx* rpath env))
+    (when (keyword? refers)
+      (cond (== :none refers) (true! refer_none)
+            (== :all refers) (true! refer_all)))
+    (if-not refer_none
+      (ret.add ["const " (parser/jsid as)
+                "= require(" rpath ");\n"]))
     ;load the lib
     (set! rlib (require! (unquote-str libpath))
           info (get rlib EXPKEY))
@@ -1314,7 +1323,8 @@ any finally exprs will be evaluated for their side effects."
     (.addLib env $(as) rlib)
     (set! mcs (or mcs {}))
     (for [i 0 t nil r nil rs nil
-          f nil m nil sz (n# refers)
+          f nil m nil sz
+          (if (array? refers)(n# refers) 0)
           :while (< i sz) :recur (+1 i)]
       (set! r (.@i refers)
             rs $(r)
@@ -1388,6 +1398,7 @@ any finally exprs will be evaluated for their side effects."
   (set! nsp (kn/peekNSP))
   (cond
     (or (= nsp.id (str KBPFX "kernel"))
+        (= nsp.id (str KBPFX "macros"))
         (= nsp.id (str KBPFX "stdlib")))
     nil
     (starts? nsp.id KBPFX)

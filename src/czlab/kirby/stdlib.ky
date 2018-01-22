@@ -11,7 +11,7 @@
 
   czlab.kirby.stdlib
 
-  (:require ["./kernel" :as k]))
+  (:require ["./macros" :refer :none]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn println "" [&msgs]

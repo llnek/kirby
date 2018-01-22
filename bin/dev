@@ -1,0 +1,23 @@
+#!/bin/sh
+COMPILER="bin/dev.js"
+OUTDIR=out
+#make and clean out dir
+if [ ! -d $OUTDIR ]; then
+  if [ -e $OUTDIR ]; then
+    rm $OUTDIR
+  fi
+  mkdir $OUTDIR
+else
+  rm $OUTDIR/*.js
+fi
+
+#compile files
+for n in macros kernel stdlib parser engine compiler main
+do
+  ${COMPILER} -f src/czlab/kirby/${n}.ky
+done
+
+
+
+
+
