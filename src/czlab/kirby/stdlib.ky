@@ -62,6 +62,7 @@
             `(Array.prototype.slice.call ~arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro numStr "" [n] `(.toString (Number ~n)))
 (defmacro float "" [x] `(parseFloat ~x))
 (defmacro int "" [x] `(parseInt ~x))
 

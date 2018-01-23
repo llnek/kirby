@@ -43,6 +43,9 @@
   (ensure (= (float "1.2") 1.2) "float")
   (ensure (= (int "12") 12) "int")
 
+  (ensure (== (s/keyword ":aaa") :aaa) "match keywords")
+  (ensure (== :aaa :aaa) "match both keywords")
+
   (ensure (do (undef! TMPVAR)(= undefined TMPVAR)) "undef!")
   (ensure (do (nil! TMPVAR)(= null TMPVAR)) "nil!")
   (ensure (= 2 (last-index [1 2 3])) "last-index")
@@ -440,4 +443,5 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 

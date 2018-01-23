@@ -1,16 +1,18 @@
-;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
-(ns ^{:doc ""
+
+(ns ^{:doc "Transpiles kirby code to js code."
       :author "Kenneth Leung"}
+
   czlab.kirby.compiler
+
   (:require ["source-map" :as smap])
-  (:require
-            ["./stdlib"
+  (:require ["./stdlib"
              :as std
              :refer [lambdaArg? pairs? into! println
                      seq merge contains? last typeid
@@ -93,32 +95,34 @@
       (symbol? e)
       (if (== e "&")
         ;vargs
-        (do (set! rval (node' args)
+        (do->break!
+          (set! rval (node' args)
                 e (.@+i args))
-            (rval.add [ARRSLICE "(" JSARGS "," $(i) ")"])
-            (if (symbol? e)
-              (fdefs.add ["let "
-                          (tx* e env) "=" rval ";\n"])
-              (do (set! out (node' args)
+          (rval.add [ARRSLICE "(" JSARGS "," (numStr i) ")"])
+          (if (symbol? e)
+            (fdefs.add ["let "
+                        (tx* e env) "=" rval ";\n"])
+            (do (set! out (node' args)
                       e (destruct* e out env))
-                  (fdefs.add ["let "
-                              (tx* e env)
-                              "=" rval ";\n" out])))
-            (break-out-of-loop!))
+                (fdefs.add ["let "
+                            (tx* e env) "=" rval ";\n" out]))))
         ;ignore _
         (do (if (== e "_")
               (set! e (xfi e (gensym "U__")))) (conj! pms e)))
       (array? e)
       (do (set! rval (node' args)
-              out (node' args)
-              e (destruct* e out env))
-          (rval.add [JSARGS "[" $(i) "]"])
+                out (node' args)
+                e (destruct* e out env))
+          (rval.add [JSARGS "[" (numStr i) "]"])
           (conj! pms e)
           (fdefs.add out))
       :else
       (error! :destruct-args args)))
   (each #(fargs.add (tx* % env)) pms)
   (join "," fargs)
+  ;;return back a list of function arguments, and the
+  ;;rest of local variables in case of varargs or
+  ;;arg-destructions
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

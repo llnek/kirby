@@ -29,25 +29,11 @@
 (const KBSTDLR "kirbystdlibref")
 (const KBPFX "czlab.kirby.")
 (const KBSTDLIB (str KBPFX "stdlib"))
-(const KBENGINE (str KBPFX "engine"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;ignored
 (const- macro_assert ```
   (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ```)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_cond ```
-  (macro* cond* [&xs]
-    (if* (> (count* xs) 0)
-      (list* 'if*
-            (first* xs)
-            (nth* xs 1)
-            (cons* 'cond* (rest* (rest* xs)))))) ```)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- macro_andp ```
-  (macro* _andp_* [&xs]
-    (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs))) ```)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
@@ -388,7 +374,6 @@
     (when (nil? nsp)
       (if (get CACHE (str KBSTDLIB "/" mname))
         (set! nsp KBSTDLIB)))
-    ;(when (nil? nsp) (if (get CACHE (str KBENGINE "/" mname)) (set! nsp KBENGINE)))
     (when (string? nsp)
       (get CACHE (str nsp "/" mname)))))
 
