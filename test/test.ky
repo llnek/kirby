@@ -216,13 +216,13 @@
                 v (.-value p)]
             (and (s/primitive? p)
                  (= v 2))) "primitive,primitive?")
-  (ensure (let [a (s/lambda-arg "%9")
+  (ensure (let [a (s/lambdaArg "%9")
                 v (.-value a)]
-            (and (s/lambda-arg? a)
+            (and (s/lambdaArg? a)
                  (= v "%9"))) "lambda-arg,lambda-arg?")
-  (ensure (let [a (s/lambda-arg "%")
+  (ensure (let [a (s/lambdaArg "%")
                 v (.-value a)]
-            (and (s/lambda-arg? a)
+            (and (s/lambdaArg? a)
                  (= v "%1"))) "lambda-arg,%,lambda-arg?")
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
@@ -437,7 +437,6 @@
 
 (s/println (std/runtest test-stdlib
                         "Kirby stdlib test-suite"))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

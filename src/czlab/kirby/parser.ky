@@ -11,10 +11,11 @@
   (:require
     ["./stdlib"
      :as std
-     :refer [lambda-arg object? nichts? count
+     :refer [lambdaArg object? nichts? count
              into! vector conj! prn quote-str
              list? vector? map? escXml println
-             symbol? keyword? lambda-arg?
+             regexObj
+             symbol? keyword? lambdaArg?
              carve opt?? symbol primitive?
              keyword contains? list not-empty]]))
 
@@ -196,6 +197,7 @@
       (do (true! regex?)
           (set! tline line tcol col)
           (++ pos)
+          (+= token ch)
           (+= token nx))
       (or (= ch "[")(= ch "]")
           (= ch "{")(= ch "}")
@@ -276,7 +278,11 @@
     (starts? tn ":")
     (set! ret (keyword tn))
     (starts? tn "%")
-    (set! ret (lambda-arg tn))
+    (set! ret (lambdaArg tn))
+    (and (starts? tn "#/")
+         (or (ends? tn "/")
+             (ends? (.slice tn 0 -1) "/")))
+    (set! ret (regexObj tn))
     (or (= "nil" tn)
         (= "null" tn))
     (nil! ret)
@@ -415,7 +421,7 @@
     (str (dumpInfo "sexpr" tree)
          (join "" (map #(dump* %) tree))
          "</sexpr>")
-    (lambda-arg? tree)
+    (lambdaArg? tree)
     (str (dumpInfo "lambda-arg" tree)
          "%" (+1 (int (.-value tree))) "</lambda-arg>")
     (keyword? tree)
@@ -424,6 +430,9 @@
     (symbol? tree)
     (str (dumpInfo "symbol" tree)
          (escXml (.-value tree)) "</symbol>")
+    (regexObj? tree)
+    (str (dumpInfo "regex" tree)
+         (escXml (.-value tree)) "</regex>")
     (string? tree)
     (str "<string>" (escXml (quote-str tree)) "</string>")
     (number? tree)

@@ -12,10 +12,10 @@
   (:require
             ["./stdlib"
              :as std
-             :refer [lambda-arg? pairs? into! println
+             :refer [lambdaArg? pairs? into! println
                      seq merge contains? last typeid
                      prn primitive map? vector?
-                     opt?? some? primitive?
+                     opt?? some? primitive? regexObj?
                      unquote-str quote-str
                      not-empty conj! list?
                      difference carve
@@ -60,6 +60,10 @@
       *macros* nil
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn unmangle "" [s]
+  (->> (map #(parser/jsid %) (.split s ".")) (join ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnodeEx "Create a node"
@@ -276,13 +280,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txAtom "Returns a SourceNode or String" ^Any [a]
   (var s $(a))
-  (cond (lambda-arg? a)
+  (cond (lambdaArg? a)
         (str LARGS "[" (-1 (int (rest s))) "]")
+        (regexObj? a)
+        (node' a (tnodeEx s (rest s)))
         (keyword? a)
-        ;(node' a (tnodeEx s (str "\"" a "\"")))
         (node' a (tnodeEx s (std/quote-str s)))
         (symbol? a)
-        (node' a (tnodeEx (jsid s) (jsid s)))
+        (node' a (tnodeEx s (unmangle s)))
         (nil? a)
         "null"
         (primitive? a)
@@ -406,7 +411,8 @@
         (ret.add [(tx* (2nd ast) env)
                   "[" (cmd.slice (1st tmp)) (if (2nd tmp) "+1]" "]")]))
     (starts? cmd ".")
-    (do (ret.add [(tx* (2nd ast) env) cmd "("])
+    (do (ret.add [(tx* (2nd ast) env)
+                  (tx* (symbol cmd) env) "("])
         (for [n 2 sz (n# ast)
               :while (< n sz) :recur (+1 n)]
           (if (not= n 2) (ret.add ","))
@@ -637,7 +643,7 @@ fn (right-to-left) to the result, etc."
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
-  (.addVar (rt/genv)
+  (.addVar env
            czname0
            {:ns (.-id (std/peekNSP)) :alias czname0 :type :class})
   (ret.add ["class " czname])
@@ -663,7 +669,7 @@ fn (right-to-left) to the result, etc."
         (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
-    (.addVar (rt/genv)
+    (.addVar env
              cn
              {:ns (.-id (std/peekNSP)) :alias cn :type :method})
     ;compiles it like a function
@@ -820,7 +826,7 @@ returned if no clause matches."
     (set! x (.@i ast)
           s (tx* x env))
     (if-not (== "let" cmd)
-      (.addVar (rt/genv)
+      (.addVar env
                $(x)
                {:ns (.-id (std/peekNSP)) :alias $(x) :type :var}))
     (assoc! keys s s)
@@ -861,7 +867,7 @@ returned if no clause matches."
       (do (set! x lhs
                 lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (.addVar (rt/genv)
+            (.addVar env
                      $(x)
                      {:ns (.-id (std/peekNSP)) :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
@@ -1057,7 +1063,7 @@ returned if no clause matches."
        b1 (1st body)
        [attrs args] (meta?? (nth ast pargs) env))
   (if-not mtd?
-    (.addVar (rt/genv)
+    (.addVar env
              fname0
              {:ns (.-id (std/peekNSP)) :alias fname0 :type :fn}))
   (if-not (array? args)
@@ -1314,7 +1320,7 @@ any finally exprs will be evaluated for their side effects."
     (if info
       (set! mcs (get info :macros)
             nsp (loadRLib info env)))
-    (.addLib (rt/genv) $(as) rlib)
+    (.addLib env $(as) rlib)
     (set! mcs (or mcs {}))
     (for [i 0 t nil r nil rs nil
           f nil m nil sz (n# refers)
@@ -1327,7 +1333,7 @@ any finally exprs will be evaluated for their side effects."
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
       (if-not (or f m) (raise! "Unknown var " rs))
-      (.addVar (rt/genv)
+      (.addVar env
                rs
                {:ns nsp :alias rs :type t})
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
@@ -1344,7 +1350,7 @@ any finally exprs will be evaluated for their side effects."
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
       (if-not (or f m) (raise! "Unknown var " ro))
-      (.addVar (rt/genv)
+      (.addVar env
                rs
                {:ns nsp :alias $(ro) :type t})
       (ret.add ["const " v
@@ -1385,7 +1391,7 @@ any finally exprs will be evaluated for their side effects."
     (when (pairs? e)
       (cond
         (== "require" $(1st e))
-        (conj! ret (sf-require (xfi ast e))))))
+        (conj! ret (sf-require (xfi ast e) env)))))
   ;;force a internal reference to stdlib for user files
   ;;unless processing internal files
   (set! nsp (std/peekNSP))
@@ -1396,8 +1402,8 @@ any finally exprs will be evaluated for their side effects."
     (conj! ret
            (str "const " KBSTDLR "=std;\n"))
     :else
-    (->> (xfi ast '(require ["kirby" :as kirbystdlibref]))
-         (sf-require )
+    (->> (-> (xfi ast '(require ["kirby" :as kirbystdlibref]))
+             (sf-require env))
          (conj! ret )))
   (conj! ret
          (str "const "
@@ -1530,7 +1536,7 @@ called.
   (set! mname (2nd ast)
         ast ['macro* mname pms (1st body)])
   ;try to register it
-  (.addVar (rt/genv)
+  (.addVar env
            mname
            {:ns (.-id (std/peekNSP)) :alias nil :type :macro})
   ;if not private, need to export it

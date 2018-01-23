@@ -711,6 +711,8 @@
     (wrap-str (func nil obj.value) "(atom " ")")
     :lambda-arg
     obj.value
+    :regex-obj
+    obj.value
     :keyword
     obj.value
     :symbol
@@ -758,6 +760,13 @@
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftype RegexObj [][value nil]
+  "Defining a Regex pattern"
+  (constructor "" [v]
+    (set! this.value v))
+  (toString "" [] this.value))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Keyword [][value ""]
   "Defining a keyword"
   (constructor "" [name]
@@ -782,6 +791,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive
   "Create a Primitive" ^Primitive [v] (new Primitive v))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn regexObj?
+  "Returns true if a regex" [obj] (inst? RegexObj obj))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn regexObj
+  "Create a new regex" ^RegexObj [name] (new RegexObj name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol?
@@ -809,11 +826,11 @@
           :column k.column) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lambda-arg?
+(defn lambdaArg?
   "Returns true if a Lambda Arg" [obj] (inst? LambdaArg obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn lambda-arg
+(defn lambdaArg
   "Create a new Lambda Arg" ^LambdaArg [name] (new LambdaArg name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -883,7 +900,7 @@
              of this object"
   [obj]
   (cond
-    (lambda-arg? obj) :lambda-arg
+    (lambdaArg? obj) :lambda-arg
     (keyword? obj) :keyword
     (symbol? obj) :symbol
     (vector? obj) :vector
