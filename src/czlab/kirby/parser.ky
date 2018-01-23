@@ -8,7 +8,6 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.parser
-  (:require ["./macros" :only :macros])
   (:require
     ["./stdlib"
      :as std

@@ -9,7 +9,7 @@
       :author "Kenneth Leung"}
   czlab.kirby.compiler
   (:require ["source-map" :as smap])
-  (:require ["./macros" :only :macros]
+  (:require
             ["./stdlib"
              :as std
              :refer [lambda-arg? pairs? into! println
@@ -58,7 +58,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       *macros* nil
-      *ns* nil
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
 
@@ -278,9 +277,10 @@
 (defn- txAtom "Returns a SourceNode or String" ^Any [a]
   (var s $(a))
   (cond (lambda-arg? a)
-        (str LARGS "[" s "]")
+        (str LARGS "[" (-1 (int (rest s))) "]")
         (keyword? a)
-        (node' a (tnodeEx s (str "\"" a "\"")))
+        ;(node' a (tnodeEx s (str "\"" a "\"")))
+        (node' a (tnodeEx s (std/quote-str s)))
         (symbol? a)
         (node' a (tnodeEx (jsid s) (jsid s)))
         (nil? a)
@@ -639,7 +639,7 @@ fn (right-to-left) to the result, etc."
                     [nil (slice ast 4)]))
   (.addVar (rt/genv)
            czname0
-           {:ns *ns* :alias czname0 :type :class})
+           {:ns (.-id (std/peekNSP)) :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -665,7 +665,7 @@ fn (right-to-left) to the result, etc."
     (m.unshift mtd)
     (.addVar (rt/genv)
              cn
-             {:ns *ns* :alias cn :type :method})
+             {:ns (.-id (std/peekNSP)) :alias cn :type :method})
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
@@ -822,7 +822,7 @@ returned if no clause matches."
     (if-not (== "let" cmd)
       (.addVar (rt/genv)
                $(x)
-               {:ns *ns* :alias $(x) :type :var}))
+               {:ns (.-id (std/peekNSP)) :alias $(x) :type :var}))
     (assoc! keys s s)
     (if (> i 1) (ret.add ","))
     (ret.add s))
@@ -863,7 +863,7 @@ returned if no clause matches."
           (if-not (== "let" cmd)
             (.addVar (rt/genv)
                      $(x)
-                     {:ns *ns* :alias $(x) :type :var}))
+                     {:ns (.-id (std/peekNSP)) :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
@@ -1059,7 +1059,7 @@ returned if no clause matches."
   (if-not mtd?
     (.addVar (rt/genv)
              fname0
-             {:ns *ns* :alias fname0 :type :fn}))
+             {:ns (.-id (std/peekNSP)) :alias fname0 :type :fn}))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (var fargs (doFuncArgs (xfi ast args) env))
@@ -1377,8 +1377,7 @@ any finally exprs will be evaluated for their side effects."
     (++ pos)
     (assoc! nsp :____meta attrs))
   (std/pushNSP $(nsp) attrs)
-  (set! *ns* $(nsp))
-  (println (str "Processing namespace: " *ns*))
+  (println (str "Processing namespace: " $(nsp)))
   (set! ast (xfi ast (slice ast pos)))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -1399,7 +1398,11 @@ any finally exprs will be evaluated for their side effects."
     :else
     (->> (xfi ast '(require ["kirby" :as kirbystdlibref]))
          (sf-require )
-         (conj! ret ))) ret)
+         (conj! ret )))
+  (conj! ret
+         (str "const "
+              std/MODULE_NAMESPACE
+              "= " (std/quote-str nsp.id) ";\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-comment "" ^{:opcode ["comment"] :tag String} [ast env] "")
@@ -1529,7 +1532,7 @@ called.
   ;try to register it
   (.addVar (rt/genv)
            mname
-           {:ns *ns* :alias nil :type :macro})
+           {:ns (.-id (std/peekNSP)) :alias nil :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1599,7 +1602,7 @@ called.
        s2 ""
        s1 (str EXPKEY
                ": { ns: "
-               (quote-str *ns*)
+               (quote-str (.-id (std/peekNSP)))
                ", macros: " mc " }"))
   (when (not-empty *externs*)
     (set! s2
@@ -1635,7 +1638,7 @@ called.
 
   ^Array [source fname options]
 
-  (set! *externs* { } *macros* {} *ns* nil)
+  (set! *externs* { } *macros* {} )
   (var gv (rt/genv)
        ret (txTree (parser/parse source fname) gv)
        {:keys [source-map format verbose]} options

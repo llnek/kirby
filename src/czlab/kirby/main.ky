@@ -13,7 +13,7 @@
             ["watch" :as watch]
             ["path" :as path]
             ["fs" :as fs])
-  (:require ["./macros" :only :macros]
+  (:require
             ["./compiler" :as tx]
             ["./stdlib"
              :as std

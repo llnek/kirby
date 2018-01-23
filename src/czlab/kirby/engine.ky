@@ -11,7 +11,6 @@
   (:require ["readline" :as readline])
   (:require ["fs" :as fs])
   (:require ["./parser" :as parser]
-            ["./macros" :only :macros]
             ["./stdlib"
              :as std
              :refer [pairs? stringify contains?
@@ -374,9 +373,7 @@
     (when (nil? nsp)
       (if (get CACHE (str KBSTDLIB "/" mname))
         (set! nsp KBSTDLIB)))
-    (when (nil? nsp)
-      (if (get CACHE (str KBENGINE "/" mname))
-        (set! nsp KBENGINE)))
+    ;(when (nil? nsp) (if (get CACHE (str KBENGINE "/" mname)) (set! nsp KBENGINE)))
     (when (string? nsp)
       (get CACHE (str nsp "/" mname)))))
 

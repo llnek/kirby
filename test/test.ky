@@ -8,7 +8,6 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.kirby.test.stdlib
-  (:require ["./macros" :only :macros])
   (:require ["kirby" :as std :refer [println]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -220,22 +219,19 @@
   (ensure (let [a (s/lambda-arg "%9")
                 v (.-value a)]
             (and (s/lambda-arg? a)
-                 (= v "8"))) "lambda-arg,lambda-arg?")
+                 (= v "%9"))) "lambda-arg,lambda-arg?")
   (ensure (let [a (s/lambda-arg "%")
                 v (.-value a)]
             (and (s/lambda-arg? a)
-                 (= v "0"))) "lambda-arg,%,lambda-arg?")
+                 (= v "%1"))) "lambda-arg,%,lambda-arg?")
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
             (and (s/keyword? k)
                  (= v ":hello"))) "keyword,keyword?")
-
   (ensure (let [k (s/keyword "::hello")
-                v (.toString k)]
-            (console.log v)
+                v $(k)]
             (and (s/keyword? k)
-                 (= v "czlab.kirby.test.stdlib/hello")))
-          "scoped,keyword,keyword?")
+                 (ends? v "/hello"))) "scoped,keyword,keyword?")
 
   (ensure (let [s (std/symbol "hello")
                 v (.-value s)]
