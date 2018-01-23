@@ -1,0 +1,8 @@
+#!/bin/sh
+
+mv ./dist/*.js ./doc/ 
+mv ./src/czlab/kirby/*.js ./dist/
+
+
+
+

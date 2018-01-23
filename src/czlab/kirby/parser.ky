@@ -59,8 +59,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- REPLACERS
-  [[REGEX.query "_QUERY_"] [REGEX.bang "_BANG_"] [REGEX.dash "_DASH_"]
-   [REGEX.quote "_QUOTE_"] [REGEX.hash "_HASH_"] [REGEX.plus "_PLUS_"]
+  [[REGEX.query "_QMRK_"] [REGEX.bang "_BANG_"] [REGEX.dash "_DASH_"]
+   [REGEX.quote "_QUOT_"] [REGEX.hash "_HASH_"] [REGEX.plus "_PLUS_"]
    [REGEX.perc "_PERC_"] [REGEX.at "_AT_"] [REGEX.less "_LT_"]
    [REGEX.greater "_GT_"] [REGEX.star "_STAR_"]])
 

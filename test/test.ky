@@ -43,8 +43,10 @@
   (ensure (= (float "1.2") 1.2) "float")
   (ensure (= (int "12") 12) "int")
 
+  (ensure (not (std/eq? (s/keyword ":aaa") :aaa)) "!eq? keywords")
   (ensure (== (s/keyword ":aaa") :aaa) "match keywords")
   (ensure (== :aaa :aaa) "match both keywords")
+  (ensure (std/eq? :aaa :aaa) "eq? both keywords")
 
   (ensure (do (undef! TMPVAR)(= undefined TMPVAR)) "undef!")
   (ensure (do (nil! TMPVAR)(= null TMPVAR)) "nil!")

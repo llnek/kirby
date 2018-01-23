@@ -129,14 +129,16 @@
 (defn- destruct* "Decide on what the
                  rhs should be referred to 'as'"
   ^Symbol [coll out env]
-  (var rhs (xfi coll (gensym)) e nil)
+  (var rhs (gensym))
+  (var~ e)
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i coll))
     (when (and (keyword? e)
-               (== e "as"))
-      (set! rhs (std/keyword->symbol (.@+i coll)))
+               (== e :as))
+      (set! rhs (symbol $(.@+i coll)))
       (break-out-of-loop!)))
+  (set! rhs (xfi coll rhs))
   ;handle a vec or a map destructure only
   (cond
     (map? coll)
@@ -157,30 +159,27 @@
       (cond
         (== e "_") nil
         (== e "&")
-        (do (set! rval (node' coll)
+        (do->break!
+          (set! rval (node' coll)
                 out (node' coll)
                 e (.@+i coll))
-            (rval.add [ARRSLICE "(" as "," $(i) ")"])
-            (if-not (symbol? e)
-              (set! e (destruct* e out env)))
-            (ret.add ["let "
-                      (tx* e env)
-                      "=" rval ";\n" out])
-            (break-out-of-loop!))
+          (rval.add [ARRSLICE "(" as "," (numStr i) ")"])
+          (if-not (symbol? e)
+            (set! e (destruct* e out env)))
+          (ret.add ["let "
+                    (tx* e env) "=" rval ";\n" out]))
         :else
         (ret.add ["let "
-                  (tx* e env)
-                  "=" as "[" $(i) "];\n"]))
+                  (tx* e env) "=" as "[" (numStr i) "];\n"]))
       (array? e)
       (do (set! rval (node' coll)
-              out (node' coll)
-              e (destruct* e out env))
-          (rval.add [as "[" $(i) "]"])
+                out (node' coll)
+                e (destruct* e out env))
+          (rval.add [as "[" (numStr i) "]"])
           (ret.add ["let "
-                    (tx* e env)
-                    "=" rval ";\n" out]))
+                    (tx* e env) "=" rval ";\n" out]))
       (keyword? e)
-      (if (== e "as")
+      (if (== e :as)
         (++ i)
         (error! :unknown-keyword coll))
       :else (error! :syntax-error coll))) ret)
@@ -196,8 +195,8 @@
     (cond
       (keyword? e)
       (cond
-        (or (== e "keys")
-            (== e "strs"))
+        (or (== e :keys)
+            (== e :strs))
         (do (set! arr (.@+i coll))
             (++ i)
             (for [j 0 sz (n# arr)
@@ -205,8 +204,8 @@
               (set! e (.@j arr))
               (ret.add ["let "
                         (tx* e env)
-                        "=" as "[\"" $(e) "\"];\n"])))
-        (== e "as")
+                        "=" as "[" (std/quote-str $(e)) "];\n"])))
+        (== e :as)
         (++ i)
         :else
         (error! :unknown-keyword coll))
@@ -214,7 +213,7 @@
       (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- simple? "" ^Boolean [ast]
+(defn- simple? "" [ast]
   (or (undef? ast) (nil? ast) (str? ast) (num? ast) (bool? ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -224,10 +223,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- exprHint "" ^Array [ast flag]
-  (if (simple? ast) (set! ast (primitive ast))) (assoc! ast :____expr flag) ast)
+  (if (simple? ast)
+    (set! ast (primitive ast)))
+  (assoc! ast :____expr flag) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- stmt? "" ^Boolean [ast]
+(defn- stmt? "" [ast]
   (if (simple? ast) (error! :syntax-error ast)) (false? ast.____expr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -238,7 +239,7 @@
           (if (and ast ast.source) (str "\nfile: " ast.source))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- testre? "" ^Boolean [re x] (if x (re.test x) false))
+(defn- testre? "" [re x] (if x (re.test x) #f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pad "" [n] ^String (.repeat " " n))
@@ -252,25 +253,29 @@
           :column ast.column) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txTree "" ^SourceNode [root env]
+(defn- txTree
+  "Process a file unit.  Sort out all the macros first then others.
+  Also, always check first for (ns ...)"
+  ^SourceNode [root env]
   (var ms [] os []
        n1 (1st root)
        ret (node' root))
+  (var~ t f)
   (if-not (== "ns" (1st n1))
     (raise! "(ns ...) must be first form in file"))
   (conj! ms n1)
-  (for [i 1 t nil sz (n# root)
+  (for [i 1 sz (n# root)
         :while (< i sz) :recur (+1 i)]
     (set! t (.@i root))
     (if (and (array? t)
+             (symbol? (1st t))
              (== "defmacro" (1st t)))
       (conj! ms t)
       (conj! os t)))
-  (var f (fn [c]
-           (doseq [r c
-                   :let [t (tx* r env)]
-                   :when (some? t)]
-             (ret.add [t ";\n"]))))
+  (set! f (fn [c]
+            (doseq [r c
+                    :let [t (tx* r env)]
+                    :when (some? t)] (ret.add [t ";\n"]))))
   (f ms)
   (f os)
   ret)
@@ -279,29 +284,29 @@
 (defn- txForm "" ^Any [expr env]
   (if (array? expr)
     (each (fn [a i arr]
-            (set-in! arr i (tx* a env))) expr)) expr)
+            (aset arr i (tx* a env))) expr)) expr)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txAtom "Returns a SourceNode or String" ^Any [a]
-  (var s $(a))
+  (var s (str a))
   (cond (lambdaArg? a)
         (str LARGS "[" (-1 (int (rest s))) "]")
         (regexObj? a)
         (node' a (tnodeEx s (rest s)))
         (keyword? a)
-        (node' a (tnodeEx s (std/quote-str s)))
+        (node' a (tnodeEx s (quote-str s)))
         (symbol? a)
         (node' a (tnodeEx s (unmangle s)))
         (nil? a)
         "null"
         (primitive? a)
         (do (set! a a.value s $(a))
-            (cond (string? a) (quote-str a)
-                  (nil? a) "null"
-                  :else s))
+            (cond (string? a)
+                  (quote-str a)
+                  (nil? a) "null" :else s))
         (string? a)
         (quote-str a)
-        :else (jsid s)))
+        :else (parser/jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tx* "" ^Any [x & [env]]
@@ -318,10 +323,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" ^String [a]
   (cond (keyword? a)
-        (str (maybeStripStdlib (str KBSTDLR ".keyword"))
+        (str (stripStd (str KBSTDLR ".keyword"))
              "(\"" a.value "\")")
         (symbol? a)
-        (str (maybeStripStdlib (str KBSTDLR ".symbol"))
+        (str (stripStd (str KBSTDLR ".symbol"))
              "(\"" a.value "\")")
         (primitive? a)
         (do (set! a a.value)
@@ -343,15 +348,16 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteMap "" ^SourceNode [ast env]
-  (var comma ""
+  (var cma ""
        ret (node' ast))
   (for [i 0 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (if (> i 0) (ret.add ","))
     (ret.add [(quote! (.@i ast) env)
               " : " (quote! (.@+i ast) env)]))
-  (if-not (empty? ast) (set! comma ","))
-  (wrap ret ["[" "symbol(\"hashmap\")" comma] "]"))
+  (if-not (empty? ast) (set! cma ","))
+  (wrap ret ["["
+             (stripStd (str KBSTDLR ".symbol")) "(\"hashmap\")" cma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" ^SourceNode [ast env]
@@ -398,9 +404,9 @@
                 (starts? cmd "-"))
       (set! cmd (str "+" cmd)))
     (set! ast (xfi ast [(symbol (ch@ cmd 0))
-                      (2nd ast)
-                      (int (rest cmd))])
-        cmd $(1st ast)))
+                        (2nd ast)
+                        (int (rest cmd))])
+          cmd $(1st ast)))
   ;;maybe special form
   (set! op (get SPEC-OPS cmd))
   ;;handle all cases
@@ -427,7 +433,7 @@
     (and (or (== cmd "splice-unquote")
              (== cmd "unquote")
              (== cmd "syntax-quote"))
-         (not (starts? nsp.id "czlab.kirby.")))
+         (not (starts? nsp.id KBPFX)))
     (error! :outside-macro ast)
     :else
     (do (if (pairs? ast)
@@ -435,11 +441,10 @@
               (set! cmd $(1st ast)))
           (set! cmd (tx* ast env)))
         (if-not cmd (error! :empty-form ast))
-        (set! cmd (maybeStripStdlib cmd))
+        (set! cmd (stripStd cmd))
         (if (pairs? ast)
           (ret.add
-            [(if (testre? parser/REGEX.func cmd)
-               (str "(" cmd ")") cmd)
+            [(if (testre? parser/REGEX.func cmd) (str "(" cmd ")") cmd)
              "(" (join "," (rest ast)) ")"])
           (ret.add cmd))))
   (node' ast ret))
@@ -459,14 +464,14 @@
        ret (node' ast)
        e nil end (last-index ast))
   (set! return?
-      (if stmtQ false (opt?? return? true)))
+        (if stmtQ #f (opt?? return? #t)))
   (for [i 0 :while (< i end) :recur (+1 i)]
     (set! e (exprHint (.@i ast) #f))
     (ret.add [(tx* e env) ";\n"]))
   (when (>= end 0)
     (set! e (exprHint (.@end ast)
-                    (not stmtQ))
-        e (tx* e env))
+                      (not stmtQ))
+          e (tx* e env))
     (ret.add (if-not return?
                [e ";\n"]
                ["return " e ";\n"]))) ret)
@@ -476,8 +481,8 @@
   (var mobj nil)
   (when (and (array? obj)
              (= 3 (n# obj))
-             (== "with-meta"
-                 $(1st obj)))
+             (symbol? (1st obj))
+             (== "with-meta" $(1st obj)))
     (set! mobj (evalMeta (.@2 obj) env))
     (assoc! (2nd obj) :____meta mobj)
     (set! obj (2nd obj)))
@@ -489,7 +494,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" ^String [fname attrs]
-  (var ks (or (get attrs "opcode") [])
+  (var ks (or (get attrs :opcode) [])
        out (->> (map #(fmtRegoSpecOps
                         (str %) fname) ks) (join ";\n")))
   (if (not-empty ks) (str out ";\n") out))
@@ -499,18 +504,17 @@
   (var ret (node' pre)
        c2 ['if-not (concat ['and] pre)
            ['throw ['Error "Precondition failed"]]])
-  (ret.add [(-> (exprHint c2 false) (tx* env)) ";\n"]))
+  (ret.add [(-> (exprHint c2 #f) (tx* env)) ";\n"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeFuncInfo "" ^String [fname ast]
   (var file (if ast.source
               (ast.source.slice
                 (+1 (ast.source.lastIndexOf "/"))) "?")
-       s (str "//fn: ["
-              fname "] in file: "
+       s (str "//fn: [" fname "] in file: "
               file ", line: " (or ast.line "?") "\n")
        len (alen s))
-  (if (< len 80)  (set! len 80))
+  (if (< len 80) (set! len 80))
   (str (.repeat "/" len) "\n" s))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -529,13 +533,12 @@
   v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- maybeStripStdlib "" ^String [cmd]
+(defn- stripStd "" ^String [cmd]
   (var lib (str KBSTDLR ".")
        nsp (std/peekNSP))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
-           (= nsp.id "czlab.kirby.stdlib"))
-    (cmd.slice (alen lib)) cmd))
+           (== nsp.id KBSTDLIB)) (.slice cmd (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertArity "" ^Any [kond ast]
@@ -551,17 +554,16 @@
     (error! :no-sourcemap-info ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- loadRLib "" [info env]
+(defn- loadRLib
+  "Load in all the exported macros from the external lib" ^String [info env]
   (var {:keys [ns macros]} info)
   (var~ ast s)
   ;(println "loadlib has " (n# macros) " macros")
-  (each-key
-    (fn [v k]
-      (set! ast (rt/readAST v)
-            s (std/symbol (str ns "/" $(2nd ast))))
-      (set-in! ast 1 s)
-      (rt/compute ast env))
-    macros) ns)
+  (each-key (fn [v k]
+              (set! ast (rt/readAST v)
+                    s (symbol (str ns "/" $(2nd ast))))
+              (aset ast 1 s)
+              (rt/compute ast env)) macros) ns)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;special-forms
@@ -614,6 +616,9 @@ fn (right-to-left) to the result, etc."
   (var~ f r prev)
   (ret.add ["function () {\n"])
   (ret.add ["let " LARGS "=" ARRSLICE "(" JSARGS ");\n"])
+  ;go backwards -> right to left
+  ;keep track of prev result so that we can thread it
+  ;to next function
   (for [i end :while (> i 0) :recur (-1 i)]
     (set! f $(gensym "F__") r $(gensym "R__"))
     (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"])
@@ -637,19 +642,21 @@ fn (right-to-left) to the result, etc."
   ^{:opcode ["deftype" "deftype-"] :tag SourceNode}
   [ast env]
   (assertArity (>= (n# ast) 4) ast)
-  (var ret (node' ast))
   (var~ mtd pos n m cn)
+  (var ret (node' ast))
   (var pub? (not (ends? $(1st ast) "-"))
        czname0 (2nd ast)
        czname (tx* czname0 env)
        par (1st (.@2 ast))
        czargs (.@3 ast)
+       ;maybe a docstring is there?
        [doc mtds] (if (str? (.@4 ast))
                     [(.@4 ast) (slice ast 5)]
                     [nil (slice ast 4)]))
+  ;put var into genv
   (.addVar env
            czname0
-           {:ns (.-id (std/peekNSP)) :alias czname0 :type :class})
+           {:ns (std/*ns*) :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -667,23 +674,21 @@ fn (right-to-left) to the result, etc."
                (not-empty czargs))
       (for [x 0 sz (n# czargs)
             :while (< x sz) :recur (+2 x)]
-        (set-in! czargs x $(.@x czargs)))
+        (aset czargs x $(.@x czargs)))
       (if (getPrePost (.@pos m)) (++ pos))
-      (m.splice pos 0
-        (concat ['assoc! 'this] czargs)))
+      (m.splice pos 0 (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
+    ;put scoped-method into env
     (.addVar env
              cn
-             {:ns (.-id (std/peekNSP)) :alias cn :type :method})
+             {:ns (std/*ns*) :alias cn :type :method})
     ;compiles it like a function
     (ret.add [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
-  (if (and pub?
-           (std/peekNSP))
-    (assoc! *externs* czname czname))
+  (if pub? (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -993,7 +998,7 @@ returned if no clause matches."
 
   "Object property assignment or array index setter."
 
-  ^{:opcode ["set-in!"
+  ^{:opcode ["set-in!" "aset"
              "assoc!" "=>>"] :tag SourceNode} [ast env]
 
   (assertArity (even? (n# ast)) ast)
@@ -1209,7 +1214,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (= (n# ast) 3) ast)
   (var cmd
-       (maybeStripStdlib (str KBSTDLR ".getProp")))
+       (stripStd (str KBSTDLR ".getProp")))
   (wrap (node' ast)
         nil [cmd "("
              (tx* (xfi ast (2nd ast)) env)

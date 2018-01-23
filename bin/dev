@@ -8,7 +8,8 @@ if [ ! -d $OUTDIR ]; then
   fi
   mkdir $OUTDIR
 else
-  rm $OUTDIR/*.js
+  #rm $OUTDIR/*.js
+  echo ""
 fi
 
 #compile files
