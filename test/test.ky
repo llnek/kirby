@@ -48,6 +48,57 @@
   (ensure (== :aaa :aaa) "match both keywords")
   (ensure (std/eq? :aaa :aaa) "eq? both keywords")
 
+  (ensure (not= 1 2) "not=")
+  (ensure (!= 3 4) "!=")
+  (ensure (== 7 7) "==")
+  (ensure (= 8 8) "=")
+  (ensure (> 4 3) ">")
+  (ensure (>= 5 5) ">=")
+  (ensure (< 4 7) "<")
+  (ensure (<= 9 9) "<=")
+
+  (ensure (= 3200 (bitwise-lshift 100 2 3)) "<<")
+  (ensure (= 40 (bitwise-lshift 10 2)) "<<")
+  (ensure (= 2 (bitwise-rshift 10 2)) ">>")
+  (ensure (= 6 (bitwise-zrshift 54 3)) ">>>")
+  (ensure (= 6 (+ 2 2 2)) "+")
+  (ensure (= 6 (- 12 3 2 1)) "-")
+  (ensure (= -1 (- 1)) "-")
+  (ensure (= 1 (- -1 -2)) "-")
+  (ensure (= 24 (* 2 3 4)) "*")
+  (ensure (= 2 (/ 12 3 2)) "/")
+  (ensure (= 2 (div 12 3 2)) "div")
+  (ensure (= 2 (mod -10 3)) "mod")
+  (ensure (= 1 (mod 10 3)) "mod")
+  (ensure (= true (or false false true)) "or")
+  (ensure (= false (and true true false)) "and")
+  (ensure (= true (and true true true)) "and")
+  (ensure (= 8 (exp 2 3)) "exp")
+  (ensure (= 1 (rem 10 3)) "rem")
+  (ensure (= 2 (bitwise-and 10 3)) "&")
+  (ensure (= 11 (bitwise-or 10 3)) "|")
+  (ensure (= -11 (bitwise-not 10)) "~")
+  (ensure (= 9 (bitwise-xor 10 3)) "^")
+
+  (ensure (s/eq? [4 3] (let [x 3 y (++$ x)] [x y])) "++")
+  (ensure (s/eq? [4 4] (let [x 3 y (++ x)] [x y])) "++")
+  (ensure (s/eq? [2 3] (let [x 3 y (--$ x)] [x y])) "--")
+  (ensure (s/eq? [2 2] (let [x 3 y (-- x)] [x y])) "--")
+
+  (ensure (= 6 (let [x 3] (+= x 3))) "+=")
+  (ensure (= 3 (let [x 6] (-= x 3))) "-=")
+  (ensure (= 18 (let [x 6] (*= x 3))) "*=")
+  (ensure (= 2 (let [x 6] (/= x 3))) "/=")
+  (ensure (= 2 (let [x 6] (div= x 3))) "div=")
+  (ensure (= 1 (let [x 10] (rem= x 3))) "rem=")
+  (ensure (= 8 (let [x 2] (exp= x 3))) "exp=")
+  (ensure (= 3 (let [x 19] (bitwise-and= x 3))) "&=")
+  (ensure (= 111 (let [x 109] (bitwise-or= x 3))) "|=")
+  (ensure (= 110 (let [x 109] (bitwise-xor= x 3))) "^=")
+  (ensure (= 872 (let [x 109] (bitwise-lshift= x 3))) "<<=")
+  (ensure (= 13 (let [x 109] (bitwise-rshift= x 3))) ">>=")
+  (ensure (= 18 (let [x 148] (bitwise-zrshift= x 3))) ">>>=")
+
   (ensure (do (undef! TMPVAR)(= undefined TMPVAR)) "undef!")
   (ensure (do (nil! TMPVAR)(= null TMPVAR)) "nil!")
   (ensure (= 2 (last-index [1 2 3])) "last-index")
@@ -445,5 +496,11 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+(defn xxx "" []
+  (var x 3)
+  (/= x 4))
+
+
+
 
 
