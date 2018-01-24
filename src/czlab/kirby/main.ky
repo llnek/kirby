@@ -1,24 +1,26 @@
-;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
+
 (ns ^{:doc ""
       :author "Kenneth Leung"}
+
   czlab.kirby.main
+
   (:require ["node-getopt" :as getopt]
             ["child_process" :as cp]
             ["watch" :as watch]
             ["path" :as path]
             ["fs" :as fs])
-  (:require
-            ["./compiler" :as tx]
+  (:require ["./compiler" :as tx]
+            ["./engine" :as rt]
             ["./stdlib"
              :as std
-             :refer [object? println]]
-            ["./engine" :as rt]))
+             :refer [object? println]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- error! "" [msg] (println msg) (process.exit 1))
@@ -27,11 +29,12 @@
 (defn- compileSource "" [opt]
   (var [fin fout] opt.argv
        options opt.options)
+  ;need to get the absolute path of file
   (if-not fin
     (error! "No source file")
     (set! fin (path/resolve fin)))
   (if-not (ends? fin ".ky")
-    (error! "Source file extension not '.ky'"))
+    (error! "Source file extension != '.ky'"))
   (if-not fout
     (set! fout (fin.replace #/\.ky$/g ".js")))
   (try
@@ -75,9 +78,9 @@
         :else
         (do ;;(prev === null) {/*new file*/}
             ;;f is a new file or changed
-          (cp/spawn "bin/boot.js"
+          (cp/spawn "bin/kirby.js"
                     [(f.slice (+1 (alen cwd)))]
-                    {:stdio "inherit"}))))))
+                    {:stdio "inherit"}))))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pcli "" ^Boolean [gopt]

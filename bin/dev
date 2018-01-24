@@ -13,7 +13,7 @@ else
 fi
 
 #compile files
-for n in stdlib parser engine compiler main
+for n in stdlib reader engine compiler main
 do
   ${COMPILER} -f src/czlab/kirby/${n}.ky
 done

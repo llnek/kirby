@@ -26,7 +26,7 @@
             ["./engine"
              :as rt
              :refer [KBSTDLR KBSTDLIB KBPFX EXPKEY]]
-            ["./parser" :as parser :refer [jsid]])
+            ["./reader" :as reader :refer [jsid]])
   (:require ["fs" :as fs]
             ["path" :as path]
             ["esformatter" :as esfmt]))
@@ -65,7 +65,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unmangle "" [s]
-  (->> (map #(parser/jsid %) (.split s ".")) (join ".")))
+  (->> (map #(reader/jsid %) (.split s ".")) (join ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn tnodeEx "Create a node"
@@ -306,7 +306,7 @@
                   (nil? a) "null" :else s))
         (string? a)
         (quote-str a)
-        :else (parser/jsid s)))
+        :else (reader/jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- tx* "" ^Any [x & [env]]
@@ -399,7 +399,7 @@
     (spreadInfo orig ast)
     (set! cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
-  (when (parser/REGEX.int.test cmd)
+  (when (reader/REGEX.int.test cmd)
     (if-not (or (starts? cmd "+")
                 (starts? cmd "-"))
       (set! cmd (str "+" cmd)))
@@ -444,7 +444,7 @@
         (set! cmd (stripStd cmd))
         (if (pairs? ast)
           (ret.add
-            [(if (testre? parser/REGEX.func cmd) (str "(" cmd ")") cmd)
+            [(if (testre? reader/REGEX.func cmd) (str "(" cmd ")") cmd)
              "(" (join "," (rest ast)) ")"])
           (ret.add cmd))))
   (node' ast ret))
@@ -490,7 +490,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtRegoSpecOps "" ^String [alias fname]
-  (str (parser/jsid :SPEC-OPS) "[\"" alias "\"] = " fname))
+  (str (reader/jsid :SPEC-OPS) "[\"" alias "\"] = " fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" ^String [fname attrs]
@@ -1322,7 +1322,7 @@ any finally exprs will be evaluated for their side effects."
       (set! libpath rpath))
     (set! libpath (tx* libpath env))
     (if-not macros_only
-      (ret.add ["const " (parser/jsid as)
+      (ret.add ["const " (reader/jsid as)
                 "= require(" (tx* rpath env) ");\n"]))
     ;load the lib
     (set! rlib (require! (unquote-str libpath))
@@ -1338,7 +1338,7 @@ any finally exprs will be evaluated for their side effects."
       (set! r (.@i refers)
             rs $(r)
             v (tx* r env)
-            f (get rlib (parser/jsid rs))
+            f (get rlib (reader/jsid rs))
             m (get mcs rs))
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
@@ -1355,7 +1355,7 @@ any finally exprs will be evaluated for their side effects."
             r (.@+i renames)
             rs $(r)
             v (tx* r env)
-            f (get rlib (parser/jsid $(ro)))
+            f (get rlib (reader/jsid $(ro)))
             m (get mcs $(ro)))
       (if f (set! t (typeid f)))
       (if m (set! t :marco))
@@ -1495,7 +1495,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (>= (n# ast) 2) ast)
   (var s $(2nd ast)
-       name (parser/jsid "sf-jscode"))
+       name (reader/jsid "sf-jscode"))
   (->>
     (if (and (ends? s "\"")
              (starts? s "\""))
@@ -1649,7 +1649,7 @@ called.
 
   (set! *externs* { } *macros* {} )
   (var {:keys [source-map format verbose]} options
-       ast (parser/parse source fname)
+       ast (reader/parse source fname)
        env (rt/genv)
        ret (txTree ast env)
        fbase (path/basename fname ".ky")
@@ -1698,7 +1698,7 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST
   "Dump AST to xml" ^String [source fname]
-  (parser/dumpTree (parser/parse source fname) fname))
+  (reader/dumpTree (reader/parse source fname) fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const version MOD-VER)

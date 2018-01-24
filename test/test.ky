@@ -5,9 +5,12 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
+
 (ns ^{:doc ""
       :author "Kenneth Leung"}
+
   czlab.kirby.test.stdlib
+
   (:require ["kirby" :as std :refer [println]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -497,10 +500,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 (defn xxx "" []
-  (var x 3)
-  (/= x 4))
+  (var {:keys [s?]}  {:s? 5})
 
-
-
-
+  nil)
 

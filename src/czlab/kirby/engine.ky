@@ -5,12 +5,15 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
+
 (ns ^{:doc ""
       :author "Kenneth Leung"}
+
   czlab.kirby.engine
+
   (:require ["readline" :as readline])
   (:require ["fs" :as fs])
-  (:require ["./parser" :as parser]
+  (:require ["./reader" :as reader]
             ["./stdlib"
              :as std
              :refer [pairs? stringify contains?
@@ -382,7 +385,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn readAST "" ^Array [s]
-  (var ret (parser/parse s))
+  (var ret (reader/parse s))
   (if (single? ret)
     (set! ret (1st ret))) ret)
 
