@@ -27,6 +27,7 @@
                      conj! count truthy? falsy?
                      last pop! opt??
                      keyword? symbol? seq]]))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const EXPKEY "da57bc0172fb42438a11e6e8778f36fb")
 (const KBSTDLR "kirbystdlibref")
@@ -40,8 +41,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- GLOBAL (if (undef? window) undefined  window))
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- STD-MACROS "czlab.kirby.stdlib")
 (const- prefix "kirby> ")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -63,14 +62,12 @@
       (set! e (.@i vars)
             ev (.-value e))
       (cond
-        (= ev "&")
-        (do (assoc! this.data
-                     $(.@+i vars) (slice vals i))
-            (break-out-of-loop!))
+        (== ev "&")
+        (do->break! (assoc! this.data
+                            $(.@+i vars) (slice vals i)))
         (starts? ev "&")
-        (do (assoc! this.data
-                     (rest ev) (slice vals i))
-            (break-out-of-loop!))
+        (do->break! (assoc! this.data
+                            (rest ev) (slice vals i)))
         :else
         (assoc! this.data ev (.@i vals)))))
   (find "Find the env
@@ -96,7 +93,7 @@
     (reduce (fn [acc [k v]]
               (if (case what
                     :fn (fn? v)
-                    :var (not (fn? v)) true)
+                    :var (not (fn? v)) #t)
                 (assoc! acc $(k) v)) acc) {} (seq this.data)))
   (prn "Print set of vars"
     ^String []
@@ -143,7 +140,7 @@
   (var orig this
        cloned #(apply orig this ____args))
   (each-key
-    (fn [v k] (=>> cloned k v)) orig) cloned)
+    (fn [v k] (assoc! cloned k v)) orig) cloned)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prnStr "" ^String [&xs] (join " " (prnArr xs)))
@@ -155,7 +152,7 @@
 (defn slurp "" ^String [f] (fs/readFileSync f "utf-8"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn spit "" [f s] (fs/writeFileSync f s "utf-8") nil)
+(defn spit "" [f s] (do->nil (fs/writeFileSync f s "utf-8")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clone "" ^Any [obj]
@@ -232,107 +229,89 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- *runtime-funcs* {
-  "macroexpand*" (fn [code & [env]]
-                    (println
-                      (std/prn (expand??
-                                 code (or env g_env)))))
-  "assert*" (fn [k msg]
-                (if-not k (raise! msg)))
-
+  "macroexpand*" #(println (std/prn (expand?? %1 (or %2 g_env))))
+  "assert*" (fn [k msg] (if-not k (raise! msg)))
   "macros*" (fn [&[fout]]
-               (var s (std/prn CACHE))
-               (if fout
-                 (spit fout s)
-                 (println s)))
+              (var s (std/prn CACHE))
+              (if fout (spit fout s) (println s)))
   "env*" (fn [what & [env fout]]
-               (var s (std/prn (.select (or env g_env) what)))
-               (if fout
-                 (spit fout s)
-                 (println s)))
-  "is-same?"  (fn [a b] (== a b))
-  "is-nil?"  #(nil? %)
-  "obj-type*"  std/typeid
-  "gensym*"  std/gensym
-  "is-eq?"  std/eq?
-  "is-some?"  std/some?
+           (var s (std/prn (.select (or env g_env) what)))
+           (if fout (spit fout s) (println s)))
+  "is-same?" #(== %1 %2)
+  "is-nil?" #(nil? %)
+  "obj-type*" std/typeid
+  "gensym*" std/gensym
+  "is-eq?" std/eq?
+  "is-some?" std/some?
   "str*" (fn [&xs] (join "" xs))
-  "slice*"  (fn [arr & xs]
-              (Array.prototype.slice.apply arr xs))
-  "throw*"  (fn [&xs]
-              (throw (new Error (.join xs ""))))
-  "#f?"  #(false? %)
-  "#t?"  #(true? %)
-  "is-str?"  #(string? %)
-  "is-keyword?"  std/keyword?
-  "is-symbol?"  std/symbol?
-  "keyword*"  std/keyword
-  "symbol*"  std/symbol
-  "println*"  prnLn
-  "prn*"  prnStr
-  "slurp*"  slurp
+  "slice*" (fn [arr & xs] (Array.prototype.slice.apply arr xs))
+  "throw*" (fn [&xs] (throw (new Error (join "" xs))))
+  "#f?" #(false? %)
+  "#t?" #(true? %)
+  "is-str?" #(string? %)
+  "is-keyword?" std/keyword?
+  "is-symbol?" std/symbol?
+  "keyword*" std/keyword
+  "symbol*" std/symbol
+  "println*" prnLn
+  "prn*" prnStr
+  "slurp*" slurp
   "spit*" spit
-  "<"   (fn [a b] (< a b))
-  "<="  (fn [a b] (<= a b))
-  ">"   (fn [a b] (> a b))
-  ">="  (fn [a b] (>= a b))
-  "/"   (fn [a &xs] (reduce (fn [acc n] (div acc n)) a xs))
-  "+"   (fn [&xs] (reduce (fn [acc n] (+ acc n)) 0 xs))
-  "-"   (fn [a &xs] (reduce (fn [acc n] (- acc n)) a xs))
-  "*"   (fn [&xs] (reduce (fn [acc n] (* acc n)) 1 xs))
-  "not=" (fn [a b] (not= a b))
-  "=" (fn [a b] (= a b))
+  "<" #(< %1 %2)
+  "<=" #(<= %1 %2)
+  ">" #(> %1 %2)
+  ">=" #(>= %1 %2)
+  "/" (fn [a &xs] (reduce #(div %1 %2) a xs))
+  "+" (fn [&xs] (reduce #(+ %1 %2) 0 xs))
+  "-" (fn [a &xs] (reduce #(- %1 %2) a xs))
+  "*" (fn [&xs] (reduce #(* %1 %2) 1 xs))
+  "not=" #(not= %1 %2)
+  "=" #(= %1 %2)
   "is-contains?" std/contains?
-  "is-vector?"  std/vector?
-  "is-list?"  std/list?
-  "is-map?"  std/map?
-  "is-array?"  (fn [x] (Array/isArray x))
-  "object*"  std/object
-  "vector*"  std/vector
-  "list*"  std/list
-  "hashmap*"  std/hashmap
-  "values*"  #(Object.values %)
-  "keys*"  #(Object.keys %)
-  "get*"  #(get %1 %2)
-  "not*"  #(if % #f #t)
-  "dec*"  #(-1 %)
-  "inc*"  #(+1 %)
-  "is-even?"  #(= 0 (std/modulo % 2))
-  "is-odd?"  #(= 1 (std/modulo % 2))
-  "is-sequential?"  std/sequential?
-  "concat*"  std/concat*
-  "count*"  std/count
-  "cons*"  cons
-  "rest*"  #(if % (slice % 1) [])
-  "nth*"  #(get %1 %2)
-  "first*"  #(get % 0)
+  "is-vector?" std/vector?
+  "is-list?" std/list?
+  "is-map?" std/map?
+  "is-array?" #(Array/isArray %)
+  "object*" std/object
+  "vector*" std/vector
+  "list*" std/list
+  "hashmap*" std/hashmap
+  "values*" #(Object.values %)
+  "keys*" #(Object.keys %)
+  "get*" #(get %1 %2)
+  "not*" #(if % #f #t)
+  "dec*" #(-1 %)
+  "inc*" #(+1 %)
+  "is-even?" #(= 0 (std/modulo % 2))
+  "is-odd?" #(= 1 (std/modulo % 2))
+  "is-sequential?" std/sequential?
+  "concat*" std/concat*
+  "count*" std/count
+  "cons*" cons
+  "rest*" #(if % (slice % 1) [])
+  "nth*" #(get %1 %2)
+  "first*" #(get % 0)
   "is-empty?" #(= 0 (std/count %))
   "not-empty*" std/not-empty
-  "apply*"  fapply
-  "map*"  fmap
+  "apply*" fapply
+  "map*" fmap
   "evens*" std/evens
   "odds*" std/odds
-  "meta*"  meta
-  "conj*"  conj
-  "seq*"  std/seq
-  "is-atom?"  std/atom?
-  "atom*"  std/atom
-  "deref*"  std/deref
-  "reset*"  std/reset!
-  "swap*"  std/swap!
-  "with-meta*"  withMeta
-  "js-eval*"  evalJS
-  "js*"  invokeJS
+  "meta*" meta
+  "conj*" conj
+  "seq*" std/seq
+  "is-atom?" std/atom?
+  "atom*" std/atom
+  "deref*" std/deref
+  "reset*" std/reset!
+  "swap*" std/swap!
+  "with-meta*" withMeta
+  "js-eval*" evalJS
+  "js*" invokeJS
   "type*" #(typeof %) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(def- loadedMacros? false)
 (const- CACHE {})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- loadMacros "" []
-  (when-not loadedMacros?
-    (true! loadedMacros?)
-    (require "./macros.ky")) loadedMacros?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn setMacro "Register a new macro"
@@ -354,25 +333,20 @@
   (set! cmd $(cmd))
   (cond
     (contains? cmd "/")
-    (let [[p c](cmd.split "/")
+    (let [[p c](.split cmd "/")
           tmp nil
           lib (.getLib (genv) p)]
       (set! mname c)
       (cond
-        (= KBSTDLR p)
-        (set! nsp KBSTDLIB)
-        (nichts? lib)
-        (set! skip true)
-        :else
-        (if-not (get lib EXPKEY)
-          (set! skip true)
-          (set! nsp (get (get lib EXPKEY) :ns)))))
+        (== p KBSTDLR) (set! nsp KBSTDLIB)
+        (nichts? lib) (true! skip)
+        :else (if-not (get lib EXPKEY)
+                (true! skip)
+                (set! nsp (get (get lib EXPKEY) :ns)))))
     :else
     (let [m (.getVar (genv) cmd)]
-      (set! mname cmd)
-      (if m
-        (set! nsp (get m :ns))
-        (set! nsp nil))))
+      (set! mname cmd
+            nsp (if m (get m :ns)))))
   (when-not skip
     (when (nil? nsp)
       (if (get CACHE (str KBSTDLIB "/" mname))
@@ -411,10 +385,8 @@
             (backtick (rest ast))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- isMacroCall? "" ^Boolean [ast env]
-  (and (pairs? ast)
-       (symbol? (1st ast))
-       (getMacro $(1st ast))))
+(defn- isMacroCall? "" [ast env]
+  (and (pairs? ast) (symbol? (1st ast)) (getMacro $(1st ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn expand?? "" ^Any [ast env]
@@ -428,15 +400,15 @@
 (defn- eval* "" ^Any [ast env]
   (cond
     (string? ast) (std/unquote-str ast)
-    (keyword? ast) (.toString ast)
+    (keyword? ast) (str ast)
     (symbol? ast) (env.get ast)
     ;complex data
     (pairs? ast)
-    (map #(compute %1 env) ast)
+    (map #(compute % env) ast)
     (list? ast)
-    (into! :list (map #(compute %1 env) ast))
+    (into! :list (map #(compute % env) ast))
     (vector? ast)
-    (into! :vector (map #(compute %1 env) ast))
+    (into! :vector (map #(compute % env) ast))
     (map? ast)
     (do-with [m {}]
       (for [i 0 sz (n# ast)
@@ -477,7 +449,7 @@
 (defn- doMACRO "" [ast env]
   (var name $(2nd ast)
        nsp (std/peekNSP))
-  (set! nsp (if nsp nsp.id STD-MACROS))
+  (set! nsp (if nsp nsp.id KBSTDLIB))
   (if-not (contains? name "/")
     (set! name (str nsp "/" name)))
   (do->nil (setMacro name

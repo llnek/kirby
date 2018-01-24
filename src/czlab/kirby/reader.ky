@@ -17,7 +17,7 @@
      :refer [lambdaArg object? nichts? count
              into! vector conj! prn quote-str
              list? vector? map? escXml println
-             regexObj
+             regexObj regexObj?
              symbol? keyword? lambdaArg?
              carve opt?? symbol primitive?
              keyword contains? list not-empty]]))
