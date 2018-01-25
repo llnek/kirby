@@ -23,7 +23,7 @@
              keyword contains? list not-empty]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Token [][]
+(deftype Token []
   ""
   (constructor "" [source line column value]
     (assoc! this

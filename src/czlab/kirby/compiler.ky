@@ -640,18 +640,17 @@ fn (right-to-left) to the result, etc."
   "Define a JS Class"
   ^{:opcode ["deftype" "deftype-"] :tag SourceNode}
   [ast env]
-  (assertArity (>= (n# ast) 4) ast)
+  (assertArity (>= (n# ast) 3) ast)
   (var~ mtd pos n m cn)
   (var ret (node' ast))
   (var pub? (not (ends? $(1st ast) "-"))
        czname0 (2nd ast)
        czname (tx* czname0 env)
        par (1st (.@2 ast))
-       czargs (.@3 ast)
        ;maybe a docstring is there?
-       [doc mtds] (if (str? (.@4 ast))
-                    [(.@4 ast) (slice ast 5)]
-                    [nil (slice ast 4)]))
+       [doc mtds] (if (str? (.@3 ast))
+                    [(.@3 ast) (slice ast 4)]
+                    [nil (slice ast 3)]))
   ;put var into genv
   (.addVar env
            czname0
@@ -667,15 +666,6 @@ fn (right-to-left) to the result, etc."
           pos (if (str? (2nd m)) 3 2))
     ;;pass line info
     (each #(xfi m1 %) [mtd m])
-    ;;maybe set member defaults
-    (when (and (== $(m1)
-                   "constructor")
-               (not-empty czargs))
-      (for [x 0 sz (n# czargs)
-            :while (< x sz) :recur (+2 x)]
-        (aset czargs x $(.@x czargs)))
-      (if (getPrePost (.@pos m)) (++ pos))
-      (m.splice pos 0 (concat ['assoc! 'this] czargs)))
     ;fake a keyword 'method' in front
     (m.unshift mtd)
     ;put scoped-method into env

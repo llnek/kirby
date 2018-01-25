@@ -49,13 +49,13 @@
     (raise! "expecting symbol")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype LEXEnv [][par nil
-                   data {} libs {} vars {}]
+(deftype LEXEnv []
   "Lexical Environment"
   (constructor "Create and initialize
                a new env with these symbols,
                and optionally a parent env"
     [parent vars vals]
+    (assoc! this :data {} :libs {} :vars {} :par nil)
     (if parent (assoc! this :par parent))
     (for [i 0 e nil ev nil sz (n# vars)
           :while (< i sz) :recur (+1 i)]

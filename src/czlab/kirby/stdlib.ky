@@ -742,7 +742,7 @@
       (parr "(" ")") (obj.toString))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype LambdaArg [][value ""]
+(deftype LambdaArg []
   "Defining a lambda positional argument"
   (constructor "" [arg]
     (var name (if (= arg "%")
@@ -754,21 +754,21 @@
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Primitive [][value nil]
+(deftype Primitive []
   "Defining a primitive data type"
   (constructor "" [v]
     (set! this.value v))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype RegexObj [][value nil]
+(deftype RegexObj []
   "Defining a Regex pattern"
   (constructor "" [v]
     (set! this.value v))
   (toString "" [] this.value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Keyword [][value ""]
+(deftype Keyword []
   "Defining a keyword"
   (constructor "" [name]
     (set! this.value name))
@@ -779,7 +779,7 @@
           (starts? this.value ":") (.slice this.value 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Symbol [][value ""]
+(deftype Symbol []
   "Defining a symbol"
   (constructor "" [name]
     (set! this.value name))
@@ -835,7 +835,7 @@
   "Create a new Lambda Arg" ^LambdaArg [name] (new LambdaArg name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Atom [][value nil]
+(deftype Atom []
   "Defining a clojure-like Atom"
   (constructor "" [val] (set! this.value val)))
 
