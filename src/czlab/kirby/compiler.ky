@@ -60,11 +60,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       *macros* nil
+      *last-line* 0
+      *last-col* 0
       SPEC-OPS {}
       MATH-OP-REGEX #/^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn unmangle "" [s]
+(defn- unmangle "" [s]
   (->> (map #(reader/jsid %) (.split s ".")) (join ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -85,9 +87,10 @@
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
   ^Array [args env]
-  (var~ e ev rval out)
   (var pms []
-       [fargs fdefs :as ret] [(node' args) (node' args)])
+       [fargs fdefs :as ret]
+       [(node' args) (node' args)])
+  (var~ e ev rval out)
   (for [i 0 sz (n# args)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i args))
@@ -192,8 +195,7 @@
   (for [i 0 sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (set! e (.@i coll))
-    (cond
-      (keyword? e)
+    (if (keyword? e)
       (cond
         (or (== e :keys)
             (== e :strs))
@@ -209,7 +211,7 @@
         (++ i)
         :else
         (error! :unknown-keyword coll))
-      :else
+      ;else
       (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -272,12 +274,9 @@
              (== "defmacro" (1st t)))
       (conj! ms t)
       (conj! os t)))
-  (set! f (fn [c]
-            (doseq [r c
-                    :let [t (tx* r env)]
-                    :when (some? t)] (ret.add [t ";\n"]))))
-  (f ms)
-  (f os)
+  (doseq [r (.concat ms os)]
+    (set! *last-line* r.line *last-col* r.col)
+    (if-some [t (tx* r env)] (ret.add [t ";\n"])))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1647,7 +1646,6 @@ called.
 
   ^Array [source fname options]
 
-  (set! *externs* { } *macros* {} )
   (var {:keys [source-map format verbose]} options
        ast (reader/parse source fname)
        env (rt/genv)
@@ -1691,9 +1689,13 @@ called.
   "Compile kirby file to target source"
   ^Array [code file & [options]]
 
-  (try (transpile* code file (opt?? options {}))
-       (catch e
-         (println (.-stack e)) (throw e))))
+  (set! *externs* { }
+        *macros* {} *last-line* 0 *last-col* 0)
+  (try
+    (transpile* code file (opt?? options {}))
+    (catch e
+      (println "Error near line: "
+               *last-line* ", col: " *last-col* "\n" (str e)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST

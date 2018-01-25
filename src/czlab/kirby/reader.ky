@@ -6,7 +6,7 @@
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
 
-(ns ^{:doc ""
+(ns ^{:doc "Tokenizes the input stream, and build a Abstract Syntax Tree."
       :author "Kenneth Leung"}
 
   czlab.kirby.reader
@@ -24,13 +24,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Token [][]
-  (constructor [source line column value]
+  ""
+  (constructor "" [source line column value]
     (assoc! this
             :source source
             :value value
             :line line
             :column column))
-  (toString [] (.-value this)))
+  (toString "" [] (.-value this)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mkToken "Create a token"
@@ -70,7 +71,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn testid? "Returns true
               if a valid js identifier"
-  ^Boolean [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
+  [name] (or (REGEX.id.test name) (REGEX.id2.test name)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn jsid "Escape to
@@ -85,81 +86,94 @@
       (fn [acc x]
         (set! acc
               (acc.replace (1st x) (2nd x)))
-        (if (ends? acc (2nd x))
-          (acc.slice 0 -1)
-          acc))
+        (if (ends? acc (2nd x)) (acc.slice 0 -1) acc))
       (.replace (str pfx name)
                 REGEX.slash ".") REPLACERS)
     (if (= pfx "") name (str pfx name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- lexer "Lexical analyzer" ^Array [source fname]
-  (var fform? #f esc? #f str? #f
-       regex? #f comment? #f
-       len (n# source)
-       token "" line 1
-       ch nil nx nil
-       col 0 pos 0
-       tline line
+  (var len (n# source)
+       comment? #f
+       fform? #f
+       esc? #f
+       str? #f
+       regex? #f
+       token ""
+       line 1
+       ch nil
+       nx nil
+       col 0
+       pos 0
        tree []
        tcol col
+       tline line
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
            (when (and (starts? s "&")
                       (not= s "&&")
                       (> (alen s) 1))
+             ;split a &more token into
+             ;2 tokens & and more
              (conj! tree (mkToken fname ln col "&"))
              (set! s (rest s)))
            (conj! tree (mkToken fname ln col s))) ""))
+  ;scan through the entire source string
   (while (< pos len)
+    ;read the current char and peek the next char, moving
+    ;the reader pointer to next
     (set! ch (ch@ source pos))
     (++ col)
     (++ pos)
     (set! nx (ch@ source pos))
-    (when (= ch "\n")
+    ;1. handle a newline, newline always turns off a comment
+    (when (== ch "\n")
       (set! col 0)
       (++ line)
       (if comment? (false! comment?)))
+    ;big switch, order is IMPORTANT
     (cond
-      comment? nil
-      esc? (do (false! esc?)
-               (+= token ch))
+      comment?
+      nil
+      esc?
+      (do (false! esc?)
+          (+= token ch))
       regex?
-      (do (if (= ch "\\")
+      (do (if (== ch "\\")
             (true! esc?))
           (+= token ch)
-          (when (= ch "/")
+          (when (== ch "/")
             (false! regex?)
             (when (contains? "gimuy" nx)
               (+= token nx)
               (++ pos))
             (set! token (toke tline tcol token))))
       fform?
-      (if (and (= ch "`")
-               (= nx "`")
-               (= (ch@ source (+1 pos)) "`"))
+      (if (and (== ch "`")
+               (== nx "`")
+               (== (ch@ source (+1 pos)) "`"))
         (do (false! fform?)
             (+= pos 2)
             (+= token "\"")
-            (set! token (toke tline tcol token true)))
-        (cond (= ch "\"") (+= token "\\\"")
-              (= ch "\n") (+= token "\\n")
-              (= ch "\\")
-              (if (or (= nx "n")(= nx "r")(= nx "u")
-                      (= nx "t")(= nx "f")(= nx "v"))
+            (set! token (toke tline tcol token #t)))
+        (cond (== ch "\"") (+= token "\\\"")
+              (== ch "\n") (+= token "\\n")
+              (== ch "\\")
+              (if (or (== nx "n")(== nx "r")(== nx "u")
+                      (== nx "t")(== nx "f")(== nx "v"))
                 (+= token ch)
                 (+= token "\\\\"))
               :else (+= token ch)))
-      (and (= ch "`")
-           (= nx "`")
-           (= (ch@ source (+1 pos)) "`")
+      (and (== ch "`")
+           (== nx "`")
+           (== (ch@ source (+1 pos)) "`")
            (empty?  token))
       (do (set! tline line tcol col)
           (+= pos 2)
           (true! fform?)
           (+= token "\""))
-      (= ch "\"")
+      (== ch "\"")
       (if-not str?
         (do (set! tline line tcol col)
             (true! str?)
@@ -167,52 +181,54 @@
         (do (false! str?)
             (+= token ch)
             (set! token
-                (toke tline tcol token #t))))
+                  (toke tline tcol token #t))))
       ;;must be after the check for string
       str?
-      (do (if (= ch "\n") (set! ch "\\n"))
-          (if (= ch "\\") (set! esc? #t))
+      (do (if (== ch "\n") (set! ch "\\n"))
+          (if (== ch "\\") (set! esc? #t))
           (+= token ch))
-      (or (= ch "'") (= ch "`")
-          (= ch "$") (= ch "@") (= ch "^"))
+      (or (== ch "'") (== ch "`")
+          (== ch "$") (== ch "@") (== ch "^"))
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
         (do (set! tline line tcol col)
             (toke tline tcol ch))
         (+= token ch))
-      (and (= ch "&")
-           (= nx "&"))
+      (and (== ch "&")
+           (== nx "&"))
       (do (if (empty? token) (set! tline line tcol col))
           (+= token (str ch nx))
           (++ pos))
-      (= ch "~")
+      (== ch "~")
       (if (and (empty? token)
                (not (REGEX.wspace.test nx)))
         (do (set! tline line tcol col)
-            (if (= nx "@")
+            (if (== nx "@")
               (do (++ pos)
                   (toke tline tcol "~@"))
               (toke tline tcol ch)))
         (+= token ch))
-      (and (= ch "#")
-           (= nx "/")
+      (and (== ch "#")
+           (== nx "/")
            (empty? token))
       (do (true! regex?)
           (set! tline line tcol col)
           (++ pos)
           (+= token ch)
           (+= token nx))
-      (or (= ch "[")(= ch "]")
-          (= ch "{")(= ch "}")
-          (= ch "(")(= ch ")"))
-      (do (set! token (toke tline tcol token) tline line tcol col)
+      (or (== ch "[")(== ch "]")
+          (== ch "{")(== ch "}")
+          (== ch "(")(== ch ")"))
+      (do (set! token (toke tline tcol token)
+                tline line tcol col)
           (toke tline tcol ch))
-      (= ch ";")
-      (set! token (toke tline tcol token) tline line tcol col comment? #t)
-      (or (= ch ",")
+      (== ch ";")
+      (set! token (toke tline tcol token)
+            tline line tcol col comment? #t)
+      (or (== ch ",")
           (REGEX.wspace.test ch))
       (set! token
-            (-> (if (= ch "\n")
+            (-> (if (== ch "\n")
                   (-1 tline) tline)
                 (toke tcol token)))
       :else
@@ -286,14 +302,14 @@
          (or (ends? tn "/")
              (ends? (.slice tn 0 -1) "/")))
     (set! ret (regexObj tn))
-    (or (= "nil" tn)
-        (= "null" tn))
+    (or (== tn "nil")
+        (== tn "null"))
     (nil! ret)
-    (or (= "#t" tn)
-        (= "true" tn))
+    (or (== tn "#t")
+        (== tn "true"))
     (true! ret)
-    (or (= "#f" tn)
-        (= "false" tn))
+    (or (== tn "#f")
+        (== tn "false"))
     (false! ret)
     :else (set! ret (symbol tn)))
   (copyTokenData token ret))
@@ -309,7 +325,7 @@
     (cond
       (nichts? cur)
       (throwE start "expected '" tail "', got EOF")
-      (= tail cur.value)
+      (== tail cur.value)
       (break-out-of-loop!)
       :else
       (do (addAst ast (read* tokens))
@@ -426,7 +442,7 @@
          "</sexpr>")
     (lambdaArg? tree)
     (str (dumpInfo "lambda-arg" tree)
-         "%" (+1 (int (.-value tree))) "</lambda-arg>")
+         (.-value tree) "</lambda-arg>")
     (keyword? tree)
     (str (dumpInfo "keyword" tree)
          (escXml (.-value tree)) "</keyword>")
@@ -448,7 +464,7 @@
     (str "<boolean>" false  "</boolean>")
     (undef? tree)
     (str "<reserved>" "undefined" "</reserved>")
-    :else (throw "Bad AST")))
+    :else (throwE tree "Bad AST")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dumpTree "Debug and dump the AST"
