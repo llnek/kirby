@@ -394,6 +394,16 @@
   (ensure (= 4 (s/get-in
                  {:a [2 4 {:c 4}]} [:a 2 :c])) "get-in")
 
+  (ensure (s/eq? [7 7 7]
+                 (s/fillArray 3 7)) "fillArray,value")
+  (ensure (s/eq? [0 1 2]
+                 (s/fillArray 3 #(%))) "fillArray,function")
+
+  (ensure (s/eq? [3 4]
+                 (s/copyArray [3 4 5 7] [0 0])) "copyArray,value")
+  (ensure (s/eq? [2 5 7 6]
+                 (s/copyArray [2 5 7] [3 4 9 6])) "copyArray,value")
+
   (ensure (s/eq? {:a 1 :b 2}
                  (s/merge {:a 1} {:b 2})) "merge")
   (ensure (s/eq? [1 2 4]
@@ -499,5 +509,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 

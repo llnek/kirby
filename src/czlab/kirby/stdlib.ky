@@ -1443,6 +1443,20 @@ the latter (left-to-right) will be the mapping in the result."
   [&maps] (reduce (fn [acc n] (merge! acc n)) {} maps))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn fillArray "" [len v]
+  (var ret [])
+  (dotimes [x len]
+    (conj! ret (if (fn? v) (v x) v))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn copyArray "" [src des]
+  (var sz (Math/min (n# src)
+                    (n# des)))
+  (for [i 0 :while (< i sz) :recur (+1 i)]
+    (aset des i (nth src i)))
+  des)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn difference
   "Return a set that is the first set
   without elements of the other set."
@@ -1457,7 +1471,7 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn percent "" ^Number [numerator denominator]
-  (* 100 (div numerator denominator)))
+  (* 100.0 (div numerator denominator)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn toFixed "" ^String [num digits]
