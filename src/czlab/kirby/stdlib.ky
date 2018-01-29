@@ -135,6 +135,14 @@
   `(_andp_* ~@(map* (lambda* [x] `(= (whatis? ~x) "[object Date]")) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro objectMap? "" [&xs]
+  `(_andp_* ~@(map* (lambda* [x] `(= (whatis? ~x) "[object Map]")) xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro objectSet? "" [&xs]
+  `(_andp_* ~@(map* (lambda* [x] `(= (whatis? ~x) "[object Set]")) xs)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro bool? "" [&xs] `(boolean? ~@xs))
 (defmacro boolean? "" [&xs]
   `(_andp_* ~@(map* (lambda* [x] `(= (typeof ~x) "boolean")) xs)))
@@ -628,6 +636,8 @@
              (into :list coll)
              (map? coll)
              (into :map coll)
+             (dict? coll)
+             (into :dict coll)
              (set? coll)
              (into :set coll)
              (nichts? coll)
@@ -734,6 +744,8 @@
     (parr "[" "]")
     :map
     (parr "{" "}")
+    :set
+    (parr "#{" "}")
     :list
     (parr "'(" ")")
     :string
@@ -910,6 +922,7 @@
     (atom? obj) :atom
     (list? obj) :list
     (map? obj) :map
+    (dict? obj) :dict
     (set? obj) :set
     (nil? obj) :null
     (true? obj) :true
@@ -941,6 +954,7 @@
       (vector? obj)
       (list? obj)
       (map? obj)
+      (dict? obj)
       (set? obj)
       (false? obj)
       (true? obj)
@@ -950,8 +964,46 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sequential? "True if coll
                   implements Sequential"
-  [arr] (and (array? arr) (not (set? arr))(not (map? arr))))
+  [arr] (and (array? arr)
+             (not (set? arr))
+             (not (dict? arr))
+             (not (map? arr))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- set2Set "" [s]
+  (var ret (new Set))
+  (for [i 0 sz (n# s)
+        :while (< i sz) :recur (+1 i)]
+    (.add ret (.@i m))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- eqSets? "" [s1 s2]
+  (var ok? #t)
+  (when (= (.-size s1)
+           (.-size s2))
+    (.forEach s1
+              (fn [v k]
+                (if-not (.has s2 v)
+                  (false! ok?)))))
+  ok?)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- dict2Map "" [m]
+  (var ret (new Map))
+  (for [i 0 sz (n# m)
+        :while (< i sz) :recur (+2 i)]
+    (.set ret (.@i m) (.@+i m))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- eqMaps? "" [m1 m2]
+  (var ok? #t)
+  (when (= (.-size m1)
+           (.-size m2))
+    (.forEach m1
+              (fn [v k]
+                (if-not (eq? (.get m2 k) v)
+                  (false! ok?)))))
+  ok?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Obj "" [m]
@@ -970,6 +1022,11 @@
     (and (map? a) (map? b)
          (= (alen a) (alen b)))
     (eq? (map2Obj a) (map2Obj b))
+
+    (and (dict? a) (dict? b)
+         (= (alen a) (alen b)))
+    (eqMaps? (dict2Map a) (dict2Map b))
+
     (and (array? a) (array? b)
          (= (alen a) (alen b)))
     (do (for [i 0 sz (alen a)
@@ -978,9 +1035,8 @@
                          (.@i b)) (false! ok?))) ok?)
     (and (set? a) (set? b)
          (= (alen a) (alen b)))
-    (do (doseq [x (seq a)
-                :while ok?]
-          (if-not (.has b x) (false! ok?))) ok?)
+    (eqSets? (set2Set a) (set2Set b))
+
     (and (inst? LambdaArg a)
          (inst? LambdaArg b))
     (= a.value b.value)
@@ -1005,6 +1061,8 @@
 (defn object? "Returns true
               if a js object" [obj]
   (if-not (or (nil? obj)
+              (objectMap? obj)
+              (objectSet? obj)
               (array? obj)) (= (type obj) "object")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1023,6 +1081,8 @@
     (assoc! coll :____list #t)
     :set
     (assoc! coll :____set #t)
+    :dict
+    (assoc! coll :____dict #t)
     :map
     (assoc! coll :____map #t)) coll)
 
@@ -1038,6 +1098,7 @@
   (and (array? obj)
        (not (vector? obj))
        (not (set? obj))
+       (not (dict? obj))
        (not (map? obj)) (not (list? obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1069,6 +1130,10 @@
   [obj] (and (array? obj) obj.____map))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dict? "Returns true if a Hashmap"
+  [obj] (and (array? obj) obj.____dict))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn arraymap "Create a new array map"
   ^Array [&xs]
   (if (odd? (alen xs))
@@ -1088,6 +1153,8 @@
   (cond
     (string? obj) (obj.split "")
     (array? obj) (obj.slice 0)
+    (objectSet? obj) (Array.from (.values obj))
+    (objectMap? obj) (Array.from (.entries obj))
     (object? obj) (Object.entries obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1095,6 +1162,8 @@
   (cond
     (or (array? coll)
         (string? coll)) (coll.includes x)
+    (objectSet? coll) (.has coll x)
+    (objectMap? coll) (.has coll x)
     (object? coll) (coll.hasOwnProperty x) :else false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1109,8 +1178,11 @@
 (defn count "Count the number of elements inside"
   ^Integer [coll]
   (if coll
-    (alen (if (or (string? coll)
-                  (array? coll)) coll (keys coll))) 0))
+    (if (or (objectMap? coll)
+            (objectSet? coll))
+      (.-size coll)
+      (alen (if (or (string? coll)
+                    (array? coll)) coll (keys coll)))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat* "Add many to this collection"

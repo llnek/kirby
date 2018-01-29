@@ -440,6 +440,16 @@
   (ensure (s/eq? ["123" "456" "78"]
                  (s/split-str 3 "12345678")) "split-str")
 
+  (ensure (let [obj #{1 2 3}]
+            (and (objectSet? obj)
+                 (= 3 (n# obj)))) "object,Set")
+
+  (ensure (let [obj #[:a 1 :b 2]]
+            (and (objectMap? obj)
+                 (= 2 (n# obj))
+                 (= 1 (.get obj :a))
+                 (= 2 (.get obj :b)))) "object,Map")
+
   (ensure (= 3 (domonad s/m-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")
   (ensureThrown "any"

@@ -222,6 +222,12 @@
                 tline line tcol col)
           (++ pos)
           (toke tline tcol "#{"))
+      (and (== ch "#")
+           (== nx "["))
+      (do (set! token (toke tline tcol token)
+                tline line tcol col)
+          (++ pos)
+          (toke tline tcol "#["))
       (or (== ch "[")(== ch "]")
           (== ch "{")(== ch "}")
           (== ch "(")(== ch ")"))
@@ -355,9 +361,14 @@
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readSet "Process a Set"
+(defn- readObjectSet "Process a Set"
   ^Array [tokens]
   (into! :set (readBlock tokens "#{" "}")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readObjectMap "Process a Map"
+  ^Array [tokens]
+  (into! :dict (readBlock tokens "#[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
@@ -385,7 +396,8 @@
   "#" #(['lambda (read* %)])
   "[" [#(readVector %)]
   "(" [#(readList %)]
-  "#{" [#(readSet %)]
+  "#{" [#(readObjectSet %)]
+  "#[" [#(readObjectMap %)]
   "{" [#(readMap %)]
 })
 

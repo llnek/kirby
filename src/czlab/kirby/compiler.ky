@@ -19,7 +19,7 @@
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
                      unquote-str quote-str
-                     not-empty conj! list?
+                     not-empty conj! list? dict?
                      difference carve
                      gensym count pop!
                      symbol keyword symbol? keyword?]]
@@ -316,6 +316,7 @@
   (cond (map? ast) "hashmap"
         (vector? ast) "vec"
         (set? ast) "hash-set"
+        (dict? ast) "hash-map"
         (list? ast) "list"
         (and (array? ast)
              (not (array? (1st ast)))) $(1st ast) :else ""))
@@ -1259,6 +1260,21 @@ any finally exprs will be evaluated for their side effects."
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
         (ret.add " }"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-mapObj
+  ""
+  ^{:opcode ["hash-map"] :tag SourceNode} [ast env]
+  (assertArity true ast)
+  (var pos 0
+       ret (node' ast))
+  (if-not (dict? ast) (set! pos 1))
+  (for [i pos sz (n# ast)
+        :while (< i sz) :recur (+2 i)]
+    (if (> i pos) (ret.add ","))
+    (ret.add ["[" (tx* (.@i ast) env)
+              "," (tx* (xfi ast (.@+i ast)) env) "]"]))
+  (wrap ret "(new Map([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-setObj
