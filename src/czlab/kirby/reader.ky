@@ -17,7 +17,7 @@
      :refer [lambdaArg object? nichts? count
              into! vector conj! prn quote-str
              list? vector? map? escXml println
-             regexObj regexObj?
+             regexObj regexObj? set?
              symbol? keyword? lambdaArg?
              carve opt?? symbol primitive?
              keyword contains? list not-empty]]))
@@ -216,6 +216,12 @@
           (++ pos)
           (+= token ch)
           (+= token nx))
+      (and (== ch "#")
+           (== nx "{"))
+      (do (set! token (toke tline tcol token)
+                tline line tcol col)
+          (++ pos)
+          (toke tline tcol "#{"))
       (or (== ch "[")(== ch "]")
           (== ch "{")(== ch "}")
           (== ch "(")(== ch ")"))
@@ -349,6 +355,11 @@
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readSet "Process a Set"
+  ^Array [tokens]
+  (into! :set (readBlock tokens "#{" "}")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
                   then continue to parse"
   ^Any [tokens func]
@@ -374,6 +385,7 @@
   "#" #(['lambda (read* %)])
   "[" [#(readVector %)]
   "(" [#(readList %)]
+  "#{" [#(readSet %)]
   "{" [#(readMap %)]
 })
 
@@ -428,6 +440,10 @@
     (str (dumpInfo "vector" tree)
          (join "" (map #(dump* %) tree))
          "</vector>")
+    (set? tree)
+    (str (dumpInfo "set" tree)
+         (join "" (map #(dump* %) tree))
+         "</set>")
     (map? tree)
     (str (dumpInfo "map" tree)
          (join "" (map #(dump* %) tree))

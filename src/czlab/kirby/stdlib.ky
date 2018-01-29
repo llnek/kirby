@@ -628,6 +628,8 @@
              (into :list coll)
              (map? coll)
              (into :map coll)
+             (set? coll)
+             (into :set coll)
              (nichts? coll)
              []
              :else (slice coll)))
@@ -908,6 +910,7 @@
     (atom? obj) :atom
     (list? obj) :list
     (map? obj) :map
+    (set? obj) :set
     (nil? obj) :null
     (true? obj) :true
     (false? obj) :false
@@ -938,6 +941,7 @@
       (vector? obj)
       (list? obj)
       (map? obj)
+      (set? obj)
       (false? obj)
       (true? obj)
       (string? obj)
@@ -946,7 +950,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sequential? "True if coll
                   implements Sequential"
-  [arr] (and (array? arr) (not (map? arr))))
+  [arr] (and (array? arr) (not (set? arr))(not (map? arr))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -972,6 +976,11 @@
               :while (and ok? (< i sz)) :recur (+1 i)]
           (when-not (eq? (.@i a)
                          (.@i b)) (false! ok?))) ok?)
+    (and (set? a) (set? b)
+         (= (alen a) (alen b)))
+    (do (doseq [x (seq a)
+                :while ok?]
+          (if-not (.has b x) (false! ok?))) ok?)
     (and (inst? LambdaArg a)
          (inst? LambdaArg b))
     (= a.value b.value)
@@ -1012,6 +1021,8 @@
     (assoc! coll :____vec #t)
     :list
     (assoc! coll :____list #t)
+    :set
+    (assoc! coll :____set #t)
     :map
     (assoc! coll :____map #t)) coll)
 
@@ -1025,7 +1036,9 @@
 (defn pairs? "Returns true if
              a LISP list, not data" [obj]
   (and (array? obj)
-       (not (vector? obj)) (not (map? obj)) (not (list? obj))))
+       (not (vector? obj))
+       (not (set? obj))
+       (not (map? obj)) (not (list? obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "Returns true if a List"
@@ -1042,6 +1055,14 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
   "Create a Vector" ^Array [&xs] (assoc! xs :____vec #t) xs)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn set? "Returns true if a Set"
+  [obj] (and (array? obj) obj.____set))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn set
+  "Create a Set" ^Array [&xs] (assoc! xs :____set #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"

@@ -16,7 +16,7 @@
              :as std
              :refer [lambdaArg? pairs? into! println
                      seq merge contains? last typeid
-                     prn primitive map? vector?
+                     prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
                      unquote-str quote-str
                      not-empty conj! list?
@@ -315,6 +315,7 @@
 (defn- gcmd "" ^String [ast]
   (cond (map? ast) "hashmap"
         (vector? ast) "vec"
+        (set? ast) "hash-set"
         (list? ast) "list"
         (and (array? ast)
              (not (array? (1st ast)))) $(1st ast) :else ""))
@@ -1258,6 +1259,24 @@ any finally exprs will be evaluated for their side effects."
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
         (ret.add " }"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-setObj
+
+  "Returns a new Set.
+  (set 1 2 3)"
+
+  ^{:opcode ["hash-set"] :tag SourceNode} [ast env]
+
+  (assertArity true ast)
+  (var pos 0
+       ret (node' ast))
+  (if-not (set? ast)(set! pos 1))
+  (for [i pos sz (n# ast)
+        :while (< i sz) :recur (+1 i)]
+    (if (> i pos) (ret.add ", "))
+    (ret.add (tx* (.@i ast) env)))
+  (wrap ret "(new Set([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- require! "" [path]
