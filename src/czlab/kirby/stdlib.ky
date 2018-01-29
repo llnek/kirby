@@ -636,6 +636,8 @@
              (into :list coll)
              (map? coll)
              (into :map coll)
+             (obj? coll)
+             (into :obj coll)
              (dict? coll)
              (into :dict coll)
              (set? coll)
@@ -743,6 +745,8 @@
     :vector
     (parr "[" "]")
     :map
+    (parr "{" "}")
+    :obj
     (parr "{" "}")
     :set
     (parr "#{" "}")
@@ -922,6 +926,7 @@
     (atom? obj) :atom
     (list? obj) :list
     (map? obj) :map
+    (obj? obj) :obj
     (dict? obj) :dict
     (set? obj) :set
     (nil? obj) :null
@@ -954,6 +959,7 @@
       (vector? obj)
       (list? obj)
       (map? obj)
+      (obj? obj)
       (dict? obj)
       (set? obj)
       (false? obj)
@@ -967,6 +973,7 @@
   [arr] (and (array? arr)
              (not (set? arr))
              (not (dict? arr))
+             (not (obj? arr))
              (not (map? arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1020,6 +1027,10 @@
   (var k nil ok? true)
   (cond
     (and (map? a) (map? b)
+         (= (alen a) (alen b)))
+    (eq? (map2Obj a) (map2Obj b))
+
+    (and (obj? a) (obj? b)
          (= (alen a) (alen b)))
     (eq? (map2Obj a) (map2Obj b))
 
@@ -1083,6 +1094,8 @@
     (assoc! coll :____set #t)
     :dict
     (assoc! coll :____dict #t)
+    :obj
+    (assoc! coll :____obj #t)
     :map
     (assoc! coll :____map #t)) coll)
 
@@ -1099,6 +1112,7 @@
        (not (vector? obj))
        (not (set? obj))
        (not (dict? obj))
+       (not (obj? obj))
        (not (map? obj)) (not (list? obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1132,6 +1146,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dict? "Returns true if a Hashmap"
   [obj] (and (array? obj) obj.____dict))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn obj? "Returns true if a Object"
+  [obj] (and (array? obj) obj.____obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn arraymap "Create a new array map"

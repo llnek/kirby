@@ -19,7 +19,7 @@
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
                      unquote-str quote-str
-                     not-empty conj! list? dict?
+                     not-empty conj! list? dict? obj?
                      difference carve
                      gensym count pop!
                      symbol keyword symbol? keyword?]]
@@ -314,6 +314,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gcmd "" ^String [ast]
   (cond (map? ast) "hashmap"
+        (obj? ast) "object"
         (vector? ast) "vec"
         (set? ast) "hash-set"
         (dict? ast) "hash-map"
@@ -1260,6 +1261,23 @@ any finally exprs will be evaluated for their side effects."
           (ret.add [(tx* (.@i ast) env)
                     ": " (tx* (xfi ast (.@+i ast)) env)]))
         (ret.add " }"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-objObj
+  "Returns a new object with supplied key-mappings.
+  (object \"a\" 1 \"b\" 2)
+  {:a 1 :b 2}"
+  ^{:opcode ["object"] :tag SourceNode} [ast env]
+  (assertArity true ast)
+  (var pos 0
+       ret (node' ast))
+  (if-not (map? ast) (set! pos 1))
+  (for [i pos sz (n# ast)
+        :while (< i sz) :recur (+2 i)]
+    (if (> i pos) (ret.add ", "))
+    (ret.add [(tx* (.@i ast) env)
+              ": " (tx* (xfi ast (.@+i ast)) env)]))
+  (wrap ret "{" "}"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-mapObj
