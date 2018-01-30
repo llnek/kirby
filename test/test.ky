@@ -24,10 +24,10 @@
 ;a state-monadic value, together with the log msg
 (defn- exlog "" [expr log]
   (fn [s]
-    (var v (.-value s)
+    (var v s.value
          v' (expr v)
          msg (str log "(" v ")")
-         log' (std/concat (.-log s) msg))
+         log' (std/concat s.log msg))
     [v' (object :value v' :log log')]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -268,7 +268,7 @@
   (ensure (undef? (s/getProp {:a 1 :z 5} :x)) "getProp,false")
   (ensure (= 5 (s/getProp {:a 1 :z 5} :z)) "getProp,true")
   (ensure (fn? (s/getProp
-                 {:a 1 :z 5}
+                 (object :a 1 :z 5)
                  :toString false)) "getProp,false")
   (ensure (= "(1 2 3)" (s/prn [1 2 3])) "prn")
   (ensure (let [p (s/primitive 2)
@@ -520,5 +520,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 

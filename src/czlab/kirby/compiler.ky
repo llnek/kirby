@@ -923,10 +923,12 @@ returned if no clause matches."
 
   (assertArity (= (n# ast) 3) ast)
   (var ret (node' ast))
-  (ret.add [KBSTDLR "."
-            (tx* (symbol "dissoc!") env) "("
-            (tx* (2nd ast) env)
-            "," (tx* (.@2 ast) env) ")"]) ret)
+  (ret.add
+    [(stripStd (str KBSTDLR
+                    "." (tx* (symbol "dissoc!") env)))
+     "("
+     (tx* (2nd ast) env)
+     "," (tx* (.@2 ast) env) ")"]) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
@@ -1014,11 +1016,11 @@ returned if no clause matches."
   (for [i 2 sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (if (> i 2) (ret.add ","))
-    (ret.add [KBSTDLR "."
-              (tx* (symbol "assoc!") env)
-              "(" obj ","
-              (tx* (xfi ast (.@i ast)) env) ","
-              (tx* (xfi ast (.@+i ast)) env) ")"]))
+    (ret.add
+      [(stripStd (str KBSTDLR "." (tx* (symbol "assoc!") env)))
+       "(" obj ","
+       (tx* (xfi ast (.@i ast)) env) ","
+       (tx* (xfi ast (.@+i ast)) env) ")"]))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

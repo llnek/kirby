@@ -504,8 +504,7 @@
 
   `(do (var~ bind unit zero plus)
        (let [~@operations]
-         (hash-map
-           :bind bind :unit unit :zero zero :plus plus))))
+         (object :bind bind :unit unit :zero zero :plus plus))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro defmonad
@@ -1091,6 +1090,10 @@
           (set! k (.@i ks))
           (when-not (eq? (get a k)
                          (get b k)) (false! ok?))) ok?)
+    (and (objectMap? a)
+         (objectMap? b))
+    (eqMaps? a b)
+
     :else
     (= a b)))
 
@@ -1189,7 +1192,7 @@
   ^Object [&xs]
   (if (odd? (alen xs))
     (raise! "Invalid arity for object"))
-  (zipmap (evens xs) (odds xs)))
+  (zipobj (evens xs) (odds xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn seq "Returns a sequence"
@@ -1297,7 +1300,19 @@
   (var cz (if (< (alen keys)
                  (alen vals))
             (alen keys) (alen vals))
-       ret (new Map))
+       ret {})
+  (for [i 0
+        :while (< i cz) :recur (+1 i)]
+    (assoc! ret (.@i keys) (.@i vals))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn zipobj "Returns an object with the
+             keys mapped to the corresponding vals"
+  ^Map [keys vals]
+  (var cz (if (< (alen keys)
+                 (alen vals))
+            (alen keys) (alen vals))
+       ret (object))
   (for [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret $(.@i keys) (.@i vals))) ret)
