@@ -32,7 +32,7 @@
             ["esformatter" :as esfmt]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- ERRORS-MAP {
+(const- ERRORS-MAP (object
   :no-sourcemap-info "Expected source map info"
   :invalid-fargs "Invalid function args"
   :invalid-catch "Invalid catch clause"
@@ -48,7 +48,7 @@
   :invalid-arity "Invalid function arity"
   :invalid-meta "Invalid meta data"
   :syntax-error "Syntax error"
-  :empty-form "Invalid form (empty)" })
+  :empty-form "Invalid form (empty)" ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- ARRSLICE "Array.prototype.slice.call")
@@ -62,7 +62,7 @@
       *macros* nil
       *last-line* 0
       *last-col* 0
-      SPEC-OPS {}
+      SPEC-OPS (object )
       MATH-OP-REGEX #/^[-+][0-9]+$/)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -227,7 +227,7 @@
 (defn- exprHint "" ^Array [ast flag]
   (if (simple? ast)
     (set! ast (primitive ast)))
-  (assoc! ast :____expr flag) ast)
+  (assign! ast :____expr flag) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- stmt? "" [ast]
@@ -249,10 +249,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- node' "" ^SourceNode [ast & [obj]]
   (set! obj (opt?? obj (tnode)))
-  (assoc! obj
-          :source ast.source
-          :line ast.line
-          :column ast.column) obj)
+  (assign! obj
+           :source ast.source
+           :line ast.line
+           :column ast.column) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree
@@ -313,7 +313,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- gcmd "" ^String [ast]
-  (cond (map? ast) "hashmap"
+  (cond (map? ast) "hash-map"
         (obj? ast) "object"
         (vector? ast) "vec"
         (set? ast) "hash-set"
@@ -356,10 +356,10 @@
         :while (< i sz) :recur (+2 i)]
     (if (> i 0) (ret.add ","))
     (ret.add [(quote! (.@i ast) env)
-              " : " (quote! (.@+i ast) env)]))
+              " , " (quote! (.@+i ast) env)]))
   (if-not (empty? ast) (set! cma ","))
   (wrap ret ["["
-             (stripStd (str KBSTDLR ".symbol")) "(\"hashmap\")" cma] "]"))
+             (stripStd (str KBSTDLR ".symbol")) "(\"hash-map\")" cma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" ^SourceNode [ast env]
@@ -435,7 +435,7 @@
     (and (or (== cmd "splice-unquote")
              (== cmd "unquote")
              (== cmd "syntax-quote"))
-         (not (starts? nsp.id KBPFX)))
+         (not (starts? (get nsp :id) KBPFX)))
     (error! :outside-macro ast)
     :else
     (do (if (pairs? ast)
@@ -486,7 +486,7 @@
              (symbol? (1st obj))
              (== "with-meta" $(1st obj)))
     (set! mobj (evalMeta (.@2 obj) env))
-    (assoc! (2nd obj) :____meta mobj)
+    (assign! (2nd obj) :____meta mobj)
     (set! obj (2nd obj)))
   [mobj obj])
 
@@ -540,7 +540,7 @@
        nsp (std/peekNSP))
   (set! cmd $(cmd))
   (if (and (starts? cmd lib)
-           (== nsp.id KBSTDLIB)) (.slice cmd (alen lib)) cmd))
+           (== (get nsp :id) KBSTDLIB)) (.slice cmd (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- assertArity "" ^Any [kond ast]
@@ -915,6 +915,20 @@ returned if no clause matches."
     (ret.add ["[" (tx* (.@2 ast) env) "]"])) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-dissoc!
+
+  "Remove a key from Map."
+
+  ^{:opcode ["dissoc!"] :tag SourceNode} [ast env]
+
+  (assertArity (= (n# ast) 3) ast)
+  (var ret (node' ast))
+  (ret.add [KBSTDLR "."
+            (tx* (symbol "dissoc!") env) "("
+            (tx* (2nd ast) env)
+            "," (tx* (.@2 ast) env) ")"]) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
 
   "The args, if any, are evaluated from left to right,
@@ -991,13 +1005,26 @@ returned if no clause matches."
          " " cmd " " (tx* (3rd ast) env) ")"] ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-setin!
-
+(defn- sf-assoc!
   "Object property assignment or array index setter."
+  ^{:opcode ["assoc!"] :tag SourceNode} [ast env]
+  (assertArity (even? (n# ast)) ast)
+  (var ret (node' ast)
+       obj (tx* (2nd ast) env))
+  (for [i 2 sz (n# ast)
+        :while (< i sz) :recur (+2 i)]
+    (if (> i 2) (ret.add ","))
+    (ret.add [KBSTDLR "."
+              (tx* (symbol "assoc!") env)
+              "(" obj ","
+              (tx* (xfi ast (.@i ast)) env) ","
+              (tx* (xfi ast (.@+i ast)) env) ")"]))
+  (wrap ret "(" ")"))
 
-  ^{:opcode ["set-in!" "aset"
-             "assoc!" "=>>"] :tag SourceNode} [ast env]
-
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-assign!
+  "Object property assignment or array index setter."
+  ^{:opcode ["assign!" "aset"] :tag SourceNode} [ast env]
   (assertArity (even? (n# ast)) ast)
   (var ret (node' ast)
        obj (tx* (2nd ast) env))
@@ -1239,30 +1266,6 @@ any finally exprs will be evaluated for their side effects."
         (ret.add " ]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-object
-
-  "Returns a new object with supplied key-mappings.
-
-  (hashmap \"a\" 1 \"b\" 2)
-  {:a 1 :b 2}"
-
-  ^{:opcode ["hashmap"] :tag SourceNode} [ast env]
-
-  (assertArity true ast)
-  (var pos 0
-       ret (node' ast))
-  (if (empty? ast)
-    (ret.add "{}")
-    (do (if-not (map? ast) (set! pos 1))
-        (ret.add "{ ")
-        (for [i pos sz (n# ast)
-              :while (< i sz) :recur (+2 i)]
-          (if (> i pos) (ret.add ", "))
-          (ret.add [(tx* (.@i ast) env)
-                    ": " (tx* (xfi ast (.@+i ast)) env)]))
-        (ret.add " }"))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-objObj
   "Returns a new object with supplied key-mappings.
   (object \"a\" 1 \"b\" 2)
@@ -1286,7 +1289,7 @@ any finally exprs will be evaluated for their side effects."
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
-  (if-not (dict? ast) (set! pos 1))
+  (if-not (map? ast) (set! pos 1))
   (for [i pos sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (if (> i pos) (ret.add ","))
@@ -1433,7 +1436,7 @@ any finally exprs will be evaluated for their side effects."
     (set! mobj (evalMeta (.@pos ast) env)
           attrs (merge attrs mobj))
     (++ pos)
-    (assoc! nsp :____meta attrs))
+    (assign! nsp :____meta attrs))
   (std/pushNSP $(nsp) attrs)
   ;;(println (str "Processing namespace: " $(nsp)))
   (set! ast (xfi ast (slice ast pos)))
@@ -1632,10 +1635,10 @@ called.
           fline (.-line from)]
       (if (and (not (number? tline))
                (number? fline))
-        (assoc! to
-             :source (.-source from)
-             :line (.-line from)
-             :column (.-column from))) to)
+        (assign! to
+                 :source (.-source from)
+                 :line (.-line from)
+                 :column (.-column from))) to)
     :else to))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1643,7 +1646,7 @@ called.
   (if (empty? *macros*)
     ""
     (-> (map (fn [[k v]]
-             (str (quote-str k)
+             (str (quote-str (str k))
                   ":" (quote-str v))) (seq *macros*))
         (.join ",\n")
         (std/wrap-str  "const ____macros = {\n" "};\n"))))
@@ -1703,7 +1706,7 @@ called.
          (let [fmap (str fbase ".js")
                smap (str fbase ".map")
                sout (ret.toStringWithSourceMap
-                      {:skipValidation #t :file fmap})]
+                      (object :skipValidation #t :file fmap))]
            (fs/writeFileSync smap sout.map)
            (str sout.code
                 macros
@@ -1732,10 +1735,10 @@ called.
   "Compile kirby file to target source"
   ^Array [code file & [options]]
 
-  (set! *externs* { }
+  (set! *externs* {}
         *macros* {} *last-line* 0 *last-col* 0)
   (try
-    (transpile* code file (opt?? options {}))
+    (transpile* code file (opt?? options (object )))
     (catch e
       (println "Error near line: "
                *last-line* ", col: " *last-col* "\n" (str e)))))

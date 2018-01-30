@@ -20,7 +20,7 @@
                      atom? list? map? some?
                      LambdaArg Keyword println
                      nichts? not-empty object?
-                     Symbol into! prn
+                     Symbol into! prn obj?
                      Atom symbol swap!
                      atom vector vector?
                      typeid sequential?
@@ -35,7 +35,7 @@
 (const KBSTDLIB (str KBPFX "stdlib"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;ignored
+;;example of free-form
 (const- macro_assert ```
   (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ```)
 
@@ -55,8 +55,8 @@
                a new env with these symbols,
                and optionally a parent env"
     [parent vars vals]
-    (assoc! this :data {} :libs {} :vars {} :par nil)
-    (if parent (assoc! this :par parent))
+    (assign! this :data {} :libs {} :vars {} :par nil)
+    (if parent (assign! this :par parent))
     (for [i 0 e nil ev nil sz (n# vars)
           :while (< i sz) :recur (+1 i)]
       (set! e (.@i vars)
@@ -94,7 +94,7 @@
               (if (case what
                     :fn (fn? v)
                     :var (not (fn? v)) #t)
-                (assoc! acc $(k) v)) acc) {} (seq this.data)))
+                (assoc! acc (str k) v)) acc) {} (seq this.data)))
   (prn "Print set of vars"
     ^String []
     (std/prn this.data))
@@ -140,7 +140,7 @@
   (var orig this
        cloned #(apply orig this ____args))
   (each-key
-    (fn [v k] (assoc! cloned k v)) orig) cloned)
+    (fn [v k] (assign! cloned k v)) orig) cloned)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prnStr "" ^String [&xs] (join " " (prnArr xs)))
@@ -165,7 +165,7 @@
     :object
     (reduce
       (fn [acc [k v]]
-        (assoc! acc k v) acc) {} (seq obj))
+        (assign! acc k v) acc) (object ) (seq obj))
     :function
     (obj.clone)
     ;;else
@@ -208,11 +208,13 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" ^Object [obj m]
   (var ret (clone obj))
-  (assoc! ret :____meta m) ret)
+  (assign! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" ^Map [obj]
   (if-not (or (array? obj)
+              (objectMap? obj)
+              (objectSet? obj)
               (object? obj)
               (fn? obj))
     (raise! "can't get meta from: " (typeid obj)))
@@ -228,7 +230,8 @@
   (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *runtime-funcs* {
+(const- *runtime-funcs*
+        (object
   "macroexpand*" #(println (std/prn (expand?? %1 (or %2 g_env))))
   "assert*" (fn [k msg] (if-not k (raise! msg)))
   "macros*" (fn [&[fout]]
@@ -308,7 +311,7 @@
   "with-meta*" withMeta
   "js-eval*" evalJS
   "js*" invokeJS
-  "type*" #(typeof %) })
+  "type*" #(typeof %) ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- CACHE {})
@@ -323,7 +326,7 @@
       (when-not (contains? cmd "/")
         (var c (std/peekNSP))
         (if-not c (raise! "missing namespace"))
-        (set! cmd (str c.id "/" cmd)))
+        (set! cmd (str (get c :id) "/" cmd)))
       ;;(println "adding macro ==== " cmd)
       (assoc! CACHE cmd func))))
 
@@ -335,14 +338,14 @@
     (contains? cmd "/")
     (let [[p c](.split cmd "/")
           tmp nil
-          lib (.getLib (genv) p)]
+          libObj (.getLib (genv) p)]
       (set! mname c)
       (cond
         (== p KBSTDLR) (set! nsp KBSTDLIB)
-        (nichts? lib) (true! skip)
-        :else (if-not (get lib EXPKEY)
+        (nichts? libObj) (true! skip)
+        :else (if-not (get libObj EXPKEY)
                 (true! skip)
-                (set! nsp (get (get lib EXPKEY) :ns)))))
+                (set! nsp (get (get libObj EXPKEY) :ns)))))
     :else
     (let [m (.getVar (genv) cmd)]
       (set! mname cmd
@@ -449,7 +452,7 @@
 (defn- doMACRO "" [ast env]
   (var name $(2nd ast)
        nsp (std/peekNSP))
-  (set! nsp (if nsp nsp.id KBSTDLIB))
+  (set! nsp (if nsp (get nsp :id) KBSTDLIB))
   (if-not (contains? name "/")
     (set! name (str nsp "/" name)))
   (do->nil (setMacro name
@@ -483,7 +486,7 @@
 (defn- form* "" ^Any [ast env]
   (var el (eval* ast env))
   (cond
-    (or (vector? ast)
+    (or (vector? ast) (obj? ast)
         (map? ast) (list? ast)) (atom el)
     (array? el)
     (let [f (1st el)
@@ -504,7 +507,8 @@
   (doto #(compute fbody (new LEXEnv env fargs ____args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *spec-forms* {
+(const- *spec-forms*
+        (object
   "def*" (fn [a e] (atom (e.set (.@1 a)
                                 (compute (.@2 a) e))))
   "and*" #(atom (doAND %1 %2))
@@ -518,7 +522,7 @@
           (eval* (a.slice 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
-  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
+  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]

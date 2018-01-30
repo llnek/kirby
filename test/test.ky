@@ -28,7 +28,7 @@
          v' (expr v)
          msg (str log "(" v ")")
          log' (std/concat (.-log s) msg))
-    [v' {:value v' :log log'}]))
+    [v' (object :value v' :log log')]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest test-stdlib
@@ -322,10 +322,10 @@
                (not (s/value? (fn [] nil)))) "value?")
   (ensure (s/sequential? [1 2 3]) "sequential?")
   (ensure (s/eq? [1 2] [1 2]) "eq? -> array")
-  (ensure (s/eq? {:a 1 :b 2} {:b 2 :a 1}) "eq? -> object")
+  (ensure (s/eq? (object :a 1 :b 2) (object :b 2 :a 1)) "eq? -> object")
 
   (ensure (not (s/object? 1)) "not object?")
-  (ensure (s/object? {:a 1}) "object?")
+  (ensure (s/object? (object :a 1)) "object?")
   (ensure (= 3 (s/last [1 2 3])) "last")
   (ensure (s/list? (s/into! :list [1 2 3])) "into!")
   (ensure (let [x (s/list 1 2 3)
@@ -425,14 +425,15 @@
 
   (ensure (= 3 (s/find [2 4 8 3 6 7] #(odd? %))) "find")
   (ensure (s/eq? [2 3 4 9] (s/sort! [3 9 4 2])) "simple sort!")
-  (ensure (s/eq? [{:a 2}
-                  {:a 3}
-                  {:a 4}
-                  {:a 9}]
+  (ensure (s/eq? [(object :a 2)
+                  (object :a 3)
+                  (object :a 4)
+                  (object :a 9)]
                  (s/sort! (fn [x y]
                             (if (< x.a y.a) -1
                               (if (> x.a y.a) 1 0)))
-                          [{:a 3} {:a 9} {:a 4} {:a 2}])) "object sort!")
+                          [(object :a 3) (object :a 9)
+                           (object :a 4) (object :a 2)])) "object sort!")
 
   (ensure (s/eq? [[1 2 3] [4 5 6] [7 8]]
                  (s/partition 3 [1 2 3 4 5 6 7 8])) "partition")
@@ -444,7 +445,7 @@
             (and (objectSet? obj)
                  (= 3 (n# obj)))) "object,Set")
 
-  (ensure (let [obj #[:a 1 :b 2]]
+  (ensure (let [obj {:a 1 :b 2}]
             (and (objectMap? obj)
                  (= 2 (n# obj))
                  (= 1 (.get obj :a))
@@ -465,11 +466,11 @@
                           b (inc a)
                           c nil] (+ a b c))) "maybe monad->nil")
 
-  (ensure (s/eq? [5,{:value 5 :log ["mult3(1)" "add2(3)"]}]
+  (ensure (s/eq? [5,(object :value 5 :log ["mult3(1)" "add2(3)"])]
                  ((domonad s/m-state
                            [c1 (exlog mult3 "mult3")
                             c2 (exlog add2 "add2")]
-                           c2) {:value 1 :log []})) "state monad")
+                           c2) (object :value 1 :log []))) "state monad")
 
   (ensure (= 3 (std/run-cont
                  (domonad std/m-continuation

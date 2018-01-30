@@ -5,6 +5,7 @@
 ;; By using this software in any fashion, you are agreeing to be bound by
 ;; the terms of this license.
 ;; You must not remove this notice, or any other, from this software.
+
 (ns ^{:doc "Kirby's standard core library."
       :author "Kenneth Leung"}
 
@@ -190,14 +191,14 @@
   `(_andp_* ~@(map* (lambda* [x] `(> ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro values "" [obj] `(Object.values ~obj))
+(defmacro values "" [obj] `(Array.from (.values ~obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro keys "" [obj] `(Object.keys ~obj))
+(defmacro keys "" [obj] `(Array.from (.keys ~obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro properties "" [obj]
-  `(Object.getOwnPropertyNames ~obj))
+(defmacro properties "" [obj] `(Object.getOwnPropertyNames ~obj))
+(defmacro enumerables "" [obj] `(Object.keys ~obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro assert "" [tst & msgs] `(if ~tst true (raise! ~@msgs)))
@@ -258,11 +259,9 @@
 (defmacro triple? "" [coll] `(= 3 (n# ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
 (defmacro loop "" [bindings & more]
-  (let*
-    [es (evens* bindings)
-     os (odds* bindings)]
+  (let* [es (evens* bindings)
+         os (odds* bindings)]
     `((fn []
         (var _x_ nil recur nil
              _f_ (fn [~@es] ~@more) _r_ _f_)
@@ -280,9 +279,9 @@
 (defmacro join "" [sep coll] `(.join ~coll ~sep))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro do-with "" [binding & xs]
-  (let* [f (nth* binding 0)]
-    `(let [~f ~(nth* binding 1)] ~@xs ~f)))
+(defmacro do-with "" [bindings & xs]
+  (let* [f (nth* bindings 0)]
+    `(let [~f ~(nth* bindings 1)] ~@xs ~f)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->false "" [&xs]
@@ -311,10 +310,10 @@
 (defmacro dec "" [x] `(-1 ~x))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro dotimes "" [binding &xs]
+(defmacro dotimes "" [bindings &xs]
   (let* [_t (gensym*)
-         b1 (first* binding)]
-    `(for [~b1 0 ~_t ~(nth* binding 1)
+         b1 (first* bindings)]
+    `(for [~b1 0 ~_t ~(nth* bindings 1)
            :while (< ~b1 ~_t) :recur (+1 ~b1)] ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -382,46 +381,46 @@
          (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro if-some+ "" [binding then & [else]]
+(defmacro if-some+ "" [bindings then & [else]]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst]
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst]
        (if (> (n# ~tst) 0) ~then ~else))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro if-some "" [binding then & [else]]
+(defmacro if-some "" [bindings then & [else]]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst]
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst]
        (if (or (undef? ~tst)
                (nil? ~tst)) ~else ~then))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro if-let "" [binding then & [else]]
+(defmacro if-let "" [bindings then & [else]]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst] (if ~tst ~then ~else))))
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst] (if ~tst ~then ~else))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro when-some+ "" [binding &xs]
+(defmacro when-some+ "" [bindings &xs]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst]
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst]
        (when (> (n# ~tst) 0) ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro when-some "" [binding &xs]
+(defmacro when-some "" [bindings &xs]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst]
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst]
        (when-not (or (undef? ~tst)
                      (nil? ~tst)) ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro when-let "" [binding &xs]
+(defmacro when-let "" [bindings &xs]
   (let* [tst (gensym*)]
-    `(let [~tst ~(nth* binding 1)
-           ~(first* binding) ~tst] (when ~tst ~@xs))))
+    `(let [~tst ~(nth* bindings 1)
+           ~(first* bindings) ~tst] (when ~tst ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro doto "" [target & xs]
@@ -470,12 +469,23 @@
 (defmacro each "" [func coll] `(.forEach ~coll ~func))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro each-key "" [func obj]
+(defmacro each-property "" [func obj]
   (let* [t (gensym*)]
     `(let [~t ~obj]
-       (each (fn [e]
-               (~func (nth e 1) (nth e 0)))
-             (Object.entries ~t)))))
+       (each (fn [p] (~func (get ~t p) p)) (properties ~t)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro each-enumerable "" [func obj]
+  (let* [t (gensym*)]
+    `(let [~t ~obj]
+       (each (fn [p] (~func (get ~t p) p)) (enumerables ~t)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro each-key "" [func obj]
+  (let* [t (gensym*) f (gensym*)]
+    `(let [~t ~obj ~f ~func]
+       (if (kirbystdlibref/object? ~t)
+         (each-enumerable ~f ~t) (each ~f ~t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro dosync "" [&exprs] `(do ~@exprs))
@@ -494,7 +504,7 @@
 
   `(do (var~ bind unit zero plus)
        (let [~@operations]
-         (hashmap
+         (hash-map
            :bind bind :unit unit :zero zero :plus plus))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -591,7 +601,9 @@
   (fn [k v]
     (cond (fn? v)
           (set! v "native-fn")
-          (object? v)
+          (or (objectMap? v)
+              (object? v)
+              (objectSet? v))
           (if (contains? cache v)
             (undef! v)
             (conj! cache v))) v))
@@ -682,15 +694,17 @@
 
   ^Any
   [obj prop & [own?]]
-  (set! own? (opt?? own? true))
-  (if (or (string? prop)
-          (number? prop))
-    (if (and own?
-             (string? prop)
-             (not (obj.hasOwnProperty prop)))
-      undefined
-      (raw# "obj[prop]"))
-    undefined))
+  (if (objectMap? obj)
+    (.get obj prop)
+    (do (set! own? (opt?? own? true))
+        (if (or (string? prop)
+                (number? prop))
+          (if (and own?
+                   (string? prop)
+                   (not (obj.hasOwnProperty prop)))
+            undefined
+            (raw# "obj[prop]"))
+          undefined))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn prn
@@ -838,8 +852,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword->symbol
   "Convert a Keyword to Symbol" ^Symbol [k]
-  (var s (new Symbol k.value))
-  (assoc! s
+  (var s (new Symbol (str k)))
+  (assign! s
           :source k.source
           :line  k.line
           :column k.column) s)
@@ -874,10 +888,18 @@
   (do->nil (if (array? v) (.splice v 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resetMap! "" [obj]
+  (do->nil (if (objectMap? obj) (.clear obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn resetSet! "" [obj]
+  (do->nil (if (objectSet? obj) (.clear obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resetObject! "" [obj]
   (do->nil
     (if (object? obj)
-      (each #(delete! obj %) (keys obj)))))
+      (each #(delete! obj %) (properties obj)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn sort!
@@ -937,13 +959,17 @@
     (number? obj) :number
     (array? obj) :array
     (object? obj) :object
+    (objectSet? obj) :objectSet
+    (objectMap? obj) :objectMap
     :else
     (raise! "Unknown type [" (type obj) "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn complex?
   "True if x is an array
-  or js object." [x] (or (array? x) (object? x)))
+  or js object." [x] (or (array? x)
+                         (object? x)
+                         (objectMap? x) (objectSet? x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn simple? "True if x is a
@@ -1014,13 +1040,13 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Obj "" [m]
-  (var ret {})
+  (var ret (object ))
   (var~ k v)
   (for [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
     (set! k (.@i m)
           v (.@+i m))
-    (assoc! ret (str k) v)) ret)
+    (assign! ret (str k) v)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "True if both are equal" [a b]
@@ -1028,7 +1054,7 @@
   (cond
     (and (map? a) (map? b)
          (= (alen a) (alen b)))
-    (eq? (map2Obj a) (map2Obj b))
+    (eq? (dict2Map a) (dict2Obj b))
 
     (and (obj? a) (obj? b)
          (= (alen a) (alen b)))
@@ -1060,7 +1086,7 @@
     (and (object? a)
          (object? b)
          (= (n# a) (n# b)))
-    (do (for [i 0 ks (keys a) sz (n# ks)
+    (do (for [i 0 ks (Object.keys a) sz (n# ks)
               :while (and ok? (< i sz)) :recur (+1 i)]
           (set! k (.@i ks))
           (when-not (eq? (get a k)
@@ -1087,17 +1113,17 @@
   ^Array [type coll]
   (case type
     :vector
-    (assoc! coll :____vec #t)
+    (assign! coll :____vec #t)
     :list
-    (assoc! coll :____list #t)
+    (assign! coll :____list #t)
     :set
-    (assoc! coll :____set #t)
+    (assign! coll :____set #t)
     :dict
-    (assoc! coll :____dict #t)
+    (assign! coll :____dict #t)
     :obj
-    (assoc! coll :____obj #t)
+    (assign! coll :____obj #t)
     :map
-    (assoc! coll :____map #t)) coll)
+    (assign! coll :____map #t)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
@@ -1121,7 +1147,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" ^Array [&xs] (assoc! xs :____list #t) xs)
+  "Create a List" ^Array [&xs] (assign! xs :____list #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
@@ -1129,7 +1155,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" ^Array [&xs] (assoc! xs :____vec #t) xs)
+  "Create a Vector" ^Array [&xs] (assign! xs :____vec #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set? "Returns true if a Set"
@@ -1137,7 +1163,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set
-  "Create a Set" ^Array [&xs] (assoc! xs :____set #t) xs)
+  "Create a Set" ^Array [&xs] (assign! xs :____set #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
@@ -1156,7 +1182,7 @@
   ^Array [&xs]
   (if (odd? (alen xs))
     (raise! "Invalid arity for arraymap"))
-  (assoc! xs :____map #t) xs)
+  (assign! xs :____map #t) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object "Create a new js object"
@@ -1200,7 +1226,7 @@
             (objectSet? coll))
       (.-size coll)
       (alen (if (or (string? coll)
-                    (array? coll)) coll (keys coll)))) 0))
+                    (array? coll)) coll (Object.keys coll)))) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn concat* "Add many to this collection"
@@ -1267,11 +1293,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn zipmap "Returns an object with the
              keys mapped to the corresponding vals"
-  ^Object [keys vals]
+  ^Map [keys vals]
   (var cz (if (< (alen keys)
                  (alen vals))
             (alen keys) (alen vals))
-       ret {})
+       ret (new Map))
   (for [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret $(.@i keys) (.@i vals))) ret)
@@ -1279,7 +1305,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn extendAttr "" ^Object [obj attr & [flags]]
   (set! flags (opt?? flags
-                   {:enumerable #f :writable #t}))
+                   (object :enumerable #f :writable #t)))
   (Object.defineProperty obj attr flags) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1306,19 +1332,27 @@
       (Array.prototype.slice.call coll))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn assoc! "" ^Object [mmap & xs]
-  (when mmap
+(defn assoc! "" ^Any [obj & xs]
+  (var~ k v)
+  (when obj
     (for [i 0 sz (n# xs)
           :while (< i sz) :recur (+2 i)]
-      ;the following assoc!
-      ;will be compiled out
-      (assoc! mmap (.@i xs) (.@+i xs)))) mmap)
+      (set! k (.@i xs)
+            v (.@+i xs))
+      (cond
+        (objectMap? obj) (.set obj k v)
+        (object? obj) (raw# "obj[k]=v")))) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dissoc! "" ^Object [mmap & xs]
-  (when mmap
-    (doseq [n xs]
-      (delete! mmap n))) mmap)
+(defn dissoc! "" ^Any [obj & xs]
+  (var~ k)
+  (when obj
+    (for [i 0 sz (n# xs)
+          :while (< i sz) :recur (+1 i)]
+      (set! k (.@i xs))
+      (cond
+        (objectMap? obj) (.delete obj k)
+        (object? obj) (raw# "delete obj[k]")))) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn truthy? "LISP truthy" [a] (not (falsy? a)))
@@ -1462,12 +1496,12 @@
     [(slice coll 0) []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn select-keys "Get a subset of keys" ^Object [coll keys]
+(defn select-keys "Get a subset of keys" ^Map [coll keys]
   (reduce
     (fn [acc n]
       (assoc! acc
-           (str n)
-           (get coll (str n))) acc) {} (seq keys)))
+              n
+              (.get coll n))) (new Map) (seq keys)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doUpdateIn! "" [coll n func args err]
@@ -1475,7 +1509,7 @@
              (number? n)
              (if (and (array? coll)
                       (< n (alen coll))) (nth coll n) (err n))
-             :else (get coll n))
+             :else (.get coll n))
        v (apply func this (cons cur args)))
   (assoc! coll n v))
 
@@ -1488,7 +1522,7 @@ and any supplied args and return the new value, and returns a new
 nested structure.  If any levels do not exist, hash-maps will be
 created."
 
-  ^Any [coll keys func & xs]
+  ^Map [coll keys func & xs]
 
   (var err #(raise! "update-in! failed, bad nested keys: " %))
   (var root coll
@@ -1505,9 +1539,9 @@ created."
         (err n)
         (set! root (nth root n)))
       :else
-      (do (set! m (get root n))
-          (when (undef? m) (set! m {}) (assoc! root n m))
-          (if-not (object? m) (err n))
+      (do (set! m (.get root n))
+          (when (undef? m) (set! m (new Map)) (assoc! root n m))
+          (if-not (objectMap? m) (err n))
           (set! root m))))
   coll)
 
@@ -1528,21 +1562,19 @@ created."
       (number? n)
       (if-not (and (array? root)
                    (< n (alen root)))
-        (do (set! ret nil)
-            (console.log "sdfdsgfdsgdsgd")
-            (break-out-of-loop!))
+        (do->break! (set! ret nil))
         (set! root (nth root n)
               ret root))
       :else
-      (do (set! root (get root n)
+      (do (set! root (.get root n)
                 ret root)))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- merge! "" [base m]
-  (var ret (or base {})
-       src (or m {}))
+  (var ret (or base (new Map))
+       src (or m (new Map)))
   (each-key (fn [v k]
-              (set-in! ret k v)) src) ret)
+              (assoc! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn merge
@@ -1551,7 +1583,7 @@ created."
 the first.  If a key occurs in more than one map, the mapping from
 the latter (left-to-right) will be the mapping in the result."
 
-  [&maps] (reduce (fn [acc n] (merge! acc n)) {} maps))
+  [&maps] (reduce (fn [acc n] (merge! acc n)) (new Map) maps))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fillArray "" [len v]
@@ -1644,7 +1676,7 @@ the latter (left-to-right) will be the mapping in the result."
 (defn peekNSP "" [] (nth (deref *ns-cache*) 0))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn *ns* "" [] (if-some [n (peekNSP)] (.-id n)))
+(defn *ns* "" [] (if-some [n (peekNSP)] (get n :id)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

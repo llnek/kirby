@@ -62,11 +62,11 @@
   (std/println "Watching" cwd "for file changes...")
   (watch/watchTree
     cwd
-    {:ignoreDirectoryPattern #/node_modules/
-     :ignoreDotFiles true
-     :filter (fn [f stat]
-               (or (ends? f ".ky")
-                   (.isDirectory stat)))}
+    (object :ignoreDirectoryPattern #/node_modules/
+            :ignoreDotFiles true
+            :filter (fn [f stat]
+                      (or (ends? f ".ky")
+                          (.isDirectory stat))))
     (fn [f curr prev]
       (cond
         (and (object? f)
@@ -80,7 +80,7 @@
             ;;f is a new file or changed
           (cp/spawn "bin/kirby.js"
                     [(f.slice (+1 (alen cwd)))]
-                    {:stdio "inherit"}))))) nil)
+                    (object :stdio "inherit")))))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pcli "" ^Boolean [gopt]

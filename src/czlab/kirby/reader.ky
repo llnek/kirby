@@ -26,11 +26,11 @@
 (deftype Token []
   ""
   (constructor "" [source line column value]
-    (assoc! this
-            :source source
-            :value value
-            :line line
-            :column column))
+    (assign! this
+             :source source
+             :value value
+             :line line
+             :column column))
   (toString "" [] (.-value this)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -38,7 +38,7 @@
   ^Token [source line col chunk] (new Token source line col chunk))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const REGEX {
+(const REGEX (object
   id #/^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/
   id2 #/^[*\-][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]+$/
   float #/^[-+]?[0-9]+\.[0-9]+$/
@@ -59,7 +59,7 @@
   less #/</g
   greater #/>/g
   star #/\*/g
-  wspace #/\s/})
+  wspace #/\s/ ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- REPLACERS
@@ -284,11 +284,13 @@
 (defn- copyTokenData "Attach source level information
                      to the node"
   ^Any [token node]
-  (if (or (object? node)(array? node))
-    (assoc! node
-            :source token.source
-            :line token.line
-            :column token.column)) node)
+  (if (or (object? node)
+          (objectMap? node)
+          (objectSet? node)(array? node))
+    (assign! node
+             :source token.source
+             :line token.line
+             :column token.column)) node)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readAtom "Process an atom"
@@ -356,19 +358,19 @@
   (into! :vector (readBlock tokens "[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readMap "Process a Hashmap"
+(defn- readObjectMap "Process a ObjectMap"
   ^Array [tokens]
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readObjectSet "Process a Set"
+(defn- readObjectSet "Process a ObjectSet"
   ^Array [tokens]
   (into! :set (readBlock tokens "#{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readObjectMap "Process a Map"
+(defn- readObject "Process a Object"
   ^Array [tokens]
-  (into! :dict (readBlock tokens "#[" "]")))
+  (into! :obj (readBlock tokens "#[" "]")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
@@ -381,25 +383,25 @@
   (copyTokenData t ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *spec-tokens* {
-  "'" #(['quote (read* %)])
-  "`" #(['syntax-quote (read* %)])
-  "~" #(['unquote (read* %)])
-  "~@" #(['splice-unquote (read* %)])
-  "^" #(let [tmp (read* %)]
-         ['with-meta (read* %) tmp])
-  "@" #(['deref (read* %)])
-  "$" #(do-with [y (read* %)]
-         (var x 'str)
-         (if (> (alen y) 1)
-           (set! y [x y]) (y.unshift x)))
-  "#" #(['lambda (read* %)])
-  "[" [#(readVector %)]
-  "(" [#(readList %)]
-  "#{" [#(readObjectSet %)]
-  "#[" [#(readObjectMap %)]
-  "{" [#(readMap %)]
-})
+(const- *spec-tokens*
+        (object
+          "'" #(['quote (read* %)])
+          "`" #(['syntax-quote (read* %)])
+          "~" #(['unquote (read* %)])
+          "~@" #(['splice-unquote (read* %)])
+          "^" #(let [tmp (read* %)]
+                 ['with-meta (read* %) tmp])
+          "@" #(['deref (read* %)])
+          "$" #(do-with [y (read* %)]
+                 (var x 'str)
+                 (if (> (alen y) 1)
+                   (set! y [x y]) (y.unshift x)))
+          "#" #(['lambda (read* %)])
+          "[" [#(readVector %)]
+          "(" [#(readList %)]
+          "#{" [#(readObjectSet %)]
+          "#[" [#(readObject %)]
+          "{" [#(readObjectMap %)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- read* "Inner parser routine"
