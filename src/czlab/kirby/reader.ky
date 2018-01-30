@@ -368,11 +368,6 @@
   (into! :set (readBlock tokens "#{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- readObject "Process a Object"
-  ^Array [tokens]
-  (into! :obj (readBlock tokens "#[" "]")))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
                   then continue to parse"
   ^Any [tokens func]
@@ -400,7 +395,6 @@
           "[" [#(readVector %)]
           "(" [#(readList %)]
           "#{" [#(readObjectSet %)]
-          "#[" [#(readObject %)]
           "{" [#(readObjectMap %)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

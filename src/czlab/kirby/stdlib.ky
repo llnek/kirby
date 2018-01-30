@@ -649,8 +649,6 @@
              (into :map coll)
              (obj? coll)
              (into :obj coll)
-             (dict? coll)
-             (into :dict coll)
              (set? coll)
              (into :set coll)
              (nichts? coll)
@@ -948,7 +946,6 @@
     (list? obj) :list
     (map? obj) :map
     (obj? obj) :obj
-    (dict? obj) :dict
     (set? obj) :set
     (nil? obj) :null
     (true? obj) :true
@@ -985,7 +982,6 @@
       (list? obj)
       (map? obj)
       (obj? obj)
-      (dict? obj)
       (set? obj)
       (false? obj)
       (true? obj)
@@ -997,7 +993,6 @@
                   implements Sequential"
   [arr] (and (array? arr)
              (not (set? arr))
-             (not (dict? arr))
              (not (obj? arr))
              (not (map? arr))))
 
@@ -1020,7 +1015,7 @@
   ok?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- dict2Map "" [m]
+(defn- map2Map "" [m]
   (var ret (new Map))
   (for [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
@@ -1053,15 +1048,11 @@
   (cond
     (and (map? a) (map? b)
          (= (alen a) (alen b)))
-    (eq? (dict2Map a) (dict2Obj b))
+    (eq? (map2Map a) (map2Map b))
 
     (and (obj? a) (obj? b)
          (= (alen a) (alen b)))
     (eq? (map2Obj a) (map2Obj b))
-
-    (and (dict? a) (dict? b)
-         (= (alen a) (alen b)))
-    (eqMaps? (dict2Map a) (dict2Map b))
 
     (and (array? a) (array? b)
          (= (alen a) (alen b)))
@@ -1121,8 +1112,6 @@
     (assign! coll :____list #t)
     :set
     (assign! coll :____set #t)
-    :dict
-    (assign! coll :____dict #t)
     :obj
     (assign! coll :____obj #t)
     :map
@@ -1140,7 +1129,6 @@
   (and (array? obj)
        (not (vector? obj))
        (not (set? obj))
-       (not (dict? obj))
        (not (obj? obj))
        (not (map? obj)) (not (list? obj))))
 
@@ -1171,10 +1159,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
   [obj] (and (array? obj) obj.____map))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn dict? "Returns true if a Hashmap"
-  [obj] (and (array? obj) obj.____dict))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn obj? "Returns true if a Object"

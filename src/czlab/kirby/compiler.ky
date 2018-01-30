@@ -19,7 +19,7 @@
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
                      unquote-str quote-str
-                     not-empty conj! list? dict? obj?
+                     not-empty conj! list? obj?
                      difference carve
                      gensym count pop!
                      symbol keyword symbol? keyword?]]
@@ -317,7 +317,6 @@
         (obj? ast) "object"
         (vector? ast) "vec"
         (set? ast) "hash-set"
-        (dict? ast) "hash-map"
         (list? ast) "list"
         (and (array? ast)
              (not (array? (1st ast)))) $(1st ast) :else ""))
