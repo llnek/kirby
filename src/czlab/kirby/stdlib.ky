@@ -17,20 +17,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty?
   "Returns true if coll has no items"
-  [coll] `(= 0 (STAR_kirbyref_STAR/count ~coll)))
+  [coll] `(= 0 (kirbystdlibref/count ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro starts?
+(defmacro starts-with?
   "Determines whether a string begins with the characters of a specified string, returning true or false as appropriate."
   [s arg] `(.startsWith ~s ~arg))
+(defmacro starts? "" [s arg] `(.startsWith ~s ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro ends?
+(defmacro ends-with?
   "Determines whether a string ends with the characters of a specified string, returning true or false as appropriate."
   [s arg] `(.endsWith ~s ~arg))
+(defmacro ends? "" [s arg] `(.endsWith ~s ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro n# "Refer to count." [coll] `(STAR_kirbyref_STAR/count ~coll))
+(defmacro n# "Refer to count." [coll] `(kirbystdlibref/count ~coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro 1st "Returns the first item in the collection." [x] `(first ~x))
@@ -115,7 +117,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro even?
   "True if all args are even." [&xs]
-  `(_andp_* ~@(map* (lambda* [x] `(= 0 (STAR_kirbyref_STAR/modulo ~x 2))) xs)))
+  `(_andp_* ~@(map* (lambda* [x] `(= 0 (kirbystdlibref/modulo ~x 2))) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro odd?
@@ -581,7 +583,7 @@ test, if not, yields else"
   "Evaluates x then calls all of the methods and functions with the
 value of x supplied at the front of the given arguments.  The forms
 are evaluated in order.  Returns x.
- (doto (new Map) (.set "a" 1) (.set "b" 2))"
+ (doto (new Map) (.set \"a\" 1) (.set \"b\" 2))"
 
   [target & xs]
   (let* [v (gensym*)]
@@ -687,7 +689,7 @@ one arg, returns the concatenation of the str values of the args."
   [func obj]
   (let* [t (gensym*) f (gensym*)]
     `(let [~t ~obj ~f ~func]
-       (if (STAR_kirbyref_STAR/object? ~t)
+       (if (kirbystdlibref/object? ~t)
          (each-enumerable ~f ~t) (each ~f ~t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -746,7 +748,7 @@ one arg, returns the concatenation of the str values of the args."
 
   [monad steps body]
   `((fn [{:keys [bind unit zero] :as mo}]
-      (var ret #(if (and (STAR_kirbyref_STAR/nichts? %)
+      (var ret #(if (and (kirbystdlibref/nichts? %)
                          (def? zero)) zero (unit %)))
       (dobind bind ~steps (ret ~body))) ~monad))
 
@@ -758,15 +760,15 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensure
-  "" [form msg] `(STAR_kirbyref_STAR/ensureTest ~form ~msg))
+  "" [form msg] `(kirbystdlibref/ensureTest ~form ~msg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ensureThrown
   "" [expected form msg]
   `(try ~form
-        (STAR_kirbyref_STAR/ensureTestThrown ~expected nil ~msg)
+        (kirbystdlibref/ensureTestThrown ~expected nil ~msg)
         (catch e
-          (STAR_kirbyref_STAR/ensureTestThrown ~expected e ~msg))))
+          (kirbystdlibref/ensureTestThrown ~expected e ~msg))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro assert*
@@ -850,10 +852,10 @@ one arg, returns the concatenation of the str values of the args."
     (nichts? coll)
     (apply conj! this (concat [[]] xs))
     (array? coll)
-    (if (list? c)
+    (if (list? coll)
       (->> (xs.reverse)
-           (c.unshift.apply c))
-      (c.push.apply c xs))
+           (coll.unshift.apply coll))
+      (coll.push.apply coll xs))
     (objectSet? coll)
     (doseq [x xs] (.add coll x))) coll)
 
@@ -896,29 +898,34 @@ one arg, returns the concatenation of the str values of the args."
   and the altered collection"
 
   ^Array [coll]
-  (var r (if (list? coll)
-           (coll.shift) (coll.pop))) [r coll])
+  (when (array? coll)
+    (var r (if (list? coll)
+             (coll.shift) (coll.pop))) [r coll]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn pop "Like pop! but returns a new collection"
+(defn pop
+  "Like pop! but returns a new collection"
   ^Array [coll]
-  (var r (if (list? coll)
-           (1st coll) (last coll)))
-  [r (if (list? coll)
-       (coll.slice 1) (coll.slice 0 -1))])
+  (when (array? coll)
+    (var r (if (list? coll)
+             (1st coll) (last coll)))
+    [r (if (list? coll)
+         (coll.slice 1) (coll.slice 0 -1))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn wrap-str
-  "Prepend and append
-  strings to the object." [obj start end] (str start obj end))
+
+  "Prepend and append strings to the object."
+  [obj start end] (str start obj end))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getProp
 
   "If prop is a string, returns the value of
-  this object property, obeying the own? flag.
-  Otherwise, return the value at the index of
-  the array"
+  this object property, obeying the own? flag,
+  unless if object is a Map, returns value of
+  the key. Otherwise, return the value at the
+  index of the array."
 
   ^Any
   [obj prop & [own?]]
@@ -950,7 +957,7 @@ one arg, returns the concatenation of the str values of the args."
   (join " "
         (map (fn [v i]
                (var x (f i v))
-               (-> (opt?? x null)
+               (-> (opt?? x nil)
                    (prn* r? f))) obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -966,47 +973,34 @@ one arg, returns the concatenation of the str values of the args."
   (case (typeid obj)
     :atom
     (wrap-str (func nil obj.value) "(atom " ")")
-    :lambda-arg
-    obj.value
-    :regex-obj
-    obj.value
-    :keyword
-    obj.value
-    :symbol
-    obj.value
+    (:lambda-arg :regex-obj :keyword :symbol)
+    (.-value obj)
     :object
     (-> (reduce (fn [acc [k v]]
                   (var x (func k v))
                   (if-not (undef? x)
-                    (conj! acc
-                           (str (pfx k)
-                                ":" (pfx x)))) acc)
-                [] (seq obj))
+                    (conj! acc (str (pfx k)
+                                    ":" (pfx x)))) acc) [] (seq obj))
         (.join  ",")
         (wrap-str "{" "}"))
-    :vector
-    (parr "[" "]")
     :objectMap
     (-> (reduce (fn [acc [k v]]
                   (var x (func k v))
                   (if-not (undef? x)
-                    (conj! acc
-                           (str (pfx k)
-                                " " (pfx x)))) acc)
-                [] (seq obj))
+                    (conj! acc (str (pfx k)
+                                    " " (pfx x)))) acc) [] (seq obj))
         (.join  " ")
         (wrap-str "{" "}"))
     :objectSet
     (-> (reduce (fn [acc v]
                   (var x (func v v))
                   (if-not (undef? x)
-                    (conj! acc (pfx v))) acc)
-                [] (seq obj))
+                    (conj! acc (pfx v))) acc) [] (seq obj))
         (.join  " ")
         (wrap-str "#{" "}"))
-    :map
-    (parr "{" "}")
-    :obj
+    :vector
+    (parr "[" "]")
+    (:map :obj)
     (parr "{" "}")
     :set
     (parr "#{" "}")
@@ -1051,10 +1045,9 @@ one arg, returns the concatenation of the str values of the args."
   (constructor "" [name]
     (set! this.value name))
   (toString "" []
-    (cond (starts? this.value "::")
-          (str (.-id (peekNSP))
-               "/" (.slice this.value 2))
-          (starts? this.value ":") (.slice this.value 1))))
+    (cond (starts-with? this.value "::")
+          (str (*ns*) "/" (.slice this.value 2))
+          (starts-with? this.value ":") (.slice this.value 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Symbol []
@@ -1559,7 +1552,8 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn cons
   "Returns a new seq where x is the first element and seq is
-  the rest." [x coll] (.concat [x] coll))
+  the rest." [x coll] (when (array? coll)
+                        (.concat [x] coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- gensym-counter (atom 0))
@@ -1700,8 +1694,8 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unquote-str "Removes quotes around a string" ^String [s]
-  (if (and (starts? s "\"")
-           (ends? s "\""))
+  (if (and (starts-with? s "\"")
+           (ends-with? s "\""))
     (do-with [out ""]
       (set! s (s.slice 1 -1))
       (for [i 0 nx "" ch "" sz (count s)
@@ -1894,7 +1888,7 @@ the latter (left-to-right) will be the mapping in the result."
   (var now (new Date)
        results (test)
        sum (n# results)
-       ok (n# (filter #(starts? % "p") results))
+       ok (n# (filter #(starts-with? % "p") results))
        ps (toFixed (percent ok sum)))
   (->> [(.repeat "+" 78)
         title now
