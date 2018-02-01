@@ -23,13 +23,11 @@
 (defmacro starts-with?
   "Determines whether a string begins with the characters of a specified string, returning true or false as appropriate."
   [s arg] `(.startsWith ~s ~arg))
-(defmacro starts? "" [s arg] `(.startsWith ~s ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ends-with?
   "Determines whether a string ends with the characters of a specified string, returning true or false as appropriate."
   [s arg] `(.endsWith ~s ~arg))
-(defmacro ends? "" [s arg] `(.endsWith ~s ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro n# "Refer to count." [coll] `(kirbystdlibref/count ~coll))
@@ -1326,6 +1324,11 @@ one arg, returns the concatenation of the str values of the args."
     (and (objectMap? a)
          (objectMap? b))
     (eqMaps? a b)
+
+
+    (and (objectSet? a)
+         (objectSet? b))
+    (eqSets? a b)
 
     :else
     (= a b)))

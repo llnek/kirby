@@ -79,14 +79,14 @@
   ^String [input]
   (var pfx "" name $(input))
   (when (and name
-             (starts? name "-"))
+             (starts-with? name "-"))
     (set! pfx "-" name (rest name)))
   (if (testid? name)
     (reduce
       (fn [acc x]
         (set! acc
               (acc.replace (1st x) (2nd x)))
-        (if (ends? acc (2nd x)) (acc.slice 0 -1) acc))
+        (if (ends-with? acc (2nd x)) (acc.slice 0 -1) acc))
       (.replace (str pfx name)
                 REGEX.slash ".") REPLACERS)
     (if (= pfx "") name (str pfx name))))
@@ -111,7 +111,7 @@
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
-           (when (and (starts? s "&")
+           (when (and (starts-with? s "&")
                       (not= s "&&")
                       (> (alen s) 1))
              ;split a &more token into
@@ -305,16 +305,16 @@
     (or (REGEX.hex.test tn)
         (REGEX.int.test tn))
     (set! ret (int tn))
-    (and (starts? tn "\"")
-         (ends? tn "\""))
+    (and (starts-with? tn "\"")
+         (ends-with? tn "\""))
     (set! ret (std/unquote-str tn))
-    (starts? tn ":")
+    (starts-with? tn ":")
     (set! ret (keyword tn))
-    (starts? tn "%")
+    (starts-with? tn "%")
     (set! ret (lambdaArg tn))
-    (and (starts? tn "#/")
-         (or (ends? tn "/")
-             (ends? (.slice tn 0 -1) "/")))
+    (and (starts-with? tn "#/")
+         (or (ends-with? tn "/")
+             (ends-with? (.slice tn 0 -1) "/")))
     (set! ret (regexObj tn))
     (or (== tn "nil")
         (== tn "null"))

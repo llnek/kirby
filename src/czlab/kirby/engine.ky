@@ -65,7 +65,7 @@
         (== ev "&")
         (do->break! (assoc! this.data
                             $(.@+i vars) (slice vals i)))
-        (starts? ev "&")
+        (starts-with? ev "&")
         (do->break! (assoc! this.data
                             (rest ev) (slice vals i)))
         :else

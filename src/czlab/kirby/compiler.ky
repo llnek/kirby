@@ -401,8 +401,8 @@
     (set! cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (reader/REGEX.int.test cmd)
-    (if-not (or (starts? cmd "+")
-                (starts? cmd "-"))
+    (if-not (or (starts-with? cmd "+")
+                (starts-with? cmd "-"))
       (set! cmd (str "+" cmd)))
     (set! ast (xfi ast [(symbol (ch@ cmd 0))
                         (2nd ast)
@@ -414,14 +414,14 @@
   (cond
     (== cmd "with-meta")
     (ret.add (tx* (2nd (meta?? ast env)) env))
-    (starts? cmd ".-")
+    (starts-with? cmd ".-")
     (ret.add [(tx* (2nd ast) env)
               "." (tx* (symbol (cmd.slice 2)) env)])
-    (starts? cmd ".@")
-    (do (set! tmp (if (starts? cmd ".@+") [3 #t] [2 #f]))
+    (starts-with? cmd ".@")
+    (do (set! tmp (if (starts-with? cmd ".@+") [3 #t] [2 #f]))
         (ret.add [(tx* (2nd ast) env)
                   "[" (cmd.slice (1st tmp)) (if (2nd tmp) "+1]" "]")]))
-    (starts? cmd ".")
+    (starts-with? cmd ".")
     (do (ret.add [(tx* (2nd ast) env)
                   (tx* (symbol cmd) env) "("])
         (for [n 2 sz (n# ast)
@@ -434,7 +434,7 @@
     (and (or (== cmd "splice-unquote")
              (== cmd "unquote")
              (== cmd "syntax-quote"))
-         (not (starts? (get nsp :id) KBPFX)))
+         (not (starts-with? (get nsp :id) KBPFX)))
     (error! :outside-macro ast)
     :else
     (do (if (pairs? ast)
@@ -538,7 +538,7 @@
   (var lib (str KBSTDLR ".")
        nsp (std/peekNSP))
   (set! cmd $(cmd))
-  (if (and (starts? cmd lib)
+  (if (and (starts-with? cmd lib)
            (== (get nsp :id) KBSTDLIB)) (.slice cmd (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -645,7 +645,7 @@ fn (right-to-left) to the result, etc."
   (assertArity (>= (n# ast) 3) ast)
   (var~ mtd pos n m cn)
   (var ret (node' ast))
-  (var pub? (not (ends? $(1st ast) "-"))
+  (var pub? (not (ends-with? $(1st ast) "-"))
        czname0 (2nd ast)
        czname (tx* czname0 env)
        par (1st (.@2 ast))
@@ -828,7 +828,7 @@ returned if no clause matches."
        cmd $(1st ast)
        keys {}
        pub? (== cmd "def~"))
-  (if (starts? cmd "def")
+  (if (starts-with? cmd "def")
     (set! cmd "var") (set! cmd "let"))
   (for [i 1 x nil s nil sz (n# ast)
         :while (< i sz) :recur (+1 i)]
@@ -861,7 +861,7 @@ returned if no clause matches."
        pub? (or (== cmd "def")
                 (== cmd "const")))
   (var~ rval rc lhs rhs)
-  (set! cmd (if (starts? cmd "const")
+  (set! cmd (if (starts-with? cmd "const")
               "const"
               (if (== cmd "var") "let" "var")))
   ;deal with 1 level destruction
@@ -970,7 +970,7 @@ returned if no clause matches."
        cmd $(1st ast)
        a2 (tx* (2nd ast) env))
   (ret.add
-    (if (ends? cmd "$")
+    (if (ends-with? cmd "$")
       [a2 (cmd.slice 0 -1)] [cmd a2])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1082,7 +1082,7 @@ returned if no clause matches."
   ^{:opcode ["defn" "defn-"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (var pub? (not (ends? $(1st ast) "-"))
+  (var pub? (not (ends-with? $(1st ast) "-"))
        mtd? (== $(1st ast) "method")
        fname0 $(2nd ast)
        fname $(tx* (2nd ast) env)
@@ -1454,7 +1454,7 @@ any finally exprs will be evaluated for their side effects."
   (cond
     (= nsp (str KBPFX "stdlib"))
     nil
-    (starts? nsp KBPFX)
+    (starts-with? nsp KBPFX)
     (conj! ret
            (str "const " KBSTDLR "=std;\n"))
     :else
@@ -1543,8 +1543,8 @@ any finally exprs will be evaluated for their side effects."
   (var s $(2nd ast)
        name (reader/jsid "sf-jscode"))
   (->>
-    (if (and (ends? s "\"")
-             (starts? s "\""))
+    (if (and (ends-with? s "\"")
+             (starts-with? s "\""))
       (s.slice 1 -1) s) (tnodeEx name) (node' ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

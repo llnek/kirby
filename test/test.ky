@@ -35,8 +35,8 @@
 
   (ensure (not (empty? [1])) "not empty?")
   (ensure (empty? []) "empty?")
-  (ensure (starts? "abc" "a") "string starts?")
-  (ensure (ends? "abc" "c") "string ends?")
+  (ensure (starts-with? "abc" "a") "string starts?")
+  (ensure (ends-with? "abc" "c") "string ends?")
   (ensure (= 3 (n# [1 2 3])) "n#")
   (ensure (= 1 (1st [1 2])) "1st")
   (ensure (= 2 (2nd [1 2])) "2nd")
@@ -109,6 +109,8 @@
   (ensure (= 2 (get (cdr [1 2]) 0)) "cdr")
   (ensure (= 2 (second [1 2])) "second")
   (ensure (= 1 (first [1 2])) "first")
+  (ensure (= 2 (_2 [1 2])) "_2")
+  (ensure (= 1 (_1 [1 2])) "_1")
   (ensure (= 1 (car [1 2])) "car")
   (ensure (= 2 (nexth [1 2] 0)) "nexth")
   (ensure (= 3 (nth [1 2 3] 2)) "nth")
@@ -230,8 +232,18 @@
              (when-let [a (= 1 1)]
                (+ 2 2)
                (+ 3 4))) "when-let")
+
+  (ensure (s/eq? #{1 2}
+                 (doto #{1}
+                   (std/conj! 2))) "conj!,set")
+
   (ensure (= 2 (n# (doto []
-                     (std/conj! 1) (std/conj! 2)))) "doto")
+                     (std/conj! 1) (std/conj! 2)))) "doto,conj!")
+
+  (ensure (s/eq? #{1}
+                 (doto #{1 2 3}
+                   (std/disj! 2 3))) "disj!,set")
+
   (ensure (= 2 (1st (map #(inc %) [1 2]))) "map")
   (ensure (= 2 (n# (filter #(even? %) [1 2 8]))) "filter")
   (ensure (= true (some #(odd? %) [1 2 8])) "some")
@@ -290,7 +302,7 @@
   (ensure (let [k (s/keyword "::hello")
                 v $(k)]
             (and (s/keyword? k)
-                 (ends? v "/hello"))) "scoped,keyword,keyword?")
+                 (ends-with? v "/hello"))) "scoped,keyword,keyword?")
 
   (ensure (let [s (std/symbol "hello")
                 v (.-value s)]
@@ -360,7 +372,7 @@
                  (s/zipmap [:a :b :c] [5 6])) "zipmap")
   (ensure (let [g (s/gensym "X")]
             (and (s/symbol? g)
-                 (starts? (.-value g) "X"))) "gensym")
+                 (starts-with? (.-value g) "X"))) "gensym")
   (ensure (= 1 (get (s/carve [1 2] 0 -1) 0)) "carve,a,b")
   (ensure (= 2 (get (s/carve [1 2] 1) 0)) "carve,a")
   (ensure (s/eq? {:a 1 :b 2}
@@ -373,8 +385,8 @@
                (not (s/truthy? false))) "truthy?")
 
   (ensure (let [x (s/quote-str "abc")]
-            (and (starts? x "\"")
-                 (ends? x "\""))) "quote-str")
+            (and (starts-with? x "\"")
+                 (ends-with? x "\""))) "quote-str")
   (ensure (= "abc"
              (s/unquote-str "\"abc\"")) "unquote-str")
   (ensure (= "&lt;&gt;&amp;&quot;&apos;"
@@ -520,9 +532,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
-
 
 
 

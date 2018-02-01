@@ -33,7 +33,7 @@
   (if-not fin
     (error! "No source file")
     (set! fin (path/resolve fin)))
-  (if-not (ends? fin ".ky")
+  (if-not (ends-with? fin ".ky")
     (error! "Source file extension != '.ky'"))
   (if-not fout
     (set! fout (fin.replace #/\.ky$/g ".js")))
@@ -65,7 +65,7 @@
     (object :ignoreDirectoryPattern #/node_modules/
             :ignoreDotFiles true
             :filter (fn [f stat]
-                      (or (ends? f ".ky")
+                      (or (ends-with? f ".ky")
                           (.isDirectory stat))))
     (fn [f curr prev]
       (cond
