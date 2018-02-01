@@ -643,6 +643,11 @@ there are fewer than n."
   [f start coll] `(.reduce ~coll ~f ~start))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro foldl
+  "Refer to reduce"
+  [f start coll] `(reduce ~f ~start ~coll))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro str
 
   "With no args, returns the empty string. With one arg x, returns
@@ -1351,16 +1356,8 @@ one arg, returns the concatenation of the str values of the args."
 (defn into! "Assign a type to this collection"
   ^Array [type coll]
   (case type
-    :vector
-    (assign! coll :____vec #t)
-    :list
-    (assign! coll :____list #t)
-    :set
-    (assign! coll :____set #t)
-    :obj
-    (assign! coll :____obj #t)
-    :map
-    (assign! coll :____map #t)) coll)
+    (:list :set :obj :map :vector)
+    (assign! coll :____typeid type)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
@@ -1379,42 +1376,47 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list? "Returns true if a List"
-  [obj] (and (array? obj) obj.____list))
+  [obj] (and (array? obj)
+             (== obj.____typeid :list)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" ^Array [&xs] (assign! xs :____list #t) xs)
+  "Create a List" ^Array [&xs] (assign! xs :____typeid :list) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
-  [obj] (and (array? obj) obj.____vec))
+  [obj] (and (array? obj)
+             (== obj.____typeid :vector)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" ^Array [&xs] (assign! xs :____vec #t) xs)
+  "Create a Vector" ^Array [&xs] (assign! xs :____typeid :vector) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set? "Returns true if a Set"
-  [obj] (and (array? obj) obj.____set))
+  [obj] (and (array? obj)
+             (== obj.____typeid :set)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set
-  "Create a Set" ^Array [&xs] (assign! xs :____set #t) xs)
+  "Create a Set" ^Array [&xs] (assign! xs :____typeid :set) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
-  [obj] (and (array? obj) obj.____map))
+  [obj] (and (array? obj)
+             (== obj.____typeid :map)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn obj? "Returns true if a Object"
-  [obj] (and (array? obj) obj.____obj))
+  [obj] (and (array? obj)
+             (== obj.____typeid :obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn arraymap "Create a new array map"
   ^Array [&xs]
   (if (odd? (alen xs))
     (raise! "Invalid arity for arraymap"))
-  (assign! xs :____map #t) xs)
+  (assign! xs :____typeid :map) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object "Create a new js object"
