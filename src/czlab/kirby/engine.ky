@@ -20,7 +20,7 @@
                      atom? list? map? some?
                      LambdaArg Keyword println
                      nichts? not-empty object?
-                     Symbol into! prn obj?
+                     Symbol into! prn obj? set?
                      Atom symbol swap!
                      atom vector vector?
                      typeid sequential?
@@ -230,10 +230,9 @@
   (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *runtime-funcs*
-        (object
+(const- *runtime-funcs* {
+
   "macroexpand*" #(println (std/prn (expand?? %1 (or %2 g_env))))
-  "assert*" (fn [k msg] (if-not k (raise! msg)))
   "macros*" (fn [&[fout]]
               (var s (std/prn CACHE))
               (if fout (spit fout s) (println s)))
@@ -278,9 +277,11 @@
   "object*" std/object
   "vector*" std/vector
   "list*" std/list
-  "hashmap*" std/hashmap
-  "values*" #(Object.values %)
-  "keys*" #(Object.keys %)
+  "hashmap*" (fn [&xs]
+               (apply std/assoc!
+                      this (std/concat [{}] xs)))
+  "values*" #(Array.from (.values %))
+  "keys*" #(Array.from (.keys %))
   "get*" #(get %1 %2)
   "not*" #(if % #f #t)
   "dec*" #(-1 %)
@@ -311,7 +312,7 @@
   "with-meta*" withMeta
   "js-eval*" evalJS
   "js*" invokeJS
-  "type*" #(typeof %) ))
+  "type*" #(typeof %) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- CACHE {})
@@ -412,6 +413,13 @@
     (into! :list (map #(compute % env) ast))
     (vector? ast)
     (into! :vector (map #(compute % env) ast))
+    (obj? ast)
+    (do-with [m (object)]
+      (for [i 0 sz (n# ast)
+            :while (< i sz) :recur (+2 i)]
+        (assoc! m
+                (compute (.@i ast) env)
+                (compute (.@+i ast) env))))
     (map? ast)
     (do-with [m {}]
       (for [i 0 sz (n# ast)
@@ -419,6 +427,11 @@
         (assoc! m
                  (compute (.@i ast) env)
                  (compute (.@+i ast) env))))
+    (set? ast)
+    (do-with [m #{}]
+      (for [i 0 sz (n# ast)
+            :while (< i sz) :recur (+1 i)]
+        (conj! m (compute (.@i ast) env))))
     :else ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -486,18 +499,22 @@
 (defn- form* "" ^Any [ast env]
   (var el (eval* ast env))
   (cond
+    ;if a data structure just return it
     (or (vector? ast) (obj? ast)
-        (map? ast) (list? ast)) (atom el)
+        (set? ast)(map? ast) (list? ast)) (atom el)
     (array? el)
     (let [f (1st el)
           c (if (fn? f) f.____code)]
       (cond
+        ;is it a wrapper only, look for the wrapped sexpr
         (array? c)
-        [(2nd c)
-         (new LEXEnv (3rd c) (1st c) (rest el))]
+        [(2nd c) (new LEXEnv (3rd c) (1st c) (rest el))]
+        ;a raw function, run it
         (fn? f)
         (atom (apply f this (rest el)))
+        ;no idea
         :else (atom el)))
+    ;no idea
     :else (atom el)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -507,8 +524,8 @@
   (doto #(compute fbody (new LEXEnv env fargs ____args))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *spec-forms*
-        (object
+(const- *spec-forms* {
+
   "def*" (fn [a e] (atom (e.set (.@1 a)
                                 (compute (.@2 a) e))))
   "and*" #(atom (doAND %1 %2))
@@ -522,7 +539,7 @@
           (eval* (a.slice 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
-  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) ))
+  "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]
@@ -532,7 +549,7 @@
              (var cmd $(g1 ast)
                   fc (get *spec-forms* cmd)
                   res (cond
-                        (not (arr? ast))
+                        (not (array? ast))
                         (atom (eval* ast env))
                         (empty? ast)
                         (atom ast)
