@@ -230,7 +230,7 @@
   (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(const- *runtime-funcs* {
+(const- *intrinsics* {
 
   "macroexpand*" #(println (std/prn (expand?? %1 (or %2 g_env))))
   "macros*" (fn [&[fout]]
@@ -567,7 +567,7 @@
 (defn newEnv "Create a new interpreter environment" ^LEXEnv []
   (do-with [ret (new LEXEnv)]
     (each-key (fn [v k]
-                (ret.set (symbol k) v)) *runtime-funcs*)))
+                (ret.set (symbol k) v)) *intrinsics*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runRepl "Start a interactive session" []
