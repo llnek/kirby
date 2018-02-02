@@ -596,6 +596,12 @@ are evaluated in order.  Returns x.
   [f coll] `(.map ~coll ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro find
+  "Returns the value of the first element in the array
+  that satisfies the predicate. Otherwise undefined is returned."
+  [p coll] `(.find ~coll ~p))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro filter
   "Creates a new array with all elements that
   pass the test implemented by the provided predicate."
@@ -1151,7 +1157,7 @@ one arg, returns the concatenation of the str values of the args."
   (if (fn? comp) (.sort coll comp) (.sort comp)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn find
+(defn XXfind
 
   "Returns the value of the first element
   in the collection that satisfies the

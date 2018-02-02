@@ -435,7 +435,9 @@
   (ensure (s/eq? [1 2 "3"]
                  (quote [1 2 "3"])) "quote")
 
-  (ensure (= 3 (s/find [2 4 8 3 6 7] #(odd? %))) "find")
+  (ensure (= 3 (find #(odd? %)
+                     [2 4 8 3 6 7])) "find")
+
   (ensure (s/eq? [2 3 4 9] (s/sort! [3 9 4 2])) "simple sort!")
   (ensure (s/eq? [(object :a 2)
                   (object :a 3)
