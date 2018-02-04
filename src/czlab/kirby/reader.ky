@@ -111,13 +111,16 @@
        toke
        (fn [ln col s s?]
          (when (opt?? s? (not-empty s))
-           (when (and (starts-with? s "&")
-                      (not= s "&&")
-                      (> (alen s) 1))
-             ;split a &more token into
-             ;2 tokens & and more
-             (conj! tree (mkToken fname ln col "&"))
-             (set! s (rest s)))
+           (cond
+             (and (starts-with? s "&")
+                  (not= s "&&")
+                  (> (alen s) 1))
+             (do ;split a &more token into
+                 ;2 tokens & and more
+                 (conj! tree (mkToken fname ln col "&"))
+                 (set! s (rest s)))
+             (starts-with? s "@@")
+             (set! s (str "this." (.slice s 2))))
            (conj! tree (mkToken fname ln col s))) ""))
   ;scan through the entire source string
   (while (< pos len)
@@ -187,6 +190,10 @@
       (do (if (== ch "\n") (set! ch "\\n"))
           (if (== ch "\\") (set! esc? #t))
           (+= token ch))
+      (and (== ch "@")
+           (== nx "@")(empty? token))
+      (do (set! tline line tcol col)
+          (+= token "@@") (++ pos))
       (or (== ch "'") (== ch "`")
           (== ch "$") (== ch "@") (== ch "^"))
       (if (and (empty? token)
