@@ -401,12 +401,6 @@ therein. Acts as a recur target."
   `(do ~@xs (break-out-of-loop!)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro inc "Returns a number one greater than x." [x] `(+1 ~x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro dec "Returns a number one lesser than x." [x] `(-1 ~x))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro dotimes
   "bindings => name n
  Repeatedly executes body (presumably for side-effects) with name
@@ -1872,6 +1866,12 @@ the latter (left-to-right) will be the mapping in the result."
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn inc "Returns a number one greater than x." [x] (+1 x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn dec "Returns a number one lesser than x." [x] (-1 x))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn percent "" ^Number [numerator denominator]
   (* 100.0 (div numerator denominator)))
 
@@ -1879,6 +1879,11 @@ the latter (left-to-right) will be the mapping in the result."
 (defn toFixed "" ^String [num digits]
   (set! digits (opt?? digits 2))
   (.toFixed (Number num) digits))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mapcat "" [func coll]
+  (var ret [])
+  (ret.concat.apply ret (map func coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;testing stuff
@@ -1939,7 +1944,5 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
-
 
 

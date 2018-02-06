@@ -424,6 +424,10 @@
   (ensure (= 50 (s/percent 20 40)) "percent")
   (ensure (= "3.333" (s/toFixed (/ 10 3) 3)) "toFixed")
 
+  (ensure (s/eq? ["aa" "bb" "cc" "dd" "ee" "ff"]
+                 (s/mapcat #(.split % #/\d/)
+                           ["aa1bb" "cc2dd" "ee3ff"])) "mapcat")
+
   (ensure (s/eq? [4 5]
                  ((juxt (fn [a] (+ 1 a))
                         (fn [b] (+ 2 b))) 3)) "juxt")
@@ -535,4 +539,5 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
 
-(set! @@poo 3)
+
+
