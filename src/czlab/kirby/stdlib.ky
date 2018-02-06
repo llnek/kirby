@@ -934,8 +934,10 @@ one arg, returns the concatenation of the str values of the args."
 
   ^Any
   [obj prop & [own?]]
-  (if (objectMap? obj)
-    (.get obj prop)
+  (cond
+    (objectMap? obj) (.get obj prop)
+    (nichts? obj) nil
+    :else
     (do (set! own? (opt?? own? true))
         (if (or (string? prop)
                 (number? prop))

@@ -11,7 +11,8 @@
 
   czlab.kirby.test.stdlib
 
-  (:require ["kirby" :as std :refer [println]]))
+  (:require ["kirby"
+             :as std :refer [println inc dec]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- s std TMPVAR nil)
