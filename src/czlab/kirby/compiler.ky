@@ -204,9 +204,11 @@
             (for [j 0 sz (n# arr)
                   :while (< j sz) :recur (+1 j)]
               (set! e (.@j arr))
-              (ret.add ["let "
-                        (tx* e env)
-                        "=" as "[" (std/quote-str $(e)) "];\n"])))
+              ;(ret.add ["let " (tx* e env) "=" as "[" (std/quote-str $(e)) "];\n"])))
+              (ret.add ["let " (tx* e env) "="
+                        (stripStd (str KBSTDLR ".getProp"))
+                        "(" as "," (std/quote-str $(e)) ");\n"])))
+
         (== e :as)
         (++ i)
         :else
