@@ -1693,7 +1693,7 @@ called.
 
   ^Array [source fname options]
 
-  (var {:keys [source-map format verbose]} options
+  (var {:keys [source-map no-format verbose]} options
        ast (reader/parse source fname)
        env (rt/genv)
        ret (txTree ast env)
@@ -1716,8 +1716,9 @@ called.
                 (path/relative (path/dirname fname) smap)))
          (str ret macros extra)))
   (try
-    (if format (set! cstr
-                     (esfmt/format cstr fopts)))
+    (if-not no-format
+      (set! cstr
+            (esfmt/format cstr fopts)))
     (catch e (set! err e)))
   (set! cstr (cleanCode cstr))
   (var mcs (keys *macros*)

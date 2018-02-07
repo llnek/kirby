@@ -39,7 +39,7 @@
     (set! fout (fin.replace #/\.ky$/g ".js")))
   (try
     (var {:keys [source-map
-                 format show-ast]} options)
+                 no-format show-ast]} options)
     (if-not show-ast
       (println (str "kirby v" (.-version tx))
                ": compiling: " fin " -> " fout))
@@ -104,7 +104,7 @@
            [[:v "verbose" "show details of the source"]
             [:w "watch" "auto-compile changed files"]
             [:m "source-map" "generate source maps"]
-            [:f "format" "format source code"]
+            [:f "no-format" "no-format source code"]
             [:V "version" "show version"]
             [:r "repl" "start a repl"]
             [:h "help" "show help"]
