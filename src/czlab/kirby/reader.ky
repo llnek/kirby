@@ -194,6 +194,10 @@
            (== nx "@")(empty? token))
       (do (set! tline line tcol col)
           (+= token "@@") (++ pos))
+      (and (== ch "`") (== nx "{"))
+      (do (set! token (toke tline tcol token)
+                tline line tcol col)
+          (++ pos) (toke tline tcol "`{"))
       (or (== ch "'") (== ch "`")
           (== ch "$") (== ch "@") (== ch "^"))
       (if (and (empty? token)
@@ -229,12 +233,6 @@
                 tline line tcol col)
           (++ pos)
           (toke tline tcol "#{"))
-      (and (== ch "#")
-           (== nx "["))
-      (do (set! token (toke tline tcol token)
-                tline line tcol col)
-          (++ pos)
-          (toke tline tcol "#["))
       (or (== ch "[")(== ch "]")
           (== ch "{")(== ch "}")
           (== ch "(")(== ch ")"))
@@ -370,6 +368,11 @@
   (into! :map (readBlock tokens "{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readObject "Process a Object"
+  ^Array [tokens]
+  (into! :obj (readBlock tokens "`{" "}")))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- readObjectSet "Process a ObjectSet"
   ^Array [tokens]
   (into! :set (readBlock tokens "#{" "}")))
@@ -402,6 +405,7 @@
           "[" [#(readVector %)]
           "(" [#(readList %)]
           "#{" [#(readObjectSet %)]
+          "`{" [#(readObject %)]
           "{" [#(readObjectMap %)]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

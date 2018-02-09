@@ -17,6 +17,10 @@
 (const MIN-INT Number/MIN_SAFE_INTEGER)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro trye! "Wrap try around code and eat exception." [&xs]
+  `(try ~@xs (catch ewroewrwe nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty?
   "Returns true if coll has no items"
   [coll] `(= 0 (kirbystdlibref/count ~coll)))

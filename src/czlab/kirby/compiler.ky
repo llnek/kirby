@@ -1277,7 +1277,7 @@ any finally exprs will be evaluated for their side effects."
   (assertArity true ast)
   (var pos 0
        ret (node' ast))
-  (if-not (map? ast) (set! pos 1))
+  (if-not (obj? ast) (set! pos 1))
   (for [i pos sz (n# ast)
         :while (< i sz) :recur (+2 i)]
     (if (> i pos) (ret.add ", "))
