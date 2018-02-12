@@ -172,8 +172,10 @@
           (ret.add ["let "
                     (tx* e env) "=" rval ";\n" out]))
         :else
-        (ret.add ["let "
-                  (tx* e env) "=" as "[" (numStr i) "];\n"]))
+        (ret.add ["let " (tx* e env) "="
+                  (stripStd (str KBSTDLR ".getIndex")) "(" as "," (numStr i) ");\n"]))
+        ;(ret.add ["let " (tx* e env) "=" as "[" (numStr i) "];\n"]))
+
       (array? e)
       (do (set! rval (node' coll)
                 out (node' coll)

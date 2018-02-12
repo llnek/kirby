@@ -928,6 +928,13 @@ one arg, returns the concatenation of the str values of the args."
   [obj start end] (str start obj end))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getIndex
+  ""
+  [obj pos]
+  (if (array? obj)
+    (raw# "obj[pos]") undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getProp
 
   "If prop is a string, returns the value of

@@ -16,11 +16,11 @@ fi
 #compile files
 for n in stdlib parser engine compiler main
 do
-  ${COMPILER} -f src/czlab/kirby/${n}.ky $OUTDIR/${n}.js
+  ${COMPILER}  src/czlab/kirby/${n}.ky $OUTDIR/${n}.js
 done
 
 #compile test files
-${TESTER} -f test/test.ky
+${TESTER}  test/test.ky
 
 #run test cases
 TESTOUT=/tmp/kirby-test.out

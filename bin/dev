@@ -15,7 +15,7 @@ fi
 #compile files
 for n in stdlib reader engine compiler main
 do
-  ${COMPILER} -f src/czlab/kirby/${n}.ky
+  ${COMPILER} src/czlab/kirby/${n}.ky
 done
 
 
