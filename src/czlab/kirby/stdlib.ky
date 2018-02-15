@@ -387,6 +387,11 @@ therein. Acts as a recur target."
   (let* [a (gensym*)] `(let [~a true] ~@xs ~a)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro do->this
+  "Executes the exprs in a context in which 'this' is always the returned value."
+  [&xs] `(do ~@xs this))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->nil
   "Executes the exprs in a context in which null is always the returned value."
   [&xs]
