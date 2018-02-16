@@ -427,6 +427,11 @@
   (ensure (s/eq? [2 5 7 6]
                  (s/copyArray [2 5 7] [3 4 9 6])) "copyArray,value")
 
+  (ensure (s/eq? `{:a 1 :b 7 :c "gg" :d 7}
+                 (let [a `{:a 1 :b 2 :c "ss"}
+                       b `{ :b 7 :c "gg" :d 7}]
+                   (s/mixin a b))) "mixin")
+
   (ensure (s/eq? {:a 1 :b 2}
                  (s/merge {:a 1} {:b 2})) "merge")
   (ensure (s/eq? [1 2 4]
@@ -549,5 +554,4 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
 

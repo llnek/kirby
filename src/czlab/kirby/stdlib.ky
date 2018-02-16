@@ -1844,8 +1844,13 @@ created."
 (defn- merge! "" [base m]
   (var ret (or base (new Map))
        src (or m (new Map)))
-  (each-key (fn [v k]
-              (assoc! ret k v)) src) ret)
+  (each-key (fn [v k] (assoc! ret k v)) src) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- mix! "" [base m]
+  (var ret (or base `{})
+       src (or m `{}))
+  (each-key (fn [v k] (assign! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn merge
@@ -1855,6 +1860,15 @@ the first.  If a key occurs in more than one map, the mapping from
 the latter (left-to-right) will be the mapping in the result."
 
   [&maps] (reduce (fn [acc n] (merge! acc n)) (new Map) maps))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn mixin
+
+  "Returns an object that consists of the rest of the objects conj-ed onto
+the first.  If a property occurs in more than one object, the mapping from
+the latter (left-to-right) will be the mapping in the result."
+
+  [&objs] (reduce (fn [acc n] (mix! acc n)) `{} objs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fillArray "" [len v]
