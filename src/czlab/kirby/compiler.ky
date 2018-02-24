@@ -714,10 +714,10 @@ fn (right-to-left) to the result, etc."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-arithOp
   "Handles math operators"
-  ^{:opcode ["bitwise-lshift" "bitwise-rshift" "bitwise-zrshift"
+  ^{:opcode ["bit-shift-left" "bit-shift-right" "unsigned-bit-shift-right"
              "+" "-" "*" "/" "div" "mod"
              "or" "and" "exp" "rem"
-             "bitwise-and" "bitwise-or" "bitwise-not" "bitwise-xor"]
+             "bit-and" "bit-or" "bit-not" "bit-xor"]
     :tag SourceNode}
   [ast env]
 
@@ -725,13 +725,13 @@ fn (right-to-left) to the result, etc."
   (var ret (node' ast)
        e1 $(1st ast)
        cmd (case e1
-             "bitwise-zrshift" ">>>"
-             "bitwise-rshift" ">>"
-             "bitwise-lshift" "<<"
-             "bitwise-and" "&"
-             "bitwise-or" "|"
-             "bitwise-not" "~"
-             "bitwise-xor" "^"
+             "unsigned-bit-shift-right" ">>>"
+             "bit-shift-right" ">>"
+             "bit-shift-left" "<<"
+             "bit-and" "&"
+             "bit-or" "|"
+             "bit-not" "~"
+             "bit-xor" "^"
              "rem" "%"
              "div" "/"
              "and" "&&"
@@ -854,7 +854,7 @@ returned if no clause matches."
 
   "Creates a variable with an initial value"
 
-  ^{:opcode ["const-" "const" "def-" "def" "var"]
+  ^{:opcode ["const-" "const" "def-" "def" "var" "local-vars"]
     :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
@@ -984,23 +984,23 @@ returned if no clause matches."
 
   ^{:opcode ["+=" "-=" "*=" "/="
              "div=" "rem=" "exp="
-             "bitwise-and="
-             "bitwise-or="
-             "bitwise-xor="
-             "bitwise-lshift="
-             "bitwise-rshift="
-             "bitwise-zrshift="]
+             "bit-and="
+             "bit-or="
+             "bit-xor="
+             "bit-shift-left="
+             "bit-shift-right="
+             "unsigned-bit-shift-right="]
        :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 3) ast)
   (var a0 $(1st ast)
        cmd (case a0
-             "bitwise-zrshift=" ">>>="
-             "bitwise-rshift=" ">>="
-             "bitwise-lshift=" "<<="
-             "bitwise-xor=" "^="
-             "bitwise-or=" "|="
-             "bitwise-and=" "&="
+             "unsigned-bit-shift-right=" ">>>="
+             "bit-shift-right=" ">>="
+             "bit-shift-left=" "<<="
+             "bit-xor=" "^="
+             "bit-or=" "|="
+             "bit-and=" "&="
              "div=" "/="
              "rem=" "%="
              "exp=" "**=" a0))
@@ -1029,7 +1029,7 @@ returned if no clause matches."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-assign!
   "Object property assignment or array index setter."
-  ^{:opcode ["assign!" "aset"] :tag SourceNode} [ast env]
+  ^{:opcode ["oset!" "assign!" "aset"] :tag SourceNode} [ast env]
   (assertArity (even? (n# ast)) ast)
   (var ret (node' ast)
        obj (tx* (2nd ast) env))
@@ -1047,7 +1047,7 @@ returned if no clause matches."
   "Set value(s) to variable(s).
   e.g. (set! a 2 b 4 ...)"
 
-  ^{:opcode ["set!" "=>"] :tag SourceNode} [ast env]
+  ^{:opcode ["set!" "var-set"] :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
   (var ret (node' ast))
@@ -1235,15 +1235,19 @@ any finally exprs will be evaluated for their side effects."
   (aget obj 4)
   (nth obj 3)"
 
-  ^{:opcode ["nth" "get" "aget"] :tag SourceNode} [ast env]
+  ^{:opcode ["oget" "nth" "get" "aget"] :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 3) ast)
-  (var cmd
-       (stripStd (str KBSTDLR ".getProp")))
-  (wrap (node' ast)
-        nil [cmd "("
-             (tx* (xfi ast (2nd ast)) env)
-             "," (tx* (xfi ast (3rd ast)) env) ")"]))
+  (var a0 $(_1 ast)
+       cmd (stripStd (str KBSTDLR ".getProp")))
+  (if (== a0 "get")
+    (wrap (node' ast)
+          nil [cmd "("
+               (tx* (xfi ast (2nd ast)) env)
+               "," (tx* (xfi ast (3rd ast)) env) ")"])
+    (wrap (node' ast)
+          nil [(tx* (xfi ast (2nd ast)) env)
+               "[" (tx* (xfi ast (3rd ast)) env) "]"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-array

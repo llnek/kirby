@@ -803,6 +803,12 @@ one arg, returns the concatenation of the str values of the args."
   (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro with-local-vars "" [bindings & more]
+  (if* (= 0 ~(count* more))
+       `nil
+       `(let [~@bindings] ~@more)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;END MACROS
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -1115,10 +1121,10 @@ one arg, returns the concatenation of the str values of the args."
 (defn keyword->symbol
   "Convert a Keyword to Symbol" ^Symbol [k]
   (var s (new Symbol (str k)))
-  (assign! s
-          :source k.source
-          :line  k.line
-          :column k.column) s)
+  (oset! s
+         :source k.source
+         :line  k.line
+         :column k.column) s)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn lambdaArg?
@@ -1973,6 +1979,20 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn *ns* "" [] (if-some [n (peekNSP)] (get n :id)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn minBy "" [func coll]
+  (if (not-empty coll)
+    (reduce (fn [a b] (if (< (func a) (func b)) a b))
+            (_1 coll) (rest coll))
+    undefined))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn maxBy "" [func coll]
+  (if (not-empty coll)
+    (reduce (fn [a b] (if (< (func a) (func b)) b a))
+            (_1 coll) (rest coll))
+    undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
