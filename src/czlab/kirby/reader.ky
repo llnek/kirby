@@ -119,6 +119,8 @@
                  ;2 tokens & and more
                  (conj! tree (mkToken fname ln col "&"))
                  (set! s (rest s)))
+             (== s "?")
+             (set! s "undefined")
              (starts-with? s "@@")
              (set! s (str "this." (.slice s 2))))
            (conj! tree (mkToken fname ln col s))) ""))
