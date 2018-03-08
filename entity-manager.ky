@@ -3,7 +3,7 @@
       :author "Kenneth Leung"}
   czlab.elmo.ecs
   (:require ["kirby"
-             :as K :refer []]))
+             :as K :refer [atom swap! conj! disj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createECS "" []
@@ -12,30 +12,28 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- genUid "" ^String [ecs]
   (local-vars ret 0)
-  (swap! ecs (fn [root]
-               (set! ret (get root :uid))
-               (assoc! root :uid (inc ret)))) (numStr ret))
+  (swap! ecs
+         (fn [root]
+           (set! ret (get root :uid))
+           (assoc! root :uid (+1 ret)))) (numStr ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn createEntity "" [ecs & comps]
-  (let [eid (nextEntityUid ecs)]
-    (apply addToEntity this eid comps)
-    (swap! ecs (fn [root]
-                 (conj! (get root :entities) eid) root)) eid))
+(defn createEntity "" [ecs & componentIds]
+  (dosync
+    (local-vars entity (genUid ecs))
+    (apply addToEntity this (concat [ecs entity] componentIds))
+    (swap! ecs
+           (fn [root]
+             (conj! (get root :entities) entity) root)) entity))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeEntity "" [ecs entity]
   (swap! ecs
-         (fn [root]
-           (local-vars e (get root :entities)
-                       d (get root :data)
-                       c (get root :registry))
-           (each (fn [k]
-                   (let [co (get d k)]
-                     (if (and co
-                              (.has co entity))
-                       (dissoc! co entity)))) (keys c))
-           (disj! e entity)
+         (fn [{:keys [entities
+                      data registry] :as root}]
+           (each #(if-some [co (get data %)]
+                    (dissoc! co entity)) (keys registry))
+           (disj! entities entity)
            root)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -55,26 +53,22 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addToEntity "" [ecs entity & componentIds]
   (swap! ecs
-         (fn [root]
-           (local-vars d (get root :data)
-                       co nil
-                       r (get root :registry))
+         (fn [{:keys [data registry] :as root}]
+           (local-vars ctor nil co nil)
            (each (fn [cid]
-                   (if-not (.has r cid) (raise! "Unknown component " cid))
-                   (if-not (.has d cid) (assoc! d cid {}))
-                   (set! co (clone (get r cid)))
+                   (set! ctor (get registry cid))
+                   (if-not ctor (raise! "Unknown component " cid))
+                   (if-not (.has data cid) (assoc! data cid {}))
+                   (set! co (ctor))
                    (oset! co :____entity entity)
-                   (assoc! (get d cid) entity co)) componentIds) root)))
+                   (assoc! (get data cid) entity co)) componentIds) root)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeFromEntity [ecs entity & componentIds]
   (swap! ecs
-         (fn [root]
-           (local-vars d (get root :data))
-           (each (fn [cid]
-                   (if-some [c (get d cid)]
-                     (dissoc! c entity))) componentIds)
-           root)))
+         (fn [{:keys [data] :as root}]
+           (each #(if-some [c (get data %)]
+                    (dissoc! c entity)) componentIds) root)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getDataForEntity "" [ecs entity componentId]
@@ -83,7 +77,9 @@
   (if c (get c entity)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn updateEntity "" [ecs entity componentId func] )
+(defn updateEntity "" [ecs entity componentId func]
+  (if-some [c (getDataForEntity
+                ecs entity componentId)] (func c)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponentsData "" [ecs componentId]
@@ -111,12 +107,14 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createEntityFromTemplate "" [ecs id]
+  (local-vars entity nil)
   (swap! ecs
-         (fn [root]
-           (local-vars m (get t id)
-                       t (get root :templates)
-                       e (apply createEntity this t.components))
-           root)))
+         (fn [{:keys [templates] :as root}]
+           (local-vars t (get templates id))
+           (set! entity
+                 (apply createEntity this t.components))
+           (if (fn? t.initor)
+             (t.initor ecs e)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addProcessor "" [ecs processor]
@@ -127,11 +125,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeProcessor "" [ecs processor]
   (swap! ecs
-         (fn [root]
-           (local-vars p (get root :processors)
-                       i (.indexOf p processor))
+         (fn [{:keys [processors] :as root}]
+           (local-vars i (.indexOf processors processor))
            (if-not (neg? i)
-             (.splice p i 1)) root)))
+             (.splice processor i 1)) root)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [ecs dt]

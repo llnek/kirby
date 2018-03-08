@@ -867,7 +867,8 @@ returned if no clause matches."
   (var~ rval rc lhs rhs)
   (set! cmd (if (starts-with? cmd "const")
               "const"
-              (if (== cmd "var") "let" "var")))
+              (if (or (== cmd "var")
+                      (== cmd "local-vars")) "let" "var")))
   ;deal with 1 level destruction
   (for [i 1 x nil sz (n# ast)
         :while (< i sz) :recur (+2 i)]
