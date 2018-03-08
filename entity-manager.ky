@@ -1,99 +1,142 @@
-(ns )
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+  czlab.elmo.ecs
+  (:require ["kirby"
+             :as K :refer []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn clone "" [obj]
-)
+(defn createECS "" []
+  (atom {:entities #{} :registry {} :data {} :processors [] :uid 1}))
 
-(deftype EntityManager []
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- genUid "" ^String [ecs]
+  (local-vars ret 0)
+  (swap! ecs (fn [root]
+               (set! ret (get root :uid))
+               (assoc! root :uid (inc ret)))) (numStr ret))
 
-  (constructor [cb]
-    (assoc! this
-            :lsnr cb
-            :entities []
-            :components {}
-            :templates {}
-            :entData {}
-            :processors []
-            :uid 0))
-  (getUid []
-    (++$ @@uid))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createEntity "" [ecs & comps]
+  (let [eid (nextEntityUid ecs)]
+    (apply addToEntity this eid comps)
+    (swap! ecs (fn [root]
+                 (conj! (get root :entities) eid) root)) eid))
 
-  (createEntity [&comps]
-    (let [eid (@@getUid)]
-      (@@addToEntity eid comps)
-      (conj! @@ents eid)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeEntity "" [ecs entity]
+  (swap! ecs
+         (fn [root]
+           (local-vars e (get root :entities)
+                       d (get root :data)
+                       c (get root :registry))
+           (each (fn [k]
+                   (let [co (get d k)]
+                     (if (and co
+                              (.has co entity))
+                       (dissoc! co entity)))) (keys c))
+           (disj! e entity)
+           root)))
 
-  (removeEntity [eid]
-    (each #(let [x (get @@entData %)]
-             (if (.has x eid)
-               (.remove x eid)))
-          (.keys @@entData))
-    (.delete @@ents eid))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addComponent "" [ecs id component]
+  (swap! ecs
+         (fn [root]
+           (assoc! (get root :registry) id component) root)))
 
-  (addComponent [id component]
-    (.set @@comps id component))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeComponent "" [ecs id]
+  (swap! ecs
+         (fn [root]
+           (dissoc! (get root :registry) id)
+           (dissoc! (get root :data) id)
+           root)))
 
-  (removeComponent [id]
-    (.delete @@comps id)
-    (.delete @@entData id))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addToEntity "" [ecs entity & componentIds]
+  (swap! ecs
+         (fn [root]
+           (local-vars d (get root :data)
+                       co nil
+                       r (get root :registry))
+           (each (fn [cid]
+                   (if-not (.has r cid) (raise! "Unknown component " cid))
+                   (if-not (.has d cid) (assoc! d cid {}))
+                   (set! co (clone (get r cid)))
+                   (oset! co :____entity entity)
+                   (assoc! (get d cid) entity co)) componentIds) root)))
 
-  (getComponentsList []
-    (.keys @@comps))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeFromEntity [ecs entity & componentIds]
+  (swap! ecs
+         (fn [root]
+           (local-vars d (get root :data))
+           (each (fn [cid]
+                   (if-some [c (get d cid)]
+                     (dissoc! c entity))) componentIds)
+           root)))
 
-  (addCompToEntity [eid & cids]
-    (each (fn [id]
-            (if-not (.has me.comps id)
-              (raise! ""))
-            (if-not (.has me.entData id)
-              (.set me.entData id {}))
-            (oset! c :____eid eid)
-            (.set (.get me.entData id) eid c))
-          cids))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getDataForEntity "" [ecs entity componentId]
+  (local-vars d (get @ecs :data)
+              c (get d componentId))
+  (if c (get c entity)))
 
-  (removeCompFromEntity [eid & cids]
-    (each
-      (fn [id]
-        (when (and (.has @@entData id)
-                   (.has (get @@entData id) eid))
-          (.delete (get @@entData id) eid)))
-      cids))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateEntity "" [ecs entity componentId func] )
 
-  (getCompDataForEntity [eid cid]
-    (if-some [x (get @@entData cid)]
-      (get x eid)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getComponentsData "" [ecs componentId]
+  (local-vars d (get @ecs :data)
+              c (get d componentId))
+  (if c (Array.from (.values c)) []))
 
-  (updateCompDataForEntity [eid cid func]
-    (func (@@getCompDataForEntity eid cid)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn componentInEntity? "" [ecs entity componentId]
+  (local-vars d (get @ecs :data)
+              c (get d componentId))
+  (if c (.has c entity) #f))
 
-  (getComponentsData [cid]
-    (if-some [x (get @@entData cid)]
-      (Array.from (.values x))
-      []))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addTemplate "" [ecs id template]
+  (swap! ecs
+         (fn [root]
+           (assoc! (get root :templates) id template) root)))
 
-  (entityHasComp [eid cid]
-    (if-some [x (get @@entData cid)]
-      (.has x eid)
-      false))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeTemplate "" [ecs id]
+  (swap! ecs
+         (fn [root]
+           (dissoc! (get root :templates) id) root)))
 
-  (addAssemblage [id assemblage]
-    (assoc! @@templates id assemblage))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn createEntityFromTemplate "" [ecs id]
+  (swap! ecs
+         (fn [root]
+           (local-vars m (get t id)
+                       t (get root :templates)
+                       e (apply createEntity this t.components))
+           root)))
 
-  (removeAssemblage [id]
-    (dissoc! @@templates id))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addProcessor "" [ecs processor]
+  (swap! ecs
+         (fn [root]
+           (conj! (get root :processors) processor) root)))
 
-  (createEntityFromTemplate [id]
-    (when-some [x (get @@templates id)]
-      (do-with [ent (@@createEntity x.components)]
-        (each-property #() x.model))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn removeProcessor "" [ecs processor]
+  (swap! ecs
+         (fn [root]
+           (local-vars p (get root :processors)
+                       i (.indexOf p processor))
+           (if-not (neg? i)
+             (.splice p i 1)) root)))
 
-  (addProcessor [processor]
-    (conj! @@procs processor))
-
-  (removeProcessor [processor]
-    (.splice @@procs (indexOf @@procs processor) 1))
-
-  (update [dt]
-    (each #(.update % dt) @@procs)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn updateECS "" [ecs dt]
+  (local-vars p (get @ecs :processors))
+  (each #(.update % dt) p))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
