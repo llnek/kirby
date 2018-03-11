@@ -854,7 +854,7 @@ returned if no clause matches."
 
   "Creates a variable with an initial value"
 
-  ^{:opcode ["const-" "const" "def-" "def" "var" "local-vars"]
+  ^{:opcode ["const-" "const" "def-" "def" "var" "vars"]
     :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
@@ -868,7 +868,7 @@ returned if no clause matches."
   (set! cmd (if (starts-with? cmd "const")
               "const"
               (if (or (== cmd "var")
-                      (== cmd "local-vars")) "let" "var")))
+                      (== cmd "vars")) "let" "var")))
   ;deal with 1 level destruction
   (for [i 1 x nil sz (n# ast)
         :while (< i sz) :recur (+2 i)]

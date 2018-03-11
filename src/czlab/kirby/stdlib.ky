@@ -803,10 +803,14 @@ one arg, returns the concatenation of the str values of the args."
   (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro with-local-vars "" [bindings & more]
-  (if* (= 0 ~(count* more))
-       `nil
-       `(let [~@bindings] ~@more)))
+(defmacro with-local-vars "" [bindings & extraBits]
+  (let* [b (count* bindings)
+         e (count* extraBits)]
+    (if* (not* (is-even? b))
+       (throw* "wanted even number of binding forms")
+       (if* (> e 0)
+         (throw* "too many args")
+         `(vars ~@bindings )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;END MACROS
