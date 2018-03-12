@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -17,8 +17,9 @@
 (const MIN-INT Number/MIN_SAFE_INTEGER)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro trye! "Wrap try around code and eat exception." [&xs]
-  `(try ~@xs (catch ewroewrwe nil)))
+(defmacro trye!
+  "Wrap try around code and eat exception."
+  [&xs] `(try ~@xs (catch ewroewrwe nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro empty?
@@ -36,7 +37,9 @@
   [s arg] `(.endsWith ~s ~arg))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro n# "Refer to count." [coll] `(kirbystdlibref/count ~coll))
+(defmacro n#
+  "Refer to count."
+  [coll] `(kirbystdlibref/count ~coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro 1st "Returns the first item in the collection." [x] `(first ~x))
@@ -330,7 +333,7 @@ last item in second form, etc."
  Evaluates the exprs in a lexical context in which the symbols in
 the binding-forms are bound to their respective init-exprs or parts
 therein."
-  [bindings & xs] `(do (var ~@bindings) ~@xs))
+  [bindings & xs] `(do (vars ~@bindings) ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro single? "True if coll has only 1 item." [coll] `(= 1 (n# ~coll)))
@@ -803,13 +806,13 @@ one arg, returns the concatenation of the str values of the args."
   (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro with-local-vars "" [bindings & extraBits]
-  (let* [b (count* bindings)
-         e (count* extraBits)]
+(defmacro with-local-vars "" [bindings & more]
+  (let* [e (count* more)
+         b (count* bindings)]
     (if* (not* (is-even? b))
        (throw* "wanted even number of binding forms")
        (if* (> e 0)
-         (throw* "too many args")
+         `(do (vars ~@bindings) ~@more)
          `(vars ~@bindings )))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
