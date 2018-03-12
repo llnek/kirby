@@ -333,7 +333,10 @@ last item in second form, etc."
  Evaluates the exprs in a lexical context in which the symbols in
 the binding-forms are bound to their respective init-exprs or parts
 therein."
-  [bindings & xs] `(do (vars ~@bindings) ~@xs))
+  [bindings & xs]
+  (let* [sz (count* xs)]
+    (if* (> sz 0)
+         `(with-local-vars [~@bindings] ~@xs))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro single? "True if coll has only 1 item." [coll] `(= 1 (n# ~coll)))
@@ -349,8 +352,9 @@ therein. Acts as a recur target."
   (let* [es (evens* bindings)
          os (odds* bindings)]
     `((fn []
-        (var _x_ nil recur nil
-             _f_ (fn [~@es] ~@more) _r_ _f_)
+        (with-local-vars
+          [_x_ nil recur nil
+           _f_ (fn [~@es] ~@more) _r_ _f_])
         (set! recur
               (fn []
                 (set! _x_ arguments)
