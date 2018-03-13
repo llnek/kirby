@@ -379,19 +379,21 @@ therein. Acts as a recur target."
  Executes the body in a context in which the symbol is always the
   returned value."
   [bindings & xs]
-  (let* [f (nth* bindings 0)]
+  (let* [sz (count* bindings)
+         _ (assert* (= sz 2)
+                    "expected only 2 in form")
+         f (nth* bindings 0)]
     `(let [~f ~(nth* bindings 1)] ~@xs ~f)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->false
   "Executes the exprs in a context in which false is always the returned value."
-  [&xs] (let* [a (gensym*)] `(let [~a false] ~@xs ~a)))
+  [&xs] `(do ~@xs false))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->true
   "Executes the exprs in a context in which true is always the returned value."
-  [&xs]
-  (let* [a (gensym*)] `(let [~a true] ~@xs ~a)))
+  [&xs] `(do ~@xs true))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->this
@@ -401,20 +403,17 @@ therein. Acts as a recur target."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->nil
   "Executes the exprs in a context in which null is always the returned value."
-  [&xs]
-  (let* [a (gensym*)] `(let [~a nil] ~@xs ~a)))
+  [&xs] `(do ~@xs nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->undef
   "Executes the exprs in a context in which undefined is always the returned value."
-  [&xs]
-  (let* [a (gensym*)] `(let [~a undefined] ~@xs ~a)))
+  [&xs] `(do ~@xs undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro do->break!
   "Executes the exprs in a context and ends with a toggle on *break*"
-  [&xs]
-  `(do ~@xs (break-out-of-loop!)))
+  [&xs] `(do ~@xs (break-out-of-loop!)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro dotimes
@@ -422,7 +421,10 @@ therein. Acts as a recur target."
  Repeatedly executes body (presumably for side-effects) with name
 bound to integers from 0 through n-1."
   [bindings &xs]
-  (let* [_t (gensym*)
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         _t (gensym*)
          b1 (first* bindings)]
     `(for [~b1 0 ~_t ~(nth* bindings 1)
            :while (< ~b1 ~_t) :recur (+1 ~b1)] ~@xs)))
@@ -518,7 +520,10 @@ the head of the sequence. Returns nil."
  value of test, if not, yields else"
 
   [bindings then & [else]]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst]
        (if (> (n# ~tst) 0) ~then ~else))))
@@ -531,7 +536,10 @@ the head of the sequence. Returns nil."
  value of test, if not, yields else"
 
   [bindings then & [else]]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst]
        (if (or (undef? ~tst)
@@ -545,7 +553,10 @@ the head of the sequence. Returns nil."
 test, if not, yields else"
 
   [bindings then & [else]]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst] (if ~tst ~then ~else))))
 
@@ -557,7 +568,10 @@ test, if not, yields else"
  value of test"
 
   [bindings &xs]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst]
        (when (> (n# ~tst) 0) ~@xs))))
@@ -570,7 +584,10 @@ test, if not, yields else"
  value of test"
 
   [bindings &xs]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst]
        (when-not (or (undef? ~tst)
@@ -583,7 +600,10 @@ test, if not, yields else"
  When test is true, evaluates body with binding-form bound to the value of test"
 
   [bindings &xs]
-  (let* [tst (gensym*)]
+  (let* [sz (count* bindings)
+         _ (assert* (= 2 sz)
+                    "expected binary form")
+         tst (gensym*)]
     `(let [~tst ~(nth* bindings 1)
            ~(first* bindings) ~tst] (when ~tst ~@xs))))
 
@@ -682,7 +702,7 @@ one arg, returns the concatenation of the str values of the args."
          body (if* (> sz 1)
                    code
                    (if* (> sz 0) (nth* code 0)))]
-    `(fn [] (var ____args (slice arguments)) ~body)))
+    `(fn [] (with-local-vars [____args (slice arguments)]) ~body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each
@@ -708,13 +728,15 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each-key "Refer to each - iterates through a Map or Object."
   [func obj]
-  (let* [t (gensym*) f (gensym*)]
-    `(let [~t ~obj ~f ~func]
+  (let* [t (gensym*)
+         f (gensym*)]
+    `(let [~t ~obj
+           ~f ~func]
        (if (kirbystdlibref/object? ~t)
          (each-enumerable ~f ~t) (each ~f ~t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro dosync "For now, do like do." [&exprs] `(do ~@exprs))
+(defmacro dosync "For now, like do." [&exprs] `(do ~@exprs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;monads
@@ -727,9 +749,9 @@ one arg, returns the concatenation of the str values of the args."
 
   ^:internal [docstring operations]
 
-  `(do (var~ bind unit zero plus)
-       (let [~@operations]
-         (object :bind bind :unit unit :zero zero :plus plus))))
+  `(with-local-vars [bind ? unit ? zero ? plus ?]
+     (let [~@operations]
+       (object :bind bind :unit unit :zero zero :plus plus))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro defmonad
@@ -769,8 +791,9 @@ one arg, returns the concatenation of the str values of the args."
 
   [monad steps body]
   `((fn [{:keys [bind unit zero] :as mo}]
-      (var ret #(if (and (kirbystdlibref/nichts? %)
-                         (def? zero)) zero (unit %)))
+      (with-local-vars
+        [ret #(if (and (kirbystdlibref/nichts? %)
+                       (def? zero)) zero (unit %))])
       (dobind bind ~steps (ret ~body))) ~monad))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -844,7 +867,7 @@ one arg, returns the concatenation of the str values of the args."
   to prevent circular references."
   []
 
-  (var cache [])
+  (with-local-vars [cache []])
   (fn [k v]
     (cond (fn? v)
           (set! v "native-fn")
@@ -878,7 +901,7 @@ one arg, returns the concatenation of the str values of the args."
   'added'. (conj! nil item) returns [item].
   If coll is a list, prepends else appends to coll."
 
-  ^Array [coll & xs]
+  ^Any [coll & xs]
   (cond
     (nichts? coll)
     (apply conj! this (concat [[]] xs))
@@ -888,37 +911,43 @@ one arg, returns the concatenation of the str values of the args."
            (coll.unshift.apply coll))
       (coll.push.apply coll xs))
     (objectSet? coll)
-    (doseq [x xs] (.add coll x))) coll)
+    (each #(.add coll %) xs)
+    :else
+    (raise! "Cannot conj to: " (type coll))) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj "Like conj! but
            returns a new collection"
   ^Any [coll & xs]
-  (var c (cond
-           (array? coll)
-           (cond (vector? coll) (into :vector coll)
-                 (list? coll) (into :list coll)
-                 (map? coll) (into :map coll)
-                 (obj? coll) (into :obj coll)
-                 (set? coll) (into :set coll)
-                 :else (slice coll))
-           (objectSet? coll)
-           (new Set (.values coll))
-           (nichts? coll) []))
+  (with-local-vars
+    [c (cond
+         (array? coll)
+         (cond (vector? coll) (into :vector coll)
+               (list? coll) (into :list coll)
+               (map? coll) (into :map coll)
+               (obj? coll) (into :obj coll)
+               (set? coll) (into :set coll)
+               :else (slice coll))
+         (objectSet? coll)
+         (new Set (.values coll))
+         (nichts? coll) [])])
   (if c (apply conj! this (concat [c] xs)) coll))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn disj!
   "disj[oin]. Returns a set without these keys"
   [coll & xs]
-  (doseq [x xs] (.delete coll x)) coll)
+  (if (objectSet? coll)
+    (each #(.delete coll %) xs)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn disj
   "disj[oin]. Returns a new set without these keys"
   [coll & xs]
-  (var s2 (new Set xs))
-  (new Set (filter #(not (.has s2 %)) (values coll))))
+  (with-local-vars [s2 (new Set xs)])
+  (->> (if (objectSet? coll)
+         (filter #(not (.has s2 %)) (values coll)) [])
+       (new Set)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop!
@@ -930,16 +959,18 @@ one arg, returns the concatenation of the str values of the args."
 
   ^Array [coll]
   (when (array? coll)
-    (var r (if (list? coll)
-             (coll.shift) (coll.pop))) [r coll]))
+    (with-local-vars
+      [r (if (list? coll)
+           (coll.shift) (coll.pop))]) [r coll]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pop
   "Like pop! but returns a new collection"
   ^Array [coll]
   (when (array? coll)
-    (var r (if (list? coll)
-             (1st coll) (last coll)))
+    (with-local-vars
+      [r (if (list? coll)
+           (1st coll) (last coll))])
     [r (if (list? coll)
          (coll.slice 1) (coll.slice 0 -1))]))
 
@@ -987,7 +1018,7 @@ one arg, returns the concatenation of the str values of the args."
   "Print data as string - use to dump an AST node"
   ^String [obj & [r?]]
 
-  (var f (noCRef))
+  (with-local-vars [f (noCRef)])
   (if (complex? obj)
     (set! obj (f nil obj)))
   (if obj (prn* obj r? f) ""))
@@ -996,7 +1027,7 @@ one arg, returns the concatenation of the str values of the args."
 (defn- prnArr* "Print an array" [obj r? f]
   (join " "
         (map (fn [v i]
-               (var x (f i v))
+               (with-local-vars [x (f i v)])
                (-> (opt?? x nil)
                    (prn* r? f))) obj)))
 
@@ -1005,19 +1036,20 @@ one arg, returns the concatenation of the str values of the args."
 
   "" [obj r? func]
 
-  (var pfx #(prn* % r? func)
-       parr (if (arr? obj)
-              #(wrap-str
-                 (prnArr* obj
-                          r? func) %1 %2)))
+  (with-local-vars
+    [pfx #(prn* % r? func)
+     parr (if (arr? obj)
+            #(wrap-str
+               (prnArr* obj
+                        r? func) %1 %2))])
   (case (typeid obj)
     :atom
-    (wrap-str (func nil obj.value) "(atom " ")")
+    (wrap-str (pfx obj.value) "(atom " ")")
     (:lambda-arg :regex-obj :keyword :symbol)
     (.-value obj)
     :object
     (-> (reduce (fn [acc [k v]]
-                  (var x (func k v))
+                  (with-local-vars [x (func k v)])
                   (if-not (undef? x)
                     (conj! acc (str (pfx k)
                                     ":" (pfx x)))) acc) [] (seq obj))
@@ -1025,7 +1057,7 @@ one arg, returns the concatenation of the str values of the args."
         (wrap-str "{" "}"))
     :objectMap
     (-> (reduce (fn [acc [k v]]
-                  (var x (func k v))
+                  (with-local-vars [x (func k v)])
                   (if-not (undef? x)
                     (conj! acc (str (pfx k)
                                     " " (pfx x)))) acc) [] (seq obj))
@@ -1033,7 +1065,7 @@ one arg, returns the concatenation of the str values of the args."
         (wrap-str "{" "}"))
     :objectSet
     (-> (reduce (fn [acc v]
-                  (var x (func v v))
+                  (with-local-vars [x (func v v)])
                   (if-not (undef? x)
                     (conj! acc (pfx v))) acc) [] (seq obj))
         (.join  " ")
@@ -1057,44 +1089,39 @@ one arg, returns the concatenation of the str values of the args."
 (deftype LambdaArg []
   "Defining a lambda positional argument"
   (constructor "" [arg]
-    (var name (if (= arg "%")
-                "1" (rest arg))
-         v (int name))
+    (with-local-vars
+      [name (if (= arg "%") "1" (rest arg)) v (int name)])
     (if-not (> v 0)
       (raise! "invalid lambda-arg " arg))
-    (set! this.value (str "%" v)))
-  (toString "" [] this.value))
+    (oset! this :value (str "%" v)))
+  (toString "" [] @@value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Primitive []
   "Defining a primitive data type"
-  (constructor "" [v]
-    (set! this.value v))
-  (toString "" [] this.value))
+  (constructor "" [v] (oset! this :value v))
+  (toString "" [] @@value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype RegexObj []
   "Defining a Regex pattern"
-  (constructor "" [v]
-    (set! this.value v))
-  (toString "" [] this.value))
+  (constructor "" [v] (oset! this :value v))
+  (toString "" [] @@value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Keyword []
   "Defining a keyword"
-  (constructor "" [name]
-    (set! this.value name))
+  (constructor "" [name] (oset! this :value name))
   (toString "" []
-    (cond (starts-with? this.value "::")
-          (str (*ns*) "/" (.slice this.value 2))
-          (starts-with? this.value ":") (.slice this.value 1))))
+    (cond (starts-with? @@value "::")
+          (str (*ns*) "/" (.slice @@value 2))
+          (starts-with? @@value ":") (.slice @@value 1))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Symbol []
   "Defining a symbol"
-  (constructor "" [name]
-    (set! this.value name))
-  (toString "" [] this.value))
+  (constructor "" [name] (oset! this :value name))
+  (toString "" [] @@value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn primitive?
@@ -1131,7 +1158,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword->symbol
   "Convert a Keyword to Symbol" ^Symbol [k]
-  (var s (new Symbol (str k)))
+  (with-local-vars [s (new Symbol (str k))])
   (oset! s
          :source k.source
          :line  k.line
@@ -1148,7 +1175,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftype Atom []
   "Defining a clojure-like Atom"
-  (constructor "" [val] (set! this.value val)))
+  (constructor "" [val] (oset! this :value val)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn atom?
@@ -1160,7 +1187,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn reset!
-  "Set a new value to the Atom" [a v] (do->nil (set! a.value v)))
+  "Set a new value to the Atom" [a v] (do->nil (oset! a :value v)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn resetVec! "" [v]
@@ -1192,22 +1219,6 @@ one arg, returns the concatenation of the str values of the args."
   (if (fn? comp) (.sort coll comp) (.sort comp)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn XXfind
-
-  "Returns the value of the first element
-  in the collection that satisfies the
-  provided predicate function"
-  [coll pred]
-
-  (var ret nil c nil)
-  (for [i 0 sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! c (.@i coll))
-    (when (pred c)
-      (set! ret c)
-      (break-out-of-loop!))) ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn deref
   "Get value inside the Atom" ^Any [a] (.-value a))
 
@@ -1217,7 +1228,7 @@ one arg, returns the concatenation of the str values of the args."
   ^Any [a f & xs]
   (->> (concat [a.value] xs)
        (apply f this)
-       (set! a.value )) (get a :value))
+       (oset! a :value )) (get a :value))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn typeid "Returns the type-id
@@ -1284,14 +1295,14 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- set2Set "" [s]
-  (var ret (new Set))
+  (with-local-vars [ret (new Set)])
   (for [i 0 sz (n# s)
         :while (< i sz) :recur (+1 i)]
-    (.add ret (.@i m))) ret)
+    (.add ret (.@i s))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eqSets? "" [s1 s2]
-  (var ok? #t)
+  (with-local-vars [ok? #t])
   (when (= (.-size s1)
            (.-size s2))
     (.forEach s1
@@ -1302,14 +1313,14 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Map "" [m]
-  (var ret (new Map))
+  (with-local-vars [ret (new Map)])
   (for [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
     (.set ret (.@i m) (.@+i m))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eqMaps? "" [m1 m2]
-  (var ok? #t)
+  (with-local-vars [ok? #t])
   (when (= (.-size m1)
            (.-size m2))
     (.forEach m1
@@ -1320,17 +1331,16 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Obj "" [m]
-  (var ret (object ))
-  (var~ k v)
+  (with-local-vars [k ? v ? ret `{}])
   (for [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
     (set! k (.@i m)
           v (.@+i m))
-    (assign! ret (str k) v)) ret)
+    (oset! ret (str k) v)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn eq? "True if both are equal" [a b]
-  (var k nil ok? true)
+  (with-local-vars [k ? ok? #t])
   (cond
     (and (map? a) (map? b)
          (= (alen a) (alen b)))
@@ -1371,7 +1381,6 @@ one arg, returns the concatenation of the str values of the args."
          (objectMap? b))
     (eqMaps? a b)
 
-
     (and (objectSet? a)
          (objectSet? b))
     (eqSets? a b)
@@ -1398,13 +1407,14 @@ one arg, returns the concatenation of the str values of the args."
   ^Array [type coll]
   (case type
     (:list :set :obj :map :vector)
-    (assign! coll :____typeid type)) coll)
+    (oset! coll :____typeid type)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but
            returning a new collection"
   ^Array [type coll]
-  (into! type (coll.slice 0)))
+  (if (array? coll)
+    (into! type (coll.slice 0))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pairs? "Returns true if
@@ -1422,7 +1432,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn list
-  "Create a List" ^Array [&xs] (assign! xs :____typeid :list) xs)
+  "Create a List" ^Array [&xs] (oset! xs :____typeid :list) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector? "Returns true if a Vector"
@@ -1431,7 +1441,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector
-  "Create a Vector" ^Array [&xs] (assign! xs :____typeid :vector) xs)
+  "Create a Vector" ^Array [&xs] (oset! xs :____typeid :vector) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set? "Returns true if a Set"
@@ -1440,7 +1450,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn set
-  "Create a Set" ^Array [&xs] (assign! xs :____typeid :set) xs)
+  "Create a Set" ^Array [&xs] (oset! xs :____typeid :set) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn map? "Returns true if a Hashmap"
@@ -1457,7 +1467,7 @@ one arg, returns the concatenation of the str values of the args."
   ^Array [&xs]
   (if (odd? (alen xs))
     (raise! "Invalid arity for arraymap"))
-  (assign! xs :____typeid :map) xs)
+  (oset! xs :____typeid :map) xs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn object "Create a new js object"
@@ -1510,7 +1520,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" ^Array [coll start step]
-  (var ret [])
+  (with-local-vars [ret []])
   (for [i start sz (n# coll)
         :while (< i sz) :recur (+ i step)] (conj! ret (.@i coll))) ret)
 
@@ -1527,7 +1537,7 @@ one arg, returns the concatenation of the str values of the args."
   ^Integer [x N]
   (if (< x 0)
     (- x (* -1
-            (+ N (* (Math.floor (div (- x) N)) N))))
+            (+ N (* (Math/floor (div (- x) N)) N))))
     (rem x N)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1549,7 +1559,7 @@ one arg, returns the concatenation of the str values of the args."
  "Returns a sequence of strings of n characters each."
   [n string]
 
-  (var ret [])
+  (with-local-vars [ret []])
   (for [i 0 sz (n# string) :while (< i sz)]
     (conj! ret (.substr string i n))
     (set! i (+ i n))) ret)
@@ -1558,10 +1568,10 @@ one arg, returns the concatenation of the str values of the args."
 (defn interleave "Returns a seq of the first item
                  in each coll, then the second, etc"
   ^Array [c1 c2]
-  (var cz (if (< (alen c2)
-                 (alen c1))
-            (alen c2) (alen c1))
-       ret [])
+  (with-local-vars
+    [cz (if (< (alen c2)
+               (alen c1)) (alen c2) (alen c1))
+     ret []])
   (for [i 0
         :while (< i cz) :recur (+1 i)] (conj! ret (.@i c1) (.@i c2))) ret)
 
@@ -1569,10 +1579,10 @@ one arg, returns the concatenation of the str values of the args."
 (defn zipmap "Returns an object with the
              keys mapped to the corresponding vals"
   ^Map [keys vals]
-  (var cz (if (< (alen keys)
-                 (alen vals))
-            (alen keys) (alen vals))
-       ret {})
+  (with-local-vars
+    [cz (if (< (alen keys)
+               (alen vals)) (alen keys) (alen vals))
+     ret {}])
   (for [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret (.@i keys) (.@i vals))) ret)
@@ -1581,10 +1591,10 @@ one arg, returns the concatenation of the str values of the args."
 (defn zipobj "Returns an object with the
              keys mapped to the corresponding vals"
   ^Map [keys vals]
-  (var cz (if (< (alen keys)
-                 (alen vals))
-            (alen keys) (alen vals))
-       ret (object))
+  (with-local-vars
+   [cz (if (< (alen keys)
+              (alen vals)) (alen keys) (alen vals))
+    ret `{}])
   (for [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret $(.@i keys) (.@i vals))) ret)
@@ -1592,7 +1602,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn extendAttr "" ^Object [obj attr & [flags]]
   (set! flags (opt?? flags
-                   (object :enumerable #f :writable #t)))
+                     `{:enumerable #f :writable #t}))
   (Object.defineProperty obj attr flags) obj)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1621,8 +1631,8 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn assoc! "" ^Any [obj & xs]
-  (var~ k v)
   (when obj
+    (with-local-vars [k ? v ?])
     (for [i 0 sz (n# xs)
           :while (< i sz) :recur (+2 i)]
       (set! k (.@i xs)
@@ -1633,8 +1643,8 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dissoc! "" ^Any [obj & xs]
-  (var~ k)
   (when obj
+    (with-local-vars [k ?])
     (for [i 0 sz (n# xs)
           :while (< i sz) :recur (+1 i)]
       (set! k (.@i xs))
@@ -1723,7 +1733,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
-  (var out "\"")
+  (with-local-vars [out "\""])
   (for [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
     (set! ch (ch@ s i))
@@ -1764,7 +1774,7 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn escXml "Escape XML special chars" ^String [s]
-  (var out "")
+  (with-local-vars [out ""])
   (for [i 0 c nil sz (n# s)
         :while (< i sz) :recur (+1 i)]
     (set! c (.@i s))
@@ -1793,12 +1803,13 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doUpdateIn! "" [coll n func args err]
-  (var cur (cond
-             (number? n)
-             (if (and (array? coll)
-                      (< n (alen coll))) (nth coll n) (err n))
-             :else (.get coll n))
-       v (apply func this (cons cur args)))
+  (with-local-vars
+   [cur (cond
+          (number? n)
+          (if (and (array? coll)
+                   (< n (alen coll))) (nth coll n) (err n))
+          :else (.get coll n))
+    v (apply func this (cons cur args))])
   (assoc! coll n v))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1812,10 +1823,12 @@ created."
 
   ^Map [coll keys func & xs]
 
-  (var err #(raise! "update-in! failed, bad nested keys: " %))
-  (var root coll
-       end (last-index keys))
-  (var~ m n)
+  (with-local-vars
+   [err #(raise! "update-in! failed, bad nested keys: " %)
+    root coll
+    m ?
+    n ?
+    end (last-index keys)])
   (for [i 0 :while (<= i end) :recur (+1 i)]
     (set! n (.@i keys))
     (cond
@@ -1840,10 +1853,12 @@ created."
   is not present, or the not-found value if supplied."
   ^Any [coll keys]
 
-  (var root coll
-       ret nil
-       end (last-index keys))
-  (var~ m n)
+  (with-local-vars
+   [root coll
+    ret nil
+    m ?
+    n ?
+    end (last-index keys)])
   (for [i 0 :while (<= i end) :recur (+1 i)]
     (set! n (.@i keys))
     (cond
@@ -1859,14 +1874,14 @@ created."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- merge! "" [base m]
-  (var ret (or base (new Map))
-       src (or m (new Map)))
+  (with-local-vars [ret (or base (new Map))
+                    src (or m (new Map))])
   (each-key (fn [v k] (assoc! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- mix! "" [base m]
-  (var ret (or base `{})
-       src (or m `{}))
+  (with-local-vars [ret (or base `{})
+                    src (or m `{})])
   (each-key (fn [v k] (assign! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1889,14 +1904,14 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn fillArray "" [len v]
-  (var ret [])
+  (with-local-vars [ret []])
   (dotimes [x len]
     (conj! ret (if (fn? v) (v x) v))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn copyArray "" [src des]
-  (var sz (Math/min (n# src)
-                    (n# des)))
+  (with-local-vars [sz (Math/min (n# src)
+                                 (n# des))])
   (for [i 0 :while (< i sz) :recur (+1 i)]
     (aset des i (nth src i)))
   des)
@@ -1907,7 +1922,7 @@ the latter (left-to-right) will be the mapping in the result."
   without elements of the other set."
   [a b]
 
-  (var ret [] z nil)
+  (with-local-vars [ret [] z nil])
   (for [i 0 sz (n# a)
         :while (< i sz) :recur (+1 i)]
     (set! z (.@i a))
@@ -1931,7 +1946,7 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn mapcat "" [func coll]
-  (var ret [])
+  (with-local-vars [ret []])
   (ret.concat.apply ret (map func coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1976,7 +1991,7 @@ the latter (left-to-right) will be the mapping in the result."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn pushNSP "" [nsp & [info]]
-  (var obj {:id nsp :meta info})
+  (with-local-vars [obj {:id nsp :meta info}])
   (swap! *ns-cache*
          (fn [a] (.unshift a obj) a)))
 

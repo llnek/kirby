@@ -12,19 +12,15 @@
   (:require ["kirby"
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
-(defmacro poop
-  "binding => binding-form init-expr
- Evaluates the exprs in a lexical context in which the symbols in
-the binding-forms are bound to their respective init-exprs or parts
-therein."
+(defmacro poo
   [bindings & xs]
-  (let* [sz (count* xs)]
-    (if* (> sz 0)
-         `(with-local-vars ~bindings ~@xs))))
+  (let* [sz (count* bindings)
+         _ (assert* (= sz 2) "expected only 2 in form")
+         f (nth* bindings 0)]
+    `(let [~f ~(nth* bindings 1)] ~@xs ~f)))
 
 (defn xxx []
 
-  (poop [x 1 y 0])
-  nil
+  (poo [a 9] 22)
   )
 
