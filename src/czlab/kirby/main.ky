@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2018, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -27,8 +27,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compileSource "" [opt]
-  (var [fin fout] opt.argv
-       options opt.options)
+  (with-local-vars [[fin fout] opt.argv
+                    options opt.options])
   ;need to get the absolute path of file
   (if-not fin
     (error! "No source file")
@@ -38,12 +38,12 @@
   (if-not fout
     (set! fout (fin.replace #/\.ky$/g ".js")))
   (try
-    (var {:keys [source-map
-                 no-format show-ast]} options)
+    (with-local-vars [{:keys [source-map
+                              no-format show-ast]} options])
     (if-not show-ast
       (println (str "kirby v" (.-version tx))
                ": compiling: " fin " -> " fout))
-    (var source (rt/slurp fin))
+    (with-local-vars [source (rt/slurp fin)])
     (if show-ast
       (println (tx/dbgAST source fin))
       (let [[ret err]
@@ -79,14 +79,14 @@
         (do ;;(prev === null) {/*new file*/}
             ;;f is a new file or changed
           (cp/spawn "bin/kirby.js"
-                    [(f.slice (+1 (alen cwd)))]
+                    [(.slice f (+1 (alen cwd)))]
                     (object :stdio "inherit")))))) nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pcli "" ^Boolean [gopt]
-  (var opt (.parseSystem gopt)
-       {:keys [version
-               repl watch help]} opt.options)
+  (with-local-vars [opt (.parseSystem gopt)
+                    {:keys [version
+                            repl watch help]} opt.options])
   (cond
     version (console.info tx.version)
     watch (doWatch (process/cwd))
@@ -98,22 +98,23 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn main "" []
-  (var gopt
-       (->
-         (getopt/create
-           [[:v "verbose" "show details of the source"]
-            [:w "watch" "auto-compile changed files"]
-            [:m "source-map" "generate source maps"]
-            [:f "no-format" "no-format source code"]
-            [:V "version" "show version"]
-            [:r "repl" "start a repl"]
-            [:h "help" "show help"]
-            [:t "show-ast" "show AST"]])
-         (.setHelp
-            (str "kirby [OPTIONS] [<infile>] [<outfile>]\n\n"
-                 "<outfile> defaults to <infile>.js\n\n"
-                 "[[OPTIONS]]\n\n"))
-         (.bindHelp )))
+  (with-local-vars
+    [gopt
+     (->
+       (getopt/create
+         [[:v "verbose" "show details of the source"]
+          [:w "watch" "auto-compile changed files"]
+          [:m "source-map" "generate source maps"]
+          [:f "no-format" "no-format source code"]
+          [:V "version" "show version"]
+          [:r "repl" "start a repl"]
+          [:h "help" "show help"]
+          [:t "show-ast" "show AST"]])
+       (.setHelp
+         (str "kirby [OPTIONS] [<infile>] [<outfile>]\n\n"
+              "<outfile> defaults to <infile>.js\n\n"
+              "[[OPTIONS]]\n\n"))
+       (.bindHelp ))])
   (and (init)
        (pcli gopt)))
 

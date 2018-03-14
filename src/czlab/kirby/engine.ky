@@ -215,26 +215,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- withMeta "" ^Object [obj m]
-  (var ret (clone obj))
-  (assign! ret :____meta m) ret)
+  (with-local-vars [ret (clone obj)])
+  (oset! ret :____meta m) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta "" ^Map [obj]
-  (if-not (or (array? obj)
-              (objectMap? obj)
+  (if-not (or (objectMap? obj)
               (objectSet? obj)
               (object? obj)
+              (array? obj)
               (fn? obj))
     (raise! "can't get meta from: " (typeid obj)))
   (get obj :____meta))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- evalJS "" ^Any [s]
-  (filterJS (eval (s.toString))))
+  (filterJS (eval (.toString s))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- invokeJS "" ^Any [method & xs]
-  (var [obj f] (resolveJS method))
+  (with-local-vars [[obj f] (resolveJS method)])
   (filterJS (apply f obj xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -242,10 +242,10 @@
 
   "macroexpand*" #(println (std/prn (expand?? %1 (or %2 g_env))))
   "macros*" (fn [&[fout]]
-              (var s (std/prn CACHE))
+              (with-local-vars [s (std/prn CACHE)])
               (if fout (spit fout s) (println s)))
   "env*" (fn [what & [env fout]]
-           (var s (std/prn (.select (or env g_env) what)))
+           (with-local-vars [s (std/prn (.select (or env g_env) what))])
            (if fout (spit fout s) (println s)))
   "is-same?" #(== %1 %2)
   "is-nil?" #(nil? %)
@@ -333,7 +333,7 @@
                (fn? func))
       (set! cmd $(cmd))
       (when-not (contains? cmd "/")
-        (var c (std/peekNSP))
+        (with-local-vars [c (std/peekNSP)])
         (if-not c (raise! "missing namespace"))
         (set! cmd (str (get c :id) "/" cmd)))
       ;;(println "adding macro ==== " cmd)
@@ -341,7 +341,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getMacro "Get macro" ^Function [cmd]
-  (var~ skip nsp mname)
+  (with-local-vars [skip ? nsp ? mname ?])
   (set! cmd $(cmd))
   (cond
     (contains? cmd "/")
@@ -371,40 +371,40 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn readAST "" ^Array [s]
-  (var ret (reader/parse s))
+  (with-local-vars [ret (reader/parse s)])
   (if (single? ret)
-    (set! ret (1st ret))) ret)
+    (set! ret (_1 ret))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- backtick "" ^Array [ast]
-  (var lst? #(and (sequential? %)
-                  (not-empty %)))
+  (with-local-vars [lst? #(and (sequential? %)
+                               (not-empty %))])
   (cond
     (not (lst? ast))
     ['quote ast]
     ;;
-    (and (symbol? (1st ast))
-         (== (1st ast) "unquote"))
-    (2nd ast)
+    (and (symbol? (_1 ast))
+         (== (_1 ast) "unquote"))
+    (_2 ast)
     ;;
-    (and (lst? (1st ast))
-         (symbol? (1st (1st ast)))
-         (== (1st (1st ast)) "splice-unquote"))
-    ['concat* (2nd (1st ast)) (backtick (rest ast))]
+    (and (lst? (_1 ast))
+         (symbol? (_1 (_1 ast)))
+         (== (_1 (_1 ast)) "splice-unquote"))
+    ['concat* (_2 (_1 ast)) (backtick (rest ast))]
     ;;
     :else
-    ['cons* (backtick (1st ast))
+    ['cons* (backtick (_1 ast))
             (backtick (rest ast))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isMacroCall? "" [ast env]
-  (and (pairs? ast) (symbol? (1st ast)) (getMacro $(1st ast))))
+  (and (pairs? ast) (symbol? (_1 ast)) (getMacro $(_1 ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn expand?? "" ^Any [ast env]
-  (var~ cmd mac)
+  (with-local-vars [cmd ? mac ?])
   (while (isMacroCall? ast env)
-    (set! cmd $(1st ast)
+    (set! cmd $(_1 ast)
           mac (getMacro cmd)
           ast (apply mac this (rest ast)))) ast)
 
@@ -422,7 +422,7 @@
     (vector? ast)
     (into! :vector (map #(compute % env) ast))
     (obj? ast)
-    (do-with [m (object)]
+    (do-with [m `{}]
       (for [i 0 sz (n# ast)
             :while (< i sz) :recur (+2 i)]
         (assoc! m
@@ -444,7 +444,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doAND "" ^Boolean [ast env]
-  (var ret #t)
+  (with-local-vars [ret #t])
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! ret (compute (.@i ast) env))
@@ -452,7 +452,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doOR "" ^Boolean [ast env]
-  (var ret nil)
+  (with-local-vars [ret nil])
   (for [i 1 sz (n# ast)
         :while (< i sz) :recur (+1 i)]
     (set! ret (compute (.@i ast) env))
@@ -460,63 +460,63 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doLET "" ^Array [ast env]
-  (var e (new LEXEnv env)
-       binds (2nd ast))
+  (with-local-vars [e (new LEXEnv env)
+                    binds (_2 ast)])
   (for [i 0 sz (n# binds)
         :while (< i sz) :recur (+2 i)]
     (e.set (.@i binds)
            (compute (.@+i binds) e)))
-  [(3rd ast) e])
+  [(_3 ast) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;(macro* name args body)
 (defn- doMACRO "" [ast env]
-  (var name $(2nd ast)
-       nsp (std/peekNSP))
+  (with-local-vars [name $(_2 ast)
+                    nsp (std/peekNSP)])
   (set! nsp (if nsp (get nsp :id) KBSTDLIB))
   (if-not (contains? name "/")
     (set! name (str nsp "/" name)))
   (do->nil (setMacro name
-                     (fn->raw (3rd ast)
+                     (fn->raw (_3 ast)
                               (.@3 ast) env))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doTRY "" ^Any [ast env]
-  (var a3 (3rd ast))
+  (with-local-vars [a3 (_3 ast)])
   (try
-    (compute (2nd ast) env)
+    (compute (_2 ast) env)
     (catch e
       (if (and a3 (== "catch*"
-                      (1st a3)))
+                      (_1 a3)))
         (do (if (inst? Error e)
               (set! e (.-message e)))
-            (compute (3rd a3)
+            (compute (_3 a3)
                      (new LEXEnv
-                          env [(2nd a3)] [e])))
+                          env [(_2 a3)] [e])))
         (throw e)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doIF "" ^Any [ast env]
-  (var kond (compute (.@1 ast) env)
-       a2 (.@2 ast)
-       a3 (.@3 ast))
+  (with-local-vars [kond (compute (.@1 ast) env)
+                    a2 (.@2 ast)
+                    a3 (.@3 ast)])
   (if (falsy? kond)
     (if-not (undef? a3) a3) a2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- form* "" ^Any [ast env]
-  (var el (eval* ast env))
+  (with-local-vars [el (eval* ast env)])
   (cond
     ;if a data structure just return it
     (or (vector? ast) (obj? ast)
         (set? ast)(map? ast) (list? ast)) (atom el)
     (array? el)
-    (let [f (1st el)
+    (let [f (_1 el)
           c (if (fn? f) f.____code)]
       (cond
         ;is it a wrapper only, look for the wrapped sexpr
         (array? c)
-        [(2nd c) (new LEXEnv (3rd c) (1st c) (rest el))]
+        [(_2 c) (new LEXEnv (_3 c) (_1 c) (rest el))]
         ;a raw function, run it
         (fn? f)
         (atom (apply f this (rest el)))
@@ -544,50 +544,53 @@
   "macro*" #(atom (doMACRO %1 %2))
   "try*" #(atom (doTRY %1 %2))
   "do*" (fn [a e]
-          (eval* (a.slice 1 -1) e)
+          (eval* (.slice a 1 -1) e)
           [(nth a (last-index a)) e])
   "if*" #([(doIF %1 %2) %2])
   "lambda*" #(atom (fn->raw (.@1 %1) (.@2 %1) %2)) })
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn compute "Interpret a expression" ^Any [expr cenv]
-  (var g1 #(if (pairs? %) (1st %) "")
-       env (or cenv g_env)
-       ret (loop [ast (expand?? expr env)]
-             (var cmd $(g1 ast)
-                  fc (get *spec-forms* cmd)
-                  res (cond
-                        (not (array? ast))
-                        (atom (eval* ast env))
-                        (empty? ast)
-                        (atom ast)
-                        (fn? fc)
-                        (fc ast env)
-                        :else
-                        (form* ast env)))
-             (if (atom? res)
-               res
-               (do (set! env (2nd res))
-                   (recur (expand?? (1st res) env))))))
+  (with-local-vars
+    [g1 #(if (pairs? %) (_1 %) "")
+     env (or cenv g_env)
+     ret (loop [ast (expand?? expr env)]
+           (with-local-vars
+             [cmd $(g1 ast)
+              fc (get *spec-forms* cmd)
+              res (cond
+                    (not (array? ast))
+                    (atom (eval* ast env))
+                    (empty? ast)
+                    (atom ast)
+                    (fn? fc)
+                    (fc ast env)
+                    :else
+                    (form* ast env))])
+           (if (atom? res)
+             res
+             (do (set! env (_2 res))
+                 (recur (expand?? (_1 res) env)))))])
   (if (undef? @ret) nil @ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn newEnv "Create a new interpreter environment" ^LEXEnv []
   (do-with [ret (new LEXEnv)]
     (each-key (fn [v k]
-                (ret.set (symbol k) v)) *intrinsics*)))
+                (.set ret (symbol k) v)) *intrinsics*)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runRepl "Start a interactive session" []
-  (var ss (readline/createInterface process.stdin
-                                    process.stdout)
-       z (alen prefix)
-       pt #(do (ss.setPrompt prefix z)
-               (ss.prompt ))
-       rl (fn [line]
-            (try (if line (println (reval line)))
-                 (catch e (println e))) (pt))
-       cl #(do (println "Bye!") (process.exit 0)))
+  (with-local-vars
+    [ss (readline/createInterface process.stdin
+                                  process.stdout)
+     z (alen prefix)
+     pt #(do (ss.setPrompt prefix z)
+             (ss.prompt ))
+     rl (fn [line]
+          (try (if line (println (reval line)))
+               (catch e (println e))) (pt))
+     cl #(do (println "Bye!") (process.exit 0))])
   (ss.on :close cl)
   (ss.on :line rl)
   (init)
@@ -595,8 +598,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- reval "Eval one or more expressions" ^Any [expr & xs]
-  (var f (comp prn
-               compute readAST) ret (f expr))
+  (with-local-vars [f (comp prn compute readAST)
+                    ret (f expr)])
   (doseq [e xs] (set! ret (f e))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
