@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2017, Kenneth Leung. All rights reserved.
+;; Copyright © 2013-2018, Kenneth Leung. All rights reserved.
 ;; The use and distribution terms for this software are covered by the
 ;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
 ;; which can be found in the file epl-v10.html at the root of this distribution.
@@ -55,33 +55,40 @@
                a new env with these symbols,
                and optionally a parent env"
     [parent vars vals]
-    (assign! this :data {} :libs {} :vars {} :par nil)
-    (if parent (assign! this :par parent))
+    (oset! this
+           :data {}
+           :libs {}
+           :vars {}
+           :par nil)
+    (if parent
+      (oset! this :par parent))
     (for [i 0 e nil ev nil sz (n# vars)
           :while (< i sz) :recur (+1 i)]
       (set! e (.@i vars)
             ev (.-value e))
       (cond
         (== ev "&")
-        (do->break! (assoc! this.data
-                            $(.@+i vars) (slice vals i)))
+        (do->break!
+          (assoc! @@data
+                  $(.@+i vars) (slice vals i)))
         (starts-with? ev "&")
-        (do->break! (assoc! this.data
-                            (rest ev) (slice vals i)))
+        (do->break!
+          (assoc! @@data
+                  (rest ev) (slice vals i)))
         :else
-        (assoc! this.data ev (.@i vals)))))
+        (assoc! @@data ev (.@i vals)))))
   (find "Find the env
         containing this symbol"
     ^LEXEnv [k]
     (expect! k)
     (cond
-      (contains? this.data k.value) this
-      (some? this.par) (.find this.par k)))
+      (contains? @@data k.value) this
+      (some? @@par) (.find @@par k)))
   (set "Bind this symbol,
        value to this env"
     ^Any [k v]
     (expect! k)
-    (assoc! this.data k.value v) v)
+    (assoc! @@data k.value v) v)
   (get "Get value of
        this symbol"
     ^Any [k]
@@ -97,38 +104,38 @@
                 (assoc! acc (str k) v)) acc) {} (seq this.data)))
   (prn "Print set of vars"
     ^String []
-    (std/prn this.data))
+    (std/prn @@data))
 
   (getLib "" [alias]
-    (if this.par
-      (.getLib this.par alias)
-      (get this.libs alias)))
+    (if @@par
+      (.getLib @@par alias)
+      (get @@libs alias)))
 
   (addVar "" [sym info]
-    (if this.par
-      (.addVar this.par sym info)
+    (if @@par
+      (.addVar @@par sym info)
       (do->nil (var s (str sym)
-                    m (get this.vars s))
+                    m (get @@vars s))
                (if m (raise! "var: " s " already added"))
-               (assoc! this.vars s info))))
+               (assoc! @@vars s info))))
 
   (getVar "" [sym]
-    (if this.par
-      (.getVar this.par sym)
-      (get this.vars (str sym))))
+    (if @@par
+      (.getVar @@par sym)
+      (get @@vars (str sym))))
 
   (hasVar? "" [sym]
-    (if this.par
-      (.hasVar? this.par sym)
-      (contains? this.vars (str sym))))
+    (if @@par
+      (.hasVar? @@par sym)
+      (contains? @@vars (str sym))))
 
   (addLib "" [alias lib]
-    (if this.par
-      (.addLib this.par alias lib)
+    (if @@par
+      (.addLib @@par alias lib)
       (do->nil
-        (if (contains? this.libs alias)
+        (if (contains? @@libs alias)
           (raise! "Library alias already added: " alias))
-        (assoc! this.libs alias lib)))))
+        (assoc! @@libs alias lib)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr
@@ -137,10 +144,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn Function.prototype.clone "" ^Function []
   ;;run the old function with the new 'this'
-  (var orig this
-       cloned #(apply orig this ____args))
+  (with-local-vars
+   [orig this
+    cloned #(apply orig this ____args)])
   (each-key
-    (fn [v k] (assign! cloned k v)) orig) cloned)
+    (fn [v k] (oset! cloned k v)) orig) cloned)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- prnStr "" ^String [&xs] (join " " (prnArr xs)))
@@ -156,7 +164,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- clone "" ^Any [obj]
-  (var oid (typeid obj))
+  (with-local-vars [oid (typeid obj)])
   (case oid
     (:vector :map :list)
     (into! oid (slice obj))
@@ -165,7 +173,7 @@
     :object
     (reduce
       (fn [acc [k v]]
-        (assign! acc k v) acc) (object ) (seq obj))
+        (oset! acc k v) acc) `{} (seq obj))
     :function
     (obj.clone)
     ;;else
@@ -202,7 +210,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- filterJS "" ^Any [obj]
-  (var s (stringify obj))
+  (with-local-vars [s (stringify obj)])
   (if (not-empty s) (JSON/parse s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
