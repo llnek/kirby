@@ -825,33 +825,6 @@ returned if no clause matches."
           ["return " gs ";}).call(this)"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-vardefs
-  "For JS style var defs with no rvalue, e.g. let x,y;"
-  ^{:opcode ["def~-" "def~" "var~"]
-    :tag SourceNode} [ast env]
-  (assertArity (>= (n# ast) 2) ast)
-  (with-local-vars [ret (node' ast)
-                    cmd $(_1 ast)
-                    keys {}
-                    pub? (== cmd "def~")])
-  (if (starts-with? cmd "def")
-    (set! cmd "var") (set! cmd "let"))
-  (for [i 1 x nil s nil sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! x (.@i ast)
-          s (tx* x env))
-    (if-not (== "let" cmd)
-      (.addVar env
-               $(x)
-               {:ns (std/*ns*) :alias $(x) :type :var}))
-    (assoc! keys s s)
-    (if (> i 1) (ret.add ","))
-    (ret.add s))
-  ;;exports
-  (if pub? (each-key #(assoc! *externs* %2 %1) keys))
-  (wrap ret (str cmd " ") ";\n"))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var
 
   "Creates a variable with an initial value"
@@ -1033,7 +1006,7 @@ returned if no clause matches."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-assign!
   "Object property assignment or array index setter."
-  ^{:opcode ["oset!" "assign!" "aset"] :tag SourceNode} [ast env]
+  ^{:opcode ["oset!" "aset"] :tag SourceNode} [ast env]
   (assertArity (even? (n# ast)) ast)
   (with-local-vars [ret (node' ast)
                     obj (tx* (_2 ast) env)])

@@ -1,0 +1,121 @@
+;; Copyright ©  2013-2018, Kenneth Leung. All rights reserved.
+;; The use and distribution terms for this software are covered by the
+;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
+;; which can be found in the file epl-v10.html at the root of this distribution.
+;; By using this software in any fashion, you are agreeing to be bound by
+;; the terms of this license.
+;; You must not remove this notice, or any other, from this software.
+
+(ns ^{:doc ""
+      :author "Kenneth Leung"}
+
+  czlab.elmo.ecs.test
+
+  (:require ["./ecs-core" :as ecs]
+            ["kirby"
+             :as ky :refer [conj! some?
+                            count println runtest]]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- compA "" [] `{:a 50 })
+(defn- compB "" [] `{:b 10 })
+(defn- compC "" [] `{:c 15 })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- tmpA
+  `{:components #{:c1 :c3} :initor (fn []) })
+
+(const- tmpB
+  `{:components #{:c2 :c3} :initor (fn []) })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *ecs* (ecs/createECS))
+(def- TEMP-VAR nil)
+
+(defn- sys1 "" [e t] (if (pos? t) (conj! TEMP-VAR 1)))
+(defn- sys2 "" [e t] (if (pos? t) (conj! TEMP-VAR 2)))
+(defn- sys3 "" [e t] (if (pos? t) (conj! TEMP-VAR 3)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(deftest ecs-test
+
+  (ensure (zero? (getPoolSize pool1)) "pool,size=0")
+  (ensure (let [x (takeFromPool pool1)
+                y (takeFromPool pool1)
+                z (takeFromPool pool1)]
+            (= 3 (getPoolUsed pool1))) "pool,used")
+  (ensure (let [x (takeFromPool pool1)
+                y (takeFromPool pool1)
+                z (takeFromPool pool1)]
+            (returnToPool pool1 z)
+            (= 5 (getPoolUsed pool1))) "pool,drop")
+  (ensure (= 6 (getPoolSize pool1)) "pool,size>0")
+  (ensure (let [x (takeFromPool pool1)
+                y (takeFromPool pool1)
+                z (takeFromPool pool1)]
+            (returnToPool pool1 x)
+            (and (= 7 (getPoolUsed pool1))
+                 (= 12 (getPoolSize pool1)))) "pool,grow")
+
+  (ensure (= 1 (do (addComponent *ecs* :c1 compA)
+                   (count (getComponentKeys ecs)))) "addComponent,1")
+  (ensure (= 3 (do (addComponent *ecs* :c2 compB :c3 compC)
+                   (count (getComponentKeys ecs)))) "addComponent,*")
+
+  (ensure (= 2 (do (removeComponent *ecs* :c1)
+                   (count (getComponentKeys ecs)))) "removeComponent,1")
+  (ensure (= 0 (do (removeComponent *ecs* :c2 :c3)
+                   (count (getComponentKeys ecs)))) "removeComponent,*")
+
+  (ensure (= 3 (do (addComponent *ecs* :c1 compA :c2 compB :c3 compC)
+                   (count (getComponentKeys ecs)))) "addComponent,**")
+
+  (ensure (= 2 (do (addTemplate *ecs* :t1 tmpA :t2 tmpB)
+                   (count (getTemplateKeys *ecs*)))) "addTemplate,*")
+
+  (ensure (= 0 (do (removeTemplate *ecs* :t1 :t2)
+                   (count (getTemplateKeys *ecs*)))) "removeTemplate,*")
+
+  (ensure (= 2 (do (addTemplate *ecs* :t1 tmpA :t2 tmpB)
+                   (count (getTemplateKeys *ecs*)))) "addTemplate,*")
+
+  (ensure (let [x (createEntity *ecs* :c1 :c2 :c3)]
+            (and (componentInEntity? x :c1 :c2 :c3)
+                 (getEntityData x :c1)
+                 (getEntityData x :c2)
+                 (getEntityData x :c3))) "createEntity,getData")
+
+  (ensure (let [a (findComponent *ecs* :c1)
+                b (findComponent *ecs* :c2)
+                c (findComponent *ecs* :c3)
+                d (findComponent *ecs* :xxx)]
+            (and a b c (nichts? d))) "engine,find")
+
+  (ensure (let [x (createTemplateEntity *ecs* :t2)]
+            (and (componentInEntity? x :c2 :c3)
+                 (nichts? (getEntityData x :c1))
+                 (getEntityData x :c2)
+                 (getEntityData x :c3))) "createTemplateEntity,getData")
+
+  (ensure (let [x (createTemplateEntity *ecs* :t1)
+                y (getEntityData x :c3)
+                _ (removeEntity *ecs* x)
+                z (getEntityData x :c1)]
+            (and (nichts? y)
+                 (nichts? z))) "removeEntity")
+
+  (ensure (ky/eq? [1 2 3]
+                 (do (set! TEMP-VAR [])
+                     (addSystem *ecs* sys1 sys2 sys3)
+                     (updateECS *ecs* 10)
+                     TEMP-VAR)) "engine,addSystem"))
+
+
+(println (runtest ecs-test "test: ecs"))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;EOF
+
+
+
+

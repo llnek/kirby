@@ -119,7 +119,7 @@
 (defmacro nexth "Get the next item after i." [coll i] `(nth ~coll (+1 ~i)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro nth "Get the item at index i." [coll i] `(get ~coll ~i))
+(defmacro nth "Get the item at index i." [coll i] `(aget ~coll ~i))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro even?
@@ -834,7 +834,9 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro with-local-vars "" [bindings & more]
-  (let* [e (count* more)
+  (let* [_ (assert* (is-array? bindings)
+                    "expecting array as bindings")
+         e (count* more)
          b (count* bindings)]
     (if* (not* (is-even? b))
        (throw* "wanted even number of binding forms")
@@ -1882,7 +1884,7 @@ created."
 (defn- mix! "" [base m]
   (with-local-vars [ret (or base `{})
                     src (or m `{})])
-  (each-key (fn [v k] (assign! ret k v)) src) ret)
+  (each-key (fn [v k] (oset! ret k v)) src) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn merge
