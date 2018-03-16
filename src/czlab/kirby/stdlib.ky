@@ -233,7 +233,7 @@
   [&xs] `(_andp_* ~@(map* (lambda* [x] `(> ~x 0)) xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro values
+(defmacro vals
   "The values for each element in the Map or Set object."
   [obj] `(Array.from (.values ~obj)))
 
@@ -365,7 +365,7 @@ therein. Acts as a recur target."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro concat
   "Returns the concatenation of the elements in the supplied colls."
-  [coll x] `(.concat ~coll ~x))
+  [coll & xs] `(.concat ~coll ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro join
@@ -948,7 +948,7 @@ one arg, returns the concatenation of the str values of the args."
   [coll & xs]
   (with-local-vars [s2 (new Set xs)])
   (->> (if (objectSet? coll)
-         (filter #(not (.has s2 %)) (values coll)) [])
+         (filter #(not (.has s2 %)) (vals coll)) [])
        (new Set)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

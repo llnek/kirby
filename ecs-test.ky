@@ -13,7 +13,7 @@
 
   (:require ["./ecs-core" :as ecs]
             ["kirby"
-             :as ky :refer [conj! some?
+             :as ky :refer [conj! some? nichts?
                             count println runtest]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36,78 +36,81 @@
 (defn- sys2 "" [e t] (if (pos? t) (conj! TEMP-VAR 2)))
 (defn- sys3 "" [e t] (if (pos? t) (conj! TEMP-VAR 3)))
 
+(const- pool1 (ecs/createPool (fn [] {:a 0})
+                              (fn [x] x) 6))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest ecs-test
 
-  (ensure (zero? (getPoolSize pool1)) "pool,size=0")
-  (ensure (let [x (takeFromPool pool1)
-                y (takeFromPool pool1)
-                z (takeFromPool pool1)]
-            (= 3 (getPoolUsed pool1))) "pool,used")
-  (ensure (let [x (takeFromPool pool1)
-                y (takeFromPool pool1)
-                z (takeFromPool pool1)]
-            (returnToPool pool1 z)
-            (= 5 (getPoolUsed pool1))) "pool,drop")
-  (ensure (= 6 (getPoolSize pool1)) "pool,size>0")
-  (ensure (let [x (takeFromPool pool1)
-                y (takeFromPool pool1)
-                z (takeFromPool pool1)]
-            (returnToPool pool1 x)
-            (and (= 7 (getPoolUsed pool1))
-                 (= 12 (getPoolSize pool1)))) "pool,grow")
+  (ensure (zero? (ecs/getPoolSize pool1)) "pool,size=0")
+  (ensure (let [x (ecs/takeFromPool pool1)
+                y (ecs/takeFromPool pool1)
+                z (ecs/takeFromPool pool1)]
+            (= 3 (ecs/getPoolUsed pool1))) "pool,used")
+  (ensure (let [x (ecs/takeFromPool pool1)
+                y (ecs/takeFromPool pool1)
+                z (ecs/takeFromPool pool1)]
+            (ecs/returnToPool pool1 z)
+            (= 5 (ecs/getPoolUsed pool1))) "pool,drop")
+  (ensure (= 6 (ecs/getPoolSize pool1)) "pool,size>0")
+  (ensure (let [x (ecs/takeFromPool pool1)
+                y (ecs/takeFromPool pool1)
+                z (ecs/takeFromPool pool1)]
+            (ecs/returnToPool pool1 x)
+            (and (= 7 (ecs/getPoolUsed pool1))
+                 (= 12 (ecs/getPoolSize pool1)))) "pool,grow")
 
-  (ensure (= 1 (do (addComponent *ecs* :c1 compA)
-                   (count (getComponentKeys ecs)))) "addComponent,1")
-  (ensure (= 3 (do (addComponent *ecs* :c2 compB :c3 compC)
-                   (count (getComponentKeys ecs)))) "addComponent,*")
+  (ensure (= 1 (do (ecs/addComponent *ecs* :c1 compA)
+                   (count (ecs/getComponentKeys *ecs*)))) "addComponent,1")
+  (ensure (= 3 (do (ecs/addComponent *ecs* :c2 compB :c3 compC)
+                   (count (ecs/getComponentKeys *ecs*)))) "addComponent,*")
 
-  (ensure (= 2 (do (removeComponent *ecs* :c1)
-                   (count (getComponentKeys ecs)))) "removeComponent,1")
-  (ensure (= 0 (do (removeComponent *ecs* :c2 :c3)
-                   (count (getComponentKeys ecs)))) "removeComponent,*")
+  (ensure (= 2 (do (ecs/removeComponent *ecs* :c1)
+                   (count (ecs/getComponentKeys *ecs*)))) "removeComponent,1")
+  (ensure (= 0 (do (ecs/removeComponent *ecs* :c2 :c3)
+                   (count (ecs/getComponentKeys *ecs*)))) "removeComponent,*")
 
-  (ensure (= 3 (do (addComponent *ecs* :c1 compA :c2 compB :c3 compC)
-                   (count (getComponentKeys ecs)))) "addComponent,**")
+  (ensure (= 3 (do (ecs/addComponent *ecs* :c1 compA :c2 compB :c3 compC)
+                   (count (ecs/getComponentKeys *ecs*)))) "addComponent,**")
 
-  (ensure (= 2 (do (addTemplate *ecs* :t1 tmpA :t2 tmpB)
-                   (count (getTemplateKeys *ecs*)))) "addTemplate,*")
+  (ensure (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
+                   (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
 
-  (ensure (= 0 (do (removeTemplate *ecs* :t1 :t2)
-                   (count (getTemplateKeys *ecs*)))) "removeTemplate,*")
+  (ensure (= 0 (do (ecs/removeTemplate *ecs* :t1 :t2)
+                   (count (ecs/getTemplateKeys *ecs*)))) "removeTemplate,*")
 
-  (ensure (= 2 (do (addTemplate *ecs* :t1 tmpA :t2 tmpB)
-                   (count (getTemplateKeys *ecs*)))) "addTemplate,*")
+  (ensure (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
+                   (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
 
-  (ensure (let [x (createEntity *ecs* :c1 :c2 :c3)]
-            (and (componentInEntity? x :c1 :c2 :c3)
-                 (getEntityData x :c1)
-                 (getEntityData x :c2)
-                 (getEntityData x :c3))) "createEntity,getData")
+  (ensure (let [x (ecs/createEntity *ecs* :c1 :c2 :c3)]
+            (and (ecs/componentInEntity? x :c1 :c2 :c3)
+                 (ecs/getEntityData x :c1)
+                 (ecs/getEntityData x :c2)
+                 (ecs/getEntityData x :c3))) "createEntity,getData")
 
-  (ensure (let [a (findComponent *ecs* :c1)
-                b (findComponent *ecs* :c2)
-                c (findComponent *ecs* :c3)
-                d (findComponent *ecs* :xxx)]
+  (ensure (let [a (ecs/findComponent *ecs* :c1)
+                b (ecs/findComponent *ecs* :c2)
+                c (ecs/findComponent *ecs* :c3)
+                d (ecs/findComponent *ecs* :xxx)]
             (and a b c (nichts? d))) "engine,find")
 
-  (ensure (let [x (createTemplateEntity *ecs* :t2)]
-            (and (componentInEntity? x :c2 :c3)
-                 (nichts? (getEntityData x :c1))
-                 (getEntityData x :c2)
-                 (getEntityData x :c3))) "createTemplateEntity,getData")
+  (ensure (let [x (ecs/createTemplateEntity *ecs* :t2)]
+            (and (ecs/componentInEntity? x :c2 :c3)
+                 (nichts? (ecs/getEntityData x :c1))
+                 (ecs/getEntityData x :c2)
+                 (ecs/getEntityData x :c3))) "createTemplateEntity,getData")
 
-  (ensure (let [x (createTemplateEntity *ecs* :t1)
-                y (getEntityData x :c3)
-                _ (removeEntity *ecs* x)
-                z (getEntityData x :c1)]
-            (and (nichts? y)
+  (ensure (let [x (ecs/createTemplateEntity *ecs* :t1)
+                y (ecs/getEntityData x :c3)
+                _ (ecs/removeEntity *ecs* x)
+                z (ecs/getEntityData x :c1)]
+            (and (some? y)
                  (nichts? z))) "removeEntity")
 
   (ensure (ky/eq? [1 2 3]
                  (do (set! TEMP-VAR [])
-                     (addSystem *ecs* sys1 sys2 sys3)
-                     (updateECS *ecs* 10)
+                     (ecs/addSystem *ecs* sys1 sys2 sys3)
+                     (ecs/updateECS *ecs* 10)
                      TEMP-VAR)) "engine,addSystem"))
 
 

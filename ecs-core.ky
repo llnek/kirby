@@ -11,13 +11,15 @@
   czlab.elmo.ecs.core
   (:require ["kirby"
              :as ky :refer [Atom atom swap!
+                            nichts? seq
                             partition conj! disj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool ""
-  ^Atom [name ctor batch]
-  (atom `{:name name :size 0 :next 0
-          :slots [] :ctor ctor :batch batch}))
+  ^Atom [ctor init batch]
+  {:pre [(fn? ctor)(fn? init)]}
+  (atom `{:size 0 :next 0 :slots []
+          :ctor ctor :init init :batch batch}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getPoolSize "" [pool] (get @pool :size))
@@ -26,39 +28,43 @@
 (defn getPoolUsed "" [pool] (get @pool :next))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn takeFromPool "" [pool]
+(defn takeFromPool "" ^Object [pool]
   (with-local-vars [ret nil])
   (swap! pool
          (fn [{:keys [size next slots batch ctor] :as root}]
+           ;no free slot? make more
            (when (>= next size)
-             ;no free slot? make more
              (dotimes [x batch] (conj! slots (ctor)))
              (oset! root :size (+ batch size)))
-           ;take a free object, set it's slot, up the pool's free ptr
+           ;take a free object, set it's slot,
+           ;up the pool's free ptr
            (set! ret (nth slots next))
-           (oset! ret :status #t :slot next)
+           (oset! ret :____status #t :____slot next)
            (oset! root :next (+1 next)) root)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn returnToPool "" [obj pool]
   (swap! pool
-         (fn [{:keys [next slots] :as root}]
+         (fn [{:keys [init next slots] :as root}]
            ;jiggle the free slot to reuse the one just dropped
-           (when (.-status obj)
+           (when (get obj :____status)
              (oset! root :next (-1 next))
+             ;rinse clean the object
+             (init obj)
              (with-local-vars [tail (nth slots root.next)
-                               slot' (get tail :slot)
-                               epos' (get obj :slot)])
+                               slot' (get tail :____slot)
+                               epos' (get obj :____slot)])
              ;set the free ptr to the dropped
              ;move the tail to old slot
              (aset slots root.next obj epos' tail)
              ;swap the 2 slots
-             (oset! tail :slot epos')
-             (oset! obj :slot slot' :status #f)) root)))
+             (oset! tail :____slot epos')
+             (oset! obj :____slot slot' :____status #f)) root)) pool)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createECS "" ^Atom []
   (atom {:entities #{}
+         :templates {}
          :registry {}
          :data {}
          :systems [] :uid 1}))
@@ -75,8 +81,9 @@
 (defn createEntity "" [ecs componentId & moreIds]
   (dosync
     (with-local-vars [entity (genUid ecs)])
-    (apply addToEntity this (concat [ecs entity]
-                                    (concat [componentId] moreIds)))
+    (apply addToEntity
+           this
+           (concat [ecs entity] componentId moreIds))
     (swap! ecs
            (fn [{:keys [entities] :as root}]
              (conj! entities entity) root)) entity))
@@ -95,22 +102,20 @@
 (defn addComponent "" [ecs id component & more]
   (swap! ecs
          (fn [{:keys [registry] :as root}]
-           (assoc! registry id component)
            (each (fn [[a b]]
-                   (assoc! registry a b)) (partition 2 more)) root)) ecs)
+                   (assoc! registry a b))
+                 (partition 2 (concat [id component] more))) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeComponent "" [ecs id & more]
   (swap! ecs
          (fn [{:keys [data registry] :as root}]
-           (dissoc! registry id)
-           (dissoc! data id)
            (each (fn [a]
                    (dissoc! registry a)
-                   (dissoc! data a)) more) root)))
+                   (dissoc! data a)) (concat [id] more)) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addToEntity "" [ecs entity & componentIds]
+(defn addToEntity "" [ecs entity componentId & moreIds]
   (swap! ecs
          (fn [{:keys [data registry] :as root}]
            (with-local-vars [ctor nil co nil])
@@ -120,33 +125,33 @@
                    (if-not (.has data cid) (assoc! data cid {}))
                    (set! co (ctor))
                    (oset! co :____entity entity)
-                   (assoc! (get data cid) entity co)) componentIds) root)))
+                   (assoc! (get data cid) entity co))
+                 (concat [componentId] moreIds)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeFromEntity "" [ecs entity & componentIds]
   (swap! ecs
          (fn [{:keys [data] :as root}]
            (each #(if-some [c (get data %)]
-                    (dissoc! c entity)) componentIds) root)))
+                    (dissoc! c entity)) componentIds) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getEntityData "" [ecs entity componentId]
   (with-local-vars [d (get @ecs :data)
                     c (get d componentId)])
-  (if c (get c entity)))
+  (if c (get c entity) undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateEntity "" [ecs entity componentId func]
   (swap! ecs
          (fn [{:keys [data] :as root}]
            (if-some [c (getEntityData
-                         ecs entity componentId)] (func c)) root)))
+                         ecs entity componentId)] (func c)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponentsData "" [ecs componentId]
-  (with-local-vars [d (get @ecs :data)
-                    c (get d componentId)])
-  (if c (Array.from (.values c)) []))
+  (with-local-vars [d (get @ecs :data)])
+  (if-some [c (get d componentId)] (vals c) []))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getComponentKeys "" [ecs] (keys (get @ecs :registry)))
@@ -169,6 +174,7 @@
                    (assoc! templates a b))
                  (partition 2
                             (concat [id template] more))) root)) ecs)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getTemplateKeys "" [ecs] (keys (get @ecs :templates)))
 
@@ -190,28 +196,31 @@
          (fn [{:keys [templates] :as root}]
            (with-local-vars [t (get templates id)])
            (set! entity
-                 (apply createEntity this (seq t.components)))
+                 (apply createEntity
+                        this
+                        (concat [ecs] (seq t.components))))
            (if (fn? t.initor)
              (t.initor ecs entity)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addSystem "" [ecs system]
+  {:pre [(fn? system)]}
   (swap! ecs
          (fn [{:keys [systems] :as root}]
-           (conj! systems system) root)))
+           (conj! systems system) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeSystem "" [ecs system]
-  (swap! ecs
-         (fn [{:keys [systems] :as root}]
-           (with-local-vars [i (.indexOf systems system)])
-           (if-not (neg? i)
-             (.splice systems i 1)) root)))
+  (if system
+    (swap! ecs
+           (fn [{:keys [systems] :as root}]
+             (with-local-vars [i (.indexOf systems system)])
+             (if-not (neg? i)
+               (.splice systems i 1)) root))) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [ecs dt]
-  (each #(.update % dt)
-        (get @ecs :systems)))
+  (each #(% ecs dt) (get @ecs :systems)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

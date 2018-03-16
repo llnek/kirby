@@ -144,7 +144,7 @@
   (ensure (one? 1) "one?")
   (ensure (neg? -33) "neg?")
   (ensure (pos? 45) "pos?")
-  (ensure (= 1 (get (values {:a 1}) 0)) "values")
+  (ensure (= 1 (get (vals {:a 1}) 0)) "values")
   (ensure (= :a (get (keys {:a 1}) 0)) "keys")
 
   (ensure (let [[a b] [3 4]] (and (= 3 a) (= 4 b))) "destruct vec")
