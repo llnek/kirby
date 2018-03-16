@@ -36,7 +36,7 @@
 (defn- sys2 "" [e t] (if (pos? t) (conj! TEMP-VAR 2)))
 (defn- sys3 "" [e t] (if (pos? t) (conj! TEMP-VAR 3)))
 
-(const- pool1 (ecs/createPool (fn [] {:a 0})
+(const- pool1 (ecs/createPool (fn [] `{:a 0})
                               (fn [x] x) 6))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -83,10 +83,10 @@
                    (count (ecs/getTemplateKeys *ecs*)))) "addTemplate,*")
 
   (ensure (let [x (ecs/createEntity *ecs* :c1 :c2 :c3)]
-            (and (ecs/componentInEntity? x :c1 :c2 :c3)
-                 (ecs/getEntityData x :c1)
-                 (ecs/getEntityData x :c2)
-                 (ecs/getEntityData x :c3))) "createEntity,getData")
+            (and (ecs/componentInEntity? *ecs* x :c1 :c2 :c3)
+                 (ecs/getEntityData *ecs* x :c1)
+                 (ecs/getEntityData *ecs* x :c2)
+                 (ecs/getEntityData *ecs* x :c3))) "createEntity,getData")
 
   (ensure (let [a (ecs/findComponent *ecs* :c1)
                 b (ecs/findComponent *ecs* :c2)
@@ -95,15 +95,15 @@
             (and a b c (nichts? d))) "engine,find")
 
   (ensure (let [x (ecs/createTemplateEntity *ecs* :t2)]
-            (and (ecs/componentInEntity? x :c2 :c3)
-                 (nichts? (ecs/getEntityData x :c1))
-                 (ecs/getEntityData x :c2)
-                 (ecs/getEntityData x :c3))) "createTemplateEntity,getData")
+            (and (ecs/componentInEntity? *ecs* x :c2 :c3)
+                 (nichts? (ecs/getEntityData *ecs* x :c1))
+                 (ecs/getEntityData *ecs* x :c2)
+                 (ecs/getEntityData *ecs* x :c3))) "createTemplateEntity,getData")
 
   (ensure (let [x (ecs/createTemplateEntity *ecs* :t1)
-                y (ecs/getEntityData x :c3)
+                y (ecs/getEntityData *ecs* x :c3)
                 _ (ecs/removeEntity *ecs* x)
-                z (ecs/getEntityData x :c1)]
+                z (ecs/getEntityData *ecs* x :c1)]
             (and (some? y)
                  (nichts? z))) "removeEntity")
 

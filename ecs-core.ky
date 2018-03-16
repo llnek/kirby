@@ -10,8 +10,8 @@
       :author "Kenneth Leung"}
   czlab.elmo.ecs.core
   (:require ["kirby"
-             :as ky :refer [Atom atom swap!
-                            nichts? seq
+             :as ky :refer [Atom atom swap! println
+                            nichts? seq prn
                             partition conj! disj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -43,7 +43,7 @@
            (oset! root :next (+1 next)) root)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn returnToPool "" [obj pool]
+(defn returnToPool "" [pool obj]
   (swap! pool
          (fn [{:keys [init next slots] :as root}]
            ;jiggle the free slot to reuse the one just dropped
@@ -203,20 +203,21 @@
              (t.initor ecs entity)) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn addSystem "" [ecs system]
+(defn addSystem "" [ecs system & more]
   {:pre [(fn? system)]}
   (swap! ecs
          (fn [{:keys [systems] :as root}]
-           (conj! systems system) root)) ecs)
+           (each #(conj! systems %)
+                 (concat [system] more)) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn removeSystem "" [ecs system]
-  (if system
-    (swap! ecs
-           (fn [{:keys [systems] :as root}]
-             (with-local-vars [i (.indexOf systems system)])
-             (if-not (neg? i)
-               (.splice systems i 1)) root))) ecs)
+(defn removeSystem "" [ecs system & more]
+  (swap! ecs
+         (fn [{:keys [systems] :as root}]
+           (each #(with-local-vars
+                    [i (.indexOf systems %)]
+                    (if-not (neg? i) (.splice systems i 1)))
+                 (concat [system] more)) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn updateECS "" [ecs dt]
