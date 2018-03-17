@@ -14,12 +14,21 @@
   (:require ["./ecs-core" :as ecs]
             ["kirby"
              :as ky :refer [conj! some? nichts?
+                            prn
                             count println runtest]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- compA "" [] `{:a 50 })
 (defn- compB "" [] `{:b 10 })
 (defn- compC "" [] `{:c 15 })
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- compDPool
+        (ecs/createPool
+          (fn [] `{:d 10})
+          (fn [x] x) 8))
+(defn- compD "" []
+  (ecs/takeFromPool compDPool))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const- tmpA
@@ -70,7 +79,7 @@
   (ensure (= 0 (do (ecs/removeComponent *ecs* :c2 :c3)
                    (count (ecs/getComponentKeys *ecs*)))) "removeComponent,*")
 
-  (ensure (= 3 (do (ecs/addComponent *ecs* :c1 compA :c2 compB :c3 compC)
+  (ensure (= 4 (do (ecs/addComponent *ecs* :c1 compA :c2 compB :c3 compC :c4 compD)
                    (count (ecs/getComponentKeys *ecs*)))) "addComponent,**")
 
   (ensure (= 2 (do (ecs/addTemplate *ecs* :t1 tmpA :t2 tmpB)
@@ -106,6 +115,13 @@
                 z (ecs/getEntityData *ecs* x :c1)]
             (and (some? y)
                  (nichts? z))) "removeEntity")
+
+  (ensure (let [x (ecs/createEntity *ecs* :c4)
+                ok (and (ecs/componentInEntity? *ecs* x :c4)
+                        (ecs/getEntityData *ecs* x :c4))]
+            (ecs/removeEntity *ecs* x)
+            (and ok
+                 (not (ecs/componentInEntity? *ecs* x :c4)))) "createEntity,pooled")
 
   (ensure (ky/eq? [1 2 3]
                  (do (set! TEMP-VAR [])

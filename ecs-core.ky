@@ -11,7 +11,7 @@
   czlab.elmo.ecs.core
   (:require ["kirby"
              :as ky :refer [Atom atom swap! println
-                            nichts? seq prn
+                            nichts? seq prn object?
                             partition conj! disj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -29,12 +29,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn takeFromPool "" ^Object [pool]
-  (with-local-vars [ret nil])
+  (with-local-vars [co ? ret nil])
   (swap! pool
          (fn [{:keys [size next slots batch ctor] :as root}]
            ;no free slot? make more
            (when (>= next size)
-             (dotimes [x batch] (conj! slots (ctor)))
+             (dotimes [x batch]
+               (set! co (ctor))
+               (conj! slots co)
+               (oset! co :____pool pool))
              (oset! root :size (+ batch size)))
            ;take a free object, set it's slot,
            ;up the pool's free ptr
@@ -44,22 +47,24 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn returnToPool "" [pool obj]
-  (swap! pool
-         (fn [{:keys [init next slots] :as root}]
-           ;jiggle the free slot to reuse the one just dropped
-           (when (get obj :____status)
-             (oset! root :next (-1 next))
-             ;rinse clean the object
-             (init obj)
-             (with-local-vars [tail (nth slots root.next)
-                               slot' (get tail :____slot)
-                               epos' (get obj :____slot)])
-             ;set the free ptr to the dropped
-             ;move the tail to old slot
-             (aset slots root.next obj epos' tail)
-             ;swap the 2 slots
-             (oset! tail :____slot epos')
-             (oset! obj :____slot slot' :____status #f)) root)) pool)
+  (if-not (or (nichts? obj)
+              (not= obj.____pool pool))
+    (swap! pool
+           (fn [{:keys [init next slots] :as root}]
+             ;jiggle the free slot to reuse the one just dropped
+             (when (get obj :____status)
+               (oset! root :next (-1 next))
+               ;rinse clean the object
+               (init obj)
+               (with-local-vars [tail (nth slots root.next)
+                                 slot' (get tail :____slot)
+                                 epos' (get obj :____slot)])
+               ;set the free ptr to the dropped
+               ;move the tail to old slot
+               (aset slots root.next obj epos' tail)
+               ;swap the 2 slots
+               (oset! tail :____slot epos')
+               (oset! obj :____slot slot' :____status #f)) root))) pool)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createECS "" ^Atom []
@@ -78,6 +83,19 @@
            (assoc! root :uid (+1 uid)))) (str "e@" ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- retUsed "" [obj]
+  (cond
+    (objectMap? obj)
+    (retUsed (vals obj))
+    (array? obj)
+    (each (fn [c]
+            (if (and c c.____pool)
+              (returnToPool c.____pool c))) obj)
+    (object? obj)
+    (if obj.____pool
+      (returnToPool obj.____pool obj))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createEntity "" [ecs componentId & moreIds]
   (dosync
     (with-local-vars [entity (genUid ecs)])
@@ -90,12 +108,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn removeEntity "" [ecs entity & more]
-  (with-local-vars [ents (concat [entity] more)])
+  (with-local-vars [c ? ents (concat [entity] more)])
   (swap! ecs
          (fn [{:keys [entities
                       data registry] :as root}]
-           (each #(if-some [co (get data %)]
-                    (each #(dissoc! co %) ents)) (keys registry))
+           (each
+             #(if-some [co (get data %)]
+                (each (fn [e]
+                        (retUsed (get co e))
+                        (dissoc! co e)) ents)) (keys registry))
            (each #(disj! entities %) ents) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -110,9 +131,10 @@
 (defn removeComponent "" [ecs id & more]
   (swap! ecs
          (fn [{:keys [data registry] :as root}]
-           (each (fn [a]
-                   (dissoc! registry a)
-                   (dissoc! data a)) (concat [id] more)) root)) ecs)
+           (each (fn [c]
+                   (dissoc! registry c)
+                   (retUsed (get data c))
+                   (dissoc! data c)) (concat [id] more)) root)) ecs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addToEntity "" [ecs entity componentId & moreIds]
@@ -132,8 +154,9 @@
 (defn removeFromEntity "" [ecs entity & componentIds]
   (swap! ecs
          (fn [{:keys [data] :as root}]
-           (each #(if-some [c (get data %)]
-                    (dissoc! c entity)) componentIds) root)) entity)
+           (each #(when-some [co (get data %)]
+                    (retUsed (get co entity))
+                    (dissoc! co entity)) componentIds) root)) entity)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn getEntityData "" [ecs entity componentId]
@@ -163,7 +186,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn componentInEntity? "" [ecs entity componentId & moreIds]
   (with-local-vars [d (get @ecs :data)])
-  (not (some #(nichts? (get d %))
+  (not (some #(if-some [co (get d %)]
+                (not (.has co entity)) #f)
              (concat [componentId] moreIds))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
