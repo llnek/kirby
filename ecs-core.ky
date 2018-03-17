@@ -187,7 +187,7 @@
 (defn componentInEntity? "" [ecs entity componentId & moreIds]
   (with-local-vars [d (get @ecs :data)])
   (not (some #(if-some [co (get d %)]
-                (not (.has co entity)) #f)
+                (not (.has co entity)) #t)
              (concat [componentId] moreIds))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
