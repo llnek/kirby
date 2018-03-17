@@ -12,7 +12,7 @@
   (:require ["kirby"
              :as ky :refer [Atom atom swap! println
                             nichts? seq prn object?
-                            partition conj! disj!]]))
+                            count partition conj! disj!]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn createPool ""
@@ -189,6 +189,45 @@
   (not (some #(if-some [co (get d %)]
                 (not (.has co entity)) #t)
              (concat [componentId] moreIds))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn findEntities "" [ecs componentId & moreIds]
+  (with-local-vars [pmks ? ccsz ? eid ?
+                    cid ? cnt ?
+                    c ? sum ?
+                    {:keys [data] } (deref ecs)
+                    pmin MAX-INT
+                    missed? #f pm nil ccs [] ret []
+                    cids (concat [componentId] moreIds)])
+  ;;find shortest cache, doing an intersection
+  (for [i 0 sz (n# cids)
+        :while (< i sz) :recur (+1 i)]
+    (set! cid (.@i cids)
+          c (get data cid)
+          cnt (count c))
+    (if (nichts? c)
+      (do->break! (true! missed?))
+      (do (when (< cnt pmin)
+            (set! pmin cnt pm c))
+          (conj! ccs c))))
+  ;;use the shortest cache as the baseline
+  (set! ccsz (n# ccs))
+  (when (and (> ccsz 0)
+             (not missed?))
+    (set! pmks (keys pm))
+    (for [i 0 sz (n# pmks)
+          :while (< i sz) :recur (+1 i)]
+      (set! sum 0
+            eid (.@i pmks))
+      ;; look for intersection
+      (for [j 0 :while (< j ccsz) :recur (+1 j)]
+        (set! c (.@j ccs))
+        (if (= c pm)
+          (++ sum)
+          (if (.has c eid) (++ sum))))
+      ;; if found in all caches...
+      (if (= sum ccsz) ;; all matched
+        (if-some [e (get @@ents eid)] (conj! ret e))))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn addTemplate "" [ecs id template & more]
