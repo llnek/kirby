@@ -1489,6 +1489,12 @@ one arg, returns the concatenation of the str values of the args."
     (object? obj) (Object.entries obj)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn rseq
+  "Returns a seq of the items in coll in reverse order. If rev is empty returns nil."
+  [coll]
+  (if (array? coll) (.reverse (seq coll))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn contains? "True if item is inside" [coll x]
   (cond
     (or (array? coll)

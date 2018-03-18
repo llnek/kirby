@@ -18,10 +18,10 @@
                      seq merge contains? last typeid
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
-                     unquote-str quote-str
+                     unquote-str quote-str rseq
                      not-empty conj! list? obj?
-                     difference carve
-                     gensym count pop!
+                     gensym count pop! partition
+                     difference carve split-with
                      symbol keyword symbol? keyword?]]
             ["./engine"
              :as rt
@@ -1752,8 +1752,55 @@ called.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-(defn- sf-doseq "" [ast env]
-  (with-local-vars [args (2nd ast)
-                    body (slice ast 2)])
-  nil
-  )
+(defn- sf-doseq
+
+  ""
+  ^{:opcode ["dofor"] :tag SourceNode} [ast env]
+
+  (with-local-vars
+    [body (exprHint (xfi ast (slice ast 2)) #f)
+     kount (stripStd (str KBSTDLR ".count"))
+     args (2nd ast)
+     inner ""
+     ret ?
+     fst #t
+     [x y] (split-with
+             #(not (keyword? %)) args)])
+  (each
+    (fn [[v expr]]
+      (with-local-vars [e' (gensym)
+                        n' (gensym)])
+      (set! ret (node' ast))
+      (ret.add
+        ["for(let " $(n') "=0,"
+         (tx* v env) "=undefined,"
+         $(e') "=" (tx* expr env) ","
+         "____sz=" kount "(" $(e') ")"
+         (if fst ",____break=false" "") "; ("
+         (if fst "!____break && " "")
+         "(" $(n') " < ____sz)"
+         "); ++" $(n') "){\n"])
+      (ret.add [(tx* v env) "=" $(e') "[" $(n') "];\n"])
+      (if fst
+        (do (false! fst)
+            (ret.add (txDo body env #f)))
+        (ret.add inner))
+      (ret.add "}\n")
+      (set! inner ret))
+    (rseq (partition 2 x)))
+  ret)
+
+(defn- xxx "" []
+  (each
+    (fn [[k expr]]
+      (cond
+        (== k :let)
+        (sf-var (xfi ast (cons 'vars expr)))
+        (== k :when) nil
+        (== k :while) nil)))
+  nil)
+
+
+
+
+

@@ -13,7 +13,7 @@
 
   (:require ["kirby"
              :as std
-             :refer [conj! println inc dec
+             :refer [conj! println inc dec rseq
                      split-with take-while drop-while]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -514,6 +514,8 @@
                  (split-with #(> 10 %) [1 2 3 2 1]))
           "split-with")
 
+  (ensure (s/eq? [5 3 1] (rseq [1 3 5])) "rseq,reverse")
+
   (ensure (= 3 (domonad s/m-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")
   (ensureThrown "any"
@@ -583,4 +585,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
+
+
 

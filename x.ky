@@ -12,15 +12,11 @@
   (:require ["kirby"
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
-(defmacro poo
-  [bindings & xs]
-  (let* [sz (count* bindings)
-         _ (assert* (= sz 2) "expected only 2 in form")
-         f (nth* bindings 0)]
-    `(let [~f ~(nth* bindings 1)] ~@xs ~f)))
-
 (defn xxx []
 
-  (poo [a 9] 22)
-  )
+  (dofor [x (foo 3) y (xxx 5)]
+         (+1 c))
+
+
+  nil)
 
