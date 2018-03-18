@@ -506,9 +506,9 @@ the head of the sequence. Returns nil."
              ~escvar false
              :while (and (not ~escvar)
                          (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
-         (var ~(nth* bindings 0)
-              (nth ~loopExpr ~idxvar))
-         ~(if* _let `(var ~@_let))
+         (with-local-vars [~(nth* bindings 0)
+                           (nth ~loopExpr ~idxvar)])
+         ~(if* _let `(with-local-vars [~@_let]))
          (if-not ~_while (set! ~escvar true))
          (when (and (not ~escvar) ~_when) ~@xs)) nil)))
 
@@ -1973,11 +1973,12 @@ the latter (left-to-right) will be the mapping in the result."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn runtest "" [test & [title]]
   (set! title (opt?? title "test"))
-  (var now (new Date)
-       results (test)
-       sum (n# results)
-       ok (n# (filter #(starts-with? % "p") results))
-       ps (toFixed (percent ok sum)))
+  (with-local-vars
+    [now (new Date)
+     results (test)
+     sum (n# results)
+     ok (n# (filter #(starts-with? % "p") results))
+     ps (toFixed (percent ok sum))])
   (->> [(.repeat "+" 78)
         title now
         (.repeat "+" 78)
