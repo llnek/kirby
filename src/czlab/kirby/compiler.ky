@@ -1752,4 +1752,8 @@ called.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
-
+(defn- sf-doseq "" [ast env]
+  (with-local-vars [args (2nd ast)
+                    body (slice ast 2)])
+  nil
+  )

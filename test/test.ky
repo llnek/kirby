@@ -12,7 +12,9 @@
   czlab.kirby.test.stdlib
 
   (:require ["kirby"
-             :as std :refer [println inc dec]]))
+             :as std
+             :refer [conj! println inc dec
+                     split-with take-while drop-while]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- s std TMPVAR nil)
@@ -30,6 +32,7 @@
                       msg (str log "(" v ")")
                       log' (std/concat s.log msg)])
     [v' (object :value v' :log log')]))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest test-stdlib
@@ -487,6 +490,29 @@
 
   (ensure (= 698 (s/maxBy s/identity [78 7 698 4 5 2 -1])) "maxBy")
   (ensure (= -1 (s/minBy s/identity [78 7 6 4 5 2 -1])) "minBy")
+
+
+  (ensure (s/eq? [-2 -1]
+                 (take-while #(< % 0) [-2 -1 0 1 2 3])) "take-while")
+  (ensure (s/eq? []
+                 (take-while #(< % 0) [0 1 2 3])) "take-while")
+
+  (ensure (s/eq? [3 4 5 6]
+                 (drop-while #(> 3 %) [1 2 3 4 5 6])) "drop-while")
+  (ensure (s/eq? [4 5 6]
+                 (drop-while #(>= 3 %) [1 2 3 4 5 6])) "drop-while")
+
+  (ensure (s/eq? [[1 2 3] [4 5]]
+                 (split-with #(>= 3 %) [1 2 3 4 5]))
+          "split-with")
+
+  (ensure (s/eq? [[1 2][3 2 1]]
+                 (split-with #(> 3 %) [1 2 3 2 1]))
+          "split-with")
+
+  (ensure (s/eq? [[1 2 3 2 1] []]
+                 (split-with #(> 10 %) [1 2 3 2 1]))
+          "split-with")
 
   (ensure (= 3 (domonad s/m-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")

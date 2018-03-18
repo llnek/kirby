@@ -2024,6 +2024,43 @@ the latter (left-to-right) will be the mapping in the result."
     undefined))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn take-while
+
+  "Returns a sequence of successive items from coll while
+(pred item) returns logical true. pred must be free of side-effects."
+
+  [pred coll]
+  (with-local-vars [ret []])
+  (for [i 0 c ? sz (n# coll)
+        :while (< i sz) :recur (+1 i)]
+    (set! c (.@i coll))
+    (if (pred c)
+      (conj! ret c)
+      (break-out-of-loop!))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn drop-while
+
+  "Returns a sequence of the items in coll starting from the
+first item for which (pred item) returns logical false."
+
+  [pred coll]
+  (with-local-vars [ret []])
+  (for [i 0 c ? sz (n# coll)
+        :while (< i sz) :recur (+1 i)]
+    (set! c (.@i coll))
+    (when-not (pred c)
+      (set! ret (slice coll i))
+      (break-out-of-loop!))) ret)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn split-with
+  "Returns a vector of [(take-while pred coll) (drop-while pred coll)]"
+  [pred coll]
+  [(take-while pred coll) (drop-while pred coll)])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF
+
 
 
