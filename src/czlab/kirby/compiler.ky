@@ -18,7 +18,7 @@
                      seq merge contains? last typeid
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
-                     unquote-str quote-str rseq
+                     unquote-str quote-str rseq cons
                      not-empty conj! list? obj?
                      gensym count pop! partition
                      difference carve split-with
@@ -1764,41 +1764,55 @@ called.
      inner ""
      ret ?
      fst #t
+     while' (gensym)
      [x y] (split-with
-             #(not (keyword? %)) args)])
-  (each
-    (fn [[v expr]]
+             #(not (keyword? %)) args)
+     ;reverse the bindings (inside out)
+     arr (rseq (partition 2 x))])
+  (loop [p1 (1st arr)
+         pn (rest arr)]
+    (when p1
       (with-local-vars [e' (gensym)
                         n' (gensym)])
       (set! ret (node' ast))
       (ret.add
         ["for(let " $(n') "=0,"
-         (tx* v env) "=undefined,"
-         $(e') "=" (tx* expr env) ","
+         (tx* (1st p1) env) "=undefined,"
+         (if (empty? pn) (str $(while') "=true,") "")
+         $(e') "=" (tx* (2nd p1) env) ","
          "____sz=" kount "(" $(e') ")"
          (if fst ",____break=false" "") "; ("
          (if fst "!____break && " "")
+         $(while') " && "
          "(" $(n') " < ____sz)"
          "); ++" $(n') "){\n"])
-      (ret.add [(tx* v env) "=" $(e') "[" $(n') "];\n"])
+      (ret.add [(tx* (1st p1) env) "=" $(e') "[" $(n') "];\n"])
       (if fst
         (do (false! fst)
-            (ret.add (txDo body env #f)))
+            (doseq-binds while' ret y body ast env))
         (ret.add inner))
       (ret.add "}\n")
-      (set! inner ret))
-    (rseq (partition 2 x)))
+      (set! inner ret)
+      (if (not-empty pn)
+        (recur (1st pn) (rest pn)))))
   ret)
 
-(defn- xxx "" []
+(defn- doseq-binds "" [while' ret y body ast env]
+  (with-local-vars [patch (node' ast)])
   (each
     (fn [[k expr]]
       (cond
         (== k :let)
-        (sf-var (xfi ast (cons 'vars expr)))
-        (== k :when) nil
-        (== k :while) nil)))
-  nil)
+        (ret.add (sf-var (xfi ast (cons 'vars expr))))
+        (== k :when)
+        (do (ret.add ["if (" (tx* expr env) ") {\n"])
+            (patch.add "}\n"))
+        (== k :while)
+        (do (ret.add ["if (!(" (tx* expr env) ")) { " $(while') "=false; ____break=true; } else {\n"])
+            (patch.add "}\n"))))
+    (partition 2 y))
+  (ret.add (txDo body env #f))
+  (ret.add patch))
 
 
 
