@@ -14,13 +14,12 @@
 
 (defn xxx []
 
-  (dofor [x (foo 3) y (xxx 5) z (kkk 7)
+  (listc [x (foo 3) y (xxx 5) z (kkk 7)
           :let [a 1 b 5]
           :while (pos? y)
           :when (neg? x)]
-         (+1 c)
-         (ff 9)
-         (->> x (y ) (z )))
+         [x y z])
+
 
 
   nil)
