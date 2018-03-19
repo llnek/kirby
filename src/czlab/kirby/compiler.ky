@@ -1834,7 +1834,7 @@ called.
   (if capRes
     (exprHint body #t))
   (if capRes
-    (ret.add ["(.push " $(capRes) " (function() {\n" (txDo body env #t) "\n}).call(this))\n"])
+    (ret.add [ $(capRes) ".push((function() {\n" (txDo body env #t) "\n}).call(this));\n"])
     (ret.add (txDo body env #f)))
   (ret.add patch))
 
