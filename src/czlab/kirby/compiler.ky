@@ -1794,7 +1794,6 @@ called.
       (set! ret (node' ast))
       (ret.add
         ["for(let " $(n') "=0,"
-         (tx* (1st p1) env) "=undefined,"
          (if (empty? pn) (str $(while') "=true,") "")
          $(e') "=" (tx* (2nd p1) env) ","
          "____sz=" kount "(" $(e') ")"
@@ -1803,7 +1802,7 @@ called.
          $(while') " && "
          "(" $(n') " < ____sz)"
          "); ++" $(n') "){\n"])
-      (ret.add [(tx* (1st p1) env) "=" $(e') "[" $(n') "];\n"])
+      (ret.add (sf-var (xfi ast ['vars (1st p1) ['nth e' n']]) env))
       (if fst
         (do (false! fst)
             (doseq-binds while' ret y body ast env capRes))

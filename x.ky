@@ -14,10 +14,10 @@
 
 (defn xxx []
 
-  (listc [x (foo 3) y (xxx 5) z (kkk 7)
-          :let [a 1 b 5]
-          :while (pos? y)
-          :when (neg? x)]
+  (listc [[poo head] [1 2 3] [shit face] ["a" "b"] z ["x" "y"]
+          :let [a 1 b (+ 1 a)]
+          :while (> b a)
+          :when (pos? x)]
          [x y z])
 
 
