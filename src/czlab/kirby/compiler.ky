@@ -199,9 +199,7 @@
             (== e :strs))
         (do (set! arr (.@+i coll))
             (++ i)
-            (for* [j 0 sz (n# arr)
-                  :while (< j sz) :recur (+1 j)]
-              (set! e (.@j arr))
+            (doseq [e arr]
               (ret.add ["let " (tx* e env) "="
                         (stripStd (str KBSTDLR ".getProp"))
                         "(" as "," (std/quote-str $(e)) ");\n"])))
@@ -265,9 +263,7 @@
   (if-not (== "ns" (_1 n1))
     (raise! "(ns ...) must be first form in file"))
   (conj! ms n1)
-  (for* [i 1 sz (n# root)
-        :while (< i sz) :recur (+1 i)]
-    (set! t (.@i root))
+  (doseq [t (rest root)]
     (if (and (array? t)
              (symbol? (_1 t))
              (== "defmacro" (_1 t)))
@@ -376,9 +372,8 @@
            (number? from.line)
            (array? to))
     (do (xfi from to)
-        (for* [i 0 sz (n# to)
-              :while (< i sz) :recur (+1 i)]
-          (spreadInfo from (.@i to))))
+        (doseq [t' to]
+          (spreadInfo from t')))
     (xfi from to)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -587,10 +582,9 @@ args (left-to-right).
   (with-local-vars [ret (node' ast)])
   (ret.add ["function () {\n"
             "let ret=[]," LARGS "=" ARRSLICE "(" JSARGS ");\n"])
-  (for* [i 1 f nil sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! f $(gensym "F__"))
-    (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"
+  (doseq [a' (rest ast)
+          :let [f $(gensym "F__")]]
+    (ret.add ["let " f "=" (tx* a' env) ";\n"
               "ret.push(" f ".apply(this," LARGS "));\n"]))
   (ret.add "return ret;\n}"))
 
@@ -1434,9 +1428,7 @@ any finally exprs will be evaluated for their side effects."
   (std/pushNSP $(nsp) attrs)
   ;;(println (str "Processing namespace: " $(nsp)))
   (set! ast (xfi ast (slice ast pos)))
-  (for* [i 0 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i ast))
+  (doseq [e ast]
     (when (pairs? e)
       (cond
         (== $(_1 e) :require)
@@ -1569,9 +1561,7 @@ called.
           (if (array? (.@+i args))
             (do (set! e (.@+i args))
                 (++ i)
-                (for* [j 0 sz (n# e)
-                      :while (< j sz) :recur (+1 j)]
-                  (set! x (.@j e))
+                (doseq [x e]
                   (if-not (symbol? x)
                     (error! :syntax-error ast))
                   (conj! pms x)))

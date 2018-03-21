@@ -1298,9 +1298,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- set2Set "" [s]
   (with-local-vars [ret (new Set)])
-  (for* [i 0 sz (n# s)
-        :while (< i sz) :recur (+1 i)]
-    (.add ret (.@i s))) ret)
+  (doseq [s' s] (.add ret s')) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eqSets? "" [s1 s2]
@@ -1652,10 +1650,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dissoc! "" ^Any [obj & xs]
   (when obj
-    (with-local-vars [k ?])
-    (for* [i 0 sz (n# xs)
-          :while (< i sz) :recur (+1 i)]
-      (set! k (.@i xs))
+    (doseq [k xs]
       (cond
         (objectMap? obj) (.delete obj k)
         (object? obj) (raw# "delete obj[k]")))) obj)
@@ -1783,9 +1778,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn escXml "Escape XML special chars" ^String [s]
   (with-local-vars [out ""])
-  (for* [i 0 c nil sz (n# s)
-        :while (< i sz) :recur (+1 i)]
-    (set! c (.@i s))
+  (doseq [c s]
     (cond
       (= c "&") (set! c "&amp;")
       (= c ">") (set! c "&gt;")
@@ -1930,10 +1923,8 @@ the latter (left-to-right) will be the mapping in the result."
   without elements of the other set."
   [a b]
 
-  (with-local-vars [ret [] z nil])
-  (for* [i 0 sz (n# a)
-        :while (< i sz) :recur (+1 i)]
-    (set! z (.@i a))
+  (with-local-vars [ret []])
+  (doseq [z a]
     (if-not (contains? b z) (conj! ret z)))
   ret)
 
