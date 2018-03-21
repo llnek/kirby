@@ -1469,7 +1469,7 @@ any finally exprs will be evaluated for their side effects."
 
   (for* [initial-vars :while test :recur update-vars] ...)"
 
-  ^{:opcode ["for" "for*"] :tag SourceNode} [ast env]
+  ^{:opcode ["for*"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [stmtQ (stmt? ast)
@@ -1755,7 +1755,7 @@ called.
 (defn- sf-listc
 
   ""
-  ^{:opcode ["listc"] :tag SourceNode} [ast env]
+  ^{:opcode ["for"] :tag SourceNode} [ast env]
 
   (with-local-vars
     [stmtQ (stmt? ast)
@@ -1777,6 +1777,7 @@ called.
     [body (exprHint (xfi ast (slice ast 2)) #f)
      kount (stripStd (str KBSTDLR ".count"))
      args (2nd ast)
+     _ (assert (even? (n# args)) "bindings not even")
      stmtQ (stmt? ast)
      inner ""
      ret ?
