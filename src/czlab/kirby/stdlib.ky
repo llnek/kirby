@@ -282,7 +282,7 @@ otherwise else expr, if supplied, else nil."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro while
   "Repeatedly executes body while test expression is true."
-  [tst & xs] `(for [:while ~tst] ~@xs))
+  [tst & xs] `(for* [:while ~tst] ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when
@@ -426,7 +426,7 @@ bound to integers from 0 through n-1."
                     "expected binary form")
          _t (gensym*)
          b1 (first* bindings)]
-    `(for [~b1 0 ~_t ~(nth* bindings 1)
+    `(for* [~b1 0 ~_t ~(nth* bindings 1)
            :while (< ~b1 ~_t) :recur (+1 ~b1)] ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -442,7 +442,7 @@ bound to integers from 0 through n-1."
          end (if* b b a)
          step (if* c c 1)]
     `(do-with [ret []]
-       (for [i ~start
+       (for* [i ~start
              :while (< i ~end) :recur (+ i ~step)]
          (ret.push i)))))
 
@@ -469,7 +469,7 @@ bound to integers from 0 through n-1."
   "Returns a sequence of n x's."
   [n x]
   `(do-with [ret []]
-     (for [i 0
+     (for* [i 0
            :while (< i ~n)
            :recur (+1 i)] (ret.push ~x))))
 
@@ -502,7 +502,7 @@ the head of the sequence. Returns nil."
                           (nth* bindings 7)
                           true)))]
     `(let [~loopExpr ~(nth* bindings 1)]
-       (for [~idxvar 0
+       (for* [~idxvar 0
              ~escvar false
              :while (and (not ~escvar)
                          (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
@@ -1298,7 +1298,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- set2Set "" [s]
   (with-local-vars [ret (new Set)])
-  (for [i 0 sz (n# s)
+  (for* [i 0 sz (n# s)
         :while (< i sz) :recur (+1 i)]
     (.add ret (.@i s))) ret)
 
@@ -1316,7 +1316,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Map "" [m]
   (with-local-vars [ret (new Map)])
-  (for [i 0 sz (n# m)
+  (for* [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
     (.set ret (.@i m) (.@+i m))) ret)
 
@@ -1334,7 +1334,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Obj "" [m]
   (with-local-vars [k ? v ? ret `{}])
-  (for [i 0 sz (n# m)
+  (for* [i 0 sz (n# m)
         :while (< i sz) :recur (+2 i)]
     (set! k (.@i m)
           v (.@+i m))
@@ -1354,7 +1354,7 @@ one arg, returns the concatenation of the str values of the args."
 
     (and (array? a) (array? b)
          (= (alen a) (alen b)))
-    (do (for [i 0 sz (alen a)
+    (do (for* [i 0 sz (alen a)
               :while (and ok? (< i sz)) :recur (+1 i)]
           (when-not (eq? (.@i a)
                          (.@i b)) (false! ok?))) ok?)
@@ -1374,7 +1374,7 @@ one arg, returns the concatenation of the str values of the args."
     (and (object? a)
          (object? b)
          (= (n# a) (n# b)))
-    (do (for [i 0 ks (Object.keys a) sz (n# ks)
+    (do (for* [i 0 ks (Object.keys a) sz (n# ks)
               :while (and ok? (< i sz)) :recur (+1 i)]
           (set! k (.@i ks))
           (when-not (eq? (get a k)
@@ -1529,7 +1529,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" ^Array [coll start step]
   (with-local-vars [ret []])
-  (for [i start sz (n# coll)
+  (for* [i start sz (n# coll)
         :while (< i sz) :recur (+ i step)] (conj! ret (.@i coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1568,7 +1568,7 @@ one arg, returns the concatenation of the str values of the args."
   [n string]
 
   (with-local-vars [ret []])
-  (for [i 0 sz (n# string) :while (< i sz)]
+  (for* [i 0 sz (n# string) :while (< i sz)]
     (conj! ret (.substr string i n))
     (set! i (+ i n))) ret)
 
@@ -1580,7 +1580,7 @@ one arg, returns the concatenation of the str values of the args."
     [cz (if (< (alen c2)
                (alen c1)) (alen c2) (alen c1))
      ret []])
-  (for [i 0
+  (for* [i 0
         :while (< i cz) :recur (+1 i)] (conj! ret (.@i c1) (.@i c2))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1591,7 +1591,7 @@ one arg, returns the concatenation of the str values of the args."
     [cz (if (< (alen keys)
                (alen vals)) (alen keys) (alen vals))
      ret {}])
-  (for [i 0
+  (for* [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret (.@i keys) (.@i vals))) ret)
 
@@ -1603,7 +1603,7 @@ one arg, returns the concatenation of the str values of the args."
    [cz (if (< (alen keys)
               (alen vals)) (alen keys) (alen vals))
     ret `{}])
-  (for [i 0
+  (for* [i 0
         :while (< i cz) :recur (+1 i)]
     (assoc! ret $(.@i keys) (.@i vals))) ret)
 
@@ -1641,7 +1641,7 @@ one arg, returns the concatenation of the str values of the args."
 (defn assoc! "" ^Any [obj & xs]
   (when obj
     (with-local-vars [k ? v ?])
-    (for [i 0 sz (n# xs)
+    (for* [i 0 sz (n# xs)
           :while (< i sz) :recur (+2 i)]
       (set! k (.@i xs)
             v (.@+i xs))
@@ -1653,7 +1653,7 @@ one arg, returns the concatenation of the str values of the args."
 (defn dissoc! "" ^Any [obj & xs]
   (when obj
     (with-local-vars [k ?])
-    (for [i 0 sz (n# xs)
+    (for* [i 0 sz (n# xs)
           :while (< i sz) :recur (+1 i)]
       (set! k (.@i xs))
       (cond
@@ -1742,7 +1742,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
   (with-local-vars [out "\""])
-  (for [i 0 ch "" sz (count s)
+  (for* [i 0 ch "" sz (count s)
         :while (< i sz) :recur (+1 i)]
     (set! ch (ch@ s i))
     (cond
@@ -1762,7 +1762,7 @@ one arg, returns the concatenation of the str values of the args."
            (ends-with? s "\""))
     (do-with [out ""]
       (set! s (s.slice 1 -1))
-      (for [i 0 nx "" ch "" sz (count s)
+      (for* [i 0 nx "" ch "" sz (count s)
             :while (< i sz) :recur (+1 i)]
         (set! ch (ch@ s i))
         (if (= ch "\\")
@@ -1783,7 +1783,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn escXml "Escape XML special chars" ^String [s]
   (with-local-vars [out ""])
-  (for [i 0 c nil sz (n# s)
+  (for* [i 0 c nil sz (n# s)
         :while (< i sz) :recur (+1 i)]
     (set! c (.@i s))
     (cond
@@ -1837,7 +1837,7 @@ created."
     m ?
     n ?
     end (last-index keys)])
-  (for [i 0 :while (<= i end) :recur (+1 i)]
+  (for* [i 0 :while (<= i end) :recur (+1 i)]
     (set! n (.@i keys))
     (cond
       (= i end)
@@ -1867,7 +1867,7 @@ created."
     m ?
     n ?
     end (last-index keys)])
-  (for [i 0 :while (<= i end) :recur (+1 i)]
+  (for* [i 0 :while (<= i end) :recur (+1 i)]
     (set! n (.@i keys))
     (cond
       (number? n)
@@ -1920,7 +1920,7 @@ the latter (left-to-right) will be the mapping in the result."
 (defn copyArray "" [src des]
   (with-local-vars [sz (Math/min (n# src)
                                  (n# des))])
-  (for [i 0 :while (< i sz) :recur (+1 i)]
+  (for* [i 0 :while (< i sz) :recur (+1 i)]
     (aset des i (nth src i)))
   des)
 
@@ -1931,7 +1931,7 @@ the latter (left-to-right) will be the mapping in the result."
   [a b]
 
   (with-local-vars [ret [] z nil])
-  (for [i 0 sz (n# a)
+  (for* [i 0 sz (n# a)
         :while (< i sz) :recur (+1 i)]
     (set! z (.@i a))
     (if-not (contains? b z) (conj! ret z)))
@@ -2037,7 +2037,7 @@ the latter (left-to-right) will be the mapping in the result."
 
   [pred coll]
   (with-local-vars [ret []])
-  (for [i 0 c ? sz (n# coll)
+  (for* [i 0 c ? sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (set! c (.@i coll))
     (if (pred c)
@@ -2052,7 +2052,7 @@ first item for which (pred item) returns logical false."
 
   [pred coll]
   (with-local-vars [ret []])
-  (for [i 0 c ? sz (n# coll)
+  (for* [i 0 c ? sz (n# coll)
         :while (< i sz) :recur (+1 i)]
     (set! c (.@i coll))
     (when-not (pred c)

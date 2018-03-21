@@ -354,7 +354,7 @@
                     start token])
   (if (not= token.value head)
     (throwE token "expected '" head "'"))
-  (for [cur (peekToken tokens)]
+  (for* [cur (peekToken tokens)]
     (cond
       (nichts? cur)
       (throwE start "expected '" tail "', got EOF")
