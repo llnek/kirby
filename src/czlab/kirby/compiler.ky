@@ -273,9 +273,10 @@
              (== "defmacro" (_1 t)))
       (conj! ms t)
       (conj! os t)))
-  (doseq [r (.concat ms os)]
-    (set! *last-line* r.line *last-col* r.col)
-    (if-some [t (tx* r env)] (ret.add [t ";\n"])))
+  (each (fn [r]
+          (set! *last-line* r.line *last-col* r.col)
+          (if-some [t (tx* r env)] (ret.add [t ";\n"])))
+        (.concat ms os))
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -664,22 +665,22 @@ fn (right-to-left) to the result, etc."
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
-  (doseq [m mtds]
-    ;;maybe doc string?
-    (set! mtd 'method
-          m1 (_1 m)
-          cn (str czname0 "." m1)
-          pos (if (str? (_2 m)) 3 2))
-    ;;pass line info
-    (each #(xfi m1 %) [mtd m])
-    ;fake a keyword 'method' in front
-    (m.unshift mtd)
-    ;put scoped-method into env
-    (.addVar env
-             cn
-             {:ns (std/*ns*) :alias cn :type :method})
-    ;compiles it like a function
-    (ret.add [(sf-func m env #f) "\n"]))
+  (each (fn [m]
+          ;;maybe doc string?
+          (set! mtd 'method
+                m1 (_1 m)
+                cn (str czname0 "." m1)
+                pos (if (str? (_2 m)) 3 2))
+          ;;pass line info
+          (each #(xfi m1 %) [mtd m])
+          ;fake a keyword 'method' in front
+          (m.unshift mtd)
+          ;put scoped-method into env
+          (.addVar env
+                   cn
+                   {:ns (std/*ns*) :alias cn :type :method})
+          ;compiles it like a function
+          (ret.add [(sf-func m env #f) "\n"])) mtds)
   ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
@@ -1468,7 +1469,7 @@ any finally exprs will be evaluated for their side effects."
 
   (for [initial-vars :while test :recur update-vars] ...)"
 
-  ^{:opcode ["for"] :tag SourceNode} [ast env]
+  ^{:opcode ["for" "for*"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [stmtQ (stmt? ast)
@@ -1675,10 +1676,9 @@ called.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- cleanCode "" ^String [code]
   (with-local-vars [tmp nil arr []])
-  (doseq [s (.split code "\n")
-          :let [tmp (s.trim)]]
-    (if (and (not-empty tmp)
-             (not= tmp ";")) (conj! arr s)))
+  (each #(let [tmp (.trim %)]
+           (if (and (not-empty tmp)
+             (not= tmp ";")) (conj! arr %))) (.split code "\n"))
   (join "\n" arr))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1771,7 +1771,7 @@ called.
 (defn- sf-doseq
 
   ""
-  ^{:opcode ["dofor"] :tag SourceNode} [ast env & [capRes]]
+  ^{:opcode ["doseq"] :tag SourceNode} [ast env & [capRes]]
 
   (with-local-vars
     [body (exprHint (xfi ast (slice ast 2)) #f)

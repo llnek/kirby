@@ -474,7 +474,7 @@ bound to integers from 0 through n-1."
            :recur (+1 i)] (ret.push ~x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro doseq
+(defmacro doseqXXX
 
   "Repeatedly executes body with
 bindings and filtering as provided by :let :when :while.  Does not retain

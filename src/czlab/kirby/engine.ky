@@ -600,7 +600,7 @@
 (defn- reval "Eval one or more expressions" ^Any [expr & xs]
   (with-local-vars [f (comp prn compute readAST)
                     ret (f expr)])
-  (doseq [e xs] (set! ret (f e))) ret)
+  (each #(set! ret (f %)) xs) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- inited? false

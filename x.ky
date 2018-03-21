@@ -14,13 +14,18 @@
 
 (defn xxx []
 
+  (comment
   (listc [[poo head] [1 2 3] [shit face] ["a" "b"] z ["x" "y"]
           :let [a 1 b (+ 1 a)]
           :while (> b a)
           :when (pos? x)]
-         [x y z])
+         [x y z]))
+
+(dofor [s (.split code "\n")
+          :let [tmp (s.trim)]]
+    (if (and (not-empty tmp)
+             (not= tmp ";")) (conj! arr s)))
 
 
-
-  )
+  nil)
 
