@@ -13,8 +13,17 @@
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
 (defn xxx []
-  (for! [e zzz]
-        (set! a 3))
 
+  (while! (< 3 4)
+         (* 6 6)
+         (set! a 3))
+
+  (rloop [e some-coll]
+        (* 6 6)
+         (set! a 3))
+
+  (floop [e some-coll]
+
+         (set! a 3))
   nil)
 

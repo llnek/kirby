@@ -261,10 +261,10 @@
   (ensure (= 2 (1st (map #(inc %) [1 2]))) "map")
   (ensure (= 2 (n# (filter #(even? %) [1 2 8]))) "filter")
   (ensure (= true (some #(odd? %) [1 2 8])) "some")
-  (ensure (let [x (take [1 2 3 4 5] 3)]
+  (ensure (let [x (take 3 [1 2 3 4 5])]
             (and (= 3 (n# x)) (= 3 (std/last x)))) "take")
   (ensure (= 21 (let [f (constantly 21)] (f 1 4 5))) "constantly")
-  (ensure (let [x (drop [1 2 3 4 5] 3)]
+  (ensure (let [x (drop 3 [1 2 3 4 5])]
             (and (= 2 (n# x)) (= 5 (std/last x)))) "drop")
   (ensure (= 21
              (reduce2 (fn [acc x] (+ acc x)) [5 7 9])) "reduce2")
