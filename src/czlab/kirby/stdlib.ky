@@ -651,7 +651,7 @@ are evaluated in order.  Returns x.
   "Returns a sequence of the first n items in coll, or all items if
 there are fewer than n."
 
-  [coll cnt] `(slice ~coll 0 ~cnt))
+  [cnt coll] `(slice ~coll 0 ~cnt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro constantly
@@ -661,7 +661,7 @@ there are fewer than n."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro drop
   "Returns a sequence of all but the first n items in coll."
-  [coll cnt] `(slice ~coll ~cnt))
+  [cnt coll] `(slice ~coll ~cnt))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro reduce2
@@ -1791,7 +1791,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn split-seq "Split a collection into 2 parts" ^Array [coll cnt]
   (if (< cnt (count coll))
-    [(take coll cnt) (drop coll cnt)]
+    [(take cnt coll) (drop cnt coll)]
     [(slice coll 0) []]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
