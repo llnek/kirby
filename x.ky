@@ -14,16 +14,15 @@
 
 (defn xxx []
 
-  (while! (< 3 4)
-         (* 6 6)
-         (set! a 3))
+  ;(floop [:index n :start 0 :end (foo 5)] (gee 7))
 
-  (rloop [e some-coll]
-        (* 6 6)
-         (set! a 3))
 
-  (floop [e some-coll]
+  (comment
+  (while! (< 3 4) (* 6 6) (set! a 3))
+  (floop [e some-coll] (set! a 3))
+  (rloop [e some-coll] (* 6 6) (set! a 3))
+  )
 
-         (set! a 3))
+
   nil)
 

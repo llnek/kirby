@@ -1573,17 +1573,22 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ret cmd args body env stmtQ]
 
   (with-local-vars
-    [[lvar coll] (take 2 args)
-     vars ['____coll coll '____index 0]
+    [vars ['____coll nil '____index 0]
      recurs []
-     tst ? nb ? e ? sz ?
      incr? (== cmd "floop")
      decr? (== cmd "rloop")
-     start ? end ? step ?])
-  (for* [i 2 sz (n# args) :while (< i sz) :recur (+2 i)]
+     indexer ? tst ?
+     nb ? e ? sz ? begin 0
+     lvar ? coll ? start ? end ? step ?])
+  (when (symbol? (_1 args))
+    (set! begin 2 lvar (_1 args) coll (_2 args))
+    (set! vars ['____coll coll '____index 0]))
+  (for* [i begin sz (n# args) :while (< i sz) :recur (+2 i)]
     (set! e (.@i args))
     (cond (== e :while)
           (set! tst (nexth args i))
+          (== e :index)
+          (aset vars 2 (nexth args i))
           (== e :recur)
           (set! recurs (nexth args i))
           (== e :start)
@@ -1594,6 +1599,7 @@ any finally exprs will be evaluated for their side effects."
           (set! step (nexth args i))
           (symbol? e)
           (conj! vars e (nexth args i))))
+  (set! indexer (nth vars 2))
   (when (undef? start)
     (if incr? (set! start 0))
     (if decr? (set! start ['- ['n# '_coll] 1])))
@@ -1603,9 +1609,9 @@ any finally exprs will be evaluated for their side effects."
   (conj! vars '____end  end)
   (when (undef? tst)
     (if incr?
-      (set! tst ['<  '____index '____end]))
+      (set! tst ['<  indexer '____end]))
     (if decr?
-      (set! tst ['>  '____index '____end])))
+      (set! tst ['>  indexer '____end])))
   (ret.add "for (")
   (for* [i 0 sz (n# vars) :while (< i sz) :recur (+2 i)]
     (set! e (.@i vars))
@@ -1621,14 +1627,16 @@ any finally exprs will be evaluated for their side effects."
   (xfi ret tst)
   (ret.add [(tx* tst env) "; "])
   (if (undef? step) (set! step 1))
-  (if incr? (.unshift recurs ['+ '____index step]))
-  (if decr? (.unshift recurs ['- '____index step]))
+  (if incr? (.unshift recurs ['+ indexer step]))
+  (if decr? (.unshift recurs ['- indexer step]))
   (for* [i 0 k 2 sz (n# recurs) :while (< i sz) :recur (+1 i) (+2 k)]
     (set! e (.@i recurs))
     (if (not= i 0) (ret.add ","))
     (ret.add [(tx* (nth vars k) env) "=" (tx* e env)]))
   (ret.add ["){\n"
-            (sf-var (xfi args ['vars lvar ['nth '____coll '____index]]) env)
+            (if (def? lvar)
+              (sf-var (xfi args ['vars lvar ['nth '____coll indexer]]) env)
+              "")
             (txDo body env #f) "}\n"])
   (if-not stmtQ
     (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
