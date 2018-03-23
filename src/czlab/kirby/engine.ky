@@ -62,15 +62,13 @@
            :par nil)
     (if parent
       (oset! this :par parent))
-    (for* [i 0 e nil ev nil sz (n# vars)
-          :while (< i sz) :recur (+1 i)]
-      (set! e (.@i vars)
-            ev (.-value e))
+    (floop [e vars :index i]
+      (with-local-vars [ev (.-value e)])
       (cond
         (== ev "&")
         (do->break!
           (assoc! @@data
-                  $(.@+i vars) (slice vals i)))
+                  $(nexth vars i) (slice vals i)))
         (starts-with? ev "&")
         (do->break!
           (assoc! @@data
@@ -423,18 +421,16 @@
     (into! :vector (map #(compute % env) ast))
     (obj? ast)
     (do-with [m `{}]
-      (for* [i 0 sz (n# ast)
-            :while (< i sz) :recur (+2 i)]
+      (floop [a' ast :step 2 :index i]
         (assoc! m
-                (compute (.@i ast) env)
-                (compute (.@+i ast) env))))
+                (compute a' env)
+                (compute (nexth ast i) env))))
     (map? ast)
     (do-with [m {}]
-      (for* [i 0 sz (n# ast)
-            :while (< i sz) :recur (+2 i)]
+      (floop [a' ast :step 2 :index i]
         (assoc! m
-                 (compute (.@i ast) env)
-                 (compute (.@+i ast) env))))
+                 (compute a' env)
+                 (compute (nexth ast i) env))))
     (set? ast)
     (do-with [m #{}]
       (doseq [a' ast]
@@ -444,27 +440,24 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doAND "" ^Boolean [ast env]
   (with-local-vars [ret #t])
-  (for* [i 1 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! ret (compute (.@i ast) env))
+  (floop [a' ast :start 1]
+    (set! ret (compute a' env))
     (if-not ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doOR "" ^Boolean [ast env]
   (with-local-vars [ret nil])
-  (for* [i 1 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! ret (compute (.@i ast) env))
+  (floop [a' ast :start 1]
+    (set! ret (compute a' env))
     (if ret (break-out-of-loop!))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doLET "" ^Array [ast env]
   (with-local-vars [e (new LEXEnv env)
                     binds (_2 ast)])
-  (for* [i 0 sz (n# binds)
-        :while (< i sz) :recur (+2 i)]
-    (e.set (.@i binds)
-           (compute (.@+i binds) e)))
+  (floop [b' binds :step 2 :index i]
+    (e.set b'
+           (compute (nexth binds i) e)))
   [(_3 ast) e])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

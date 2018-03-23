@@ -350,19 +350,20 @@
   ^Array [tokens head tail]
   (with-local-vars [token (popToken tokens)
                     ast []
+                    cur ?
                     ok? #t
                     start token])
   (if (not= token.value head)
     (throwE token "expected '" head "'"))
-  (for* [cur (peekToken tokens)]
+  (while #t
+    (set! cur (peekToken tokens))
     (cond
       (nichts? cur)
       (throwE start "expected '" tail "', got EOF")
       (== tail cur.value)
       (break-out-of-loop!)
       :else
-      (do (addAst ast (read* tokens))
-          (set! cur (peekToken tokens)))))
+      (addAst ast (read* tokens))))
   ;;skip the tail token
   (popToken tokens)
   (copyTokenData start ast))

@@ -280,11 +280,6 @@ otherwise else expr, if supplied, else nil."
   [tst then & [else]] `(if (not ~tst) ~then ~else))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro while
-  "Repeatedly executes body while test expression is true."
-  [tst & xs] `(for* [:while ~tst] ~@xs))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when
   "Evaluates test. If logical true, evaluates body in an implicit do."
   [tst & xs] `(if ~tst (do ~@xs)))
@@ -424,10 +419,8 @@ bound to integers from 0 through n-1."
   (let* [sz (count* bindings)
          _ (assert* (= 2 sz)
                     "expected binary form")
-         _t (gensym*)
          b1 (first* bindings)]
-    `(for* [~b1 0 ~_t ~(nth* bindings 1)
-           :while (< ~b1 ~_t) :recur (+1 ~b1)] ~@xs)))
+    `(floop [:index ~b1 :end ~(nth* bindings 1)] ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro range
@@ -442,9 +435,7 @@ bound to integers from 0 through n-1."
          end (if* b b a)
          step (if* c c 1)]
     `(do-with [ret []]
-       (for* [i ~start
-             :while (< i ~end) :recur (+ i ~step)]
-         (ret.push i)))))
+       (floop [:start ~start :end ~end :step ~step :index i] (ret.push i)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro apply
@@ -469,48 +460,7 @@ bound to integers from 0 through n-1."
   "Returns a sequence of n x's."
   [n x]
   `(do-with [ret []]
-     (for* [i 0
-           :while (< i ~n)
-           :recur (+1 i)] (ret.push ~x))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro doseqXXX
-
-  "Repeatedly executes body with
-bindings and filtering as provided by :let :when :while.  Does not retain
-the head of the sequence. Returns nil."
-
-  [bindings & xs]
-  (let*
-    [loopExpr (gensym*)
-     escvar (gensym*)
-     idxvar (gensym*)
-     _let (if* (is-eq? (nth* bindings 2) ':let)
-               (nth* bindings 3))
-     _while (if* (is-eq? (nth* bindings 2) ':while)
-                 (nth* bindings 3)
-                 (if* (is-eq? (nth* bindings 4) ':while)
-                      (nth* bindings 5)
-                      (if* (is-eq? (nth* bindings 6) ':while)
-                           (nth* bindings 7)
-                           true)))
-     _when (if* (is-eq? (nth* bindings 2) ':when)
-                (nth* bindings 3)
-                (if* (is-eq? (nth* bindings 4) ':when)
-                     (nth* bindings 5)
-                     (if* (is-eq? (nth* bindings 6) ':when)
-                          (nth* bindings 7)
-                          true)))]
-    `(let [~loopExpr ~(nth* bindings 1)]
-       (for* [~idxvar 0
-             ~escvar false
-             :while (and (not ~escvar)
-                         (< ~idxvar (alen ~loopExpr))) :recur (+1 ~idxvar)]
-         (with-local-vars [~(nth* bindings 0)
-                           (nth ~loopExpr ~idxvar)])
-         ~(if* _let `(with-local-vars [~@_let]))
-         (if-not ~_while (set! ~escvar true))
-         (when (and (not ~escvar) ~_when) ~@xs)) nil)))
+     (floop [:end ~n] (ret.push ~x))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro if-some+
@@ -1314,9 +1264,8 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Map "" [m]
   (with-local-vars [ret (new Map)])
-  (for* [i 0 sz (n# m)
-        :while (< i sz) :recur (+2 i)]
-    (.set ret (.@i m) (.@+i m))) ret)
+  (floop [e m :step 2 :index i]
+    (.set ret e (nexth m i))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- eqMaps? "" [m1 m2]
@@ -1331,11 +1280,9 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- map2Obj "" [m]
-  (with-local-vars [k ? v ? ret `{}])
-  (for* [i 0 sz (n# m)
-        :while (< i sz) :recur (+2 i)]
-    (set! k (.@i m)
-          v (.@+i m))
+  (with-local-vars [v ? ret `{}])
+  (floop [k m :step 2 :index i]
+    (set! v (nexth m i))
     (oset! ret (str k) v)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1352,10 +1299,9 @@ one arg, returns the concatenation of the str values of the args."
 
     (and (array? a) (array? b)
          (= (alen a) (alen b)))
-    (do (for* [i 0 sz (alen a)
-              :while (and ok? (< i sz)) :recur (+1 i)]
+    (do (floop [:end (alen a) :index i]
           (when-not (eq? (.@i a)
-                         (.@i b)) (false! ok?))) ok?)
+                         (.@i b)) (false! ok?)(break-out-of-loop!))) ok?)
     (and (set? a) (set? b)
          (= (alen a) (alen b)))
     (eqSets? (set2Set a) (set2Set b))
@@ -1372,11 +1318,9 @@ one arg, returns the concatenation of the str values of the args."
     (and (object? a)
          (object? b)
          (= (n# a) (n# b)))
-    (do (for* [i 0 ks (Object.keys a) sz (n# ks)
-              :while (and ok? (< i sz)) :recur (+1 i)]
-          (set! k (.@i ks))
+    (do (floop [k (Object.keys a)]
           (when-not (eq? (get a k)
-                         (get b k)) (false! ok?))) ok?)
+                         (get b k)) (false! ok?)(break-out-of-loop!))) ok?)
     (and (objectMap? a)
          (objectMap? b))
     (eqMaps? a b)
@@ -1527,8 +1471,7 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- every "" ^Array [coll start step]
   (with-local-vars [ret []])
-  (for* [i start sz (n# coll)
-        :while (< i sz) :recur (+ i step)] (conj! ret (.@i coll))) ret)
+  (floop [e coll :start start :step step] (conj! ret e)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "Collect every
@@ -1566,9 +1509,8 @@ one arg, returns the concatenation of the str values of the args."
   [n string]
 
   (with-local-vars [ret []])
-  (for* [i 0 sz (n# string) :while (< i sz)]
-    (conj! ret (.substr string i n))
-    (set! i (+ i n))) ret)
+  (floop [:end (n# string) :step n :index i]
+    (conj! ret (.substr string i n))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn interleave "Returns a seq of the first item
@@ -1578,8 +1520,7 @@ one arg, returns the concatenation of the str values of the args."
     [cz (if (< (alen c2)
                (alen c1)) (alen c2) (alen c1))
      ret []])
-  (for* [i 0
-        :while (< i cz) :recur (+1 i)] (conj! ret (.@i c1) (.@i c2))) ret)
+  (floop [:end cz :index i] (conj! ret (.@i c1) (.@i c2))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn zipmap "Returns an object with the
@@ -1589,9 +1530,8 @@ one arg, returns the concatenation of the str values of the args."
     [cz (if (< (alen keys)
                (alen vals)) (alen keys) (alen vals))
      ret {}])
-  (for* [i 0
-        :while (< i cz) :recur (+1 i)]
-    (assoc! ret (.@i keys) (.@i vals))) ret)
+  (floop [:end cz :index i]
+         (assoc! ret (.@i keys) (.@i vals))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn zipobj "Returns an object with the
@@ -1601,9 +1541,8 @@ one arg, returns the concatenation of the str values of the args."
    [cz (if (< (alen keys)
               (alen vals)) (alen keys) (alen vals))
     ret `{}])
-  (for* [i 0
-        :while (< i cz) :recur (+1 i)]
-    (assoc! ret $(.@i keys) (.@i vals))) ret)
+  (floop [:end cz :index i]
+         (assoc! ret $(.@i keys) (.@i vals))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn extendAttr "" ^Object [obj attr & [flags]]
@@ -1638,11 +1577,8 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn assoc! "" ^Any [obj & xs]
   (when obj
-    (with-local-vars [k ? v ?])
-    (for* [i 0 sz (n# xs)
-          :while (< i sz) :recur (+2 i)]
-      (set! k (.@i xs)
-            v (.@+i xs))
+    (floop [k xs :step 2 :index i]
+      (with-local-vars [v (nexth xs i)])
       (cond
         (objectMap? obj) (.set obj k v)
         (object? obj) (raw# "obj[k]=v")))) obj)
@@ -1736,9 +1672,8 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn quote-str "Add quotes around a string" ^String [s]
-  (with-local-vars [out "\""])
-  (for* [i 0 ch "" sz (count s)
-        :while (< i sz) :recur (+1 i)]
+  (with-local-vars [ch "" out "\""])
+  (floop [:index i :end (count s)]
     (set! ch (ch@ s i))
     (cond
       (= ch "\"") (+= out "\\\"")
@@ -1757,9 +1692,9 @@ one arg, returns the concatenation of the str values of the args."
            (ends-with? s "\""))
     (do-with [out ""]
       (set! s (s.slice 1 -1))
-      (for* [i 0 nx "" ch "" sz (count s)
-            :while (< i sz) :recur (+1 i)]
-        (set! ch (ch@ s i))
+      (floop [:index i :end (count s)]
+        (with-local-vars [nx ?
+                          ch (ch@ s i)])
         (if (= ch "\\")
           (do (++ i)
               (set! nx (ch@ s i))
@@ -1828,10 +1763,8 @@ created."
    [err #(raise! "update-in! failed, bad nested keys: " %)
     root coll
     m ?
-    n ?
     end (last-index keys)])
-  (for* [i 0 :while (<= i end) :recur (+1 i)]
-    (set! n (.@i keys))
+  (floop [n keys :index i :while (<= i end)]
     (cond
       (= i end)
       (doUpdateIn! root n func xs err)
@@ -1860,8 +1793,7 @@ created."
     m ?
     n ?
     end (last-index keys)])
-  (for* [i 0 :while (<= i end) :recur (+1 i)]
-    (set! n (.@i keys))
+  (floop [n keys :index i :while (<= i end)]
     (cond
       (number? n)
       (if-not (and (array? root)
@@ -1913,9 +1845,8 @@ the latter (left-to-right) will be the mapping in the result."
 (defn copyArray "" [src des]
   (with-local-vars [sz (Math/min (n# src)
                                  (n# des))])
-  (for* [i 0 :while (< i sz) :recur (+1 i)]
-    (aset des i (nth src i)))
-  des)
+  (floop [:end sz :index i]
+         (aset des i (nth src i))) des)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn difference
@@ -2028,9 +1959,7 @@ the latter (left-to-right) will be the mapping in the result."
 
   [pred coll]
   (with-local-vars [ret []])
-  (for* [i 0 c ? sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! c (.@i coll))
+  (floop [c coll]
     (if (pred c)
       (conj! ret c)
       (break-out-of-loop!))) ret)
@@ -2043,9 +1972,7 @@ first item for which (pred item) returns logical false."
 
   [pred coll]
   (with-local-vars [ret []])
-  (for* [i 0 c ? sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! c (.@i coll))
+  (floop [c coll :index i]
     (when-not (pred c)
       (set! ret (slice coll i))
       (break-out-of-loop!))) ret)

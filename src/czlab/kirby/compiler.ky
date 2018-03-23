@@ -85,20 +85,18 @@
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
   ^Array [args env]
-  (with-local-vars [e ? ev ? rval ? out ?
+  (with-local-vars [ev ? rval ? out ?
                     pms []
                     [fargs fdefs :as ret]
                     [(node' args) (node' args)]])
-  (for* [i 0 sz (n# args)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i args))
+  (floop [e args :index i]
     (cond
       (symbol? e)
       (if (== e "&")
         ;vargs
         (do->break!
           (set! rval (node' args)
-                e (.@+i args))
+                e (nexth args i))
           (rval.add [ARRSLICE "(" JSARGS "," (numStr i) ")"])
           (if (symbol? e)
             (fdefs.add ["let "
@@ -131,12 +129,10 @@
                  rhs should be referred to 'as'"
   ^Symbol [coll out env]
   (with-local-vars [e ? rhs (gensym)])
-  (for* [i 0 sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i coll))
+  (floop [e coll :index i]
     (when (and (keyword? e)
                (== e :as))
-      (set! rhs (symbol $(.@+i coll)))
+      (set! rhs (symbol $(nexth coll i)))
       (break-out-of-loop!)))
   (set! rhs (xfi coll rhs))
   ;handle a vec or a map destructure only
@@ -151,9 +147,7 @@
   (with-local-vars [ret (node' coll)
                     e ? rval ? out ?
                     as (tx* src env)])
-  (for* [i 0 sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i coll))
+  (floop [e coll :index i]
     (cond
       (symbol? e)
       (cond
@@ -163,7 +157,7 @@
         (do->break!
           (set! rval (node' coll)
                 out (node' coll)
-                e (.@+i coll))
+                e (nexth coll i))
           (rval.add [ARRSLICE "(" as "," (numStr i) ")"])
           (if-not (symbol? e)
             (set! e (destruct* e out env)))
@@ -190,20 +184,17 @@
   (with-local-vars [ret (node' coll)
                     e ? arr ?
                     as (tx* src env)])
-  (for* [i 0 sz (n# coll)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i coll))
+  (floop [e coll :index i]
     (if (keyword? e)
       (cond
         (or (== e :keys)
             (== e :strs))
-        (do (set! arr (.@+i coll))
+        (do (set! arr (nexth coll i))
             (++ i)
-            (doseq [e arr]
-              (ret.add ["let " (tx* e env) "="
+            (doseq [a' arr]
+              (ret.add ["let " (tx* a' env) "="
                         (stripStd (str KBSTDLR ".getProp"))
-                        "(" as "," (std/quote-str $(e)) ");\n"])))
-
+                        "(" as "," (std/quote-str $(a')) ");\n"])))
         (== e :as)
         (++ i)
         :else
@@ -347,11 +338,10 @@
 (defn- quoteMap "" ^SourceNode [ast env]
   (var cma ""
        ret (node' ast))
-  (for* [i 0 sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :step 2 :index i]
     (if (> i 0) (ret.add ","))
-    (ret.add [(quote! (.@i ast) env)
-              " , " (quote! (.@+i ast) env)]))
+    (ret.add [(quote! a' env)
+              " , " (quote! (nexth ast i) env)]))
   (if-not (empty? ast) (set! cma ","))
   (wrap ret ["["
              (stripStd (str KBSTDLR ".symbol")) "(\"hash-map\")" cma] "]"))
@@ -359,10 +349,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" ^SourceNode [ast env]
   (with-local-vars [ret (node' ast)])
-  (for* [i 0 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
+  (floop [a' ast :index i]
     (if (> i 0) (ret.add ","))
-    (ret.add (quote! (.@i ast) env)))
+    (ret.add (quote! a' env)))
   (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -420,10 +409,9 @@
     (starts-with? cmd ".")
     (do (ret.add [(tx* (_2 ast) env)
                   (tx* (symbol cmd) env) "("])
-        (for* [n 2 sz (n# ast)
-              :while (< n sz) :recur (+1 n)]
+        (floop [a' ast :start 2 :index n]
           (if (not= n 2) (ret.add ","))
-          (ret.add (tx* (.@n ast) env)))
+          (ret.add (tx* a' env)))
         (ret.add ")"))
     (some? op)
     (set! ret (op ast env))
@@ -459,12 +447,12 @@
 (defn- txDo "" ^SourceNode [ast env & [return?]]
   (with-local-vars [stmtQ (stmt? ast)
                     ret (node' ast)
-                    e nil end (last-index ast)])
+                    e ? end (last-index ast)])
   (set! return?
         (if stmtQ #f (opt?? return? #t)))
-  (for* [i 0 :while (< i end) :recur (+1 i)]
-    (set! e (exprHint (.@i ast) #f))
-    (ret.add [(tx* e env) ";\n"]))
+  (floop [a' ast :end end]
+    (set! a' (exprHint a' #f))
+    (ret.add [(tx* a' env) ";\n"]))
   (when (>= end 0)
     (set! e (exprHint (.@end ast)
                       (not stmtQ))
@@ -618,9 +606,10 @@ fn (right-to-left) to the result, etc."
   ;go backwards -> right to left
   ;keep track of prev result so that we can thread it
   ;to next function
-  (for* [i end :while (> i 0) :recur (-1 i)]
-    (set! f $(gensym "F__") r $(gensym "R__"))
-    (ret.add ["let " f "=" (tx* (.@i ast) env) ";\n"])
+  (rloop [a' ast :start end :while (> i 0) :index i]
+    (set! f $(gensym "F__")
+          r $(gensym "R__"))
+    (ret.add ["let " f "=" (tx* a' env) ";\n"])
     (if (= i end)
       (ret.add ["let " r "=" f ".apply(this," LARGS ");\n"])
       (ret.add ["let " r "=" f "(" prev ");\n"]))
@@ -694,16 +683,17 @@ fn (right-to-left) to the result, etc."
 
   (with-local-vars [ret (node' ast)
                     end 0
+                    op ?
                     a0 (_1 ast) cmd $(a0)])
   (cond (== cmd "not=") (aset ast 0 '!==)
         (== cmd "=") (aset ast 0 '===))
   (set! a0 (_1 ast)
+        op (str a0)
         end (last-index ast))
-  (for* [i 1 op (str a0)
-        :while (< i end) :recur (+1 i)]
+  (floop [a' ast :start 1 :end end :index i]
     (if (not= i 1) (ret.add " && "))
-    (ret.add [(tx* (.@i ast) env)
-              " " op " " (tx* (.@+i ast) env)]))
+    (ret.add [(tx* a' env)
+              " " op " " (tx* (nexth ast i) env)]))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -744,11 +734,10 @@ fn (right-to-left) to the result, etc."
     (do ;handle negative number e.g. (- -2)= -1*-2
         (if (and (== "-" cmd)
                  (= 2 (n# ast))) (ret.add "-1 * "))
-        (for* [i 1 sz (n# ast)
-              :while (< i sz) :recur (+1 i)]
-          (when (> sz 2)
+        (floop [a' ast :start 1 :index i]
+          (when (> (n# ast) 2)
             (if (> i 1) (ret.add [" " cmd " "])))
-          (ret.add (tx* (.@i ast) env)))))
+          (ret.add (tx* a' env)))))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -788,25 +777,21 @@ returned if no clause matches."
   (with-local-vars
     [stmtQ (stmt? ast)
      ret (node' ast)
-     e ? t ? c ? dft ?
+     c ? dft ?
      tst (_2 ast)
      brk ";\nbreak;\n"
      gs $(gensym "C__")])
   ;look for any default clause
   (if (odd? (n# ast))
     (set! dft (_1 (pop! ast))))
-  (for* [i 2 sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
-    (set! e (.@i ast)
-          c (.@+i ast)
-          c (tx* c env))
-    (if (pairs? e)
-      (for* [j 0 sz (n# e)
-            :while (< j sz) :recur (+1 j)]
-        (ret.add ["case " (tx* (.@j e) env) ":\n"])
-        (if (= j (last-index e))
+  (floop [a' ast :start 2 :step 2 :index i]
+    (set! c (tx* (nexth ast i) env))
+    (if (pairs? a')
+      (floop [j' a' :index j]
+        (ret.add ["case " (tx* j' env) ":\n"])
+        (if (= j (last-index a'))
           (ret.add [gs "=" c brk])))
-      (ret.add ["case " (tx* e env) ":\n" gs "=" c brk])))
+      (ret.add ["case " (tx* a' env) ":\n" gs "=" c brk])))
   ;maybe add the default clause
   (if dft
     (ret.add ["default:\n"
@@ -828,7 +813,7 @@ returned if no clause matches."
     :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
-  (with-local-vars [rval ? rc ? lhs ? rhs ?
+  (with-local-vars [rval ? rc ? lhs ? rhs ? x ?
                     ret (node' ast)
                     cmd $(_1 ast)
                     keys {}
@@ -840,10 +825,8 @@ returned if no clause matches."
               (if (or (== cmd "var")
                       (== cmd "vars")) "let" "var")))
   ;deal with 1 level destruction
-  (for* [i 1 x nil sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
-    (set! lhs (.@i ast)
-          rhs (.@+i ast)
+  (floop [lhs ast :start 1 :step 2 :index i]
+    (set! rhs (nexth ast i)
           rval (tx* rhs env))
     (if (symbol? lhs)
       (do (set! x lhs
@@ -988,14 +971,13 @@ returned if no clause matches."
   (assertArity (even? (n# ast)) ast)
   (with-local-vars [ret (node' ast)
                     obj (tx* (_2 ast) env)])
-  (for* [i 2 sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :start 2 :step 2 :index i]
     (if (> i 2) (ret.add ","))
     (ret.add
       [(stripStd (str KBSTDLR "." (tx* (symbol "assoc!") env)))
        "(" obj ","
-       (tx* (xfi ast (.@i ast)) env) ","
-       (tx* (xfi ast (.@+i ast)) env) ")"]))
+       (tx* (xfi ast a') env) ","
+       (tx* (xfi ast (nexth ast i)) env) ")"]))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1005,12 +987,11 @@ returned if no clause matches."
   (assertArity (even? (n# ast)) ast)
   (with-local-vars [ret (node' ast)
                     obj (tx* (_2 ast) env)])
-  (for* [i 2 sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :start 2 :step 2 :index i]
     (if (> i 2) (ret.add ","))
     (ret.add [obj
-              "[" (tx* (xfi ast (.@i ast)) env) "]"
-              "=" (tx* (xfi ast (.@+i ast)) env)]))
+              "[" (tx* (xfi ast a') env) "]"
+              "=" (tx* (xfi ast (nexth ast i)) env)]))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1023,11 +1004,10 @@ returned if no clause matches."
 
   (assertArity (odd? (n# ast)) ast)
   (with-local-vars [ret (node' ast)])
-  (for* [i 1 sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :start 1 :step 2 :index i]
     (if (> i 1) (ret.add ","))
-    (ret.add [(tx* (.@i ast) env)
-              "=" (tx* (xfi ast (.@+i ast)) env)]))
+    (ret.add [(tx* a' env)
+              "=" (tx* (xfi ast (nexth ast i)) env)]))
   (wrap ret "(" ")"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1081,9 +1061,8 @@ returned if no clause matches."
                     fargs (doFuncArgs (xfi ast args) env)])
   (set! attrs (or attrs {}))
   (when (map? b1)
-    (for* [i 0 e nil e2 nil sz (n# b1)
-          :while (< i sz) :recur (+2 i)]
-      (set! e (.@i b1) e2 (.@+i b1))
+    (floop [e b1 :step 2 :index i]
+      (with-local-vars [e2 (nexth b1 i)])
       (when (and (keyword? e)
                  (array? e2))
         (cond (== e :post) (set! post e2)
@@ -1243,10 +1222,9 @@ any finally exprs will be evaluated for their side effects."
     (ret.add "[]")
     (do (if-not (vector? ast) (set! pos 1))
         (ret.add "[ ")
-        (for* [i pos sz (n# ast)
-              :while (< i sz) :recur (+1 i)]
+        (floop [a' ast :start pos :index i]
           (if (> i pos) (ret.add ", "))
-          (ret.add (tx* (xfi ast (.@i ast)) env)))
+          (ret.add (tx* (xfi ast a') env)))
         (ret.add " ]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1259,11 +1237,10 @@ any finally exprs will be evaluated for their side effects."
   (with-local-vars [pos 0
                     ret (node' ast)])
   (if-not (obj? ast) (set! pos 1))
-  (for* [i pos sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :start pos :step 2 :index i]
     (if (> i pos) (ret.add ", "))
-    (ret.add [(tx* (.@i ast) env)
-              ": " (tx* (xfi ast (.@+i ast)) env)]))
+    (ret.add [(tx* a' env)
+              ": " (tx* (xfi ast (nexth ast i)) env)]))
   (wrap ret "{" "}"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1274,11 +1251,10 @@ any finally exprs will be evaluated for their side effects."
   (with-local-vars [pos 0
                     ret (node' ast)])
   (if-not (map? ast) (set! pos 1))
-  (for* [i pos sz (n# ast)
-        :while (< i sz) :recur (+2 i)]
+  (floop [a' ast :start pos :step 2 :index i]
     (if (> i pos) (ret.add ","))
-    (ret.add ["[" (tx* (.@i ast) env)
-              "," (tx* (xfi ast (.@+i ast)) env) "]"]))
+    (ret.add ["[" (tx* a' env)
+              "," (tx* (xfi ast (nexth ast i)) env) "]"]))
   (wrap ret "(new Map([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1293,10 +1269,9 @@ any finally exprs will be evaluated for their side effects."
   (with-local-vars [pos 0
                     ret (node' ast)])
   (if-not (set? ast)(set! pos 1))
-  (for* [i pos sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
+  (floop [a' ast :start pos :index i]
     (if (> i pos) (ret.add ", "))
-    (ret.add (tx* (.@i ast) env)))
+    (ret.add (tx* a' env)))
   (wrap ret "(new Set([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1322,33 +1297,29 @@ any finally exprs will be evaluated for their side effects."
      v ? mcs ? nsp ?
      macros_only ?
      info ? libpath ?
-     e ? refers ? renames ?
+     refers ? renames ?
      ret (node' ast)
      fdir (path/dirname ast.source)])
-  (for* [i 1 sz (n# ast)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i ast)
-          as $(gensym "R__")
+  (floop [e ast :start 1 :index i]
+    (set! as $(gensym "R__")
           macros_only #f
           refers nil renames nil)
     (if-not (and (array? e)
                  (string? (_1 e))) (error! :invalid-require ast))
     (set! rpath $(_1 e))
-    (for* [j 1 sz (n# e)
-          :while (< j sz) :recur (+1 j)]
-      (set! v (.@j e))
+    (floop [v e :start 1 :index j]
       (cond (== v :as)
-            (do (set! as $(.@+j e))
+            (do (set! as $(nexth e j))
                 (++ j))
             (== v :only)
-            (do (if (== $(.@+j e) :macros)
+            (do (if (== $(nexth e j) :macros)
                   (true! macros_only))
                 (++ j))
             (== v :refer)
-            (do (set! refers (.@+j e))
+            (do (set! refers (nexth e j))
                 (++ j))
             (== v :rename)
-            (do (set! renames (.@+j e))
+            (do (set! renames (nexth e j))
                 (++ j))))
     (if (.includes rpath "./")
       (set! libpath (path/resolve fdir rpath))
@@ -1365,11 +1336,9 @@ any finally exprs will be evaluated for their side effects."
             nsp (loadRLib info env)))
     (.addLib env $(as) rlib)
     (set! mcs (or mcs {}))
-    (for* [i 0 t nil r nil rs nil
-          f nil m nil sz (n# refers)
-          :while (< i sz) :recur (+1 i)]
-      (set! r (.@i refers)
-            rs $(r)
+    (with-local-vars [r ? t ? rs ? f ? m ?])
+    (floop [r refers]
+      (set! rs $(r)
             v (tx* r env)
             f (get rlib (reader/jsid rs))
             m (get mcs rs))
@@ -1380,12 +1349,9 @@ any finally exprs will be evaluated for their side effects."
                rs
                {:ns nsp :alias rs :type t})
       (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
-    (for* [i 0 t nil r nil rs nil
-          ro nil f nil m nil sz (n# renames)
-          :while (< i sz) :recur (+2 i)]
-      (set! ro (.@i renames)
-            e (tx* ro env)
-            r (.@+i renames)
+    (floop [ro renames :step 2 :index i]
+      (set! e (tx* ro env)
+            r (nexth renames i)
             rs $(r)
             v (tx* r env)
             f (get rlib (reader/jsid $(ro)))
@@ -1457,11 +1423,9 @@ any finally exprs will be evaluated for their side effects."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-while
 
-  "Generates native (js) for loop.
+  "Generates native (js) for loop."
 
-  (for* [initial-vars :while test :recur update-vars] ...)"
-
-  ^{:opcode ["while!"] :tag SourceNode} [ast env]
+  ^{:opcode ["while"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [stmtQ (stmt? ast)
@@ -1513,23 +1477,20 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ret args body env stmtQ]
 
   (with-local-vars
-    [vars [] recurs [] tst ? nb ? e ?])
-  (for* [i 0 sz (n# args)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i args))
+    [vars [] recurs [] tst ? nb ?])
+  (floop [e args :index i]
     (cond (== e :while)
-          (do (set! tst (.@+i args)) (++ i))
+          (do (set! tst (nexth args i)) (++ i))
           (== e :recur)
           (do->break! (set! recurs (slice args (+1 i))))
           (symbol? e)
-          (do (conj! vars e (.@+i args)) (++ i))))
+          (do (conj! vars e (nexth args i)) (++ i))))
   (ret.add "for (")
-  (for* [i 0 sz (n# vars)
-        :while (< i sz) :recur (+2 i)]
+  (floop [v vars :step 2 :index i]
     (if (= i 0) (ret.add "let "))
     (if (not= i 0) (ret.add ","))
-    (ret.add [(tx* (.@i vars) env)
-              "=" $(tx* (.@+i vars) env)]))
+    (ret.add [(tx* v  env)
+              "=" $(tx* (nexth vars i) env)]))
   (ret.add (if (empty? vars)
              (str "let " BREAK "=false;")
              (str "," BREAK "=false;")))
@@ -1540,11 +1501,10 @@ any finally exprs will be evaluated for their side effects."
     (set! tst nb))
   (xfi ret tst)
   (ret.add [$(tx* tst env) "; "])
-  (for* [i 0 k 0 sz (n# recurs)
-        :while (< i sz) :recur (+1 i)(+2 k)]
+  (floop [r' recurs k 0 :index i :recur [(+2 k)]]
     (if (not= i 0) (ret.add ","))
     (ret.add [(tx* (.@k vars) env)
-              "=" $(tx* (.@i recurs) env)]))
+              "=" $(tx* r' env)]))
   (ret.add ["){\n" (txDo body env #f) "}\n"])
   (if-not stmtQ
     (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
@@ -1552,9 +1512,7 @@ any finally exprs will be evaluated for their side effects."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-forxxx
 
-  "Generates native (js) for loop.
-
-  (for* [initial-vars :while test :recur update-vars] ...)"
+  "Generates native (js) for loop."
 
   ^{:opcode ["floop" "rloop"] :tag SourceNode} [ast env]
 
@@ -1578,13 +1536,12 @@ any finally exprs will be evaluated for their side effects."
      incr? (== cmd "floop")
      decr? (== cmd "rloop")
      indexer ? tst ?
-     nb ? e ? sz ? begin 0
+     nb ? sz ? begin 0
      lvar ? coll ? start ? end ? step ?])
   (when (symbol? (_1 args))
     (set! begin 2 lvar (_1 args) coll (_2 args))
     (set! vars ['____coll coll '____index 0]))
-  (for* [i begin sz (n# args) :while (< i sz) :recur (+2 i)]
-    (set! e (.@i args))
+  (floop [e args :start begin :step 2 :index i]
     (cond (== e :while)
           (set! tst (nexth args i))
           (== e :index)
@@ -1613,8 +1570,7 @@ any finally exprs will be evaluated for their side effects."
     (if decr?
       (set! tst ['>  indexer '____end])))
   (ret.add "for (")
-  (for* [i 0 sz (n# vars) :while (< i sz) :recur (+2 i)]
-    (set! e (.@i vars))
+  (floop [e vars :step 2 :index i]
     (if (= i 0) (ret.add "let "))
     (if (not= i 0) (ret.add ","))
     (ret.add [(tx* e env) "=" (tx* (nexth vars i) env)]))
@@ -1629,8 +1585,7 @@ any finally exprs will be evaluated for their side effects."
   (if (undef? step) (set! step 1))
   (if incr? (.unshift recurs ['+ indexer step]))
   (if decr? (.unshift recurs ['- indexer step]))
-  (for* [i 0 k 2 sz (n# recurs) :while (< i sz) :recur (+1 i) (+2 k)]
-    (set! e (.@i recurs))
+  (floop [e recurs k 2 :index i :recur [(+2 k)]]
     (if (not= i 0) (ret.add ","))
     (ret.add [(tx* (nth vars k) env) "=" (tx* e env)]))
   (ret.add ["){\n"
@@ -1674,24 +1629,23 @@ called.
                     args (_3 ast)
                     body (slice ast 3)
                     mname ? mobj ?
-                    doc ? x ? e ? ev ?])
+                    doc ? x ? ev ?])
   (when (str? args)
     (set! doc args args (.@3 ast) body (slice ast 4)))
   (set! x (meta?? args env))
   (set! args (last x))
   (set! mobj (_1 x))
-  (for* [i 0 sz (n# args)
-        :while (< i sz) :recur (+1 i)]
-    (set! e (.@i args) ev $(e))
+  (floop [e args :index i]
+    (set! ev $(e))
     (cond (== ev "&")
-          (if (array? (.@+i args))
-            (do (set! e (.@+i args))
+          (if (array? (nexth args i))
+            (do (set! e (nexth args i))
                 (++ i)
                 (doseq [x e]
                   (if-not (symbol? x)
                     (error! :syntax-error ast))
                   (conj! pms x)))
-            (do (conj! pms e (.@+i args))
+            (do (conj! pms e (nexth args i))
                 (++ i)))
           (not (symbol? e))
           (error! :syntax-error ast)
@@ -1826,10 +1780,8 @@ the head of the sequence. Returns nil."
 (defn- getPrePost "" [obj]
   (with-local-vars [ret nil])
   (when (map? obj)
-    (for* [i 0 e nil e2 nil sz (n# obj)
-          :while (< i sz) :recur (+2 i)]
-      (set! e (.@i obj)
-            e2 (.@+i obj))
+    (floop [e obj :step 2 :index i]
+      (with-local-vars [e2 (nexth obj i)])
       (if (and (keyword? e)
                (array? e2))
         (cond (== e :post)
