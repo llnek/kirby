@@ -1309,10 +1309,11 @@ any finally exprs will be evaluated for their side effects."
     (.addLib env $(as) rlib))
 
   ;;look into module's metadata
-  (if info
+  (when info
     (set! mcs (get info :macros)
           nsp (loadRLib info env)))
   (set! mcs (or mcs {}))
+
   ;;look into refers
   (with-local-vars [e ? v ? r ? t ? rs ? f ? m ?])
   (floop [r refers]

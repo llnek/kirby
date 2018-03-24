@@ -13,25 +13,6 @@
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
 
-(defmacro condp "" [pred expr & xs]
-  (let* [Z (gensym*)]
-    `(let [~Z ~expr]
-       (kondp ~pred ~Z ~@xs))))
-
-(defmacro kondp "" ^:private [pred expr & xs]
-  (let* [len (count* xs)]
-    (if* (= len 1)
-         (let* [e (nth* xs 0)] `(if true ~e))
-         (if* (> len 1)
-              (let* [c (nth* xs 0)
-                     e (nth* xs 1)
-                     e2 (nth* xs 2)
-                     r (rest* (rest* xs))
-                     r2 (rest* (rest* (rest* xs)))]
-                (if* (is-same? e ">>")
-                     `(if-let [____x (~pred ~c ~expr)] (~e2 ____x) (kondp ~pred ~expr ~@r2))
-                     `(if (~pred ~c ~expr) ~e (kondp ~pred ~expr ~@r))))))))
-
 (defn xxx []
 
   (condp = (+ 1 2)
@@ -42,5 +23,5 @@
     "shit!")
 
 
-  )
+  nil)
 
