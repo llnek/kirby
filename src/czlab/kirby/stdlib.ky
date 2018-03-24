@@ -302,6 +302,42 @@ other tests or exprs."
                `(if ~c ~e (cond ~@r))))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro condp
+  "Takes a binary predicate, an expression, and a set of clauses.
+Each clause can take the form of either:
+ test-expr result-expr
+ test-expr :>> result-fn
+ Note :>> is an ordinary keyword.
+ For each clause, (pred test-expr expr) is evaluated. If it returns
+logical true, the clause is a match. If a binary clause matches, the
+result-expr is returned, if a ternary clause matches, its result-fn,
+which must be a unary function, is called with the result of the
+predicate as its argument, the result of that call being the return
+value of condp. A single default expression can follow the clauses,
+and its value will be returned if no clause matches. If no default
+expression is provided and no clause matches, returns nil"
+
+  [pred expr & xs]
+  (let* [Z (gensym*)]
+    `(let [~Z ~expr]
+       (_kondp_ ~pred ~Z ~@xs))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro _kondp_ "" [pred expr & xs]
+  (let* [len (count* xs)]
+    (if* (= len 1)
+         (let* [e (nth* xs 0)] `(if true ~e))
+         (if* (> len 1)
+              (let* [c (nth* xs 0)
+                     e (nth* xs 1)
+                     e2 (nth* xs 2)
+                     r (rest* (rest* xs))
+                     r2 (rest* (rest* (rest* xs)))]
+                (if* (is-same? e ">>")
+                     `(if-let [____x (~pred ~c ~expr)] (~e2 ____x) (_kondp_ ~pred ~expr ~@r2))
+                     `(if (~pred ~c ~expr) ~e (_kondp_ ~pred ~expr ~@r))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro ->
   "Threads the expr through the forms. Inserts x as the
 second item in the first form, making a list of it if it is not a
