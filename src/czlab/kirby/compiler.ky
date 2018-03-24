@@ -474,8 +474,8 @@
   [mobj obj])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fmtRegoSpecOps "" ^String [alias fname]
-  (str (reader/jsid :SPEC-OPS) "[\"" alias "\"] = " fname))
+(defn- fmtRegoSpecOps "" ^String [cmd fname]
+  (str (reader/jsid :SPEC-OPS) "[\"" cmd "\"] = " fname))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" ^String [fname attrs]
@@ -1280,6 +1280,70 @@ any finally exprs will be evaluated for their side effects."
   (require path))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-require2 "" [ret fdir ast env]
+
+  (with-local-vars
+    [rlib ? as $(gensym "R__")
+     rpath $(_1 ast) mcs ? nsp ?
+     info ? libpath ? refers ? renames ?])
+
+  ;;scan options
+  (floop [v ast :start 1 :index j :step 2]
+    (cond (== v :as)
+          (set! as $(nexth ast j))
+          (== v :refer)
+          (set! refers (nexth ast j))
+          (== v :rename)
+          (set! renames (nexth ast j))))
+  ;;resolve requested module path
+  (set! libpath
+        (tx* (if (contains? rpath "./")
+               (path/resolve fdir rpath) rpath) env))
+  ;;add the (actual) require line
+  (ret.add ["const " (reader/jsid as)
+            "= require(" (tx* rpath env) ");\n"])
+  ;;load the lib
+  (when #t
+    (set! rlib (require! (unquote-str libpath))
+          info (get rlib EXPKEY))
+    (.addLib env $(as) rlib))
+
+  ;;look into module's metadata
+  (if info
+    (set! mcs (get info :macros)
+          nsp (loadRLib info env)))
+  (set! mcs (or mcs {}))
+  ;;look into refers
+  (with-local-vars [e ? v ? r ? t ? rs ? f ? m ?])
+  (floop [r refers]
+    (set! rs $(r)
+          v (tx* r env)
+          m (get mcs rs)
+          f (get rlib (reader/jsid rs)))
+    (if f (set! t (typeid f)))
+    (if m (set! t :marco))
+    (if-not (or f m) (raise! "Unknown var " rs))
+    (.addVar env
+             rs
+             {:ns nsp :alias rs :type t})
+    (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
+  ;;look into renames
+  (floop [ro renames :step 2 :index i]
+    (set! e (tx* ro env)
+          r (nexth renames i)
+          rs $(r)
+          v (tx* r env)
+          m (get mcs $(ro))
+          f (get rlib (reader/jsid $(ro))))
+    (if f (set! t (typeid f)))
+    (if m (set! t :marco))
+    (if-not (or f m) (raise! "Unknown var " ro))
+    (.addVar env
+             rs
+             {:ns nsp :alias $(ro) :type t})
+    (ret.add ["const " v "=" as "[\"" e "\"];\n"])))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require
 
   "Loads libs.
@@ -1292,78 +1356,12 @@ any finally exprs will be evaluated for their side effects."
   ^SourceNode [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
-  (with-local-vars
-    [rlib ? as ? rpath ?
-     v ? mcs ? nsp ?
-     macros_only ?
-     info ? libpath ?
-     refers ? renames ?
-     ret (node' ast)
-     fdir (path/dirname ast.source)])
-  (floop [e ast :start 1 :index i]
-    (set! as $(gensym "R__")
-          macros_only #f
-          refers nil renames nil)
-    (if-not (and (array? e)
-                 (string? (_1 e))) (error! :invalid-require ast))
-    (set! rpath $(_1 e))
-    (floop [v e :start 1 :index j]
-      (cond (== v :as)
-            (do (set! as $(nexth e j))
-                (++ j))
-            (== v :only)
-            (do (if (== $(nexth e j) :macros)
-                  (true! macros_only))
-                (++ j))
-            (== v :refer)
-            (do (set! refers (nexth e j))
-                (++ j))
-            (== v :rename)
-            (do (set! renames (nexth e j))
-                (++ j))))
-    (if (.includes rpath "./")
-      (set! libpath (path/resolve fdir rpath))
-      (set! libpath rpath))
-    (set! libpath (tx* libpath env))
-    (if-not macros_only
-      (ret.add ["const " (reader/jsid as)
-                "= require(" (tx* rpath env) ");\n"]))
-    ;load the lib
-    (set! rlib (require! (unquote-str libpath))
-          info (get rlib EXPKEY))
-    (if info
-      (set! mcs (get info :macros)
-            nsp (loadRLib info env)))
-    (.addLib env $(as) rlib)
-    (set! mcs (or mcs {}))
-    (with-local-vars [r ? t ? rs ? f ? m ?])
-    (floop [r refers]
-      (set! rs $(r)
-            v (tx* r env)
-            f (get rlib (reader/jsid rs))
-            m (get mcs rs))
-      (if f (set! t (typeid f)))
-      (if m (set! t :marco))
-      (if-not (or f m) (raise! "Unknown var " rs))
-      (.addVar env
-               rs
-               {:ns nsp :alias rs :type t})
-      (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
-    (floop [ro renames :step 2 :index i]
-      (set! e (tx* ro env)
-            r (nexth renames i)
-            rs $(r)
-            v (tx* r env)
-            f (get rlib (reader/jsid $(ro)))
-            m (get mcs $(ro)))
-      (if f (set! t (typeid f)))
-      (if m (set! t :marco))
-      (if-not (or f m) (raise! "Unknown var " ro))
-      (.addVar env
-               rs
-               {:ns nsp :alias $(ro) :type t})
-      (ret.add ["const " v
-                "=" as "[\"" e "\"];\n"]))) ret)
+  (with-local-vars [ret (node' ast)
+                    fdir (path/dirname ast.source)])
+  (doseq [a' (rest ast)]
+    (if-not (and (array? a')
+                 (string? (_1 a'))) (error! :invalid-require ast))
+    (sf-require2 ret fdir a' env)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-ns
