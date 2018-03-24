@@ -1453,63 +1453,6 @@ any finally exprs will be evaluated for their side effects."
     (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-for
-
-  "Generates native (js) for loop.
-
-  (for* [initial-vars :while test :recur update-vars] ...)"
-
-  ^{:opcode ["for*"] :tag SourceNode} [ast env]
-
-  (assertArity (>= (n# ast) 2) ast)
-  (with-local-vars [stmtQ (stmt? ast)
-                    ret (node' ast)
-                    body (exprHint (xfi ast (slice ast 2)) #f)])
-  (if (empty? body)
-    ret
-    (sf-floop ret
-              (xfi ast (_2 ast))
-              body env stmtQ)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- sf-floop
-  "For loop implementation"
-  ^SourceNode [ret args body env stmtQ]
-
-  (with-local-vars
-    [vars [] recurs [] tst ? nb ?])
-  (floop [e args :index i]
-    (cond (== e :while)
-          (do (set! tst (nexth args i)) (++ i))
-          (== e :recur)
-          (do->break! (set! recurs (slice args (+1 i))))
-          (symbol? e)
-          (do (conj! vars e (nexth args i)) (++ i))))
-  (ret.add "for (")
-  (floop [v vars :step 2 :index i]
-    (if (= i 0) (ret.add "let "))
-    (if (not= i 0) (ret.add ","))
-    (ret.add [(tx* v  env)
-              "=" $(tx* (nexth vars i) env)]))
-  (ret.add (if (empty? vars)
-             (str "let " BREAK "=false;")
-             (str "," BREAK "=false;")))
-  (set! nb '(not ____break))
-  (xfi ret nb)
-  (if tst
-    (set! tst ['and nb tst])
-    (set! tst nb))
-  (xfi ret tst)
-  (ret.add [$(tx* tst env) "; "])
-  (floop [r' recurs k 0 :index i :recur [(+2 k)]]
-    (if (not= i 0) (ret.add ","))
-    (ret.add [(tx* (.@k vars) env)
-              "=" $(tx* r' env)]))
-  (ret.add ["){\n" (txDo body env #f) "}\n"])
-  (if-not stmtQ
-    (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-forxxx
 
   "Generates native (js) for loop."
