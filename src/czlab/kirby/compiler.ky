@@ -643,9 +643,8 @@ fn (right-to-left) to the result, etc."
                  [(.@3 ast) (slice ast 4)]
                  [nil (slice ast 3)])])
   ;put var into genv
-  (.addVar env
-           czname0
-           {:ns (std/*ns*) :alias czname0 :type :class})
+  (rt/addVar czname0
+             {:ns (std/*ns*) :alias czname0 :type :class})
   (ret.add ["class " czname])
   (if par (ret.add [" extends " (tx* par env)]))
   (ret.add " {\n")
@@ -660,9 +659,8 @@ fn (right-to-left) to the result, etc."
           ;fake a keyword 'method' in front
           (m.unshift mtd)
           ;put scoped-method into env
-          (.addVar env
-                   cn
-                   {:ns (std/*ns*) :alias cn :type :method})
+          (rt/addVar cn
+                     {:ns (std/*ns*) :alias cn :type :method})
           ;compiles it like a function
           (ret.add [(sf-func m env #f) "\n"])) mtds)
   ;stick doco in front, if any
@@ -836,9 +834,8 @@ returned if no clause matches."
       (do (set! x lhs
                 lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (.addVar env
-                     $(x)
-                     {:ns (std/*ns*) :alias $(x) :type :var}))
+            (rt/addVar $(x)
+                       {:ns (std/*ns*) :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
           (conj! vs $(x))
           (ret.add [cmd " " lhs "=" rval ";\n"]))
@@ -1058,9 +1055,8 @@ returned if no clause matches."
      b1 (_1 body)
      [attrs args] (meta?? (nth ast pargs) env)])
   (if-not mtd?
-    (.addVar env
-             fname0
-             {:ns (std/*ns*) :alias fname0 :type :fn}))
+    (rt/addVar fname0
+               {:ns (std/*ns*) :alias fname0 :type :fn}))
   (if-not (array? args)
     (error! :invalid-fargs ast))
   (with-local-vars [pre ? post ?
@@ -1313,7 +1309,7 @@ any finally exprs will be evaluated for their side effects."
   (when #t
     (set! rlib (require! (unquote-str libpath))
           info (get rlib EXPKEY))
-    (.addLib env $(as) rlib))
+    (rt/addLib $(as) rlib))
 
   ;;look into module's metadata
   (when info
@@ -1331,9 +1327,8 @@ any finally exprs will be evaluated for their side effects."
     (if f (set! t (typeid f)))
     (if m (set! t :marco))
     (if-not (or f m) (raise! "Unknown var " rs))
-    (.addVar env
-             rs
-             {:ns nsp :alias rs :type t})
+    (rt/addVar rs
+               {:ns nsp :alias rs :type t})
     (ret.add ["const " v "=" as "[\"" v "\"];\n"]))
   ;;look into renames
   (floop [ro renames :step 2 :index i]
@@ -1346,9 +1341,8 @@ any finally exprs will be evaluated for their side effects."
     (if f (set! t (typeid f)))
     (if m (set! t :marco))
     (if-not (or f m) (raise! "Unknown var " ro))
-    (.addVar env
-             rs
-             {:ns nsp :alias $(ro) :type t})
+    (rt/addVar rs
+               {:ns nsp :alias $(ro) :type t})
     (ret.add ["const " v "=" as "[\"" e "\"];\n"])))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1604,9 +1598,8 @@ called.
   (set! mname (_2 ast)
         ast ['macro* mname pms (_1 body)])
   ;try to register it
-  (.addVar env
-           mname
-           {:ns (std/*ns*) :alias nil :type :macro})
+  (rt/addVar mname
+             {:ns (std/*ns*) :alias nil :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
@@ -1841,9 +1834,8 @@ the head of the sequence. Returns nil."
     (catch e (set! err e)))
   (set! cstr (cleanCode cstr))
   (with-local-vars [mcs (keys *macros*)
-                    lbs (keys (get env :libs))
-                    vas (keys (get env :vars))])
-  ;(println (std/prn (get env :vars) #t))
+                    lbs (rt/getLibKeys)
+                    vas (rt/getVarKeys)])
   (when verbose
     (println "<macros>\n" (std/prn mcs #t))
     (println "<libs>\n" (std/prn lbs #t))

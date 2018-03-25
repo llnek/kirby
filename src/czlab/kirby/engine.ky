@@ -55,11 +55,7 @@
                a new env with these symbols,
                and optionally a parent env"
     [parent vars vals]
-    (oset! this
-           :data {}
-           :libs {}
-           :vars {}
-           :par nil)
+    (oset! this :data {} :par nil)
     (if parent
       (oset! this :par parent))
     (floop [e vars :index i]
@@ -93,47 +89,48 @@
     (expect! k)
     (var env (.find this k))
     (if env (get env.data k.value) k.value))
+
+  (prn "Print set of vars"
+    ^String []
+    (std/prn @@data))
+
   (select ""
     ^Map [what]
     (reduce (fn [acc [k v]]
               (if (case what
                     :fn (fn? v)
                     :var (not (fn? v)) #t)
-                (assoc! acc (str k) v)) acc) {} (seq this.data)))
-  (prn "Print set of vars"
-    ^String []
-    (std/prn @@data))
+                (assoc! acc (str k) v)) acc) {} (seq this.data))))
 
-  (getLib "" [alias]
-    (if @@par
-      (.getLib @@par alias)
-      (get @@libs alias)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(const- *vars* {})
+(const- *libs* {})
 
-  (addVar "" [sym info]
-    (if @@par
-      (.addVar @@par sym info)
-      (do->nil (var s (str sym)
-                    m (get @@vars s))
-               (if m (raise! "var: " s " already added"))
-               (assoc! @@vars s info))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getLib "" [alias] (get *libs* alias))
+(defn getLibKeys "" [] (keys *libs*))
 
-  (getVar "" [sym]
-    (if @@par
-      (.getVar @@par sym)
-      (get @@vars (str sym))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addVar "" [sym info]
+  (with-local-vars [s (str sym)
+                    m (get *vars* s)])
+  (if m (raise! "var: " s " already added"))
+  (assoc! *vars* s info)
+  nil)
 
-  (hasVar? "" [sym]
-    (if @@par
-      (.hasVar? @@par sym)
-      (contains? @@vars (str sym))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn getVar "" [sym] (get *vars* (str sym)))
+(defn getVarKeys "" [] (keys *vars*))
 
-  (addLib "" [alias lib]
-    (if @@par
-      (.addLib @@par alias lib)
-      (do->nil
-        (if (contains? @@libs alias)
-          (raise! "Library alias already added: " alias))
-        (assoc! @@libs alias lib)))))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn hasVar? "" [sym] (contains? *vars* (str sym)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn addLib "" [alias lib]
+  (if (contains? *libs* alias)
+    (raise! "Library alias already added: " alias))
+  (assoc! *libs* alias lib)
+  nil)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro prnArr
@@ -345,7 +342,7 @@
     (contains? cmd "/")
     (let [[p c](.split cmd "/")
           tmp nil
-          libObj (.getLib (genv) p)]
+          libObj (getLib p)]
       (set! mname c)
       (cond
         (== p KBSTDLR) (set! nsp KBSTDLIB)
@@ -354,7 +351,7 @@
                 (true! skip)
                 (set! nsp (get (get libObj EXPKEY) :ns)))))
     :else
-    (let [m (.getVar (genv) cmd)]
+    (let [m (getVar cmd)]
       (set! mname cmd
             nsp (if m (get m :ns)))))
   (when-not skip
