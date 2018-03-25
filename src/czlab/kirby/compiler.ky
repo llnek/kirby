@@ -58,6 +58,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* nil
       *macros* nil
+      *vars* nil
       *last-line* 0
       *last-col* 0
       SPEC-OPS (object )
@@ -667,7 +668,9 @@ fn (right-to-left) to the result, etc."
   ;stick doco in front, if any
   (if doc (ret.prepend (writeDoc doc)))
   ;maybe export this type?
-  (if pub? (assoc! *externs* czname czname))
+  (when pub?
+    (conj! *vars* czname0)
+    (assoc! *externs* czname czname))
   (ret.add "}\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -816,6 +819,7 @@ returned if no clause matches."
   (with-local-vars [rval ? rc ? lhs ? rhs ? x ?
                     ret (node' ast)
                     cmd $(_1 ast)
+                    vs []
                     keys {}
                     tmp nil vname nil
                     pub? (or (== cmd "def")
@@ -836,11 +840,13 @@ returned if no clause matches."
                      $(x)
                      {:ns (std/*ns*) :alias $(x) :type :var}))
           (assoc! keys lhs lhs)
+          (conj! vs $(x))
           (ret.add [cmd " " lhs "=" rval ";\n"]))
       (do (set! out (node' ast)
                 rhs (destruct* lhs out env))
           (ret.add ["let " (tx* rhs env) "=" rval ";\n" out]))))
-  (if pub?
+  (when pub?
+    (each #(conj! *vars* %) vs)
     (each-key #(assoc! *externs* %2 %1) keys)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1086,9 +1092,10 @@ returned if no clause matches."
     (ret.add (fmtSpecOps fname attrs)))
   (if doc
     (ret.prepend (writeDoc doc)))
-  (if (and pub?
+  (when (and pub?
            (not dot?)
            (not mtd?))
+    (conj! *vars* fname0)
     (assoc! *externs* fname fname))
   (ret.prepend (writeFuncInfo fname0 ast)))
 
@@ -1749,21 +1756,30 @@ the head of the sequence. Returns nil."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitMacros "" []
   (if (empty? *macros*)
-    ""
+    "{}"
     (-> (map (fn [[k v]]
              (str (quote-str (str k))
                   ":" (quote-str v))) (seq *macros*))
         (.join ",\n")
-        (std/wrap-str  "const ____macros = {\n" "};\n"))))
+        (std/wrap-str  "{\n" "}\n"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- spitVars "" []
+  (if (empty? *vars*)
+    "[]"
+    (-> (map (fn [k] (quote-str (str k))) *vars*)
+        (.join ",")
+        (std/wrap-str  "[ " "]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
   (with-local-vars
-    [mc (if (empty? *macros*) "{}" "____macros")
+    [mc (spitMacros)
+     vs (spitVars)
      s2 ""
      s1 (str EXPKEY
-             ": { ns: "
-             (quote-str (std/*ns*))
+             ": { ns: " (quote-str (std/*ns*))
+             ", vars: " vs
              ", macros: " mc " }")])
   (when (not-empty *externs*)
     (set! s2
@@ -1803,7 +1819,6 @@ the head of the sequence. Returns nil."
      env (rt/genv)
      ret (txTree ast env)
      fbase (path/basename fname ".ky")
-     macros (spitMacros)
      extra (spitExterns)
      fopts {}
      err nil
@@ -1815,11 +1830,10 @@ the head of the sequence. Returns nil."
                     (object :skipValidation #t :file fmap))]
          (fs/writeFileSync smap sout.map)
          (str sout.code
-              macros
               extra
               "\n//# sourceMappingURL="
               (path/relative (path/dirname fname) smap)))
-       (str ret macros extra))])
+       (str ret extra))])
   (try
     (if-not no-format
       (set! cstr
@@ -1842,7 +1856,7 @@ the head of the sequence. Returns nil."
   "Compile kirby file to target source"
   ^Array [code file & [options]]
 
-  (set! *externs* {}
+  (set! *externs* {} *vars* (std/into! :vector [])
         *macros* {} *last-line* 0 *last-col* 0)
   (try
     (transpile* code file (opt?? options (object )))
