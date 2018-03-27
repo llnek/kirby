@@ -126,7 +126,7 @@
 (defn- destruct* "Decide on what the
                  rhs should be referred to 'as'"
   ^Symbol [coll out env]
-  (with-local-vars [e ? rhs (gensym)])
+  (with-local-vars [rhs (gensym)])
   (floop [e coll :index i]
     (when (and (keyword? e)
                (== e :as))
@@ -141,9 +141,10 @@
     (out.add (destructVec rhs coll env))) rhs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructVec "" ^SourceNode [src coll env]
+(defn- destructVec
+  "" ^SourceNode [src coll env]
   (with-local-vars [ret (node' coll)
-                    rval ? out ? e ? as (tx* src env)])
+                    rval ? out ? as (tx* src env)])
   (floop [e coll :index i]
     (cond (symbol? e)
           (cond (== e "_")
@@ -155,12 +156,15 @@
                         e (nexth coll i))
                   (rval.add (str ARRSLICE
                                  "(" as "," $(i) ")"))
+                  ;more nested destruct
                   (if-not (symbol? e)
                     (set! e (destruct* e out env)))
                   (ret.add ["let "
-                            (tx* e env) "=" rval ";\n" out]))
+                            (tx* e env)
+                            "=" rval ";\n" out]))
                 :else
-                (ret.add ["let " (tx* e env)
+                (ret.add ["let "
+                          (tx* e env)
                           "=" (stripStd GET-INDEX)
                           "(" as "," $(i) ");\n"]))
           (array? e)
@@ -169,7 +173,8 @@
                     e (destruct* e out env))
               (rval.add (str as "[" $(i) "]"))
               (ret.add ["let "
-                        (tx* e env) "=" rval ";\n" out]))
+                        (tx* e env)
+                        "=" rval ";\n" out]))
           (keyword? e)
           (if (== e :as)
             (++ i)
