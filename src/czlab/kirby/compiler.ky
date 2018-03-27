@@ -60,6 +60,7 @@
 (const- GET-PROP (str KBSTDLR ".getProp"))
 (const- KEYW (str KBSTDLR ".keyword"))
 (const- SYMB (str KBSTDLR ".symbol"))
+(const- COUNT (str KBSTDLR ".count"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* ? *macros* ? *vars* ?
@@ -97,8 +98,8 @@
             (do->break!
               (set! rval (node' args)
                     e (nexth args i))
-              (rval.add (str ARRSLICE
-                             "(" JSARGS "," $(i) ")"))
+              (.add rval (str ARRSLICE
+                              "(" JSARGS "," $(i) ")"))
               (if (symbol? e)
                 (fdefs.add ["let "
                             (tx* e env) "=" rval ";\n"])
