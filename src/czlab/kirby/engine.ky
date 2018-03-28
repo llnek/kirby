@@ -396,11 +396,13 @@
   (and (pairs? ast) (symbol? (_1 ast)) (getMacro $(_1 ast))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn expand?? "" ^Any [ast env]
+(defn expand?? "" ^Any [ast env & [mcObj]]
   (with-local-vars [cmd ? mac ?])
-  (while (isMacroCall? ast env)
+  (while (or mcObj
+             (isMacroCall? ast env))
     (set! cmd $(_1 ast)
-          mac (getMacro cmd)
+          mac (or mcObj (getMacro cmd))
+          mcObj nil
           ast (apply mac this (rest ast)))) ast)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

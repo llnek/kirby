@@ -22,7 +22,7 @@
                      not-empty conj! list? obj?
                      gensym count pop! partition
                      difference carve split-with
-                     symbol keyword symbol? keyword?]]
+                     concat symbol keyword symbol? keyword?]]
             ["./engine"
              :as rt
              :refer [KBSTDLR KBSTDLIB KBPFX EXPKEY]]
@@ -68,57 +68,50 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- unmangle
-  "Ensure name is compliant" [s]
+  "Ensure name is compliant" ^String [s]
   (->> (map #(reader/jsid %) (.split s ".")) (join ".")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnodeEx "Create a node"
-  ^SourceNode [name &[chunk]] (tnode nil nil nil chunk name))
+(defn tnodeEx
+  "" [name &[chunk]] (tnode nil nil nil chunk name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn tnode "Create a token
-            with source information"
-  ^SourceNode [&[source line col chunk name]]
+(defn tnode
+  "" [&[src ln col chunk name]]
   (new smap/SourceNode
-       (opt?? line nil)
+       (opt?? ln nil)
        (opt?? col nil)
-       (opt?? source nil)
+       (opt?? src nil)
        (opt?? chunk nil) (opt?? name nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- doFuncArgs "Deal with possible destructuring
                   of args in function definition"
   ^Array [args env]
-  (with-local-vars [pms [] ev ? rval ? out ?
-                    [fargs fdefs :as ret]
-                    [(node' args) (node' args)]])
+  (with-local-vars [fargs (node' args)
+                    fdefs (node' args)
+                    ret [fargs fdefs]
+                    pms [] rval ? out ?])
   (floop [e args :index i]
+    (set! rval (node' args)
+          out (node' args))
     (cond (symbol? e)
           (if (== e "&")
             (do->break!
-              (set! rval (node' args)
-                    e (nexth args i))
-              (.add rval (str ARRSLICE
-                              "(" JSARGS "," $(i) ")"))
-              (if (symbol? e)
-                (fdefs.add ["let "
-                            (tx* e env) "=" rval ";\n"])
-                (do (set! out (node' args)
-                          e (destruct* e out env))
-                    (fdefs.add ["let "
-                                (tx* e env) "=" rval ";\n" out]))))
-            (do (if (== e "_")
-                  (set! e (xfi e (gensym "U__")))) (conj! pms e)))
+              (set! e (nexth args i))
+              (.add rval [ARRSLICE "(" JSARGS "," $(i) ")"])
+              (.add fdefs ["let "
+                           (tx* (if (symbol? e)
+                                  e (dstru* e out env)) env)
+                           "=" rval ";\n" out]))
+            (conj! pms (if (== e "_") (xfi e (gensym "U__")) e)))
           (array? e)
-          (do (set! rval (node' args)
-                    out (node' args)
-                    e (destruct* e out env))
-              (rval.add (str JSARGS "[" $(i) "]"))
-              (conj! pms e)
-              (fdefs.add out))
+          (do (.add rval [JSARGS "[" $(i) "]"])
+              (conj! pms (dstru* e out env))
+              (.add fdefs out))
           :else
           (error! :destruct-args args)))
-  (each #(fargs.add (tx* % env)) pms)
+  (each #(.add fargs (tx* % env)) pms)
   (join "," fargs)
   ;;return back a list of function arguments, and the
   ;;rest of local variables in case of varargs or
@@ -126,7 +119,7 @@
   ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destruct* "Decide on what the
+(defn- dstru* "Decide on what the
                  rhs should be referred to 'as'"
   ^Symbol [coll out env]
   (with-local-vars [rhs (gensym)])
@@ -135,49 +128,37 @@
                (== e :as))
       (set! rhs (symbol $(nexth coll i)))
       (break-out-of-loop!)))
-  (set! rhs (xfi coll rhs))
+  (xfi coll rhs)
   ;handle a vec or a map destructure only
-  (cond
-    (map? coll)
-    (out.add (destructMap rhs coll env))
-    (vector? coll)
-    (out.add (destructVec rhs coll env))) rhs)
+  (.add out (cond (map? coll) (dmap! rhs coll env)
+                  (vector? coll) (dvec! rhs coll env)
+                  :else "")) rhs)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructVec
-  "" ^SourceNode [src coll env]
+(defn- dvec! "Destruct a vec" [src coll env]
   (with-local-vars [ret (node' coll)
                     rval ? out ? as (tx* src env)])
   (floop [e coll :index i]
+    (set! rval (node' coll)
+          out (node' coll))
     (cond (symbol? e)
-          (cond (== e "_")
-                nil
-                (== e "&")
+          (cond (== e "&")
                 (do->break!
-                  (set! rval (node' coll)
-                        out (node' coll)
-                        e (nexth coll i))
-                  (rval.add (str ARRSLICE
-                                 "(" as "," $(i) ")"))
-                  ;more nested destruct
-                  (if-not (symbol? e)
-                    (set! e (destruct* e out env)))
-                  (ret.add ["let "
-                            (tx* e env)
-                            "=" rval ";\n" out]))
+                  (set! e (nexth coll i))
+                  (.add rval [ARRSLICE "(" as "," $(i) ")"])
+                  (.add ret ["let "
+                             (tx* (if-not (symbol? e)
+                                    (dstru* e out env) e) env)
+                             "=" rval ";\n" out]))
                 :else
-                (ret.add ["let "
-                          (tx* e env)
-                          "=" (stripStd GET-INDEX)
-                          "(" as "," $(i) ");\n"]))
+                (if-not (== e "_")
+                  (.add ret ["let "
+                             (tx* e env) "="
+                             (slib! GET-INDEX) "(" as "," $(i) ");\n"])))
           (array? e)
-          (do (set! rval (node' coll)
-                    out (node' coll)
-                    e (destruct* e out env))
-              (rval.add (str as "[" $(i) "]"))
-              (ret.add ["let "
-                        (tx* e env)
-                        "=" rval ";\n" out]))
+          (do (.add rval [as "[" $(i) "]"])
+              (.add ret ["let "
+                         (tx* (dstru* e out env) env) "=" rval ";\n" out]))
           (keyword? e)
           (if (== e :as)
             (++ i)
@@ -185,40 +166,36 @@
           :else (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- destructMap "" ^SourceNode [src coll env]
+(defn- dmap! "Destruct a map" [src coll env]
   (with-local-vars [ret (node' coll)
                     arr ? as (tx* src env)])
-  (floop [e coll :index i]
+  (floop [e coll :index i :step 2]
     (if (keyword? e)
       (cond (or (== e :keys)
                 (== e :strs))
-            (do (set! arr (nexth coll i))
-                (++ i)
-                (doseq [a' arr]
-                  (ret.add ["let " (tx* a' env) "="
-                            (stripStd (str KBSTDLR ".getProp"))
-                            "(" as "," (std/quote-str $(a')) ");\n"])))
-            (== e :as)
-            (++ i)
-            :else
-            (error! :unknown-keyword coll))
+            (doseq [a' (nexth coll i)]
+              (.add ret ["let "
+                         (tx* a' env) "="
+                         (slib! GET-PROP)
+                         "(" as "," (std/quote-str $(a')) ");\n"]))
+            (== e :as) nil
+            :else (error! :unknown-keyword coll))
       ;else
       (error! :syntax-error coll))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- simple? "" [ast]
+(defn- simple? "Nothing complex" [ast]
   (or (undef? ast) (nil? ast) (str? ast) (num? ast) (bool? ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- wrap "" ^SourceNode [ret head tail]
-  (if head (.prepend ret head))
-  (if tail (.add ret tail)) ret)
+(defn- wrap "" [ret head tail]
+  (if head (.prepend ret head)) (if tail (.add ret tail)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- exprHint "" ^Array [ast flag]
-  (if (simple? ast)
-    (set! ast (primitive ast)))
-  (oset! ast :____expr flag) ast)
+(defn- exprHint
+  "Flag the AST if it is an expression" [ast flag]
+  ;if ast is a simple-ton, wrap (box) it with a Primitive object.
+  (doto (if (simple? ast) (primitive ast) ast) (oset! :____expr flag)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- stmt? "" [ast]
@@ -228,22 +205,21 @@
 (defn- error! "" [e & [ast msg]]
   (raise! (get ERRORS-MAP e)
           (if msg (str " : " msg))
-          (if (and ast ast.line) (str "\nline: " ast.line))
-          (if (and ast ast.source) (str "\nfile: " ast.source))))
+          (if (and ast (num? ast.line)) (str "\nline: " ast.line))
+          (if (and ast (str? ast.source)) (str "\nfile: " ast.source))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- testre? "" [re x] (if x (.test re x) #f))
+(defn- testre? "Test a regex" [re x] (if x (.test re x) #f))
+(defn- fn?? "" [cmd]
+  (if (testre? reader/REGEX.func cmd) (str "(" cmd ")") cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- pad "" [n] ^String (.repeat " " n))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- node' "" ^SourceNode [ast & [obj]]
-  (set! obj (opt?? obj (tnode)))
-  (oset! obj
-         :source ast.source
-         :line ast.line
-         :column ast.column) obj)
+  (doto (opt?? obj (tnode))
+    (oset! :source ast.source :line ast.line :column ast.column)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txTree
@@ -251,26 +227,21 @@
   Also, always check first for (ns ...)"
   ^SourceNode [root env]
   (with-local-vars [ms [] os []
-                    t ? f ?
                     n1 (_1 root)
                     ret (node' root)])
   (if-not (== "ns" (_1 n1))
     (raise! "(ns ...) must be first form in file"))
   (conj! ms n1)
   (doseq [t (rest root)]
-    (if (and (array? t)
-             (symbol? (_1 t))
-             (== "defmacro" (_1 t)))
-      (conj! ms t)
-      (conj! os t)))
+    (conj! (if (and (array? t)
+                    (symbol? (_1 t))
+                    (== "defmacro" (_1 t))) ms os) t))
   (each (fn [r]
           (set! *last-line* r.line *last-col* r.col)
-          (if-some [t (tx* r env)] (ret.add [t ";\n"])))
-        (.concat ms os))
-  ret)
+          (if-some [t (tx* r env)] (.add ret [t ";\n"]))) (concat ms os)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txForm "" ^Any [expr env]
+(defn- txForm "" [expr env]
   (if (array? expr)
     (each #(aset %3 %2 (tx* %1 env)) expr)) expr)
 
@@ -297,7 +268,7 @@
         :else (reader/jsid s)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- tx* "" ^Any [x & [env]]
+(defn- tx* "" [x & [env]]
   (if (array? x) (txPairs x env) (txAtom x)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -312,8 +283,8 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteSingle "" ^String [a]
-  (cond (keyword? a) (str (stripStd KEYW) "(\"" a.value "\")")
-        (symbol? a) (str (stripStd SYMB) "(\"" a.value "\")")
+  (cond (keyword? a) (str (slib! KEYW) "(\"" a.value "\")")
+        (symbol? a) (str (slib! SYMB) "(\"" a.value "\")")
         (primitive? a) (do (set! a a.value)
                            (cond (string? a)
                                  (quote-str a)
@@ -323,11 +294,10 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quote! "" ^SourceNode [ast env]
-  (assertInfo ast)
+  ;(assertInfo ast)
   (if (array? ast)
     (if (map? ast)
-      (quoteMap ast env) (quoteBlock ast env))
-    (quoteSingle ast)))
+      (quoteMap ast env) (quoteBlock ast env)) (quoteSingle ast)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteMap "" ^SourceNode [ast env]
@@ -338,40 +308,33 @@
     (.add ret [(quote! a' env)
                " , " (quote! (nexth ast i) env)]))
   (if-not (empty? ast) (set! cma ","))
-  (wrap ret ["[" (stripStd SYMB) "(\"hash-map\")" cma] "]"))
+  (wrap ret ["[" (slib! SYMB) "(\"hash-map\")" cma] "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- quoteBlock "" ^SourceNode [ast env]
   (with-local-vars [ret (node' ast)])
   (floop [a' ast :index i]
     (if (> i 0) (.add ret ","))
-    (.add ret (quote! a' env)))
-  (wrap ret "[" "]"))
+    (.add ret (quote! a' env))) (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spreadInfo "" ^Any [from to]
   (if (and from
            (not (simple? from))
-           (number? from.line)
-           (array? to))
+           (number? from.line) (array? to))
     (do (xfi from to)
         (doseq [t' to]
-          (spreadInfo from t')))
-    (xfi from to)))
+          (spreadInfo from t'))) (xfi from to)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- txPairs "" ^SourceNode [ast env]
   (with-local-vars [nsp (std/peekNSP)
                     stmtQ (stmt? ast)
-                    ret (node' ast)
-                    cmd (gcmd ast)
-                    e1 (_1 ast)
-                    orig ast
-                    op ? tmp ?
-                    mc (rt/getMacro cmd)])
+                    ret (node' ast) cmd (gcmd ast)
+                    e1 (_1 ast) orig ast op ? tmp ? mc (rt/getMacro cmd)])
   (xfi e1 ret)
   (xfi e1 ast)
-  ;;handle macro calls
+  ;;always handle macro calls first
   (when mc
     (set! ast (rt/expand?? ast env mc)
           ast (xfi orig (exprHint ast (not stmtQ))))
@@ -379,52 +342,41 @@
     (set! cmd (gcmd ast)))
   ;;handle (+1 ) or (-1 ) cases
   (when (reader/REGEX.int.test cmd)
-    (if-not (or (starts-with? cmd "+")
-                (starts-with? cmd "-"))
-      (set! cmd (str "+" cmd)))
-    (set! ast (xfi ast [(symbol (ch@ cmd 0))
-                        (_2 ast)
-                        (int (rest cmd))])
-          cmd $(_1 ast)))
+    (set! cmd (if-not (or (starts-with? cmd "+")
+                          (starts-with? cmd "-"))
+                (str "+" cmd) cmd)
+          ast (xfi ast [(symbol (ch@ cmd 0))
+                        (_2 ast) (int (rest cmd))]) cmd $(_1 ast)))
   ;;maybe special form
   (set! op (get SPEC-OPS cmd))
   ;;handle all cases
-  (cond
-    (== cmd "with-meta")
-    (ret.add (tx* (_2 (meta?? ast env)) env))
-    (starts-with? cmd ".-")
-    (ret.add [(tx* (_2 ast) env)
-              "." (tx* (symbol (.slice cmd 2)) env)])
-    (starts-with? cmd ".@")
-    (do (set! tmp (if (starts-with? cmd ".@+") [3 #t] [2 #f]))
+  (cond (== cmd "with-meta")
+        (.add ret (tx* (_2 (meta?? ast env)) env))
+        (starts-with? cmd ".-")
         (.add ret [(tx* (_2 ast) env)
-                   "[" (.slice cmd (_1 tmp)) (if (_2 tmp) "+1]" "]")]))
-    (starts-with? cmd ".")
-    (do (.add ret [(tx* (_2 ast) env)
-                   (tx* (symbol cmd) env) "("])
-        (floop [a' ast :start 2 :index n]
-          (if (not= n 2) (.add ret ","))
-          (.add ret (tx* a' env)))
-        (.add ret ")"))
-    (some? op)
-    (set! ret (op ast env))
-    (and (or (== cmd "splice-unquote")
-             (== cmd "unquote")
-             (== cmd "syntax-quote"))
-         (not (starts-with? (get nsp :id) KBPFX)))
-    (error! :outside-macro ast)
-    :else
-    (do (if (pairs? ast)
-          (do (txForm ast env)
-              (set! cmd $(_1 ast)))
-          (set! cmd (tx* ast env)))
-        (if-not cmd (error! :empty-form ast))
-        (set! cmd (stripStd cmd))
-        (if (pairs? ast)
-          (.add ret
-                [(if (testre? reader/REGEX.func cmd) (str "(" cmd ")") cmd)
-                 "(" (join "," (rest ast)) ")"])
-          (.add ret cmd))))
+                   "." (tx* (symbol (.slice cmd 2)) env)])
+        (starts-with? cmd ".@")
+        (.add ret [(tx* (_2 ast) env) "["
+                   (.slice cmd (if (starts-with? cmd ".@+") 3 2))
+                   (if (starts-with? cmd ".@+") "+1" "") "]"])
+        (starts-with? cmd ".")
+        (.add ret
+              (concat [(tx* (_2 ast) env) (tx* (symbol cmd) env)]
+                      "(" (join "," (for [a' (slice ast 2)] (tx* a' env))) ")"))
+        (some? op)
+        (set! ret (op ast env))
+        (and (or (== cmd "splice-unquote")
+                 (== cmd "unquote")
+                 (== cmd "syntax-quote"))
+             (not (starts-with? (get nsp :id) KBPFX)))
+        (error! :outside-macro ast)
+        :else
+        (do (set! cmd (if (pairs? ast)
+                        $(_1 (txForm ast env)) (tx* ast env)))
+            (if-not cmd (error! :empty-form ast))
+            (set! cmd (slib! cmd))
+            (.add ret (if (pairs? ast)
+                        [(fn?? cmd) "(" (join "," (rest ast)) ")"] cmd))))
   (node' ast ret))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -514,7 +466,7 @@
   v)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- stripStd "" ^String [cmd]
+(defn- slib! "" ^String [cmd]
   (with-local-vars [lib (str KBSTDLR ".")
                     nsp (std/peekNSP)])
   (set! cmd $(cmd))
@@ -827,7 +779,7 @@ returned if no clause matches."
           (conj! vs $(x))
           (.add ret (str cmd " " lhs "=" rval ";\n")))
       (do (set! out (node' ast)
-                rhs (destruct* lhs out env))
+                rhs (dstru* lhs out env))
           (.add ret ["let " (tx* rhs env) "=" rval ";\n" out]))))
   (when pub?
     (each #(conj! *vars* %) vs)
@@ -870,7 +822,7 @@ returned if no clause matches."
   (assertArity (= (n# ast) 3) ast)
   (with-local-vars [ret (node' ast)])
   (.add ret
-        [(stripStd (str KBSTDLR
+        [(slib! (str KBSTDLR
                         "." (tx* (symbol "dissoc!") env)))
          "("
          (tx* (_2 ast) env)
@@ -961,7 +913,7 @@ returned if no clause matches."
   (floop [a' ast :start 2 :step 2 :index i]
     (if (> i 2) (.add ret ","))
     (.add ret
-          [(stripStd (str KBSTDLR "." (tx* (symbol "assoc!") env)))
+          [(slib! (str KBSTDLR "." (tx* (symbol "assoc!") env)))
            "(" obj ","
            (tx* (xfi ast a') env) ","
            (tx* (xfi ast (nexth ast i)) env) ")"]))
@@ -1180,7 +1132,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (= (n# ast) 3) ast)
   (with-local-vars [a0 $(_1 ast)
-                    cmd (stripStd GET-PROP)])
+                    cmd (slib! GET-PROP)])
   (if (== a0 "get")
     (wrap (node' ast)
           nil [cmd "("
@@ -1638,7 +1590,7 @@ the head of the sequence. Returns nil."
 
   (with-local-vars
     [body (exprHint (xfi ast (slice ast 2)) #f)
-     kount (stripStd (str KBSTDLR ".count"))
+     kount (slib! (str KBSTDLR ".count"))
      args (_2 ast)
      _ (assert (even? (n# args)) "bindings not even")
      stmtQ (stmt? ast)
