@@ -1539,6 +1539,13 @@ one arg, returns the concatenation of the str values of the args."
       (recur ret (split-seq y n)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn split
+  "Splits string on a sep or regular expression.  Optional argument limit is
+the maximum number of splits. Returns vector of the splits."
+  [s re & [limit]]
+  (if (def? limit) (.split s re limit) (.split s re)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn split-str
 
  "Returns a sequence of strings of n characters each."
@@ -1724,7 +1731,8 @@ one arg, returns the concatenation of the str values of the args."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn unquote-str "Removes quotes around a string" ^String [s]
-  (if (and (starts-with? s "\"")
+  (if (and (string? s)
+           (starts-with? s "\"")
            (ends-with? s "\""))
     (do-with [out ""]
       (set! s (s.slice 1 -1))

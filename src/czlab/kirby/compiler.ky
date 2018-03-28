@@ -381,30 +381,26 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeDoc "Convert to jsdoc" ^Array [doc]
-  (with-local-vars [out []])
-  (if doc
-    (->> (.split (unquote-str doc) "\n")
-         (each #(let [s (.trim (str %))]
-                  (if (not-empty s)
-                    (conj! out (str "//" s "\n"))))))) out)
+  (->> (if doc (std/split (unquote-str doc) "\n") [])
+       (map #(let [s (.trim (str %))]
+                  (if (not-empty s) (str "//" s "\n"))))
+       (filter #(not-empty %))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- txDo "" ^SourceNode [ast env & [return?]]
+(defn- txDo "A Do block" ^SourceNode [ast env & [return?]]
   (with-local-vars [stmtQ (stmt? ast)
                     ret (node' ast)
                     e ? end (last-index ast)])
+  ;;should we return something?
   (set! return?
         (if stmtQ #f (opt?? return? #t)))
   (floop [a' ast :end end]
-    (set! a' (exprHint a' #f))
-    (.add ret [(tx* a' env) ";\n"]))
+    (.add ret [(tx* (exprHint a' #f) env) ";\n"]))
   (when (>= end 0)
-    (set! e (exprHint (.@end ast)
-                      (not stmtQ))
-          e (tx* e env))
+    (set! e (tx* (exprHint (.@end ast)
+                           (not stmtQ)) env))
     (.add ret (if-not return?
-                [e ";\n"]
-                ["return " e ";\n"]))) ret)
+                [e ";\n"] ["return " e ";\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- meta?? "" ^Array [obj env]
@@ -413,7 +409,7 @@
              (= 3 (n# obj))
              (symbol? (_1 obj))
              (== "with-meta" $(_1 obj)))
-    (set! mobj (evalMeta (.@2 obj) env))
+    (set! mobj (evalMeta (_3 obj) env))
     (oset! (_2 obj) :____meta mobj)
     (set! obj (_2 obj)))
   [mobj obj])
