@@ -611,25 +611,25 @@ are evaluated in order.  Returns x.
 (defmacro map
   "Creates a new array with the results of
   calling a provided function on every element in the calling array."
-  [f coll] `(.map ~coll ~f))
+  [f coll] `(.map (or ~coll (vec)) ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro find
   "Returns the value of the first element in the array
   that satisfies the predicate. Otherwise undefined is returned."
-  [p coll] `(.find ~coll ~p))
+  [p coll] `(.find  (or ~coll (vec)) ~p))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro filter
   "Creates a new array with all elements that
   pass the test implemented by the provided predicate."
-  [p coll] `(.filter ~coll ~p))
+  [p coll] `(.filter (or ~coll (vec)) ~p))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro some
   "Tests whether at least one element in the array
   passes the test implemented by the provided predicate."
-  [p coll] `(.some ~coll ~p))
+  [p coll] `(.some (or ~coll (vec)) ~p))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro take
@@ -655,7 +655,7 @@ there are fewer than n."
   "Applies a function against an accumulator and
   each element in the array (from left to right)
   to reduce it to a single value. No initial value."
-  [f coll] `(.reduce ~coll ~f))
+  [f coll] `(.reduce (or ~coll (vec)) ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro reduce
@@ -664,7 +664,7 @@ there are fewer than n."
   each element in the array (from left to right)
   to reduce it to a single value."
 
-  [f start coll] `(.reduce ~coll ~f ~start))
+  [f start coll] `(.reduce (or ~coll (vec)) ~f ~start))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro foldl
@@ -881,6 +881,11 @@ one arg, returns the concatenation of the str values of the args."
   ^Any [cur other]
 
   (if (def? cur) cur other))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn cons!
+  "Adds one element to the beginning of a collection."
+  [x coll] (if coll (.unshift coll x)) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn conj!

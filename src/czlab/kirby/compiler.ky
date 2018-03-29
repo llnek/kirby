@@ -19,7 +19,7 @@
                      prn primitive set? map? vector?
                      opt?? some? primitive? regexObj?
                      unquote-str quote-str rseq cons
-                     not-empty conj! list? obj?
+                     not-empty conj! list? obj? cons!
                      gensym count pop! partition
                      difference carve split-with
                      concat symbol keyword symbol? keyword?]]
@@ -61,6 +61,7 @@
 (const- KEYW (str KBSTDLR ".keyword"))
 (const- SYMB (str KBSTDLR ".symbol"))
 (const- COUNT (str KBSTDLR ".count"))
+(const- MODLO (str KBSTDLR ".modulo"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (def- *externs* ? *macros* ? *vars* ?
@@ -403,28 +404,25 @@
                 [e ";\n"] ["return " e ";\n"]))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- meta?? "" ^Array [obj env]
-  (with-local-vars [mobj ?])
-  (when (and (array? obj)
-             (= 3 (n# obj))
-             (symbol? (_1 obj))
-             (== "with-meta" $(_1 obj)))
-    (set! mobj (evalMeta (_3 obj) env))
-    (oset! (_2 obj) :____meta mobj)
-    (set! obj (_2 obj)))
-  [mobj obj])
+(defn- isMeta? "" [obj]
+  (and (array? obj) (= 3 (n# obj))
+       (symbol? (_1 obj)) (== "with-meta" $(_1 obj))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- fmtRegoSpecOps "" ^String [cmd fname]
-  (str (reader/jsid :SPEC-OPS) "[\"" cmd "\"] = " fname))
+(defn- meta?? "" ^Array [obj env]
+  (if (isMeta? obj)
+    (let [[_ e2 e3] obj]
+      (oset! e2
+             :____meta
+             (evalMeta e3 env)) [e2.____meta e2]) [nil obj]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- fmtSpecOps "" ^String [fname attrs]
-  (with-local-vars
-    [ks (or (get attrs :opcode) [])
-     out (->> (map #(fmtRegoSpecOps
-                      (str %) fname) ks) (join ";\n"))])
-  (if (not-empty ks) (str out ";\n") out))
+  (with-local-vars [f #(str (reader/jsid :SPEC-OPS)
+                            "[" (std/quote-str %1) "] = " fname)])
+  (if-some+ [out (->> (get attrs :opcode)
+                      (map f)
+                      (join ";\n"))] (str out ";\n") ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- writeFuncPre "" [pre env]
@@ -448,34 +446,29 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- evalMeta "" ^Object [ast env]
-  (with-local-vars
-   [x (cond (array? ast)
+  (-> (cond (array? ast)
             ast
             (keyword? ast)
             (into! :map [ast #t])
             (symbol? ast)
             (into! :map [(keyword ":tag") ast])
             :else
-            (error! :invalid-meta ast))
-    v (rt/compute x env)])
-  ;(console.log (str "meta-obj=" (JSON/stringify v)))
-  v)
+            (error! :invalid-meta ast)) (rt/compute env)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- slib! "" ^String [cmd]
-  (with-local-vars [lib (str KBSTDLR ".")
-                    nsp (std/peekNSP)])
+(defn- slib! "Maybe strip out kirbyref" ^String [cmd]
+  (with-local-vars [nsp (std/peekNSP)
+                    lib (str KBSTDLR ".")])
   (set! cmd $(cmd))
   (if (and (starts-with? cmd lib)
            (== (get nsp :id) KBSTDLIB)) (.slice cmd (alen lib)) cmd))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertArity "" ^Any [kond ast]
-  (if-not kond (error! :invalid-arity ast))
-  (assertInfo ast))
+(defn- assertArity "" [kond ast]
+  (if-not kond (error! :invalid-arity ast)) (assertInfo ast))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- assertInfo "" ^Any [ast]
+(defn- assertInfo "" [ast]
   (if (and false
            ast
            (not (simple? ast))
@@ -486,13 +479,17 @@
 (defn- loadRLib
   "Load in all the exported macros from the external lib" ^String [info env]
   (with-local-vars [ast ? s ?
-                    {:keys [ns macros]} info])
+                    {:keys [ns macros vars]} info])
   ;(println "loadlib has " (n# macros) " macros")
   (each-key (fn [v k]
+              ;;scope all macro names
               (set! ast (rt/readAST v)
                     s (symbol (str ns "/" $(_2 ast))))
-              (aset ast 1 s)
-              (rt/compute ast env)) macros) ns)
+              (aset ast 1 s) (rt/compute ast env)) macros) ns)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- isPub? "" [ast]
+  (not (ends-with? (str (if (array? ast) (_1 ast) ast)) "-")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;special-forms
@@ -508,13 +505,13 @@ args (left-to-right).
   ^{:opcode ["juxt"] :tag SourceNode} [ast env]
 
   (with-local-vars [ret (node' ast)])
-  (.add ret (str "function () {\nlet ret=[],"
-                 LARGS "=" ARRSLICE "(" JSARGS ");\n"))
   (doseq [a' (rest ast)
           :let [f $(gensym "F__")]]
     (.add ret ["let " f "=" (tx* a' env) ";\n"
                "ret.push(" f ".apply(this," LARGS "));\n"]))
-  (.add ret "return ret;\n}"))
+  (wrap ret
+        ["function () {\nlet ret=[],"
+         LARGS "=" ARRSLICE "(" JSARGS ");\n"] "return ret;\n}"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deref
@@ -523,9 +520,8 @@ args (left-to-right).
 
   ^{:opcode ["deref"] :tag SourceNode} [ast env]
 
-  (with-local-vars [ret (node' ast)])
   (assertArity (= (n# ast) 2) ast)
-  (.add ret [(tx* (_2 ast) env) ".value"]))
+  (.add (node' ast) [(tx* (_2 ast) env) ".value"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-compose
@@ -540,21 +536,21 @@ fn (right-to-left) to the result, etc."
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [ret (node' ast)
                     f ? r ? prev ?
-                    end (last-index ast)])
-  (.add ret (str "function () {\nlet "
-                 LARGS "=" ARRSLICE "(" JSARGS ");\n"))
+                    start (last-index ast)])
   ;go backwards -> right to left
   ;keep track of prev result so that we can thread it
   ;to next function
-  (rloop [a' ast :start end :while (> i 0) :index i]
-    (set! f $(gensym "F__")
-          r $(gensym "R__"))
-    (.add ret ["let " f "=" (tx* a' env) ";\n"])
-    (.add ret (if (= i end)
-                (str "let " r "=" f ".apply(this," LARGS ");\n")
-                (str "let " r "=" f "(" prev ");\n")))
+  (rloop [a' ast :start start :end 0 :index i]
+    (set! f $(gensym "F__") r $(gensym "R__"))
+    (.add ret ["let " f "=" (tx* a' env) ";\n"
+               "let " r "=" f
+               (if (= i start)
+                 (str ".apply(this," LARGS) (str "(" prev)) ");\n"])
     (set! prev r))
-  (.add ret (str "return " prev ";\n" "}")))
+  (wrap ret
+        ["function () {\nlet "
+         LARGS "=" ARRSLICE "(" JSARGS ");\n"]
+        ["return " prev ";\n" "}"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-quote
@@ -565,47 +561,32 @@ fn (right-to-left) to the result, etc."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-deftype
-  "Define a JS Class"
+  "Define a Class"
   ^{:opcode ["deftype" "deftype-"] :tag SourceNode}
   [ast env]
   (assertArity (>= (n# ast) 3) ast)
   (with-local-vars
-   [pub? (not (ends-with? $(_1 ast) "-"))
-    mtd ? pos ? n ? m ? cn ?
-    ret (node' ast)
-    czname0 (_2 ast)
-    czname (tx* czname0 env)
+   [pub? (isPub? ast)
     par (_1 (.@2 ast))
-    ;maybe a docstring is there?
-    [doc mtds] (if (str? (.@3 ast))
-                 [(.@3 ast) (slice ast 4)]
-                 [nil (slice ast 3)])])
-  ;put var into genv
-  (rt/addVar czname0
-             {:ns (std/*ns*) :alias czname0 :type :class})
-  (.add ret (str "class " czname))
-  (if par (.add ret [" extends " (tx* par env)]))
-  (.add ret " {\n")
-  (each (fn [m]
-          ;;maybe doc string?
-          (set! mtd 'method
-                m1 (_1 m)
-                cn (str czname0 "." m1)
-                pos (if (str? (_2 m)) 3 2))
-          ;;pass line info
-          (each #(xfi m1 %) [mtd m])
-          ;fake a keyword 'method' in front
-          (.unshift m mtd)
-          ;put scoped-method into env
-          (rt/addVar cn
-                     {:ns (std/*ns*) :alias cn :type :method})
-          ;compiles it like a function
-          (.add ret [(sf-func m env #f) "\n"])) mtds)
+    ret (node' ast)
+    czn (_2 ast)
+    czname (tx* czn env)
+    [doc mtds] (if (string? (.@3 ast))
+                 [(.@3 ast) (slice ast 4)] [nil (slice ast 3)])])
+  (rt/addVar czn {:ns (std/*ns*) :type :class})
+  (.add ret ["class " czname
+             (if par (str " extends " (tx* par env)) "") " {\n"])
+  (doseq [m mtds :let [mtd 'method m1 (_1 m)]]
+    (xfi m1 mtd) ;;pass line info
+    (cons! mtd m) ;fake a keyword 'method' in front
+    (rt/addVar (str czn "." m1) {:ns (std/*ns*) :type :method})
+    ;compiles it like a function
+    (.add ret [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
   (if doc (.prepend ret (writeDoc doc)))
   ;maybe export this type?
   (when pub?
-    (conj! *vars* czname0)
+    (conj! *vars* czn)
     (assoc! *externs* czname czname))
   (.add ret "}\n"))
 
@@ -617,17 +598,12 @@ fn (right-to-left) to the result, etc."
 
   (assertArity (and (>= (n# ast) 3)
                     (odd? (n# ast))) ast)
-
   (with-local-vars [ret (node' ast)
-                    end 0
-                    op ?
-                    a0 (_1 ast) cmd $(a0)])
+                    op ? cmd $(_1 ast)])
   (cond (== cmd "not=") (aset ast 0 '!==)
         (== cmd "=") (aset ast 0 '===))
-  (set! a0 (_1 ast)
-        op (str a0)
-        end (last-index ast))
-  (floop [a' ast :start 1 :end end :index i]
+  (set! op $(_1 ast))
+  (floop [a' ast :start 1 :end (last-index ast) :index i]
     (if (not= i 1) (.add ret " && "))
     (.add ret [(tx* a' env)
                " " op " " (tx* (nexth ast i) env)]))
@@ -662,10 +638,10 @@ fn (right-to-left) to the result, etc."
            "exp" "**"
            e1)])
   (cond (== "mod" cmd)
-        (.add ret [KBSTDLR ".modulo("
-                   (tx* (.@1 ast) env) "," (tx* (.@2 ast) env) ")"])
+        (.add ret [MODLO "("
+                   (tx* (_2 ast) env) "," (tx* (_3 ast) env) ")"])
         (== "~" cmd)
-        (.add ret ["~" (tx* (.@1 ast) env)])
+        (.add ret ["~" (tx* (_2 ast) env)])
         :else
         (do ;handle negative number e.g. (- -2)= -1*-2
             (if (and (== "-" cmd)
@@ -711,27 +687,19 @@ returned if no clause matches."
 
   (assertArity (>= (n# ast) 4) ast)
   (with-local-vars
-    [stmtQ (stmt? ast)
-     ret (node' ast)
-     c ? dft ?
-     tst (_2 ast)
-     brk ";\nbreak;\n"
-     gs $(gensym "C__")])
-  ;look for any default clause
-  (if (odd? (n# ast))
-    (set! dft (_1 (pop! ast))))
+    [stmtQ (stmt? ast) ret (node' ast) tst (_2 ast)
+     brk ";\nbreak;\n" gs $(gensym "C__")
+     dft (if (odd? (n# ast)) (_1 (pop! ast)))])
   (floop [a' ast :start 2 :step 2 :index i]
-    (set! c (tx* (nexth ast i) env))
+    (with-local-vars [c (tx* (nexth ast i) env)])
     (if (pairs? a')
       (floop [j' a' :index j]
-        (.add ret ["case " (tx* j' env) ":\n"])
-        (if (= j (last-index a'))
-          (.add ret (str gs "=" c brk))))
+        (.add ret ["case " (tx* j' env) ":\n"
+                   (if (= j (last-index a'))
+                     (str gs "=" c brk) "")]))
       (.add ret ["case " (tx* a' env) ":\n" gs "=" c brk])))
   ;maybe add the default clause
-  (if dft
-    (.add ret ["default:\n"
-               gs "=" (tx* dft env) brk]))
+  (if dft (.add ret ["default:\n" gs "=" (tx* dft env) brk]))
   ;wrap the switch construct around it
   (wrap ret ["switch (" (tx* tst env) ") {\n"] "}")
   (if stmtQ
@@ -749,34 +717,24 @@ returned if no clause matches."
              "def-" "def" "var" "vars"] :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
-  (with-local-vars [rval ? rc ? lhs ? rhs ? x ?
-                    ret (node' ast)
-                    cmd $(_1 ast)
-                    vs []
-                    keys {}
-                    tmp ? vname ?
-                    pub? (or (== cmd "def")
-                             (== cmd "const"))])
+  (with-local-vars [ret (node' ast) cmd $(_1 ast)
+                    vs [] keys {}
+                    pub? (or (== cmd "def") (== cmd "const"))])
   (set! cmd (if (starts-with? cmd "const")
-              "const"
-              (if (or (== cmd "var")
-                      (== cmd "vars")) "let" "var")))
+              "const" (if (== cmd "vars") "let" "var")))
   ;deal with 1 level destruction
   (floop [lhs ast :start 1 :step 2 :index i]
-    (set! rhs (nexth ast i)
-          rval (tx* rhs env))
+    (with-local-vars [rhs (nexth ast i)
+                      out (node' ast)
+                      x ? rval (tx* rhs env)])
     (if (symbol? lhs)
-      (do (set! x lhs
-                lhs (tx* lhs env))
+      (do (set! x lhs lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (rt/addVar $(x)
-                       {:ns (std/*ns*) :alias $(x) :type :var}))
+            (rt/addVar $(x) {:ns (std/*ns*) :type :var}))
           (assoc! keys lhs lhs)
           (conj! vs $(x))
-          (.add ret (str cmd " " lhs "=" rval ";\n")))
-      (do (set! out (node' ast)
-                rhs (dstru* lhs out env))
-          (.add ret ["let " (tx* rhs env) "=" rval ";\n" out]))))
+          (.add ret [cmd " " lhs "=" rval ";\n"]))
+      (.add ret ["let " (tx* (dstru* lhs out env) env) "=" rval ";\n" out])))
   (when pub?
     (each #(conj! *vars* %) vs)
     (each-key #(assoc! *externs* %2 %1) keys)) ret)
@@ -816,13 +774,10 @@ returned if no clause matches."
   ^{:opcode ["dissoc!"] :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 3) ast)
-  (with-local-vars [ret (node' ast)])
-  (.add ret
+  (.add (node' ast)
         [(slib! (str KBSTDLR
                         "." (tx* (symbol "dissoc!") env)))
-         "("
-         (tx* (_2 ast) env)
-         "," (tx* (.@2 ast) env) ")"]) ret)
+         "(" (tx* (_2 ast) env) "," (tx* (.@2 ast) env) ")"]) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
@@ -859,10 +814,9 @@ returned if no clause matches."
   ^{:opcode ["++" "--" "++$" "--$"] :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 2) ast)
-  (with-local-vars [ret (node' ast)
-                    cmd $(_1 ast)
+  (with-local-vars [cmd $(_1 ast)
                     a2 (tx* (_2 ast) env)])
-  (.add ret
+  (.add (node' ast)
         (if (ends-with? cmd "$")
           [a2 (.slice cmd 0 -1)] [cmd a2])))
 
@@ -975,22 +929,17 @@ returned if no clause matches."
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars
-    [pub? (not (ends-with? $(_1 ast) "-"))
-     mtd? (== $(_1 ast) "method")
-     fname0 $(_2 ast)
-     fname $(tx* (_2 ast) env)
+    [mtd? (== $(_1 ast) "method") pub? (isPub? ast)
+     fname0 $(_2 ast) fname $(tx* (_2 ast) env)
      dot? (contains? fname ".")
      ret (node' ast (tnodeEx fname))
-     [doc pargs] (if (str? (_3 ast))
+     [doc pargs] (if (string? (_3 ast))
                    [(nth ast 2) 3] [nil 2])
      body (xfi ast (slice ast (+1 pargs)))
      b1 (_1 body)
      [attrs args] (meta?? (nth ast pargs) env)])
-  (if-not mtd?
-    (rt/addVar fname0
-               {:ns (std/*ns*) :alias fname0 :type :fn}))
-  (if-not (array? args)
-    (error! :invalid-fargs ast))
+  (if-not mtd? (rt/addVar fname0 {:ns (std/*ns*) :type :fn}))
+  (if-not (array? args) (error! :invalid-fargs ast))
   (with-local-vars [pre ? post ?
                     fargs (doFuncArgs (xfi ast args) env)])
   (set! attrs (or attrs {}))
@@ -1044,9 +993,7 @@ any finally exprs will be evaluated for their side effects."
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [stmtQ (stmt? ast)
-                    t ? f ? c ?
-                    sz (n# ast)
-                    ret (node' ast)])
+                    t ? f ? c ? sz (n# ast) ret (node' ast)])
   ;;look for finally
   (set! f (last ast))
   (if (and (array? f)
@@ -1221,7 +1168,6 @@ any finally exprs will be evaluated for their side effects."
     [rlib ? as $(gensym "R__")
      rpath $(_1 ast) mcs ? nsp ?
      info ? libpath ? refers ? renames ?])
-
   ;;scan options
   (floop [v ast :start 1 :index j :step 2]
     (cond (== v :as)

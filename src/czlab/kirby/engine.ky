@@ -87,7 +87,7 @@
        this symbol"
     ^Any [k]
     (expect! k)
-    (var env (.find this k))
+    (with-local-vars [env (.find this k)])
     (if env (get env.data k.value) k.value))
 
   (prn "Print set of vars"
