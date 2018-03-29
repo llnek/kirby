@@ -190,7 +190,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- wrap "" [ret head tail]
-  (if head (.prepend ret head)) (if tail (.add ret tail)) ret)
+  (when ret
+    (if head (.prepend ret head))
+    (if tail (.add ret tail))) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- exprHint
@@ -1281,7 +1283,7 @@ any finally exprs will be evaluated for their side effects."
   ;;unless processing internal files
   (set! nsp (std/*ns*))
   (cond
-    (= nsp (str KBPFX "stdlib"))
+    (== nsp (str KBPFX "stdlib"))
     nil
     (starts-with? nsp KBPFX)
     (conj! ret
@@ -1301,7 +1303,7 @@ any finally exprs will be evaluated for their side effects."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-while
 
-  "Generates native (js) for loop."
+  "Generates native for loop."
 
   ^{:opcode ["while"] :tag SourceNode} [ast env]
 
@@ -1310,30 +1312,27 @@ any finally exprs will be evaluated for their side effects."
                     ret (node' ast)
                     body (exprHint (xfi ast (slice ast 2)) #f)])
   (if (empty? body)
-    ret
-    (sf-wloop ret
-              (_2 ast)
-              body env stmtQ)))
+    ret (sf-wloop ret (_2 ast) body env stmtQ)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-wloop
   "For loop implementation"
   ^SourceNode [ret tst body env stmtQ]
 
+  (with-local-vars [nb '(not ____break)])
   (.add ret "for (let ____break=false; ")
-  (set! nb '(not ____break))
   (xfi ret nb)
   (set! tst ['and nb tst])
   (xfi ret tst)
-  (.add ret [ (tx* tst env) ";"])
-  (.add ret ["){\n" (txDo body env #f) "}\n"])
+  (.add ret [(tx* tst env) ";"
+             "){\n" (txDo body env #f) "}\n"])
   (if-not stmtQ
     (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-forxxx
 
-  "Generates native (js) for loop."
+  "Generates native for loop."
 
   ^{:opcode ["floop" "rloop"] :tag SourceNode} [ast env]
 
@@ -1353,9 +1352,9 @@ any finally exprs will be evaluated for their side effects."
 
   (with-local-vars
     [vars ['____coll nil '____index 0]
-     recurs []
      incr? (== cmd "floop")
      decr? (== cmd "rloop")
+     recurs []
      indexer ? tst ?
      nb ? sz ? begin 0
      lvar ? coll ? start ? end ? step ?])
@@ -1395,24 +1394,23 @@ any finally exprs will be evaluated for their side effects."
     (if (= i 0) (.add ret "let "))
     (if (not= i 0) (.add ret ","))
     (.add ret [(tx* e env) "=" (tx* (nexth vars i) env)]))
-  (.add ret (str "," BREAK "=false;"))
+  (.add ret ["," BREAK "=false;"])
   (set! nb '(not ____break))
   (xfi ret nb)
-  (if (def? tst)
-    (set! tst ['and nb tst])
-    (set! tst nb))
+  (set! tst (if (def? tst)
+              ['and nb tst] nb))
   (xfi ret tst)
   (.add ret [(tx* tst env) "; "])
   (if (undef? step) (set! step 1))
-  (if incr? (.unshift recurs ['+ indexer step]))
-  (if decr? (.unshift recurs ['- indexer step]))
+  (if incr? (cons! ['+ indexer step] recurs))
+  (if decr? (cons! ['- indexer step] recurs))
   (floop [e recurs k 2 :index i :recur [(+2 k)]]
     (if (not= i 0) (.add ret ","))
     (.add ret [(tx* (nth vars k) env) "=" (tx* e env)]))
   (.add ret ["){\n"
              (if (def? lvar)
-               (sf-var (xfi args ['vars lvar ['nth '____coll indexer]]) env)
-               "")
+               (sf-var (xfi args ['vars lvar
+                                  ['nth '____coll indexer]]) env) "")
              (txDo body env #f) "}\n"])
   (if-not stmtQ
     (wrap ret "(function() {\n"  "; return null; }).call(this)")) ret)
@@ -1420,11 +1418,11 @@ any finally exprs will be evaluated for their side effects."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-jscode
 
-  "Inject raw native (js) code fragment.
+  "Inject raw native code fragment.
 
   (raw# \"console.log('hi');\")"
 
-  ^{:opcode ["raw#" "js#"] :tag SourceNode} [ast env]
+  ^{:opcode ["raw#"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 2) ast)
   (with-local-vars [s $(_2 ast)
@@ -1449,15 +1447,16 @@ called.
   (with-local-vars [pms []
                     args (_3 ast)
                     body (slice ast 3)
-                    mname ? mobj ?
-                    doc ? x ? ev ?])
-  (when (str? args)
+                    mname ? mobj ? doc ? x ?])
+  ;;deal with docstring
+  (when (string? args)
     (set! doc args args (.@3 ast) body (slice ast 4)))
-  (set! x (meta?? args env))
-  (set! args (last x))
-  (set! mobj (_1 x))
+  ;;in-case of meta data
+  (set! x (meta?? args env)
+        args (_2 x) mobj (_1 x))
+  ;;deal with var-args
   (floop [e args :index i]
-    (set! ev $(e))
+    (with-local-vars [ev $(e)])
     (cond (== ev "&")
           (if (array? (nexth args i))
             (do (set! e (nexth args i))
@@ -1475,13 +1474,11 @@ called.
   ;ask engine to compile this macro and stores it
   (set! mname (_2 ast)
         ast ['macro* mname pms (_1 body)])
-  ;try to register it
-  (rt/addVar mname
-             {:ns (std/*ns*) :alias nil :type :macro})
+  (rt/addVar mname {:ns (std/*ns*) :type :macro})
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
-    (assoc! *macros* mname (std/prn ast #t)))
+    (assoc! *macros* mname (prn ast #t)))
   ;compile it
   (rt/compute ast env) "")
 
@@ -1493,10 +1490,9 @@ called.
   ^{:opcode ["not" "!"] :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 2) ast)
-  (with-local-vars [[a0 a1] ast
-                    ret (node' ast)])
+  (with-local-vars [[a0 a1] ast])
   (if (== a0 "not") (set! a0 '!))
-  (.add ret ["(" $(tx* a0 env) $(tx* a1 env) ")"]))
+  (.add (node' ast) ["(" $(tx* a0 env) $(tx* a1 env) ")"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-listc
@@ -1511,15 +1507,11 @@ called.
 
   ^{:opcode ["for"] :tag SourceNode} [ast env]
 
-  (with-local-vars
-    [stmtQ (stmt? ast)
-     ret (node' ast)
-     cap (gensym)
-     r (sf-doseq (exprHint ast #f) env cap)])
-  (.add ret "(function() {\n")
-  (.add ret (str "let " $(cap) "=[];\n"))
-  (.add ret r)
-  (.add ret (str "return " $(cap) ";\n}).call(this)")))
+  (with-local-vars [cap (gensym)])
+  (wrap (node' ast)
+        ["(function() {\n" "let " $(cap) "=[];\n"]
+        [(sf-doseq (exprHint ast #f) env cap)
+         "return " $(cap) ";\n}).call(this)"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-doseq
@@ -1532,19 +1524,17 @@ the head of the sequence. Returns nil."
 
   (with-local-vars
     [body (exprHint (xfi ast (slice ast 2)) #f)
-     kount (slib! (str KBSTDLR ".count"))
-     args (_2 ast)
-     _ (assert (even? (n# args)) "bindings not even")
+     while' (gensym) inner "" ret ? fst #t
+     kount (slib! COUNT)
      stmtQ (stmt? ast)
-     inner ""
-     ret ?
-     fst #t
-     while' (gensym)
+     args (_2 ast)
+     _ (assert (even? (n# args))
+               "bindings not even")
      [x y] (split-with
              #(not (keyword? %)) args)
      ;reverse the bindings (inside out)
      arr (rseq (partition 2 x))])
-  (loop [p1 (1st arr)
+  (loop [p1 (_1 arr)
          pn (rest arr)]
     (when p1
       (with-local-vars [e' (gensym)
@@ -1553,14 +1543,14 @@ the head of the sequence. Returns nil."
       (.add ret
             ["for(let " $(n') "=0,"
              (if (empty? pn) (str $(while') "=true,") "")
-             $(e') "=" (tx* (2nd p1) env) ","
+             $(e') "=" (tx* (_2 p1) env) ","
              "____sz=" kount "(" $(e') ")"
              (if fst ",____break=false" "") "; ("
              (if fst "!____break && " "")
              $(while') " && "
              "(" $(n') " < ____sz)"
              "); ++" $(n') "){\n"])
-      (.add ret (sf-var (xfi ast ['vars (1st p1) ['nth e' n']]) env))
+      (.add ret (sf-var (xfi ast ['vars (_1 p1) ['nth e' n']]) env))
       (if fst
         (do (false! fst)
             (doseq-binds while' ret y body ast env capRes))
@@ -1568,30 +1558,26 @@ the head of the sequence. Returns nil."
       (.add ret "}\n")
       (set! inner ret)
       (if (not-empty pn)
-        (recur (1st pn) (rest pn)))))
+        (recur (_1 pn) (rest pn)))))
   (if-not stmtQ
     (wrap ret
           "(function() {\n"
           "; return null; }).call(this)")) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- doseq-binds "" [while' ret y body ast env capRes]
+(defn- doseq-binds "" [while' ret binds body ast env capRes]
   (with-local-vars [patch (node' ast)])
-  (each
-    (fn [[k expr]]
-      (cond
-        (== k :let)
-        (.add ret (sf-var (xfi ast (cons 'vars expr))))
-        (== k :when)
-        (do (.add ret ["if (" (tx* expr env) ") {\n"])
-            (patch.add "}\n"))
-        (== k :while)
-        (do (.add ret ["if (!(" (tx* expr env) ")) { "
-                       $(while') "=false; ____break=true; } else {\n"])
-            (patch.add "}\n"))))
-    (partition 2 y))
-  (if capRes
-    (exprHint body #t))
+  (each (fn [[k expr]]
+          (condp == k
+            :let (.add ret (sf-var (xfi ast (cons 'vars expr))))
+            :when (do (.add ret ["if (" (tx* expr env) ") {\n"])
+                      (.add patch "}\n"))
+            :while (do (.add ret ["if (!(" (tx* expr env) ")) { "
+                                  $(while') "=false; ____break=true; } else {\n"])
+                       (.add patch "}\n"))))
+        (partition 2 binds))
+  ;;if capturing the result, must be expression
+  (if capRes (exprHint body #t))
   (if capRes
     (.add ret [$(capRes) ".push((function() {\n"
                (txDo body env #t) "\n}).call(this));\n"])
@@ -1599,83 +1585,55 @@ the head of the sequence. Returns nil."
   (.add ret patch))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- getPrePost "" [obj]
-  (with-local-vars [ret ?])
-  (when (map? obj)
-    (floop [e obj :step 2 :index i]
-      (with-local-vars [e2 (nexth obj i)])
-      (if (and (keyword? e)
-               (array? e2))
-        (cond (== e :post)
-              (set! ret (merge ret {:post e2}))
-              (== e :pre)
-              (set! ret (merge ret {:pre e2})))))) ret)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- xfi "Transfer source map info" ^Any [from to]
-  (cond
-    (and from to)
-    (let [tline (.-line to)
-          fline (.-line from)]
-      (if (and (not (number? tline))
-               (number? fline))
-        (oset! to
-               :source (.-source from)
-               :line (.-line from)
-               :column (.-column from))) to)
-    :else to))
+  (when (and from
+             to
+             (not (number? to.line))
+             (number? from.line))
+    (oset! to
+           :source (.-source from)
+           :line (.-line from)
+           :column (.-column from))) to)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spitMacros "" []
+(defn- spitMacros "Dump all macros to string." []
   (if (empty? *macros*)
     "{}"
     (-> (map (fn [[k v]]
-             (str (quote-str (str k))
-                  ":" (quote-str v))) (seq *macros*))
+               (str (quote-str (str k))
+                    ":" (quote-str v))) (seq *macros*))
         (.join ",\n")
         (std/wrap-str  "{\n" "}\n"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- spitVars "" []
+(defn- spitVars "Dump all public vars to string." []
   (if (empty? *vars*)
     "[]"
-    (-> (map (fn [k] (quote-str (str k))) *vars*)
-        (.join ",")
-        (std/wrap-str  "[ " "]"))))
+    (-> (map #(quote-str $(%)) *vars*) (.join ",") (std/wrap-str  "[ " "]"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- spitExterns "Write out export info" ^String []
-  (with-local-vars
-    [mc (spitMacros)
-     vs (spitVars)
-     s2 ""
-     s1 (str EXPKEY
-             ": { ns: " (quote-str (std/*ns*))
-             ", vars: " vs
-             ", macros: " mc " }")])
-  (when (not-empty *externs*)
-    (set! s2
-          (str ",\n"
-               (join ",\n"
-                     (map (fn [[k v]]
-                            (str k ":" v)) (seq *externs*))))))
-  (str "\n\nmodule.exports = {\n" s1 s2 "\n};\n"))
+  (str "\n\nmodule.exports = {\n"
+       (str EXPKEY
+            ": { ns: " (quote-str (std/*ns*))
+            ", vars: " (spitVars)
+            ", macros: " (spitMacros) " }")
+       (if (not-empty *vars*)
+         (str ",\n" (join ",\n" (map #(str (reader/jsid %)
+                                           ":"
+                                           (reader/jsid %)) *vars*)))) "\n};\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- banner "Banner text for the target file" ^String []
   (with-local-vars [{:keys [id meta]} (std/peekNSP)])
-  (str "/*" "Auto generated by Kirby v" MOD-VER " - " (new Date) "\n"
-       "  " id "\n"
-       (if meta (std/prn meta #t) "") "\n"
-       "*/\n\n"))
+  (str "/*" "Auto generated by Kirby v" MOD-VER
+       " - " (new Date) "\n" "  " id "\n" (if meta (prn meta #t) "") "\n" "*/\n\n"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- cleanCode "" ^String [code]
-  (with-local-vars [tmp nil arr []])
-  (each #(let [tmp (.trim %)]
-           (if (and (not-empty tmp)
-             (not= tmp ";")) (conj! arr %))) (.split code "\n"))
-  (join "\n" arr))
+(defn- cleanCode "Get rid of empty lines or no-op lines" ^String [code]
+  (->> (.split code "\n")
+       (map #(if-some+ [s (.trim %)]
+                       (if (not= s ";") %))) (filter #(not-empty %)) (join "\n")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- transpile*
@@ -1686,40 +1644,32 @@ the head of the sequence. Returns nil."
   ^Array [source fname options]
 
   (with-local-vars
-    [{:keys [source-map no-format verbose]} options
-     ast (reader/parse source fname)
-     env (rt/genv)
-     ret (txTree ast env)
-     fbase (path/basename fname ".ky")
-     extra (spitExterns)
-     fopts {}
-     err nil
-     cstr
-     (if source-map
-       (let [fmap (str fbase ".js")
-             smap (str fbase ".map")
-             sout (.toStringWithSourceMap ret
-                                          `{:skipValidation #t :file fmap})]
-         (fs/writeFileSync smap sout.map)
-         (str sout.code
-              extra
-              "\n//# sourceMappingURL="
-              (path/relative (path/dirname fname) smap)))
-       (str ret extra))])
-  (try
-    (if-not no-format
-      (set! cstr
-            (esfmt/format cstr fopts)))
-    (catch e (set! err e)))
+    [ret (-> (reader/parse source fname) (txTree (rt/genv)))
+     {:keys [source-map no-format verbose]} options
+     err ?
+     [fmap smap] (map #(str
+                         (path/basename fname ".ky") %) [".js" ".map"])])
+  ;;wantr source map? generate the map file
+  (when source-map
+    (with-local-vars [sout (->> `{:skipValidation #t :file fmap}
+                                (.toStringWithSourceMap ret))])
+    (set! ret sout.code)
+    (fs/writeFileSync smap sout.map))
+  ;;construct the final source
+  (set! cstr
+        (str ret
+             (spitExterns)
+             (if source-map
+               (str "\n//# sourceMappingURL="
+                    (path/relative (path/dirname fname) smap)))))
+  ;;code isn't in nice format, make it nice
+  ;;if error => most likely generated bad code
+  (try (if-not no-format
+         (set! cstr (esfmt/format cstr `{})))
+       (catch e (set! err e)))
+  ;;clean final source
   (set! cstr (cleanCode cstr))
-  (with-local-vars [mcs (keys *macros*)
-                    lbs (rt/getLibKeys)
-                    vas (rt/getVarKeys)])
-  (when verbose
-    (println "<macros>\n" (std/prn mcs #t))
-    (println "<libs>\n" (std/prn lbs #t))
-    (println "<vars>\n" (std/prn (difference vas mcs) #t)))
-  (vec (if (empty? cstr) "" (str (banner) cstr)) err))
+  [(if (empty? cstr) "" (str (banner) cstr)) err])
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn transpile
@@ -1730,7 +1680,8 @@ the head of the sequence. Returns nil."
   (binding [*last-line* 0 *last-col* 0
             *externs* {} *macros* {}
             *vars* (std/into! :vector [])]
-    (try (transpile* code file (opt?? options `{}))
+    (try (->> (opt?? options `{})
+              (transpile* code file ))
          (catch e
            (println "Error near line: "
                     *last-line* ", col: " *last-col* "\n" (str e))))))
@@ -1742,8 +1693,6 @@ the head of the sequence. Returns nil."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const version MOD-VER)
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;EOF

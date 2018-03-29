@@ -225,6 +225,15 @@
                             :let [y (inc x) z y]
                             :while (< x 7)]
                       (+= TMPVAR z)) TMPVAR)) "doseq")
+
+  (ensure (s/eq? [[1 3 7] [1 1 7] [2 3 7] [2 1 7]]
+                 (do (set! TMPVAR [])
+                     (doseq [x [1 2] y [3 1] z [7]]
+                       (conj! TMPVAR [x y z])) TMPVAR)) "doseq, 3 levels")
+
+  (ensure (s/eq? [[1 3 7] [1 1 7] [2 3 7] [2 1 7]]
+                 (for [x [1 2] y [3 1] z [7]] [x y z])) "for")
+
   (ensure (= "hello!"
              (if-some+ [s (.slice "hello" 0)]
                        (str s "!"))) "if-some+")

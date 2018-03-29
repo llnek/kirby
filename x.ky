@@ -12,8 +12,8 @@
   (:require ["kirby"
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
-(defn xxx []
-  (+ 1 2)
+(defn xxx [^String a ^Array b]
+  (+ a b)
   nil)
 
 
