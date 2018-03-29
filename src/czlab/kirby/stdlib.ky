@@ -479,7 +479,7 @@ bound to integers from 0 through n-1."
   [f this args] `(.apply ~f ~this ~args))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro apply*
+(defmacro apply+
   "Applies fn f to the var-args."
   [f this & args]
   `(.apply ~f ~this (vec ~@args)))
@@ -829,6 +829,11 @@ one arg, returns the concatenation of the str values of the args."
        (if* (> e 0)
          `(do (vars ~@bindings) ~@more)
          `(vars ~@bindings )))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro binding
+  "" [bindings & xs]
+  `((fn [] (set! ~@bindings) ~@xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;END MACROS

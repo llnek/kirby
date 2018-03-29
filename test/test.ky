@@ -212,9 +212,9 @@
                    (= 1 (std/last TMPVAR)))) "apply")
   (ensure (do (set! TMPVAR
                     (let [f (fn [a b] [b a])]
-                      (apply* f this 1 2)))
+                      (apply+ f this 1 2)))
               (and (= 2 (1st TMPVAR))
-                   (= 1 (std/last TMPVAR)))) "apply*")
+                   (= 1 (std/last TMPVAR)))) "apply+")
   (ensure (= "z" (ch@ "hellz" 4)) "ch@")
   (ensure (= false (do (false! TMPVAR) TMPVAR)) "false!")
   (ensure (= true (do (true! TMPVAR) TMPVAR)) "true!")

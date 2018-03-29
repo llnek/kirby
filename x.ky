@@ -12,16 +12,8 @@
   (:require ["kirby"
              :as ky :refer [Atom atom swap! conj! disj!]]))
 
-
 (defn xxx []
-
-  (condp = (+ 1 2)
-    4 (poo 2)
-    5 :>> #(shit %)
-    7 :>> boot
-    6 (fff 9)
-    "shit!")
-
-
+  (+ 1 2)
   nil)
+
 

@@ -1727,18 +1727,18 @@ the head of the sequence. Returns nil."
   "Compile kirby file to target source"
   ^Array [code file & [options]]
 
-  (set! *externs* {} *vars* (std/into! :vector [])
-        *macros* {} *last-line* 0 *last-col* 0)
-  (try
-    (transpile* code file (opt?? options `{}))
-    (catch e
-      (println "Error near line: "
-               *last-line* ", col: " *last-col* "\n" (str e)))))
+  (binding [*last-line* 0 *last-col* 0
+            *externs* {} *macros* {}
+            *vars* (std/into! :vector [])]
+    (try (transpile* code file (opt?? options `{}))
+         (catch e
+           (println "Error near line: "
+                    *last-line* ", col: " *last-col* "\n" (str e))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn dbgAST
   "Dump AST to xml" ^String [source fname]
-  (reader/dumpTree (reader/parse source fname) fname))
+  (-> (reader/parse source fname) (reader/dumpTree  fname)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const version MOD-VER)
