@@ -10,9 +10,11 @@
       :author "Kenneth Leung"}
   czlab.elmo.ecs.core
   (:require ["kirby"
-             :as ky :refer [Atom atom swap! conj! disj!]]))
+             :as ky
+             :rename {atom _atom_}
+             :refer [Atom atom swap! conj! disj!]]))
 
-(defn xxx [^String a ^Array b]
+(defn xxx [a b]
   (+ a b)
   nil)
 

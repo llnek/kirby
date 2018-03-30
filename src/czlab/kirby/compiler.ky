@@ -490,6 +490,12 @@
               (aset ast 1 s) (rt/compute ast env)) macros) ns)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- loadRVars
+  "" [info env]
+  [(map #(symbol %) (get info :vars))
+   (reduce #(conj! %1 %2) #{} (get info :vars))])
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- isPub? "" [ast]
   (not (ends-with? (str (if (array? ast) (_1 ast) ast)) "-")))
 
@@ -575,13 +581,13 @@ fn (right-to-left) to the result, etc."
     czname (tx* czn env)
     [doc mtds] (if (string? (.@3 ast))
                  [(.@3 ast) (slice ast 4)] [nil (slice ast 3)])])
-  (rt/addVar czn {:ns (std/*ns*) :type :class})
+  (rt/addVar czn {:ns (std/*ns*) })
   (.add ret ["class " czname
              (if par (str " extends " (tx* par env)) "") " {\n"])
   (doseq [m mtds :let [mtd 'method m1 (_1 m)]]
     (xfi m1 mtd) ;;pass line info
     (cons! mtd m) ;fake a keyword 'method' in front
-    (rt/addVar (str czn "." m1) {:ns (std/*ns*) :type :method})
+    (rt/addVar (str czn "." m1) {:ns (std/*ns*) })
     ;compiles it like a function
     (.add ret [(sf-func m env #f) "\n"]))
   ;stick doco in front, if any
@@ -732,7 +738,7 @@ returned if no clause matches."
     (if (symbol? lhs)
       (do (set! x lhs lhs (tx* lhs env))
           (if-not (== "let" cmd)
-            (rt/addVar $(x) {:ns (std/*ns*) :type :var}))
+            (rt/addVar $(x) {:ns (std/*ns*) }))
           (assoc! keys lhs lhs)
           (conj! vs $(x))
           (.add ret [cmd " " lhs "=" rval ";\n"]))
@@ -940,7 +946,7 @@ returned if no clause matches."
      body (xfi ast (slice ast (+1 pargs)))
      b1 (_1 body)
      [attrs args] (meta?? (nth ast pargs) env)])
-  (if-not mtd? (rt/addVar fname0 {:ns (std/*ns*) :type :fn}))
+  (if-not mtd? (rt/addVar fname0 {:ns (std/*ns*) }))
   (if-not (array? args) (error! :invalid-fargs ast))
   (with-local-vars [pre ? post ?
                     fargs (doFuncArgs (xfi ast args) env)])
@@ -1161,69 +1167,66 @@ any finally exprs will be evaluated for their side effects."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- require! "" [path]
   ;(println "require path = " path)
-  (require path))
+  (try (require path)
+       (catch e
+         (println "warning: failed to load lib: " path) nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require2 "" [ret fdir ast env]
 
-  (with-local-vars
-    [rlib ? as $(gensym "R__")
-     rpath $(_1 ast) mcs ? nsp ?
-     info ? libpath ? refers ? renames ?])
+  (with-local-vars [used ? rlib ? as $(gensym "R__")
+                    rpath $(_1 ast) mcs ? nsp ?
+                    vvv ? info ? libpath ? refers ? renames ?])
   ;;scan options
   (floop [v ast :start 1 :index j :step 2]
-    (cond (== v :as)
-          (set! as $(nexth ast j))
-          (== v :refer)
-          (set! refers (nexth ast j))
-          (== v :rename)
-          (set! renames (nexth ast j))))
+    (condp == v
+      :as (set! as $(nexth ast j))
+      :refer (set! refers (nexth ast j))
+      :rename (set! renames (nexth ast j))))
   ;;resolve requested module path
-  (set! libpath
-        (tx* (if (contains? rpath "./")
-               (path/resolve fdir rpath) rpath) env))
+  (set! libpath (tx* (if (contains? rpath "./")
+                       (path/resolve fdir rpath) rpath) env))
   ;;add the (actual) require line
   (.add ret ["const " (reader/jsid as)
              "= require(" (tx* rpath env) ");\n"])
   ;;load the lib
-  (when #t
-    (set! rlib (require! (unquote-str libpath))
-          info (get rlib EXPKEY))
-    (rt/addLib $(as) rlib))
-
+  (set! rlib (require! (unquote-str libpath)))
+  (if rlib (set! info (get rlib EXPKEY)))
+  (rt/addLib $(as) rlib)
   ;;look into module's metadata
   (when info
     (set! mcs (get info :macros)
+          vvv (loadRVars info env)
           nsp (loadRLib info env)))
-  (set! mcs (or mcs {}))
-
-  ;;look into refers
-  (with-local-vars [e ? v ? r ? t ? rs ? f ? m ?])
-  (floop [r refers]
-    (set! rs $(r)
-          v (tx* r env)
-          m (get mcs rs)
-          f (get rlib (reader/jsid rs)))
-    (if f (set! t (typeid f)))
-    (if m (set! t :marco))
-    (if-not (or f m) (raise! "Unknown var " rs))
-    (rt/addVar rs
-               {:ns nsp :alias rs :type t})
-    (.add ret (str "const " v "=" as "[\"" v "\"];\n")))
+  (set! mcs (or mcs {})
+        vvv (or vvv [])
+        used #{}
+        nsp (or nsp ""))
+  (if (and (keyword? refers)
+           vvv
+           (== refers :all)) (set! refers (_1 vvv)))
   ;;look into renames
   (floop [ro renames :step 2 :index i]
-    (set! e (tx* ro env)
-          r (nexth renames i)
-          rs $(r)
-          v (tx* r env)
-          m (get mcs $(ro))
-          f (get rlib (reader/jsid $(ro))))
-    (if f (set! t (typeid f)))
-    (if m (set! t :marco))
-    (if-not (or f m) (raise! "Unknown var " ro))
-    (rt/addVar rs
-               {:ns nsp :alias $(ro) :type t})
-    (.add ret (str "const " v "=" as "[\"" e "\"];\n"))))
+    (with-local-vars [rn (.@+i renames)
+                      ev $(ro) rs $(rn)])
+    (when info
+      (if-not (or (get mcs ev)
+                  (contains? (_2 vvv) ev)) (raise! "Unknown var: '" ev "'"))
+      (if (or (get mcs rs)
+              (contains? (_2 vvv) rs))
+        (raise! "Cannot rename var: '" ev "' to existing var: '" rs "'")))
+    (rt/addVar rs {:ns nsp})
+    (conj! used ev)
+    (.add ret ["const " (tx* rn env) "=" as "[\"" (tx* ro env) "\"];\n"]))
+  ;;look into refers
+  (floop [r refers]
+    (with-local-vars [rs $(r) v (tx* r env)])
+    (when-not (contains? used rs)
+      (when info
+        (if-not (or (get mcs rs)
+                    (contains? (_2 vvv) rs)) (raise! "Unknown var: '" rs "'")))
+      (rt/addVar rs {:ns nsp})
+      (.add ret ["const " v "=" as "[\"" v "\"];\n"]))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-require
@@ -1474,7 +1477,7 @@ called.
   ;ask engine to compile this macro and stores it
   (set! mname (_2 ast)
         ast ['macro* mname pms (_1 body)])
-  (rt/addVar mname {:ns (std/*ns*) :type :macro})
+  (rt/addVar mname {:ns (std/*ns*) })
   ;if not private, need to export it
   (if-not (and mobj
                (true? (get mobj :private)))
