@@ -1105,17 +1105,16 @@ any finally exprs will be evaluated for their side effects."
 
   ^{:opcode ["vec"] :tag SourceNode} [ast env]
 
+  (with-local-vars [ret (node' ast)])
   (assertArity true ast)
-  (with-local-vars [pos 0
-                    ret (node' ast)])
-  (if (empty? ast)
-    (.add ret "[]")
-    (do (if-not (vector? ast) (set! pos 1))
-        (.add ret "[ ")
-        (floop [a' ast :start pos :index i]
-          (if (> i pos) (.add ret ", "))
-          (.add ret (tx* (xfi ast a') env)))
-        (.add ret " ]"))))
+  (if-not (vector? ast)
+    (if-not (== "vec" $(_1 ast))
+      (raise! :syntax-error "expecting vec")
+      (set! ast (rest ast))))
+  (doseq [a' ast]
+    (.add ret (tx* (xfi ast a') env)))
+  (.join ret ",")
+  (wrap ret "[" "]"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-objObj
@@ -1123,28 +1122,32 @@ any finally exprs will be evaluated for their side effects."
   (object \"a\" 1 \"b\" 2)
   {:a 1 :b 2}"
   ^{:opcode ["object"] :tag SourceNode} [ast env]
+  (with-local-vars [ret (node' ast)])
   (assertArity true ast)
-  (with-local-vars [pos 0
-                    ret (node' ast)])
-  (if-not (obj? ast) (set! pos 1))
-  (floop [a' ast :start pos :step 2 :index i]
-    (if (> i pos) (.add ret ", "))
-    (.add ret [(tx* a' env)
-               ": " (tx* (xfi ast (nexth ast i)) env)]))
+  (if-not (obj? ast)
+    (if-not (== "object" $(_1 ast))
+      (raise! :syntax-error "expecting object")
+      (set! ast (rest ast))))
+  (floop [a' ast :index i :step 2]
+    (.add ret (str (tx* a' env)
+                   ": " (tx* (xfi ast (nexth ast i)) env))))
+  (.join ret ",")
   (wrap ret "{" "}"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-mapObj
   ""
   ^{:opcode ["hash-map"] :tag SourceNode} [ast env]
+  (with-local-vars [ret (node' ast)])
   (assertArity true ast)
-  (with-local-vars [pos 0
-                    ret (node' ast)])
-  (if-not (map? ast) (set! pos 1))
-  (floop [a' ast :start pos :step 2 :index i]
-    (if (> i pos) (.add ret ","))
-    (.add ret ["[" (tx* a' env)
-               "," (tx* (xfi ast (nexth ast i)) env) "]"]))
+  (if-not (map? ast)
+    (if-not (== "hash-map" $(_1 ast))
+      (raise! :syntax-error "expecting hash-map")
+      (set! ast (rest ast))))
+  (floop [a' ast :index i :step 2]
+    (.add ret (str "[" (tx* a' env)
+                   "," (tx* (xfi ast (nexth ast i)) env) "]")))
+  (.join ret ",")
   (wrap ret "(new Map([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1155,13 +1158,14 @@ any finally exprs will be evaluated for their side effects."
 
   ^{:opcode ["hash-set"] :tag SourceNode} [ast env]
 
+  (with-local-vars [ret (node' ast)])
   (assertArity true ast)
-  (with-local-vars [pos 0
-                    ret (node' ast)])
-  (if-not (set? ast)(set! pos 1))
-  (floop [a' ast :start pos :index i]
-    (if (> i pos) (.add ret ", "))
-    (.add ret (tx* a' env)))
+  (if-not (set? ast)
+    (if-not (== "hash-set" $(_1 ast))
+      (raise! :syntax-error "expecting hash-set")
+      (set! ast (rest ast))))
+  (doseq [a' ast] (.add ret (tx* a' env)))
+  (.join ret ",")
   (wrap ret "(new Set([" "]))"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
