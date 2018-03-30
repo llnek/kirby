@@ -899,8 +899,8 @@ returned if no clause matches."
 
   ^{:opcode ["set!" "var-set"] :tag SourceNode} [ast env]
 
-  (assertArity (odd? (n# ast)) ast)
   (with-local-vars [ret (node' ast)])
+  (assertArity (odd? (n# ast)) ast)
   (floop [a' ast :start 1 :step 2 :index i]
     (if (> i 1) (.add ret ","))
     (.add ret [(tx* a' env)
@@ -1050,15 +1050,14 @@ any finally exprs will be evaluated for their side effects."
   ^{:opcode ["if"] :tag SourceNode} [ast env]
 
   (assertArity (>= (n# ast) 3) ast)
-  (with-local-vars
-    [stmtQ (stmt? ast)
-     ret (node' ast)
-     ;test is always an expression
-     a1 (exprHint (xfi ast (_2 ast)) #t)
-     a2 (exprHint (xfi ast (_3 ast)) (not stmtQ))
-     m? (> (n# ast) 3)
-     a3 (if m? (xfi ast (.@3 ast)))
-     elze (if m? (exprHint a3 (not stmtQ)))])
+  (with-local-vars [stmtQ (stmt? ast)
+                    ret (node' ast)
+                    ;test is always an expression
+                    a1 (exprHint (xfi ast (_2 ast)) #t)
+                    a2 (exprHint (xfi ast (_3 ast)) (not stmtQ))
+                    m? (> (n# ast) 3)
+                    a3 (if m? (xfi ast (.@3 ast)))
+                    elze (if m? (exprHint a3 (not stmtQ)))])
   (set! a1 (tx* a1 env)
         a2 (tx* a2 env)
         elze (tx* elze env))
@@ -1082,14 +1081,15 @@ any finally exprs will be evaluated for their side effects."
   ^{:opcode ["oget" "nth" "get" "aget"] :tag SourceNode} [ast env]
 
   (assertArity (= (n# ast) 3) ast)
-  (with-local-vars [a0 $(_1 ast)
+  (with-local-vars [ret (node' ast)
+                    a0 $(_1 ast)
                     cmd (slib! GET-PROP)])
   (if (== a0 "get")
-    (wrap (node' ast)
+    (wrap ret
           nil [cmd "("
                (tx* (xfi ast (_2 ast)) env)
                "," (tx* (xfi ast (_3 ast)) env) ")"])
-    (wrap (node' ast)
+    (wrap ret
           nil [(tx* (xfi ast (_2 ast)) env)
                "[" (tx* (xfi ast (_3 ast)) env) "]"])))
 
