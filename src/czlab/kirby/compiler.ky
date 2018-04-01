@@ -785,7 +785,7 @@ returned if no clause matches."
   (.add (node' ast)
         [(slib! (str KBSTDLR
                         "." (tx* (symbol "dissoc!") env)))
-         "(" (tx* (_2 ast) env) "," (tx* (.@2 ast) env) ")"]) ret)
+         "(" (tx* (_2 ast) env) "," (tx* (.@2 ast) env) ")"]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-new
