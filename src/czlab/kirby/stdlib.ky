@@ -614,6 +614,11 @@ are evaluated in order.  Returns x.
   [f coll] `(.map (or ~coll (vec)) ~f))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro every
+  "Tests whether all elements in the array pass the test implemented by the provided function."
+  [f coll] `(.every (or ~coll (vec)) ~f))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro find
   "Returns the value of the first element in the array
   that satisfies the predicate. Otherwise undefined is returned."
@@ -1515,17 +1520,17 @@ one arg, returns the concatenation of the str values of the args."
   (if coll (coll.concat.apply coll xs)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn- every "" ^Array [coll start step]
+(defn- repeat-every "" ^Array [coll start step]
   (with-local-vars [ret []])
   (floop [e coll :start start :step step] (conj! ret e)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn evens "Collect every
-            2nd item starting at 0" ^Array [coll] (every coll 0 2))
+            2nd item starting at 0" ^Array [coll] (repeat-every coll 0 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn odds "Collect every
-           2nd item starting at 1" ^Array [coll] (every coll 1 2))
+           2nd item starting at 1" ^Array [coll] (repeat-every coll 1 2))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn modulo "Modulo"

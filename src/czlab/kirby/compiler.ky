@@ -722,14 +722,14 @@ returned if no clause matches."
   "Creates a variable with an initial value"
 
   ^{:opcode ["const-" "const"
-             "def-" "def" "var" "vars"] :tag SourceNode} [ast env]
+             "def-" "def" "vars" "locals"] :tag SourceNode} [ast env]
 
   (assertArity (odd? (n# ast)) ast)
   (with-local-vars [ret (node' ast) cmd $(_1 ast)
                     vs [] keys {}
                     pub? (or (== cmd "def") (== cmd "const"))])
   (set! cmd (if (starts-with? cmd "const")
-              "const" (if (== cmd "vars") "let" "var")))
+              "const" (if (or (== cmd "locals") (== cmd "vars")) "let" "var")))
   ;deal with 1 level destruction
   (floop [lhs ast :start 1 :step 2 :index i]
     (with-local-vars [rhs (nexth ast i)
