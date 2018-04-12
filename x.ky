@@ -14,17 +14,11 @@
              :rename {atom _atom_}
              :refer [Atom atom swap! conj! disj!]]))
 
-(defmacro poo [a b & more]
-`(.add ~a ~b ~@more))
-
-(defn xmod
-  "Return the proper mathematical modulo of x mod N."
-  [x N]
-  (if (neg? x)
-    (- x (* -1 (+ N (* N (Math/floor (/ (- x) N)))))) (rem x N)))
-
 (defn xxx [a b]
-  (locals x (fn [] ))
-  nil)
+  (let [x  3]
+    (sss 444))
+  )
+
+
 
 

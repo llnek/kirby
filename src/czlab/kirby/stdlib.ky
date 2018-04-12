@@ -1400,9 +1400,8 @@ one arg, returns the concatenation of the str values of the args."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into! "Assign a type to this collection"
   ^Array [type coll]
-  (case type
-    (:list :set :obj :map :vector)
-    (oset! coll :____typeid type)) coll)
+  ;(case type (:list :set :obj :map :vector) (oset! coll :____typeid type)) coll)
+  (oset! coll :____typeid type) coll)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn into "Like into! but

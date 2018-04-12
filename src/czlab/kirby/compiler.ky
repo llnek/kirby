@@ -675,7 +675,7 @@ expressions are supplied, returns nil."
                          (rest ast))
                     (not stmtQ)) env (not stmtQ)))
   (if stmtQ
-    (wrap ret nil "")
+    (wrap ret "if (true) {\n" "\n}\n")
     (wrap ret "(function() {\n"  "}).call(this)")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -715,6 +715,18 @@ returned if no clause matches."
     (wrap ret
           (str "(function() { let " gs ";\n")
           (str "return " gs ";}).call(this)"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- sf-let
+  "" ^{:opcode ["letx"] :tag SourceNode} [ast env]
+  (vars stmtQ (stmt? ast)
+        ret (node' ast)
+        e1 (_1 ast) e2 (_2 ast))
+  ;change the "let" to "do"
+  (aset ast 0 (xfi e1 (symbol "do")))
+  (into! undefined
+         (cons! (xfi e2 (symbol "vars"))  e2))
+  (sf-do ast env))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- sf-var
