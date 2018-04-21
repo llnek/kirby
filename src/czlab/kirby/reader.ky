@@ -109,6 +109,7 @@
      str? #f
      regex? #f
      token ""
+     jsEsc 0
      line 1
      ch nil
      nx nil
@@ -393,6 +394,16 @@
   (into! :set (readBlock tokens "#{" "}")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn- readJSLiteral "Process a JS Literal"
+  ^Array [tokens]
+  (with-local-vars [_ (popToken tokens)
+                    t (peekToken tokens)]
+    (case t.value
+      "{" (into! :obj (readBlock tokens "{" "}"))
+      "[" (into! :vector (readBlock tokens "[" "]"))
+      (raise! "bad use of #js"))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- skipParse "Advance the token index,
                   then continue to parse"
   ^Any [tokens func]
@@ -418,6 +429,7 @@
           "#" #(['lambda (read* %)])
           "[" [#(readVector %)]
           "(" [#(readList %)]
+          "#js" [#(readJSLiteral %)]
           "#{" [#(readObjectSet %)]
           "`{" [#(readObject %)]
           "{" [#(readObjectMap %)]})

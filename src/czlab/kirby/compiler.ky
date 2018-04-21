@@ -1193,6 +1193,8 @@ any finally exprs will be evaluated for their side effects."
   (with-local-vars [used ? rlib ? as $(gensym "R__")
                     rpath $(_1 ast) mcs ? nsp ?
                     vvv ? info ? libpath ? refers ? renames ?])
+  (if (symbol? rpath)
+    (set! rpath (quote-str (str rpath))))
   ;;scan options
   (floop [v ast :start 1 :index j :step 2]
     (condp == v
@@ -1261,7 +1263,8 @@ any finally exprs will be evaluated for their side effects."
                     fdir (path/dirname ast.source)])
   (doseq [a' (rest ast)]
     (if-not (and (array? a')
-                 (string? (_1 a'))) (error! :invalid-require ast))
+                 (or (symbol? (_1 a'))
+                     (string? (_1 a')))) (error! :invalid-require ast))
     (sf-require2 ret fdir a' env)) ret)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

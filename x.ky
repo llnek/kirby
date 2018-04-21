@@ -9,12 +9,15 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.elmo.ecs.core
-  (:require ["kirby"
+  (:require [kirby :as kkkk]
+            ["kirby"
              :as ky
              :rename {atom _atom_}
              :refer [Atom atom swap! conj! disj!]]))
 
-(defn xxx [a b]
+(def xxx #js { :a 1 :b #js [3] :c #js {:x 1} })
+
+(defn poo [a b]
   (let [x  3]
     (sss 444))
   )
