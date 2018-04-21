@@ -1115,12 +1115,13 @@ any finally exprs will be evaluated for their side effects."
   [1 2 3]
   [\"hello\" \"world\"]"
 
-  ^{:opcode ["vec"] :tag SourceNode} [ast env]
+  ^{:opcode ["vec" "array"] :tag SourceNode} [ast env]
 
   (with-local-vars [ret (node' ast)])
   (assertArity true ast)
   (if-not (vector? ast)
-    (if-not (== "vec" $(_1 ast))
+    (if-not (or (== "vec" $(_1 ast))
+                (== "array" $(_1 ast)))
       (raise! :syntax-error "expecting vec")
       (set! ast (rest ast))))
   (doseq [a' ast]
@@ -1133,11 +1134,12 @@ any finally exprs will be evaluated for their side effects."
   "Returns a new object with supplied key-mappings.
   (object \"a\" 1 \"b\" 2)
   {:a 1 :b 2}"
-  ^{:opcode ["object"] :tag SourceNode} [ast env]
+  ^{:opcode ["object" "js-obj"] :tag SourceNode} [ast env]
   (with-local-vars [ret (node' ast)])
   (assertArity true ast)
   (if-not (obj? ast)
-    (if-not (== "object" $(_1 ast))
+    (if-not (or (== "object" $(_1 ast))
+                (== "js-obj" $(_1 ast)))
       (raise! :syntax-error "expecting object")
       (set! ast (rest ast))))
   (floop [a' ast :index i :step 2]

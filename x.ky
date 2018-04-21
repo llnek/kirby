@@ -15,10 +15,12 @@
              :rename {atom _atom_}
              :refer [Atom atom swap! conj! disj!]]))
 
-(def xxx #js { :a 1 :b #js [3] :c #js {:x 1} })
+(def a (array 1 2 3)
+  b (js-obj :a "121" :b 5))
 
 (defn poo [a b]
-  (let [x  3]
+  (this-as weewee
+           (.-xxx weewee)
     (sss 444))
   )
 

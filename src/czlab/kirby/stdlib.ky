@@ -17,6 +17,12 @@
 (const MIN-INT Number/MIN_SAFE_INTEGER)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmacro this-as
+  "Defines a scope where JavaScript's
+  implicit \"this\" is bound to the name provided"
+  [that & body] `(let [~that this] ~@body))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trye!
   "Wrap try around code and eat exception."
   [&xs] `(try ~@xs (catch ewroewrwe nil)))
@@ -1905,6 +1911,12 @@ the latter (left-to-right) will be the mapping in the result."
                                  (n# des))])
   (floop [:end sz :index i]
          (aset des i (nth src i))) des)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn aclone
+  "Creates a clone of the given JavaScript array.
+  The result is a new array, which is a shallow copy."
+  [src] (if (array? src) (.slice src 0) nil))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn difference
