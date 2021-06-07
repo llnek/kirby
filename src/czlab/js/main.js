@@ -19,7 +19,6 @@ const tx = require("./compiler");
 const rt = require("./engine");
 const std = require("./stdlib");
 const println = std["println"];
-const __module_namespace__ = "czlab.kirby.main";
 //////////////////////////////////////////////////////////////////////////////
 /** error and exit */
 function errorExit(msg){

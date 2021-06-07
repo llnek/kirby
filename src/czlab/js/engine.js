@@ -22,6 +22,7 @@ const KBSTDLIB = [KBPFX, "stdlib"].join("");
 const macro_assert = "\n  (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ";
 const GLOBAL = typeof(window) == "undefined" ? undefined : window;
 const prefix = "kirby> ";
+const println= std["println"];
 //////////////////////////////////////////////////////////////////////////////
 function _expect(k){
   if(!(k instanceof std.Symbol))
@@ -39,31 +40,32 @@ class LEXEnv{
     if(parent)
       this.par = parent;
     for(let ev,e,i=0,end=std.count(vars); i<end; ++i){
-      e= vars[i];
-      ev= e.value;
+      e= vars[i], ev= e.value;
       if(ev == "&"){
-        std.assoc_BANG(this.data, [vars[i+1]].join(""), vals.slice(i));
+        this.data.set(`${vars[i+1]}`, vals.slice(i));
         break;
-      }else if(ev.startsWith("&")){
-        std.assoc_BANG(this.data, ev.slice(1), vals.slice(i));
-        break;
-      }else{
-        std.assoc_BANG(this.data, ev, vals[i])
       }
+      if(ev.startsWith("&")){
+        this.data.set(ev.slice(1), vals.slice(i));
+        break;
+      }
+      this.data.set(ev, vals[i])
     }
   }
   //Find the env
   //containing this symbol
   find(k){
     _expect(k);
-    return std.contains_QMRK(this.data, k.value) ?
-      this : std.some_QMRK(this.par) ? this.par.find(k) : null;
+    if(this.data.has(k.value))
+      return this;
+    else if(this.par)
+      return this.par.find(k);
   }
   //Bind this symbol,
   //value to this env
   set(k, v){
     _expect(k);
-    std.assoc_BANG(this.data, k.value, v);
+    this.data.set(k.value, v);
     return v;
   }
   //Get value of
@@ -71,14 +73,14 @@ class LEXEnv{
   get(k){
     _expect(k);
     let env = this.find(k);
-    return env ? std.getProp(env.data, k.value) : k.value;
+    return env ? env.data.get(k.value) : k.value;
   }
   //Print set of vars
   prn(){
     return std.prn(this.data)
   }
   select(what){
-    return (seq(this.data) || []).reduce(function(acc, GS__5) {
+    return seq(this.data).reduce(function(acc, GS__5){
       let c6=true,
           [k,v] = GS__5;
       switch(what){
@@ -90,16 +92,16 @@ class LEXEnv{
           break;
       }
       if(c6)
-        std.assoc_BANG(acc, [k].join(""), v);
+        acc.set(`${k}`,v);
       return acc;
-    }, new Map([]));
+    }, new Map())
   }
 }
-const _STAR_vars_STAR = new Map([]);
-const _STAR_libs_STAR = new Map([]);
+const _STAR_vars_STAR = new Map();
+const _STAR_libs_STAR = new Map();
 //////////////////////////////////////////////////////////////////////////////
 function getLib(alias){
-  return std.getProp(_STAR_libs_STAR, alias)
+  return _STAR_libs_STAR.get(alias)
 }
 //////////////////////////////////////////////////////////////////////////////
 function getLibKeys(){
@@ -107,15 +109,15 @@ function getLibKeys(){
 }
 //////////////////////////////////////////////////////////////////////////////
 function addVar(sym, info){
-  let s = [sym].join("");
-  let m = std.getProp(_STAR_vars_STAR, s);
+  let s = `${sym}`,
+      m = _STAR_vars_STARget(s);
   if(m)
-    throw new Error(["var: ", s, " already added"].join(""));
-  std.assoc_BANG(_STAR_vars_STAR, s, info);
+    throw new Error(`var: ${s} already added`);
+  _STAR_vars_STAR.set(s, info);
 }
 //////////////////////////////////////////////////////////////////////////////
 function getVar(sym){
-  return std.getProp(_STAR_vars_STAR, [sym].join(""))
+  return _STAR_vars_STAR.get(`${sym}`)
 }
 //////////////////////////////////////////////////////////////////////////////
 function getVarKeys(){
@@ -123,13 +125,13 @@ function getVarKeys(){
 }
 //////////////////////////////////////////////////////////////////////////////
 function hasVar_QMRK(sym){
-  return std.contains_QMRK(_STAR_vars_STAR, [sym].join(""))
+  return _STAR_vars_STAR.has(`${sym}`)
 }
 //////////////////////////////////////////////////////////////////////////////
 function addLib(alias, lib){
-  if(std.contains_QMRK(_STAR_libs_STAR, alias))
-    throw new Error(["Library alias already added: ", alias].join(""));
-  std.assoc_BANG(_STAR_libs_STAR, alias, lib);
+  if(_STAR_libs_STAR.has(alias))
+    throw new Error(`Library alias already added: ${alias}`);
+  _STAR_libs_STAR.set(alias, lib);
 }
 //////////////////////////////////////////////////////////////////////////////
 Function.prototype.clone=function(){
@@ -138,10 +140,10 @@ Function.prototype.clone=function(){
     return orig.apply(this, args)
   }
   function GS__8(v, k){
-    return (cloned[k] = v)
+    cloned[k] = v
   }
   if(std.object_QMRK(orig)){
-    Object.keys(orig).forEach(p=> GS__8(std.getProp(orig, p), p))
+    Object.keys(orig).forEach(p=> GS__8(orig[p], p))
   }else{
     orig.forEach(GS__8)
   }
@@ -173,10 +175,10 @@ function clone(obj){
       rc = std.into_BANG(oid, obj.slice());
       break;
     case "array":
-      rc = obj.slice(obj);
+      rc = obj.slice();
       break;
     case "object":
-      rc = (seq(obj) || []).reduce(function(acc, GS__11){
+      rc = seq(obj).reduce(function(acc, GS__11){
         let [k,v] = GS__11;
         acc[k] = v;
         return acc;
@@ -186,7 +188,7 @@ function clone(obj){
       rc = obj.clone();
       break;
     default:
-      throw new Error(["clone of non-collection: ", oid].join(""))
+      throw new Error(`clone of non-collection: ${oid}`)
   }
   return rc
 }
@@ -199,7 +201,7 @@ function conj(arr,...xs){
   let rc=arr;
   if(std.list_QMRK(arr)){
     rc=std.into_BANG("list", xs.reverse().concat(arr));
-  }else if(std.some_QMRK(arr)){
+  }else if(arr){
     rc= std.into_BANG("vector", arr.concat(xs))
   }
   return rc;
@@ -214,7 +216,7 @@ function fmap(f, arr){
 }
 //////////////////////////////////////////////////////////////////////////////
 function resolveJS(s){
-  return [std.contains_QMRK(s, ".") ? eval(/^(.*)\.[^\.]*$/g.exec(s)[1]) : GLOBAL, eval(s)]
+  return [s.includes(".") ? eval(/^(.*)\.[^\.]*$/g.exec(s)[1]) : GLOBAL, eval(s)]
 }
 //////////////////////////////////////////////////////////////////////////////
 function filterJS(obj){
@@ -223,18 +225,18 @@ function filterJS(obj){
 }
 //////////////////////////////////////////////////////////////////////////////
 function withMeta(obj, m){
-  let ret = clone(obj);
-  ret["____meta"] = m;
-  return ret;
+  obj= clone(obj);
+  obj["____meta"] = m;
+  return obj;
 }
 ////////////////////////////////////////////////////////////////////////////////
 function meta(obj){
   if(Object.prototype.toString.call(obj) == "[object Map]" ||
      Object.prototype.toString.call(obj) == "[object Set]" ||
      std.object_QMRK(obj) || Array.isArray(obj) || typeof(obj) == "function"){}else{
-    throw new Error(["can't get meta from: ", typeid(obj)].join(""));
+    throw new Error(`can't get meta from: ${typeid(obj)}`);
   }
-  return std.getProp(obj, "____meta");
+  return obj["____meta"];
 }
 //////////////////////////////////////////////////////////////////////////////
 function evalJS(s){
@@ -279,7 +281,7 @@ const _STAR_intrinsics_STAR = new Map([
   }],
 
   ["slice*", function(arr,...xs){
-    return Array.prototype.slice.apply(arr, xs)
+    return arr.slice(...xs)
   }],
 
   ["throw*", function(...xs){
@@ -323,10 +325,10 @@ const _STAR_intrinsics_STAR = new Map([
     return a  >= b
   }],
 
-  ["/", function(a,...xs){
+  ["/", function(A,...xs){
     return xs.reduce(function(a,b){
       return a / b
-    }, a)
+    }, A)
   }],
 
   ["+", function(...xs){
@@ -335,10 +337,10 @@ const _STAR_intrinsics_STAR = new Map([
     }, 0)
   }],
 
-  ["-", function(a,...xs){
+  ["-", function(A,...xs){
     return xs.reduce(function(a,b){
       return a - b
-    }, a)
+    }, A)
   }],
 
   ["*", function(...xs){
@@ -369,7 +371,7 @@ const _STAR_intrinsics_STAR = new Map([
   ["list*", std.list],
 
   ["hashmap*", function(...xs){
-    return std.assoc_BANG.apply(this, [new Map([])].concat(xs));
+    return std.assoc_BANG(new Map(),...xs)
   }],
 
   ["values*", function(a){
@@ -408,9 +410,11 @@ const _STAR_intrinsics_STAR = new Map([
   ["concat*", std.concat_STAR],
   ["count*", std.count],
   ["cons*", cons],
+
   ["rest*", function(a){
     return a ? a.slice(1) : []
   }],
+
   ["nth*", function(a,b){
     return std.getProp(a,b)
   }],
@@ -444,35 +448,34 @@ const _STAR_intrinsics_STAR = new Map([
     return typeof(a)
   }]
 ]);
-const CACHE = new Map([]);
+const CACHE = new Map();
 //////////////////////////////////////////////////////////////////////////////
 //Register a new macro
 function setMacro(cmd, func){
   if(cmd && typeof(func) == "function"){
-    cmd = [cmd].join("");
-    if(!std.contains_QMRK(cmd, "/")){
+    cmd = `${cmd}`;
+    if(!cmd.includes("/")){
       let c = std.peekNSP();
       if(!c)
-        throw new Error("missing namespace");
-      cmd = [std.getProp(c, "id"), "/", cmd].join("");
+        throw new Error("no namespace");
+      cmd = `${std.getProp(c, "id")}/${cmd}`;
     }
-    std.assoc_BANG(CACHE, cmd, func);
+    CACHE.set(cmd, func);
   }
 }
 //////////////////////////////////////////////////////////////////////////////
 //Get macro
 function getMacro(cmd){
   let nsp,skip,mname;
-  cmd = [cmd].join("");
-  if(std.contains_QMRK(cmd, "/")){
+  cmd = `${cmd}`;
+  if(cmd.includes("/")){
     let [p,c] = cmd.split("/");
     let tmp, libObj = getLib(p);
     mname = c;
     if(p == KBSTDLR){
       nsp = KBSTDLIB
-    }else if(std.nichts_QMRK(libObj)){
-      skip = true
-    }else if(!std.getProp(libObj, EXPKEY)){
+    }else if(std.nichts_QMRK(libObj) ||
+             !std.getProp(libObj, EXPKEY)){
       skip = true
     }else{
       nsp = std.getProp(std.getProp(libObj, EXPKEY), "ns")
@@ -483,13 +486,12 @@ function getMacro(cmd){
     nsp = m ? std.getProp(m, "ns") : null;
   }
   if(!skip){
-    if(nsp === null){
-      if(std.getProp(CACHE, [KBSTDLIB, "/", mname].join(""))){
-        nsp = KBSTDLIB
-      }
+    if(nsp === null &&
+       std.getProp(CACHE, `${KBSTDLIB}/${mname}`)){
+      nsp = KBSTDLIB
     }
     if(typeof(nsp) == "string")
-      return std.getProp(CACHE, [nsp, "/", mname].join(""));
+      return std.getProp(CACHE, `${nsp}/${mname}`);
   }
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -500,20 +502,19 @@ function dbg(x){
 function readAST(s){
   let ret = reader.parse(s);
   if(1 === std.count(ret)){
+    //TODO: do this or not?
     ret = ret[0]
   }
   return ret;
 }
 //////////////////////////////////////////////////////////////////////////////
 function backtick(ast){
-  function lst_QMRK(a){
-    return std.sequential_QMRK(a) && std.not_DASH_empty(a) }
-  let rc;
-  if(!lst_QMRK(ast)){
+  let rc,lstQ=(a)=>std.sequential_QMRK(a) && std.not_DASH_empty(a);
+  if(!lstQ(ast)){
     rc=[std.symbol("quote"), ast]
   }else if(std.symbol_QMRK(ast[0]) && ast[0] == "unquote"){
     rc=ast[1]
-  }else if(lst_QMRK(ast[0]) &&
+  }else if(lstQ(ast[0]) &&
            std.symbol_QMRK(ast[0][0]) &&
            ast[0][0] == "splice-unquote"){
     rc=[std.symbol("concat*"), ast[0][1], backtick(ast.slice(1))]
@@ -523,15 +524,15 @@ function backtick(ast){
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
-function isMacroCall_QMRK(ast, env){
+function isMacroCall(ast, env){
   return std.pairs_QMRK(ast) &&
-         std.symbol_QMRK(ast[0]) && getMacro([ast[0]].join(""))
+         std.symbol_QMRK(ast[0]) && getMacro(`${ast[0]}`)
 }
 //////////////////////////////////////////////////////////////////////////////
-function expand_QMRK__QMRK(ast, env,mcObj){
+function expand_QMRK__QMRK(ast,env,mcObj){
   let mac,cmd;
-  for(; mcObj || isMacroCall_QMRK(ast, env);){
-    cmd = [ast[0]].join("");
+  for(; mcObj || isMacroCall(ast, env);){
+    cmd = `${ast[0]}`;
     mac = mcObj || getMacro(cmd);
     mcObj = null;
     ast = mac.apply(this, ast.slice(1));
@@ -540,19 +541,19 @@ function expand_QMRK__QMRK(ast, env,mcObj){
 }
 //////////////////////////////////////////////////////////////////////////////
 function eval_STAR(ast, env){
-  let rc;
+  let rc=ast;
   if(typeof(ast) == "string"){
     rc=std.unquote_DASH_str(ast)
   }else if(std.keyword_QMRK(ast)){
-    rc=[ast].join("")
+    rc=`${ast}`
   }else if(std.symbol_QMRK(ast)){
     rc=env.get(ast)
   }else if(std.pairs_QMRK(ast)){
-    rc=(ast || []).map(a=> compute(a, env))
+    rc=ast.map(a=> compute(a, env))
   }else if(std.list_QMRK(ast)){
-    rc=std.into_BANG("list", (ast || []).map(a=> compute(a, env)))
+    rc=std.into_BANG("list", ast.map(a=> compute(a, env)))
   }else if(std.vector_QMRK(ast)){
-    rc=std.into_BANG("vector", (ast || []).map(a=> compute(a, env)))
+    rc=std.into_BANG("vector", ast.map(a=> compute(a, env)))
   }else if(std.obj_QMRK(ast)){
     rc= {};
     for(let a,i=0,end = std.count(ast); i<end; i += 2){
@@ -560,29 +561,25 @@ function eval_STAR(ast, env){
       std.assoc_BANG(rc, compute(a, env), compute(ast[i+1], env));
     }
   }else if(std.map_QMRK(ast)){
-    rc = new Map([]);
+    rc = new Map();
     for(let a,i=0,end = std.count(ast); i<end; i += 2){
       a= ast[i];
       std.assoc_BANG(rc, compute(a, env), compute(ast[i+1], env));
     }
   }else if(std.set_QMRK(ast)){
-    rc = new Set([]);
+    rc = new Set();
     for(let a,i = 0,sz = std.count(ast); i<sz; ++i){
       a= ast[i];
       std.conj_BANG(rc, compute(a, env));
     }
-  }else {
-    rc=ast
   }
-
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
 function doAND(ast, env){
   let ret = true;
-  for(let a,i= 1,end = std.count(ast); i < end; ++i){
-    a= ast[i];
-    ret = compute(a, env);
+  for(let i= 1,end = std.count(ast); i < end; ++i){
+    ret = compute(ast[i], env);
     if(!ret){break}
   }
   return ret;
@@ -590,9 +587,8 @@ function doAND(ast, env){
 //////////////////////////////////////////////////////////////////////////////
 function doOR(ast, env){
   let ret = null;
-  for(let a,i = 1,end = std.count(ast); i < end; ++i){
-    a= ast[i];
-    ret = compute(a_QUOT, env);
+  for(let i = 1,end = std.count(ast); i < end; ++i){
+    ret = compute(ast[i], env);
     if(ret){break}
   }
   return ret;
@@ -609,11 +605,11 @@ function doLET(ast, env){
 }
 //////////////////////////////////////////////////////////////////////////////
 function doMACRO(ast, env){
-  let name = [ast[1]].join("");
   let nsp = std.peekNSP();
+  let name= `${ast[1]}`;
   nsp = nsp ? std.getProp(nsp, "id") : KBSTDLIB;
-  if(!std.contains_QMRK(name, "/")){
-    name = [nsp, "/", name].join("");
+  if(!name.includes(name, "/")){
+    name= `${nsp}/${name}`;
   }
   setMacro(name, fn_DASH__GT_raw(ast[2], ast[3], env));
 }
@@ -634,8 +630,7 @@ function doTRY(ast, env){
 function doIF(ast, env){
   let kond = compute(ast[1], env);
   let a3 = ast[3];
-  return !std.falsy_QMRK(kond) ?
-         ast[2] : typeof(a3) != "undefined"? a3 : null
+  return !std.falsy_QMRK(kond) ? ast[2] : typeof(a3) != "undefined"? a3 : null
 }
 ////////////////////////////////////////////////////////////////////////////////
 function form_STAR(ast, env){
@@ -702,7 +697,7 @@ const _STAR_spec_DASH_forms_STAR = new Map([
 
   ["do*", function(a, e){
     eval_STAR(a.slice(1, -1), e);
-    return [a[a.length - 1], e];
+    return [a[a.length-1], e];
   }],
 
   ["if*", function(a,b){
@@ -717,13 +712,10 @@ const _STAR_spec_DASH_forms_STAR = new Map([
 //Interpret a expression
 function compute(expr, cenv){
   function g1(a){ return std.pairs_QMRK(a) ? a[0] : "" }
-  let env = cenv || g_env;
-  let _x_ = null;
-  let recur = null;
+  let _r_, _x_, recur, env = cenv || g_env;
   function _f_(ast){
-    let cmd = [g1(ast)].join("");
+    let res,cmd = `${g1(ast)}`;
     let fc = std.getProp(_STAR_spec_DASH_forms_STAR, cmd);
-    let res;
     if(!Array.isArray(ast)){
       res=atom(eval_STAR(ast, env))
     }else if(0 === std.count(ast)){
@@ -739,12 +731,12 @@ function compute(expr, cenv){
     }
     return res;
   }
-  let _r_ = _f_;
+  _r_ = _f_;
   recur=function(...args){
     _x_ = args;
     if(_r_){
       for(_r_ = undefined; _r_ === undefined;){
-        _r_ = _f_.apply(this, _x_);
+        _r_ = _f_.apply(this, _x_)
       }
       return _r_;
     }
@@ -759,6 +751,7 @@ function newEnv(){
   let ret = new LEXEnv();
   function GS__22(v,k){
     return ret.set(std.symbol(k), v) }
+
   if(std.object_QMRK(GS__21)){
     Object.keys(GS__21).forEach(p=> GS__22(std.getProp(GS__21, p), p))
   }else{
@@ -807,8 +800,8 @@ function reval(expr,...xs){
   xs.forEach(a=>{ ret = f(a) });
   return ret;
 }
-var inited_QMRK = false;
 var _STAR_version_STAR = "";
+var inited_QMRK = false;
 var g_env = null;
 //////////////////////////////////////////////////////////////////////////////
 //Set up the runtime environment

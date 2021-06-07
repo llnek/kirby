@@ -10,8 +10,8 @@
  * Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
-const __module_namespace__ = "czlab.kirby.reader";
 const std = require("./stdlib");
+const println=std["println"];
 //////////////////////////////////////////////////////////////////////////////
 class Token{
   constructor(source, line, column, value){
@@ -53,7 +53,8 @@ const REGEX={
   wspace: /\s/
 };
 //////////////////////////////////////////////////////////////////////////////
-const REPLACERS=[[REGEX.query, "_QMRK_"],
+const REPLACERS=[
+  [REGEX.query, "_QMRK_"],
   [REGEX.bang, "_BANG_"],
   [REGEX.dash, "_DASH_"],
   [REGEX.quote, "_QUOT_"],
@@ -71,8 +72,8 @@ function testid(name){
 //////////////////////////////////////////////////////////////////////////////
 //Escape to compliant js identifier
 function jsid(input){
-  let pfx = "";
-  let name = [input].join("");
+  let pfx = "",
+      name = `${input}`;
   if(name && name.startsWith("-")){
     pfx = "-";
     name = name.slice(1)
@@ -103,16 +104,16 @@ function lexer(source, fname){
   let tcol = col;
   let tline = line;
   function toke(ln, col, s, s_Q){
-    if(std.opt_QQ(s_Q, std.not_empty(s))){
+    if(std.opt_QMRK__QMRK(s_Q, std.not_DASH_empty(s))){
       if(s.startsWith("&") && s != "&&" && s.length>1){
-        std.conj_BANG(tree, mkToken(fname, ln, col, "&"));
-        s=s.slice(1)
+        tree.push(mkToken(fname, ln, col, "&"));
+        s=s.slice(1);
       }else if(s == "?"){
         s="undefined"
       }else if(s.startsWith("@@")){
         s=`this.${s.slice(2)}`
       }
-      std.conj_BANG(tree, mkToken(fname, ln, col, s));
+      tree.push(mkToken(fname, ln, col, s))
     }
     return "";
   }
@@ -138,7 +139,7 @@ function lexer(source, fname){
       token += ch;
       if(ch == "/"){
         regex_Q= false;
-        if(std.contains("gimuy",nx)){
+        if("gimuy".includes(nx)){
           token += nx;
           ++pos;
         }
@@ -310,9 +311,9 @@ function copyTokenData(token, node){
 //////////////////////////////////////////////////////////////////////////////
 //Process an atom
 function readAtom(tokens){
-  let token = popToken(tokens);
-  let tn = token.value;
-  let ret = null;
+  let token = popToken(tokens),
+      ret = null,
+      tn = token.value;
   if(0 === std.count(tn)){
     ret = undefined
   }else if(REGEX.float.test(tn)){
@@ -341,11 +342,9 @@ function readAtom(tokens){
 //////////////////////////////////////////////////////////////////////////////
 //Process a LISP form
 function readBlock(tokens, head, tail){
-  let token = popToken(tokens);
-  let start = token;
-  let ok= true;
-  let ast = [];
-  let cur;
+  let token = popToken(tokens),
+      start = token,
+      cur, ast = [], ok= true;
   if(token.value !== head)
     throwE(token, "expected '", head, "'");
   while(1){
@@ -446,7 +445,7 @@ function read_STAR(tokens){
     rc=func[0](tokens)
   }else if(typeof(func) == "function"){
     rc=skipParse(tokens, func)
-  }else if(std.isNichts(token)){
+  }else if(std.nichts_QMRK(token)){
   }else if(tval == ";" || tval == ","){
     popToken(tokens)
   }else{
@@ -462,16 +461,17 @@ function addAst(ast, f){
 //////////////////////////////////////////////////////////////////////////////
 //Main parser routine
 function parse(source,...args){
-  let tokens = lexer(source, std.optQQ(args[0],"*adhoc*"));
+  let tokens = lexer(source, std.opt_QMRK__QMRK(args[0],"*adhoc*"));
   let tlen = std.count(tokens);
   let ast = [];
 
   if(false)
-    tokens.forEach(function(a){ println("token=", a.name) })
+    tokens.forEach(function(a){ println("token=", a) })
 
   tokens.pos = 0;
   while(tokens.pos < tlen)
     addAst(ast, read_STAR(tokens));
+  //console.log(dumpTree(ast));
   return ast;
 }
 //////////////////////////////////////////////////////////////////////////////

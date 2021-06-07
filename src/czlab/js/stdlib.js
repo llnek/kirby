@@ -427,6 +427,10 @@ function deref(a){
   return a.value
 }
 //////////////////////////////////////////////////////////////////////////////
+function a_len(obj){
+  return obj && obj.length ? obj.length : 0
+}
+//////////////////////////////////////////////////////////////////////////////
 //Change value inside the Atom,
 //returning the new value
 function swap_BANG(a, f,...xs){
@@ -571,19 +575,19 @@ function map2Obj(m){
 //True if both are equal
 function eq_QMRK(a,b){
   let ok=true;
-  if(map_QMRK(a) && map_QMRK(b) && alen(a)===alen(b)){
+  if(map_QMRK(a) && map_QMRK(b) && a_len(a)===a_len(b)){
     ok=eq_QMRK(map2Map(a), map2Map(b))
-  }else if(obj_QMRK(a) && obj_QMRK(b) && alen(a)===alen(b)){
+  }else if(obj_QMRK(a) && obj_QMRK(b) && a_len(a)===a_len(b)){
     ok=eq_QMRK(map2Obj(a),map2Obj(b))
-  }else if(array_QMRK(a) && array_QMRK(b) && alen(a)===alen(b)){
-    for(let i=0,end=alen(a);i<end;++i){
+  }else if(isJSArray(a) && isJSArray(b) && a_len(a)===a_len(b)){
+    for(let i=0,end=a_len(a);i<end;++i){
       if(!eq_QMRK(a[i],b[i])){
         ok=false;
         break;
       }
     }
     ok
-  }else if(set_QMRK(a) && set_QMRK(b) && alen(a)===alen(b)){
+  }else if(set_QMRK(a) && set_QMRK(b) && a_len(a)===a_len(b)){
     ok=eqSets_QMRK(set2Set(a), set2Set(b))
   }else if(inst_QMRK(LambdaArg, a) && inst_QMRK(LambdaArg,b)){
     ok= a.value == b.value
@@ -597,14 +601,26 @@ function eq_QMRK(a,b){
         ok=false;
         break;
       }
-  }else if(objectMap_QMRK(a) && objectMap_QMRK(b)){
+  }else if(isObjectMap(a) && isObjectMap(b)){
     ok= eqMaps_QMRK(a, b)
-  }else if(objectSet_QMRK(a) && objectSet_QMRK(b)){
+  }else if(isObjectSet(a) && isObjectSet(b)){
     ok= eqSets_QMRK(a,b)
   }else{
     ok= a===b
   }
   return ok;
+}
+function isObjectMap(obj){
+  return Object.prototype.toString.call(obj) == "[object Map]"
+}
+function isObjectSet(obj){
+  return Object.prototype.toString.call(obj) == "[object Set]"
+}
+function isString(obj){
+  return typeof(obj)== "string"
+}
+function isJSArray(obj){
+  return Array.isArray(obj)
 }
 //////////////////////////////////////////////////////////////////////////////
 //Returns true
@@ -615,6 +631,7 @@ function object_QMRK(obj){
           Object.prototype.toString.call(obj) == "[object Set]" ||
           Array.isArray(obj)) ? null : typeof(obj) == "object";
 }
+
 //////////////////////////////////////////////////////////////////////////////
 //Returns the last element
 function last(coll){
@@ -704,13 +721,13 @@ function object(...xs){
 //Returns a sequence
 function seq(obj){
   let rc;
-  if(string_QMRK(obj)){
+  if(isString(obj)){
     rc=obj.split("")
-  }else if(array_QMRK(obj)){
+  }else if(isJSArray(obj)){
     rc=obj.slice(0)
-  }else if(objectSet_QMRK(obj)){
+  }else if(isObjectSet(obj)){
     rc=Array.from(obj.values)
-  }else if(objectMap_QMRK(obj)){
+  }else if(isObjectMap(obj)){
     rc= Array.from(obj.entries)
   }else if(object_QMRK(obj)){
     rc= Object.entries(obj)
@@ -726,11 +743,11 @@ function rseq(coll){
 //True if item is inside
 function contains_QMRK(coll, x){
   let rc=false;
-  if(array_QMRK(coll) || string_QMRK(coll)){
+  if(isJSArray(coll) || isString(coll)){
     rc=coll.includes(x)
-  }else if(objectSet_QMRK(coll)){
+  }else if(isObjectSet(coll)){
     rc=coll.has(x)
-  }else if(objectMap_QMRK(coll)){
+  }else if(isObjectMap(coll)){
     rc=coll.has(x)
   }else if(object_QMRK(coll)){
     rc=coll.hasOwnProperty(x)
@@ -755,10 +772,10 @@ function some_QMRK(obj){
 function count(coll){
   let n=0;
   if(coll){
-    if(objectMap_QMRK(coll) || objectSet_QMRK(coll)){
+    if(isObjectMap(coll) || isObjectSet(coll)){
       n=coll.size
     }else{
-      n=alen(string_QMRK(coll) || array_QMRK(coll) ? coll : Object.keys(coll))
+      n=a_len(isString(coll) || isJSArray(coll) ? coll : Object.keys(coll))
     }
   }
   return n;
@@ -1067,7 +1084,7 @@ function select_DASH_keys(coll, keys){
 function doUpdateIn_BANG(coll, n, func, args, err){
   let v,cur;
   if(number_QMRK(n)){
-    cur= array_QMRK(coll) && n< alen(coll)? coll[n] : err(n)
+    cur= isJSArray(coll) && n< a_len(coll)? coll[n] : err(n)
   }else{
     cur=coll.get(n)
   }
@@ -1270,7 +1287,7 @@ function pushNSP(nsp,info){
   })
 }
 //////////////////////////////////////////////////////////////////////////////
-functiont popNSP(){
+function popNSP(){
   return swap_BANG(_STAR_ns_DASH_cache_STAR, function(a){
     a.shift();
     return a;
