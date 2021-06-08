@@ -412,7 +412,12 @@ function skipParse(tokens, func){
   return copyTokenData(t, ret);
 }
 //////////////////////////////////////////////////////////////////////////////
-const SPEC_TOKENS={
+const SPEC_TOKENS=(function(m){
+  let o=new Map();
+  Object.keys(m).forEach(k=>o.set(k,m[k]));
+  return o;
+})(
+  {
 
   "'": function(a1){ return [std.symbol("quote"), read_STAR(a1)] },
   "`": function(a1){ return [std.symbol("syntax-quote"), read_STAR(a1)] },
@@ -433,7 +438,7 @@ const SPEC_TOKENS={
     let x = std.symbol("str");
     let y = read_STAR(a1);
     if(y.length > 1){ y= [x, y] }else{ y.unshift(x) } return y; }
-};
+});
 //////////////////////////////////////////////////////////////////////////////
 //Inner parser routine
 function read_STAR(tokens){
@@ -441,7 +446,7 @@ function read_STAR(tokens){
   let rc,tval= "";
   if(token)
     tval=token.value;
-  let func = SPEC_TOKENS[tval];
+  let func = SPEC_TOKENS.get(tval);
   if(Array.isArray(func)){
     rc=func[0](tokens)
   }else if(typeof(func) == "function"){
@@ -483,33 +488,33 @@ function dumpInfo(tag, ast){
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
 function dump_STAR(tree){
-  if(std.isPrimitive(tree)){ tree = tree.value }
+  if(std.primitive_QMRK(tree)){ tree = tree.value }
   let s,rc;
-  if(std.isVector(tree)){
-    s=(tree || []).map(a=>dump_STAR(a)).join("");
+  if(std.vector_QMRK(tree)){
+    s=tree.map(a=>dump_STAR(a)).join("");
     rc=`${dumpInfo("vector", tree)}${s}</vector>`
-  }else if(std.isSet(tree)){
-    s=(tree || []).map(x=>dump_STAR(x)).join("");
+  }else if(std.set_QMRK(tree)){
+    s=tree.map(x=>dump_STAR(x)).join("");
     rc=`${dumpInfo("set", tree)}${s}</set>`
-  }else if(std.isMap(tree)){
-    s=(tree || []).map(x=>dump_STAR(a)).join("");
+  }else if(std.map_QMRK(tree)){
+    s=tree.map(x=>dump_STAR(a)).join("");
     rc=`${dumpInfo("map", tree)}${s}</map>`
-  }else if(std.isList(tree)){
-    s=(tree || []).map(x=>dump_STAR(x)).join("");
+  }else if(std.list_QMRK(tree)){
+    s=tree.map(x=>dump_STAR(x)).join("");
     rc=`${dumpInfo("list", tree)}${s}</list>`
   }else if(Array.isArray(tree)){
-    s=(tree || []).map(a=>dump_STAR(a)).join("");
+    s=tree.map(a=>dump_STAR(a)).join("");
     rc=`${dumpInfo("sexpr", tree)}${s}</sexpr>`
-  }else if(std.isLambdaArg(tree)){
+  }else if(std.lambdaArg_QMRK(tree)){
     rc=`${dumpInfo("lambda-arg", tree)}${tree.value}</lambda-arg>`
-  }else if(std.isKeyword(tree)){
-    rc=`${dumpInfo("keyword", tree)}${escXml(tree.value)}</keyword>`
-  }else if(std.isSymbol(tree)){
-    rc=`${dumpInfo("symbol", tree)}${escXml(tree.value)}</symbol>`
-  }else if(std.isRegexObj(tree)){
-    rc=`${dumpInfo("regex", tree)}${escXml(tree.value)}</regex>`
+  }else if(std.keyword_QMRK(tree)){
+    rc=`${dumpInfo("keyword", tree)}${std.escXml(tree.value)}</keyword>`
+  }else if(std.symbol_QMRK(tree)){
+    rc=`${dumpInfo("symbol", tree)}${std.escXml(tree.value)}</symbol>`
+  }else if(std.regexObj_QMRK(tree)){
+    rc=`${dumpInfo("regex", tree)}${std.escXml(tree.value)}</regex>`
   }else if(typeof(tree)== "string"){
-    rc=`<string>${escXml(std.quoteStr(tree))}</string>`
+    rc=`<string>${std.escXml(std.quote_DASH_str(tree))}</string>`
   }else if(typeof(tree) == "number"){
     rc=`<number>${tree}</number>`
   }else if(tree === null){
@@ -521,6 +526,7 @@ function dump_STAR(tree){
   }else if(typeof(tree) == "undefined"){
     rc=`<reserved>undefined</reserved>`
   }else{
+    //rc=tree.toString();
     throwE(tree, "Bad AST")
   }
   return rc
@@ -528,7 +534,7 @@ function dump_STAR(tree){
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
 function dumpTree(tree, fname){
-  return `<AbstractSyntaxTree file=\"${escXml(fname)}\">${dump_STAR(tree)}</AbstractSyntaxTree>`
+  return `<AbstractSyntaxTree file=\"${std.escXml(fname)}\">${dump_STAR(tree)}</AbstractSyntaxTree>`
 }
 module.exports = {
   da57bc0172fb42438a11e6e8778f36fb: {

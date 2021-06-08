@@ -630,7 +630,7 @@ function sf_DASH_deftype(ast, env){
   let [doc,mtds] = GS__39;
   rt.addVar(czn, new Map([["ns", std._STAR_ns_STAR()]]));
   ret.add(["class ", czname, (par ? ` extends ${tx_STAR(par, env)}` : ""), " {\n"]);
-  for(let m1,mtd,m,i=0, sz=mtds.lemgth; i<sz; ++i){
+  for(let m1,mtd,m,i=0, sz=mtds.length; i<sz; ++i){
     mtd = std.symbol("method");
     m = mtds[i];
     m1 = m[0];
