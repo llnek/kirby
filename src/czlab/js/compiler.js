@@ -81,9 +81,13 @@ function tnode(src,ln,col,chunk,name){
 //////////////////////////////////////////////////////////////////////////////
 function mk_node(ast,obj){
   const rc = obj || tnode();
-  rc["source"] = ast.source;
-  rc["column"] = ast.column;
-  rc["line"] = ast.line;
+  try{
+    rc["source"] = ast.source;
+    rc["column"] = ast.column;
+    rc["line"] = ast.line;
+  }catch(e){
+    console.log("poo")
+  }
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -249,8 +253,9 @@ function txTree(root, env){
       n1 = root[0],
       ret = mk_node(root);
   if(!Array.isArray(n1) ||
-     std.symbol_QMRK(t[0]) || "ns" != n1[0])
-    throw new Error("(ns ...) must be first form in file")
+     !std.symbol_QMRK(n1[0]) || "ns" != n1[0])
+  {}
+    //throw new Error("(ns ...) must be first form in file")
   ms.push(n1);
   for(let t,i=0,GS__18=root.slice(1),sz = GS__18.length; i<sz; ++i){
     t= GS__18[i];
@@ -304,6 +309,7 @@ function tx_STAR(x,env){
 }
 //////////////////////////////////////////////////////////////////////////////
 function gcmd(ast){
+  let rc;
   if(std.map_QMRK(ast)){
     rc="hash-map"
   }else if(std.obj_QMRK(ast)){
@@ -441,8 +447,8 @@ function txPairs(ast, env){
 function writeDoc(doc){
   return (doc ? std.split(std.unquote_DASH_str(doc), "\n") : []).map(a=>{
     let s = [a].join("").trim();
-    return not_DASH_empty(s) ? `//${s}\n` : null;
-  }).filter(a=> not_DASH_empty(a))
+    return std.not_DASH_empty(s) ? `//${s}\n` : null;
+  }).filter(a=> std.not_DASH_empty(a))
 }
 //////////////////////////////////////////////////////////////////////////////
 //A Do block
@@ -1709,10 +1715,14 @@ function doseq_DASH_binds(while_QUOT, ret, binds, body, ast, env, capRes){
 //////////////////////////////////////////////////////////////////////////////
 //Transfer source map info
 function xfi(from, to){
-  if(from && to && typeof(to.line) != "number" && typeof(from.line) == "number"){
-    to["source"] = from.source;
-    to["line"] = from.line;
-    to["column"] = from.column;
+  try{
+    if(from && to && !isSimple(to) && typeof(to.line) != "number" && typeof(from.line) == "number"){
+      to["source"] = from.source;
+      to["line"] = from.line;
+      to["column"] = from.column;
+    }
+  }catch(e){
+    console.log("shit")
   }
   return to;
 }
@@ -1759,7 +1769,7 @@ function cleanCode(code){
   return code.split("\n").map(function(a){
     let s = a.trim();
     return s.length > 0 ? (s != ";" ? a : null) : null;
-  }).filter(a=> not_DASH_empty(a)).join("\n");
+  }).filter(a=> std.not_DASH_empty(a)).join("\n");
 }
 //////////////////////////////////////////////////////////////////////////////
 //Compiles a source file, returning the translated source and
@@ -1775,8 +1785,8 @@ function transpile_STAR(source, fname, options){
     ret = sout.code;
     fs.writeFileSync(smap, sout.map);
   }
-  cstr = [ret, spitExterns(),
-          source_DASH_map ? ["\n//# sourceMappingURL=", path.relative(path.dirname(fname), smap)].join("") : null].join("");
+  let cstr = [ret, spitExterns(),
+              source_DASH_map ? ["\n//# sourceMappingURL=", path.relative(path.dirname(fname), smap)].join("") : null].join("");
   try{
     if(!no_DASH_format)
       cstr = esfmt.format(cstr, {});

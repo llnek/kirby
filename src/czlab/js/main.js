@@ -49,6 +49,7 @@ function compileSource(argv,options){
     }else{
       println(["kirby v", tx.version].join(""), ": compiling: ", fin, " -> ", fout);
       let [ret,err]= tx.transpile(source, fin, options);
+      console.log(ret);
       rt.spit(fout, ret);
       if(err)
         throw err;
@@ -115,6 +116,7 @@ function main(){
   setHelp(["kirby [OPTIONS] [<infile>] [<outfile>]\n\n",
            "<outfile> defaults to <infile>.js\n\n", "[[OPTIONS]]\n\n"].join("")).
   bindHelp();
+  //return init() && compileSource(["/tmp/x.ky"]);//pcli(cli)
   return init() && pcli(cli)
 }
 main();

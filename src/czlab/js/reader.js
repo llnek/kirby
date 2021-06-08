@@ -298,7 +298,7 @@ function prevToken(tokens){
 //Attach source level information
 //to the node
 function copyTokenData(token, node){
-  if(std.isObject(node) ||
+  if(std.object_QMRK(node) ||
      Array.isArray(node) ||
      Object.prototype.toString.call(node) == "[object Map]" ||
      Object.prototype.toString.call(node) == "[object Set]"){
@@ -321,7 +321,7 @@ function readAtom(tokens){
   }else if(REGEX.hex.test(tn) || REGEX.int.test(tn)){
     ret = parseInt(tn)
   }else if(tn.startsWith("\"") && tn.endsWith("\"")){
-    ret = std.unquoteStr(tn)
+    ret = std.unquote_DASH_str(tn)
   }else if(tn.startsWith(":")){
     ret = std.keyword(tn)
   }else if(tn.startsWith("%")){
@@ -349,7 +349,7 @@ function readBlock(tokens, head, tail){
     throwE(token, "expected '", head, "'");
   while(1){
     cur = peekToken(tokens);
-    if(std.isNichts(cur)){
+    if(std.nichts_QMRK(cur)){
       throwE(start, "expected '", tail, "', got EOF")
     }else if(tail == cur.value){
       break;
@@ -405,9 +405,9 @@ function readJSLiteral(tokens){
 //Advance the token index,
 //then continue to parse
 function skipParse(tokens, func){
-  let t = popToken(tokens);
-  let ret = func(tokens);
-  let a1 = ret[0];
+  let t = popToken(tokens),
+      ret = func(tokens),
+      a1 = ret[0];
   copyTokenData(t, a1);
   return copyTokenData(t, ret);
 }
@@ -422,12 +422,13 @@ const SPEC_TOKENS={
   "#": function(a1){ return [std.symbol("lambda"), read_STAR(a1)] },
   "^": function(a1){ let t= read_STAR(a1); return [std.symbol("with-meta"), read_STAR(a1), t]},
 
-  "[": function(a1){ return readVector(a1) },
-  "(": function(a1){ return readList(a1) },
-  "#js": function(a1){ return readJSLiteral(a1) },
-  "#{": function(a1){ return readObjectSet(a1) },
-  "`{": function(a1){ return readObject(a1) },
-  "{": function(a1){ return readObjectMap(a1) },
+  "[": [function(a1){ return readVector(a1) }],
+  "(": [function(a1){ return readList(a1) }],
+  "#js": [function(a1){ return readJSLiteral(a1) }],
+  "#{": [function(a1){ return readObjectSet(a1) }],
+  "`{": [function(a1){ return readObject(a1) }],
+  "{": [function(a1){ return readObjectMap(a1) }],
+
   "$": function(a1){
     let x = std.symbol("str");
     let y = read_STAR(a1);

@@ -110,7 +110,7 @@ function getLibKeys(){
 //////////////////////////////////////////////////////////////////////////////
 function addVar(sym, info){
   let s = `${sym}`,
-      m = _STAR_vars_STARget(s);
+      m = _STAR_vars_STAR.get(s);
   if(m)
     throw new Error(`var: ${s} already added`);
   _STAR_vars_STAR.set(s, info);
@@ -648,10 +648,10 @@ function form_STAR(ast, env){
     if(Array.isArray(c)){
       rc=[c[1], new LEXEnv(c[2], c[0], el.slice(1))]
     }else if(typeof(f) == "function"){
-      rc=atom(f.apply(this, el.slice(1)))
+      rc=std.atom(f.apply(this, el.slice(1)))
     }
   }
-  return rc ? rc : atom(el);
+  return rc ? rc : std.atom(el);
 }
 //////////////////////////////////////////////////////////////////////////////
 //Wrap the function body and args inside
@@ -664,15 +664,15 @@ function fn_DASH__GT_raw(fargs, fbody, env){
 //////////////////////////////////////////////////////////////////////////////
 const _STAR_spec_DASH_forms_STAR = new Map([
   ["def*", function(a, e){
-    return atom(e.set(a[1], compute(a[2], e)))
+    return std.atom(e.set(a[1], compute(a[2], e)))
   }],
 
   ["and*", function(a,b){
-    return atom(doAND(a,b))
+    return std.atom(doAND(a,b))
   }],
 
   ["or*", function(a,b){
-    return atom(doOR(a,b))
+    return std.atom(doOR(a,b))
   }],
 
   ["let*", function(a,b){
@@ -680,7 +680,7 @@ const _STAR_spec_DASH_forms_STAR = new Map([
   }],
 
   ["quote", function(a){
-    return atom(a[1])
+    return std.atom(a[1])
   }],
 
   ["syntax-quote", function(a,b){
@@ -688,11 +688,11 @@ const _STAR_spec_DASH_forms_STAR = new Map([
   }],
 
   ["macro*", function(a,b){
-    return atom(doMACRO(a,b))
+    return std.atom(doMACRO(a,b))
   }],
 
   ["try*", function(a,b){
-    return atom(doTRY(a,b))
+    return std.atom(doTRY(a,b))
   }],
 
   ["do*", function(a, e){
@@ -705,7 +705,7 @@ const _STAR_spec_DASH_forms_STAR = new Map([
   }],
 
   ["lambda*", function(a,b){
-    return atom(fn_DASH__GT_raw(a[1], a[2], b))
+    return std.atom(fn_DASH__GT_raw(a[1], a[2], b))
   }]
 ]);
 //////////////////////////////////////////////////////////////////////////////
@@ -717,15 +717,15 @@ function compute(expr, cenv){
     let res,cmd = `${g1(ast)}`;
     let fc = std.getProp(_STAR_spec_DASH_forms_STAR, cmd);
     if(!Array.isArray(ast)){
-      res=atom(eval_STAR(ast, env))
+      res=std.atom(eval_STAR(ast, env))
     }else if(0 === std.count(ast)){
-      res=atom(ast)
+      res=std.atom(ast)
     }else if(typeof(fc) == "function"){
       res=fc(ast, env)
     }else{
       res=form_STAR(ast, env)
     }
-    if(!atom_QMRK(res)){
+    if(!std.atom_QMRK(res)){
       env = res[1];
       res= recur(expand_QMRK__QMRK(res[0], env));
     }
