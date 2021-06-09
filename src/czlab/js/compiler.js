@@ -66,6 +66,7 @@ function unmangle(s){
 //////////////////////////////////////////////////////////////////////////////
 function isEven(n){ return n % 2 === 0 }
 function isOdd(n){ return n % 2 !== 0 }
+function isStr(ast){ return typeof(ast)=="string" }
 //////////////////////////////////////////////////////////////////////////////
 function tnodeEx(name,chunk){
   return tnode(null, null, null, chunk, name)
@@ -344,7 +345,7 @@ function quoteSingle(a){
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
-function quote_BANG(ast, env){
+function quoteXXX(ast, env){
   return Array.isArray(ast) ?
     (std.map_QMRK(ast) ? quoteMap(ast, env) : quoteBlock(ast, env)) : quoteSingle(ast)
 }
@@ -356,7 +357,7 @@ function quoteMap(ast, env){
     a= ast[i];
     if(i>0)
       ret.add(",");
-    ret.add([quote_BANG(a, env), " , ", quote_BANG(ast[i+1], env)])
+    ret.add([quoteXXX(a, env), " , ", quoteXXX(ast[i+1], env)])
   }
   if(ast.length !== 0){
     cma = ","
@@ -370,7 +371,7 @@ function quoteBlock(ast, env){
     a = ast[i];
     if(i>0)
       ret.add(",");
-    ret.add(quote_BANG(a, env))
+    ret.add(quoteXXX(a, env))
   }
   return wrap(ret, "[", "]");
 }
@@ -414,7 +415,7 @@ function txPairs(ast, env){
   }
   op = std.getProp(SPEC_DASH_OPS, cmd);
   if(cmd == "with-meta"){
-    ret.add(tx_STAR(meta_QMRK__QMRK(ast, env)[1], env))
+    ret.add(tx_STAR(isTaggedMeta(ast, env)[1], env))
   }else if(cmd.startsWith(".-")){
     ret.add([tx_STAR(ast[1], env), ".", tx_STAR(std.symbol(cmd.slice(2)), env)])
   }else if(cmd.startsWith(".@")){
@@ -468,14 +469,14 @@ function txDo(ast, env,ret_Q){
   return ret;
 }
 //////////////////////////////////////////////////////////////////////////////
-function isMeta_QMRK(obj){
-  return Array.isArray(obj) && 3 === std.count(obj) &&
+function isWithMeta(obj){
+  return Array.isArray(obj) && 3 === obj.length &&
          std.symbol_QMRK(obj[0]) && "with-meta" == `${obj[0]}`
 }
 //////////////////////////////////////////////////////////////////////////////
-function meta_QMRK__QMRK(obj, env){
+function isTaggedMeta(obj, env){
   let rc;
-  if(!isMeta_QMRK(obj)){
+  if(!isWithMeta(obj)){
     rc=[null, obj];
   }else{
     let [X,e2,e3]=obj;
@@ -572,20 +573,19 @@ function isPub(ast){
 //((juxt a b c) x) => [(a x) (b x) (c x)]
 function sf_DASH_juxt(ast, env){
   let ret = mk_node(ast);
-  for(let f,a,i=0,GS__37 = ast.slice(1),sz=GS__37.length; i<sz; ++i){
-    a = GS__37[i];
-    f = `${std.gensym("F__")}`;
-    ret.add(["let ", f, "=", tx_STAR(a, env), ";\n",
-             "ret.push(", f, ".apply(this,", LARGS, "));\n"]);
+  for(let i=0,GS__37 = ast.slice(1),sz=GS__37.length; i<sz; ++i){
+    if(i>0)
+      ret.add(",");
+    ret.add([tx_STAR(GS__37[i], env),"(...", LARGS, ")"]);
   }
-  return wrap(ret, ["function(){\nlet ret=[],", LARGS, "=", ARRSLICE, "(", JSARGS, ");\n"], "return ret;\n}")
+  return wrap(ret, ["function(...",LARGS,"){\nreturn ["], "];\n}")
 }
 SPEC_DASH_OPS["juxt"] = sf_DASH_juxt;
 //////////////////////////////////////////////////////////////////////////////
 //Returns an atom's current state.
 function sf_DASH_deref(ast, env){
   assertArity(ast.length === 2, ast);
-  return mk_node(ast).add([tx_STAR(ast[1], env), ".value"]);
+  return mk_node(ast).add([tx_STAR(ast[1], env), ".value"])
 }
 SPEC_DASH_OPS["deref"] = sf_DASH_deref;
 ////////////////////////////////////////////////////////////////////////////////
@@ -595,41 +595,36 @@ SPEC_DASH_OPS["deref"] = sf_DASH_deref;
 //fn (right-to-left) to the result, etc.
 function sf_DASH_compose(ast, env){
   assertArity(ast.length >= 2, ast);
-  let prev,r,f,
-      ret = mk_node(ast),
-      start = ast.length - 1;
-  for(let a,i=start,end = 0; i>end; --i){
-    a = ast[i];
-    f = `${std.gensym("F__")}`;
-    r = `${std.gensym("R__")}`;
-    ret.add(["let ", f, "=", tx_STAR(a, env), ";\n", "let ", r, "=", f,((i === start) ?
-      [".apply(this,", LARGS].join("") :
-      ["(", prev].join("")), ");\n"]);
-    prev = r;
+  let last="",
+      ret = mk_node(ast);
+  for(let a,i=1,end = ast.length; i<end; ++i){
+    last+=")";
+    ret.add([tx_STAR(ast[i],env),"("]);
   }
-  return wrap(ret, ["function () {\nlet ", LARGS, "=", ARRSLICE, "(", JSARGS, ");\n"], ["return ", prev, ";\n", "}"]);
+  return wrap(ret, ["function(...",LARGS,"){\nreturn "], ["...",LARGS,last,";\n", "}"]);
 }
 SPEC_DASH_OPS["comp"] = sf_DASH_compose;
 //////////////////////////////////////////////////////////////////////////////
 //Returns the unevaluated form
 function sf_DASH_quote(ast, env){
   assertArity(ast.length === 2, ast);
-  return wrap(mk_node(ast), null, quote_BANG(ast[1], env));
+  return wrap(mk_node(ast), null, quoteXXX(ast[1], env));
 }
 SPEC_DASH_OPS["quote"] = sf_DASH_quote;
 //////////////////////////////////////////////////////////////////////////////
 //Define a Class
 function sf_DASH_deftype(ast, env){
   assertArity(ast.length >= 3, ast);
-  let pub_QMRK = isPub(ast),
+  if(!std.symbol_QMRK(ast[1])) throwE("syntax-error", ast[1], "no class name");
+  if(!std.vector_QMRK(ast[2])) throwE("syntax-error", ast[2], "no parent class");
+  let pub_Q= isPub(ast),
       par = ast[2][0],
       czn = ast[1],
       ret = mk_node(ast),
       czname = tx_STAR(czn, env),
-      GS__39 = typeof(ast[3]) == "string" ? [ast[3], ast.slice(4)] : [null, ast.slice(3)];
-  let [doc,mtds] = GS__39;
+      [doc,mtds] = isStr(ast[3]) ? [ast[3], ast.slice(4)] : [null, ast.slice(3)];
   rt.addVar(czn, new Map([["ns", std._STAR_ns_STAR()]]));
-  ret.add(["class ", czname, (par ? ` extends ${tx_STAR(par, env)}` : ""), " {\n"]);
+  ret.add([`class ${czname}`, (par ? ` extends ${tx_STAR(par, env)}` : ""), "{\n"]);
   for(let m1,mtd,m,i=0, sz=mtds.length; i<sz; ++i){
     mtd = std.symbol("method");
     m = mtds[i];
@@ -641,7 +636,7 @@ function sf_DASH_deftype(ast, env){
   }
   if(doc)
     ret.prepend(writeDoc(doc));
-  if(pub_QMRK){
+  if(pub_Q){
     _STAR_vars_STAR.push(czn);
     _STAR_externs_STAR.set(czname, czname);
   }
@@ -652,7 +647,7 @@ SPEC_DASH_OPS["deftype-"] = sf_DASH_deftype;
 //////////////////////////////////////////////////////////////////////////////
 //Handle comparison operators.
 function sf_DASH_compOp(ast, env){
-  assertArity(ast.length >= 3 && isOdd(ast.length), ast);
+  //assertArity(ast.length >= 3 && isOdd(ast.length), ast);
   let op,
       cmd = `${ast[0]}`,
       ret = mk_node(ast);
@@ -764,9 +759,8 @@ function sf_DASH_do(ast, env){
   let ret = mk_node(ast),
       stmtQ = isStmt(ast);
   ret.add(txDo(exprHint(xfi(ast, ast.slice(1)), !stmtQ), env, !stmtQ));
-  return (stmtQ ?
-    wrap(ret, "if (true) {\n", "\n}\n") :
-    wrap(ret, "(function() {\n", "}).call(this)"));
+  return stmtQ ? wrap(ret, "if (true) {\n", "\n}\n")
+               : wrap(ret, "(function() {\n", "}).call(this)")
 }
 SPEC_DASH_OPS["do"] = sf_DASH_do;
 ////////////////////////////////////////////////////////////////////////////////
@@ -785,7 +779,7 @@ function sf_DASH_case(ast, env){
       ret = mk_node(ast),
       tst = ast[1],
       brk = ";\nbreak;\n",
-      gs = `${std.gensym("C__")}`;
+      gs = `${std.gensym("C__")}`,
       dft = isOdd(ast.length) ? std.pop_BANG(ast)[0] : null;
   for(let c,i = 2, sz = ast.length; i<sz; i+=2){
     c = tx_STAR(ast[i+1], env);
@@ -1031,7 +1025,7 @@ SPEC_DASH_OPS["var-set"] = sf_DASH_set;
 function sf_DASH_fn(ast, env){
   assertArity(ast.length >= 2, ast);
   let body = xfi(ast, ast.slice(2));
-  let [X,args]= meta_QMRK__QMRK(ast[1], env);
+  let [X,args]= isTaggedMeta(ast[1], env);
   if(!Array.isArray(args))
     throwE("invalid-fargs", ast);
   let fargs = doFuncArgs(xfi(ast, args), env);
@@ -1043,21 +1037,21 @@ SPEC_DASH_OPS["fn"] = sf_DASH_fn;
 //(defn name doc-string? attr-map? [params*] ...)
 function sf_DASH_func(ast, env){
   assertArity(ast.length >= 2, ast);
-  let mtd_QMRK = `${ast[0]}` == "method";
-  let pub_QMRK = isPub(ast);
-  let fname0 = `${ast[1]}`;
-  let fname = `${tx_STAR(ast[1], env)}`;
-  let dot_QMRK = fname.includes(".");
-  let ret = mk_node(ast, tnodeEx(fname));
-  let [doc,pargs] = typeof(ast[2]) == "string" ? [ast[2], 3] : [null, 2];
-  let body = xfi(ast, ast.slice(pargs+1));
-  let b1 = body[0];
-  let [attrs,args] = meta_QMRK__QMRK(ast[pargs], env);
-  if(!Array.isArray(args))
-    throwE("invalid-fargs", ast);
-  if(!mtd_QMRK)
+  let mtd_Q= `${ast[0]}` == "method",
+      pub_Q= isPub(ast),
+      fname0 = `${ast[1]}`,
+      fname = `${tx_STAR(ast[1], env)}`,
+      dot_Q = fname.includes("."),
+      ret = mk_node(ast, tnodeEx(fname)),
+      [doc,pargs] = isStr(ast[2]) ? [ast[2], 3] : [null, 2],
+      body = xfi(ast, ast.slice(pargs+1)),
+      b1 = body[0],
+      [attrs,args] = isTaggedMeta(ast[pargs], env);
+
+  if(!std.vector_QMRK(args)) throwE("invalid-fargs", ast);
+  if(!mtd_Q)
     rt.addVar(fname0, new Map([["ns", std._STAR_ns_STAR()]]));
-  let pre,post, fargs = doFuncArgs(xfi(ast, args), env);
+  let pre,post,fargs = doFuncArgs(xfi(ast, args), env);
   attrs = attrs || new Map();
   if(std.map_QMRK(b1)){
     for(let e2,e,i = 0, end = b1.length; i<end; i+=2){
@@ -1072,13 +1066,13 @@ function sf_DASH_func(ast, env){
       }
     }
   }
-  if(mtd_QMRK){
-    if(attrs.static)
+  if(mtd_Q){
+    if(attrs.get("static"))
       ret.add("static ");
     ret.add(`${fname} (`);
     if(fname == "constructor")
       std.conj_BANG(body, std.symbol("this"));
-  }else if(dot_QMRK){
+  }else if(dot_Q){
     ret.add(`${fname} = function (`)
   }else{
     ret.add(`const ${fname} = function (`)
@@ -1093,7 +1087,7 @@ function sf_DASH_func(ast, env){
     ret.add(fmtSpecOps(fname, attrs));
   if(doc)
     ret.prepend(writeDoc(doc));
-  if(pub_QMRK && !dot_QMRK && !mtd_QMRK){
+  if(pub_Q && !dot_Q && !mtd_Q){
     _STAR_vars_STAR.push(fname0);
     _STAR_externs_STAR.set(fname, fname);
   }
@@ -1386,7 +1380,7 @@ function sf_DASH_ns(ast, env){
   let ret = [],
       pos = 2,
       doc, e, mobj,
-      [attrs,nsp] = meta_QMRK__QMRK(ast[1], env);
+      [attrs,nsp] = isTaggedMeta(ast[1], env);
   if(!std.symbol_QMRK(nsp))
     throwE("invalid-namespace", ast);
   if(typeof(ast[pos]) == "string"){
@@ -1572,7 +1566,7 @@ function sf_DASH_macro(ast, env){
     args = ast[3];
     body = ast.slice( 4);
   }
-  [mobj,args] = meta_QMRK__QMRK(args, env);
+  [mobj,args] = isTaggedMeta(args, env);
   for(let e1,ev,e, i = 0, end = std.count(args); i < end; ++i){
     e = args[i];
     ev = `${e}`;
