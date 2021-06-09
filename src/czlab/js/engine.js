@@ -80,7 +80,7 @@ class LEXEnv{
     return std.prn(this.data)
   }
   select(what){
-    return seq(this.data).reduce(function(acc, GS__5){
+    return std.seq(this.data).reduce(function(acc, GS__5){
       let c6=true,
           [k,v] = GS__5;
       switch(what){
@@ -178,7 +178,7 @@ function clone(obj){
       rc = obj.slice();
       break;
     case "object":
-      rc = seq(obj).reduce(function(acc, GS__11){
+      rc = std.seq(obj).reduce(function(acc, GS__11){
         let [k,v] = GS__11;
         acc[k] = v;
         return acc;
@@ -732,8 +732,8 @@ function compute(expr, cenv){
     return res;
   }
   _r_ = _f_;
-  recur=function(...args){
-    _x_ = args;
+  recur=function(){
+    _x_ = arguments;
     if(_r_){
       for(_r_ = undefined; _r_ === undefined;){
         _r_ = _f_.apply(this, _x_)

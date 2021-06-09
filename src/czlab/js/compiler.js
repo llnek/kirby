@@ -87,7 +87,7 @@ function mk_node(ast,obj){
     rc["column"] = ast.column;
     rc["line"] = ast.line;
   }catch(e){
-    console.log("poo")
+    console.log("warning from mk_node()")
   }
   return rc;
 }
@@ -95,12 +95,8 @@ function mk_node(ast,obj){
 //Deal with possible destructuring
 //of args in function definition
 function doFuncArgs(args, env){
-  let fargs,
-      fdefs,
-      rval,
-      out,
-      pms=[],
-      ret = [fargs=mk_node(args), fdefs=mk_node(args)];
+  let fargs, fdefs, rval, out,
+      pms=[], ret = [fargs=mk_node(args), fdefs=mk_node(args)];
   /////
   for(let e,i=0,end=args.length; i<end; ++i){
     e=args[i];
@@ -493,8 +489,8 @@ function fmtSpecOps(fname, attrs){
 }
 //////////////////////////////////////////////////////////////////////////////
 function writeFuncPre(pre, env){
-  let ret = mk_node(pre),
-      c2 = [std.symbol("if-not"),
+  let ret = mk_node(pre);
+  let c2 = [std.symbol("if-not"),
             [std.symbol("and")].concat(pre),
             [std.symbol("throw"), [std.symbol("Error"), "Precondition failed"]]];
   return ret.add([tx_STAR(exprHint(c2, false), env), ";\n"]);
@@ -778,24 +774,33 @@ function sf_DASH_case(ast, env){
   let stmtQ = isStmt(ast),
       ret = mk_node(ast),
       tst = ast[1],
+      ms="",
       brk = ";\nbreak;\n",
-      gs = `${std.gensym("C__")}`,
+      mv= `${std.gensym("M__")}`,
+      gs= `${std.gensym("C__")}`,
       dft = isOdd(ast.length) ? std.pop_BANG(ast)[0] : null;
+  if(!dft){
+    ms= `${mv}=true;\n`
+  }
   for(let c,i = 2, sz = ast.length; i<sz; i+=2){
     c = tx_STAR(ast[i+1], env);
     if(std.pairs_QMRK(ast[i])){
       for(let c2 = ast[i], j=0, end=c2.length; j<end; ++j)
-        ret.add(["case ", tx_STAR(c2[j], env), ":\n",j === (c2.length-1) ? `${gs}=${c}${brk}` : ""]);
+        ret.add(["case ", tx_STAR(c2[j], env), ":\n",
+                 j === (c2.length-1) ? `${ms}${gs}=${c}${brk}` : ""]);
     }else{
-      ret.add(["case ", tx_STAR(ast[i], env), ":\n", gs, "=", c, brk])
+      ret.add(["case ", tx_STAR(ast[i], env), ":\n", ms,gs, "=", c, brk])
     }
   }
   if(dft)
     ret.add(["default:\n", gs, "=", tx_STAR(dft, env), brk]);
   wrap(ret, ["switch (", tx_STAR(tst, env), ") {\n"], "}");
+  if(!dft){
+    ret.add(`if(!${mv}){throw Error("IllegalArgumentException")}\n`)
+  }
   return (stmtQ ?
-    wrap(ret, ["let ", gs, ";\n"], "") :
-    wrap(ret, ["(function() { let ", gs, ";\n"].join(""), ["return ", gs, ";}).call(this)"].join("")));
+    wrap(ret, `let ${gs},${mv};\n`, "") :
+    wrap(ret, `(function(){let ${gs},${mv};\n`, ["return ", gs, ";}).call(this)"].join("")));
 }
 SPEC_DASH_OPS["case"] = sf_DASH_case;
 //////////////////////////////////////////////////////////////////////////////
@@ -816,11 +821,11 @@ function sf_DASH_var(ast, env){
       cmd = `${ast[0]}`,
       keys = new Map(),
       ret = mk_node(ast),
-      pub_QMRK = cmd == "def" || cmd == "const";
+      pub_Q= cmd == "def" || cmd == "const";
   cmd = cmd.startsWith("const") ? "const" : cmd == "locals" || cmd == "vars" ? "let" : "var";
   for(let i=1,end = ast.length; i<end; i+=2){
     let lhs = ast[i];
-    let rhs = ast[i + 1];
+    let rhs = ast[i+1];
     let out = mk_node(ast);
     let x = undefined;
     let rval = tx_STAR(rhs, env);
@@ -836,7 +841,7 @@ function sf_DASH_var(ast, env){
       ret.add(["let ", tx_STAR(dstru_STAR(lhs, out, env), env), "=", rval, ";\n", out]);
     }
   }
-  if(pub_QMRK){
+  if(pub_Q){
     vs.forEach(a=> _STAR_vars_STAR.push(a));
     function GS__45(v,k){
       _STAR_externs_STAR.set(k,v)
@@ -878,10 +883,13 @@ SPEC_DASH_OPS["delete!"] = sf_DASH_delete;
 //////////////////////////////////////////////////////////////////////////////
 //Remove a key from Map.
 function sf_DASH_dissoc_BANG(ast, env){
-  assertArity(ast.length === 3, ast);
-  return mk_node(ast).add([slib_BANG([KBSTDLR, ".", tx_STAR(std.symbol("dissoc!"), env)].join("")),
-    "(",
-    tx_STAR(ast[1], env), ",", tx_STAR(ast[2], env), ")"]);
+  //assertArity(ast.length === 3, ast);
+  let ret=mk_node(ast);
+  for(let i=2;i<ast.length;++i){
+    ret.add(",");
+    ret.add(tx_STAR(ast[i],env));
+  }
+  return wrap(ret, [slib_BANG(`${KBSTDLR}.${tx_STAR(std.symbol("dissoc!"), env)}`), "(", tx_STAR(ast[1], env)], ")");
 }
 SPEC_DASH_OPS["dissoc!"] = sf_DASH_dissoc_BANG;
 //////////////////////////////////////////////////////////////////////////////
@@ -977,14 +985,11 @@ function sf_DASH_assoc_BANG(ast, env){
   assertArity(isEven(ast.length), ast);
   let ret = mk_node(ast),
       obj = tx_STAR(ast[1], env);
-  for (let a,i=2,end=ast.length; i<end; i+=2){
-    a = ast[i];
-    if(i>2)
-      ret.add(",");
-    ret.add([slib_BANG([KBSTDLR, ".", tx_STAR(std.symbol("assoc!"), env)].join("")),
-             "(", obj, ",", tx_STAR(xfi(ast, a), env), ",", tx_STAR(xfi(ast, ast[i+1]), env), ")"]);
+  for(let i=2;i<ast.length;++i){
+    ret.add(",");
+    ret.add(tx_STAR(ast[i],env));
   }
-  return wrap(ret, "(", ")");
+  return wrap(ret, [slib_BANG(`${KBSTDLR}.${tx_STAR(std.symbol("assoc!"), env)}`), "(", tx_STAR(ast[1], env)], ")");
 }
 SPEC_DASH_OPS["assoc!"] = sf_DASH_assoc_BANG;
 //////////////////////////////////////////////////////////////////////////////
@@ -997,7 +1002,7 @@ function sf_DASH_assign_BANG(ast, env){
     a= ast[i];
     if(i>2)
       ret.add(",");
-    ret.add([obj, "[", tx_STAR(xfi(ast, a), env), "]", "=", tx_STAR(xfi(ast, ast[i + 1]), env)])
+    ret.add([obj, "[", tx_STAR(xfi(ast, a), env), "]", "=", tx_STAR(xfi(ast, ast[i+1]), env)])
   }
   return wrap(ret, "(", ")");
 }
@@ -1009,11 +1014,10 @@ SPEC_DASH_OPS["aset"] = sf_DASH_assign_BANG;
 function sf_DASH_set(ast, env){
   assertArity(isOdd(ast.length), ast);
   let ret = mk_node(ast);
-  for(let a, i = 1,end = ast.length; i < end; i+=2){
-    a= ast[i];
+  for(let i=1,end = ast.length; i<end; i+=2){
     if(i>1)
       ret.add(",");
-    ret.add([tx_STAR(a, env), "=", tx_STAR(xfi(ast, ast[i + 1]), env)]);
+    ret.add([tx_STAR(ast[i], env), "=", tx_STAR(xfi(ast, ast[i+1]), env)]);
   }
   return wrap(ret, "(", ")");
 }
@@ -1024,12 +1028,12 @@ SPEC_DASH_OPS["var-set"] = sf_DASH_set;
 //(fn attrs? [x y] ...)
 function sf_DASH_fn(ast, env){
   assertArity(ast.length >= 2, ast);
-  let body = xfi(ast, ast.slice(2));
-  let [X,args]= isTaggedMeta(ast[1], env);
+  let body = xfi(ast, ast.slice(2)),
+      [X,args]= isTaggedMeta(ast[1], env);
   if(!Array.isArray(args))
     throwE("invalid-fargs", ast);
   let fargs = doFuncArgs(xfi(ast, args), env);
-  return wrap(mk_node(ast), null, ["function (", fargs[0], ") {\n", fargs[1], txDo(body, env, true), "}"]);
+  return wrap(mk_node(ast), null, ["function(", fargs[0], "){\n", fargs[1], txDo(body, env, true), "}"]);
 }
 SPEC_DASH_OPS["fn"] = sf_DASH_fn;
 //////////////////////////////////////////////////////////////////////////////
@@ -1080,7 +1084,8 @@ function sf_DASH_func(ast, env){
   ret.add([fargs[0], ") {\n", fargs[1]]);
   if(pre || post){
     body = body.slice(1);
-    ret.add(writeFuncPre(xfi(ast, pre), env));
+    let www=writeFuncPre(xfi(ast, pre), env);
+    ret.add(www);
   }
   ret.add([txDo(body, env, true), "};\n"]);
   if(std.not_DASH_empty(attrs))
@@ -1108,8 +1113,8 @@ SPEC_DASH_OPS["defn-"] = sf_DASH_func;
 function sf_DASH_try(ast, env){
   assertArity(ast.length >= 2, ast);
   let sz = ast.length,
-      ret = mk_node(ast),
       f = std.last(ast),
+      ret = mk_node(ast),
       c,t,stmtQ = isStmt(ast);
   if(Array.isArray(f) && `${f[0]}` == "finally"){
     std.pop_BANG(ast);
@@ -1133,14 +1138,14 @@ function sf_DASH_try(ast, env){
   if(f === null &&
      c === null)
     throwE("invalid-try", ast);
-  ret.add(["try {\n", txDo(exprHint(xfi(ast, ast.slice(1)), !stmtQ), env), "\n}"]);
+  ret.add(["try{\n", txDo(exprHint(xfi(ast, ast.slice(1)), !stmtQ), env), "\n}"]);
   if(c){
     t = c[1];
-    ret.add(["catch (", tx_STAR(t, env), ") {\n",
+    ret.add(["catch(", tx_STAR(t, env), "){\n",
              txDo(exprHint(xfi(c, c.slice(2)), !stmtQ), env), ";\n}\n"]);
   }
   if(f)
-    ret.add(["finally {\n", txDo(exprHint(xfi(f, f.slice(1)), false), env, false), ";\n}\n"]);
+    ret.add(["finally{\n", txDo(exprHint(xfi(f, f.slice(1)), false), env, false), ";\n}\n"]);
   if(!stmtQ)
     wrap(ret, "(function(){\n", "}).call(this)");
   return ret;
@@ -1152,20 +1157,20 @@ SPEC_DASH_OPS["try"] = sf_DASH_try;
 //(if test then)
 function sf_DASH_if(ast, env){
   assertArity(ast.length >= 3, ast);
-  let stmtQ = isStmt(ast);
+  let stmtQ = isStmt(ast),
       ret = mk_node(ast),
       a1 = exprHint(xfi(ast, ast[1]), true),
       a2 = exprHint(xfi(ast, ast[2]), !stmtQ),
-      m_QMRK = ast.length > 3,
-      a3 = m_QMRK ? xfi(ast, ast[3]) : null,
-      elze = m_QMRK ? exprHint(a3, !stmtQ) : null;
+      m_Q= ast.length > 3,
+      a3 = m_Q ? xfi(ast, ast[3]) : null,
+      elze = m_Q ? exprHint(a3, !stmtQ) : null;
 
   a1 = tx_STAR(a1, env);
   a2 = tx_STAR(a2, env);
   elze = tx_STAR(elze, env);
 
   return wrap(ret, null, stmtQ ?
-    ["if(", a1, "){\n", a2, ";\n}",m_QMRK ? `else{\n${elze}\n}` : ""] :
+    ["if(", a1, "){\n", a2, ";\n}",m_Q ? `else{\n${elze}\n}` : ""] :
     ["(", a1, " ?\n", a2, " :\n",(elze || "null"), ")"])
 }
 SPEC_DASH_OPS["if"] = sf_DASH_if;
@@ -1197,10 +1202,11 @@ SPEC_DASH_OPS["aget"] = sf_DASH_get;
 function sf_DASH_array(ast, env){
   assertArity(true, ast);
   let a0=ast[0],
+      a0s=`${a0}`,
       ret = mk_node(ast);
   if(!std.vector_QMRK(ast)){
-    if("vec" == `${a0}` || "array" == `${a0}`){}else{
-      throw new Error("syntax-error: expecting vec")
+    if("vec" == a0s || "array" == a0s){}else{
+      throwE("syntax-error", ast, "expecting vec")
     }
     ast = ast.slice(1)
   }
@@ -1219,10 +1225,11 @@ SPEC_DASH_OPS["array"] = sf_DASH_array;
 function sf_DASH_objObj(ast, env){
   assertArity(true, ast);
   let a0=ast[0],
+      a0s=`${a0}`,
       ret = mk_node(ast);
   if(!std.obj_QMRK(ast)){
-    if("object" == `${a0}` || "js-obj" == `${a0}`){}else{
-      throw new Error("syntax-error: expecting object")
+    if("object" == a0s || "js-obj" == a0s){}else{
+      throwE("syntax-error",ast,"expecting object")
     }
     ast = ast.slice(1);
   }
@@ -1240,13 +1247,13 @@ function sf_DASH_mapObj(ast, env){
   let ret = mk_node(ast);
   if(!std.map_QMRK(ast)){
     if("hash-map" != `${ast[0]}`){
-      throw new Error("syntax-error: expecting hash-map")
+      throwE("syntax-error",ast,"expecting hash-map")
     }
     ast = ast.slice(1)
   }
   for(let i=0,end = ast.length; i < end; i += 2)
     ret.add(["[", tx_STAR(ast[i], env), ",",
-             tx_STAR(xfi(ast, ast[i + 1]), env), "]"].join(""));
+             tx_STAR(xfi(ast, ast[i+1]), env), "]"].join(""));
   ret.join(",");
   return wrap(ret, "(new Map([", "]))");
 }
@@ -1259,7 +1266,7 @@ function sf_DASH_setObj(ast, env){
   let ret = mk_node(ast);
   if(!std.set_QMRK(ast)){
     if("hash-set" != `${ast[0]}`)
-      throw new Error("syntax-error: expecting hash-set");
+      throwE("syntax-error",ast,"expecting hash-set");
     ast = ast.slice(1)
   }
   for(let i=0,sz=ast.length; i<sz; ++i){
@@ -1270,7 +1277,7 @@ function sf_DASH_setObj(ast, env){
 }
 SPEC_DASH_OPS["hash-set"] = sf_DASH_setObj;
 //////////////////////////////////////////////////////////////////////////////
-function require_BANG(path){
+function requireJS(path){
   try{
     return require(path)
   }catch(e){
@@ -1278,7 +1285,7 @@ function require_BANG(path){
   }
 }
 //////////////////////////////////////////////////////////////////////////////
-function sf_DASH_require2(ret, fdir, ast, env){
+function requireEx(ret, fdir, ast, env){
   let used, rlib,
       mcs, nsp,
       vvv, info,
@@ -1303,7 +1310,7 @@ function sf_DASH_require2(ret, fdir, ast, env){
   }
   libpath = tx_STAR(rpath.includes("./") ? path.resolve(fdir, rpath) : rpath, env);
   ret.add(["const ", reader.jsid(as), "= require(", tx_STAR(rpath, env), ");\n"]);
-  rlib = require_BANG(std.unquote_DASH_str(libpath));
+  rlib = requireJS(std.unquote_DASH_str(libpath));
   if(rlib)
     info = std.getProp(rlib, EXPKEY);
   rt.addLib(`${as}`, rlib);
@@ -1319,7 +1326,8 @@ function sf_DASH_require2(ret, fdir, ast, env){
   if(std.keyword_QMRK(refers) && vvv && refers == "all"){
     refers = vvv[0]
   }
-  for(let i=0, end = std.count(renames); i < end; i += 2){
+  renames=renames||[];
+  for(let i=0, end = renames.length; i < end; i += 2){
     let ro = renames[i],
         rn = renames[i+1],
         ev = `${ro}`,
@@ -1333,10 +1341,10 @@ function sf_DASH_require2(ret, fdir, ast, env){
     }
     rt.addVar(rs, new Map([["ns", nsp]]));
     used.push(ev);
-    ret.add(["const ", tx_STAR(rn, env), "=",
-             as, "[\"", tx_STAR(ro, env), "\"];\n"])
+    ret.add(["const ", tx_STAR(rn, env), "=", as, "[\"", tx_STAR(ro, env), "\"];\n"])
   }
-  for(let i=0, end=std.count(refers); i<end; ++i){
+  refers=refers||[];
+  for(let i=0, end=refers.length; i<end; ++i){
     let r = refers[i],
         rs = `${r}`,
         v = tx_STAR(r, env);
@@ -1366,7 +1374,7 @@ function sf_DASH_require(ast, env){
     if(Array.isArray(a) && (std.symbol_QMRK(a[0]) || typeof(a[0]) == "string")){}else{
       throwE("invalid-require", ast)
     }
-    sf_DASH_require2(ret, fdir, a, env);
+    requireEx(ret, fdir, a, env);
   }
   return ret;
 }
@@ -1390,7 +1398,7 @@ function sf_DASH_ns(ast, env){
   }
   if(std.map_QMRK(ast[pos])){
     mobj = evalMeta(ast[pos], env);
-    attrs = merge(attrs, mobj);
+    attrs = std.merge(attrs, mobj);
     ++pos;
     nsp["____meta"] = attrs;
   }
@@ -1412,7 +1420,8 @@ function sf_DASH_ns(ast, env){
                                          std.symbol("kirbystdlibref")]]), env));
     }
   }
-  return std.conj_BANG(ret, ["const ", std.MODULE_NAMESPACE, "= ", std.quote_DASH_str(nsp), ";\n"].join(""));
+  ret.push(["const ", std.MODULE_NAMESPACE, "= ", std.quote_DASH_str(nsp), ";\n"].join(""));
+  return ret;
 }
 SPEC_DASH_OPS["ns"] = sf_DASH_ns;
 //////////////////////////////////////////////////////////////////////////////
@@ -1440,7 +1449,7 @@ function sf_DASH_wloop(ret, tst, body, env, stmtQ){
   xfi(ret, tst);
   ret.add([tx_STAR(tst, env), ";", "){\n", txDo(body, env, false), "}\n"]);
   if(!stmtQ)
-    wrap(ret, "(function() {\n", "; return null; }).call(this)");
+    wrap(ret, "(function(){\n", "; return null; }).call(this)");
   return ret;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -1567,7 +1576,7 @@ function sf_DASH_macro(ast, env){
     body = ast.slice( 4);
   }
   [mobj,args] = isTaggedMeta(args, env);
-  for(let e1,ev,e, i = 0, end = std.count(args); i < end; ++i){
+  for(let e1,ev,e, i = 0, end = args.length; i < end; ++i){
     e = args[i];
     ev = `${e}`;
     e1=args[i+1];
@@ -1595,7 +1604,7 @@ function sf_DASH_macro(ast, env){
   ast = [std.symbol("macro*"), mname, pms, body[0]];
   rt.addVar(mname, new Map([["ns", std._STAR_ns_STAR()]]));
   if(mobj && std.getProp(mobj, "private") === true){}else{
-    _STAR_macros_STAR.set(mname, prn(ast, true))
+    _STAR_macros_STAR.set(mname, std.prn(ast, true))
   }
   rt.compute(ast, env);
   return "";
@@ -1656,7 +1665,7 @@ function sf_DASH_doseq(ast, env,capRes){
         `${e_QUOT}`, "=", tx_STAR(p1[1], env), ",____sz=", kount, "(", `${e_QUOT}`, ")",
         (fst ? ",____break=false" : ""), "; (",(fst ? "!____break && " : ""),
         `${while_QUOT}`, " && ", "(", `${n_QUOT}`, " < ____sz)", "); ++", `${n_QUOT}`, "){\n"]);
-      ret.add(std.sf_DASH_var(xfi(ast, [std.symbol("vars"), p1[0], [std.symbol("nth"), e_QUOT, n_QUOT]]), env));
+      ret.add(sf_DASH_var(xfi(ast, [std.symbol("vars"), p1[0], [std.symbol("nth"), e_QUOT, n_QUOT]]), env));
       if(fst){
         fst = false;
         doseq_DASH_binds(while_QUOT, ret, y, body, ast, env, capRes);
@@ -1669,10 +1678,11 @@ function sf_DASH_doseq(ast, env,capRes){
     }
   };
   let _r_ = _f_;
-  recur=function(...xs){
+  recur=function(){
+    _x_=arguments;
     if(_r_){
       for(_r_ = undefined; _r_ === undefined;){
-        _r_ = _f_.apply(this, xs)
+        _r_ = _f_.apply(this, _x_)
       }
       return _r_;
     }
@@ -1686,10 +1696,11 @@ SPEC_DASH_OPS["doseq"] = sf_DASH_doseq;
 //////////////////////////////////////////////////////////////////////////////
 function doseq_DASH_binds(while_QUOT, ret, binds, body, ast, env, capRes){
   let patch = mk_node(ast);
+  console.log(std.prn(binds))
   std.partition(2, binds).forEach(function(GS__71){
     let [k,expr] = GS__71;
     if("let" == k){
-      ret.add(std.sf_DASH_var(xfi(ast, std.cons(std.symbol("vars"), expr))))
+      ret.add(sf_DASH_var(xfi(ast, std.cons(std.symbol("vars"), expr))))
     }else if("when" == k){
       ret.add(["if (", tx_STAR(expr, env), ") {\n"]);
       patch.add("}\n");
@@ -1716,7 +1727,7 @@ function xfi(from, to){
       to["column"] = from.column;
     }
   }catch(e){
-    console.log("shit")
+    console.log("warning from xfi()")
   }
   return to;
 }
@@ -1725,7 +1736,7 @@ function xfi(from, to){
 function spitMacros(){
   return std.count(_STAR_macros_STAR)===0 ?
     "{}" :
-    std.wrap_DASH_str(seq(_STAR_macros_STAR).map(function(GS__73){
+    std.wrap_DASH_str(std.seq(_STAR_macros_STAR).map(function(GS__73){
       let [k,v] = GS__73;
       return [std.quote_DASH_str(`${k}`), ":", std.quote_DASH_str(v)].join("");
     }).join(",\n"), "{\n", "}\n");
@@ -1755,7 +1766,7 @@ function banner(){
       meta = std.getProp(GS__74, "meta");
   return ["/*", "Auto generated by Kirby v", MOD_DASH_VER,
           " - ", new Date(), "\n",
-          "  ", id, "\n",(meta ? prn(meta, true) : ""), "\n", "*/\n\n"].join("");
+          "  ", id, "\n",(meta ? std.prn(meta, true) : ""), "\n", "*/\n\n"].join("");
 }
 //////////////////////////////////////////////////////////////////////////////
 //Get rid of empty lines or no-op lines

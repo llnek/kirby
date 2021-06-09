@@ -726,9 +726,9 @@ function seq(obj){
   }else if(isJSArray(obj)){
     rc=obj.slice(0)
   }else if(isObjectSet(obj)){
-    rc=Array.from(obj.values)
+    rc=Array.from(obj.values())
   }else if(isObjectMap(obj)){
-    rc= Array.from(obj.entries)
+    rc= Array.from(obj.entries())
   }else if(object_QMRK(obj)){
     rc= Object.entries(obj)
   }
@@ -821,10 +821,11 @@ function partition(n, coll){
     return 0 === count(y) ? ret : recur(ret, split_DASH_seq(y, n))
   }
   let _r_ = _f_;
-  recur=function(...xs){
+  recur=function(){
+    _x_=arguments;
     if(_r_){
       for(_r_ = undefined; _r_ === undefined;){
-        _r_= _f_.apply(this,xs)
+        _r_= _f_.apply(this,_x_)
       }
       return _r_;
     }
