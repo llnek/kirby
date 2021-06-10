@@ -385,8 +385,7 @@ function spreadInfo(from, to){
 }
 //////////////////////////////////////////////////////////////////////////////
 function txPairs(ast, env){
-  let op,
-      tmp,
+  let ecnt, op, tmp,
       nsp = std.peekNSP(),
       stmtQ = isStmt(ast),
       ret = mk_node(ast),
@@ -430,12 +429,25 @@ function txPairs(ast, env){
             cmd == "syntax-quote") && !std.getProp(nsp, "id").startsWith(KBPFX)){
     throwE("outside-macro", ast)
   }else{
-    cmd = std.pairs_QMRK(ast) ? `${txForm(ast, env)[0]}` : tx_STAR(ast, env);
-    if(!cmd)
-      throwE("empty-form", ast);
-    cmd = slib_BANG(cmd);
-    ret.add(std.pairs_QMRK(ast) ?
+    ecnt=std.pairs_QMRK(ast)?ast.length:1;
+    if(ecnt==2 && (std.keyword_QMRK(ast[0]) ||
+                   typeof(ast[0])=="string")){
+      //assume param2 is a map, so this is a `map[key]`
+      cmd=slib_BANG(`${KBSTDLR}.getProp`);
+      ret.add([cmd,"(", tx_STAR(ast[1]), ",", tx_STAR(ast[0]), ")"]);
+    }else if(ecnt==2 && std.map_QMRK(ast[0]) && (std.keyword_QMRK(ast[1]) ||
+                                                 typeof(ast[1])=="string")){
+      //so this is a `map[key]`
+      cmd=slib_BANG(`${KBSTDLR}.getProp`);
+      ret.add([cmd,"(", tx_STAR(ast[0]), ",", tx_STAR(ast[1]), ")"]);
+    }else{
+      cmd= std.pairs_QMRK(ast) ? txForm(ast, env)[0] : tx_STAR(ast, env);
+      if(!cmd)
+        throwE("empty-form", ast);
+      cmd = slib_BANG(cmd);
+      ret.add(std.pairs_QMRK(ast) ?
                     [fn_QMRK__QMRK(cmd), "(", ast.slice(1).join(","), ")"] : cmd);
+    }
   }
   return mk_node(ast, ret);
 }
