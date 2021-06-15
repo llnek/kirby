@@ -25,6 +25,21 @@ class Token{
   }
 }
 //////////////////////////////////////////////////////////////////////////////
+//Defining a lambda positional argument
+class LambdaArg{
+  constructor(arg){
+    let name= arg == "%" ? "1" : arg.slice(1);
+    let v = parseInt(name);
+    if(!(v>0))
+      throw new Error(`invalid lambda-arg ${arg}`);
+    this.value = `%${v}`;
+  }
+  toString(){
+    return this.value
+  }
+}
+//////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////
 function mkToken(source, line, col, chunk){
   return new Token(source, line, col, chunk)
 }
@@ -87,24 +102,24 @@ function jsid(input){
 //////////////////////////////////////////////////////////////////////////////
 //Lexical analyzer
 function lexer(source, fname){
-  let len = std.count(source);
-  let comment_Q= false;
-  let fform_Q= false;
-  let esc_Q= false;
-  let str_Q= false;
-  let regex_Q= false;
-  let token = "";
-  let jsEsc = 0;
-  let line = 1;
-  let ch = null;
-  let nx = null;
-  let col = 0;
-  let pos = 0;
-  let tree = [];
-  let tcol = col;
-  let tline = line;
+  let comment_Q= false,
+      fform_Q= false,
+      esc_Q= false,
+      str_Q= false,
+      regex_Q= false,
+      token = "",
+      jsEsc = 0,
+      line = 1,
+      ch = null,
+      nx = null,
+      col = 0,
+      pos = 0,
+      tree = [],
+      tcol = col,
+      tline = line,
+      len = source ? source.length : 0;
   function toke(ln, col, s, s_Q){
-    if(std.opt_QMRK__QMRK(s_Q, std.not_DASH_empty(s))){
+    if(s_Q || s){
       if(s.startsWith("&") && s != "&&" && s.length>1){
         tree.push(mkToken(fname, ln, col, "&"));
         s=s.slice(1);
@@ -118,7 +133,7 @@ function lexer(source, fname){
     return "";
   }
   /////
-  while(pos < len){
+  while(pos<len){
     ch=source.charAt(pos);
     ++col;
     ++pos;
@@ -160,7 +175,7 @@ function lexer(source, fname){
       }else{
         token += ch
       }
-    }else if(ch == "`" && nx == "`" && source.charAt(pos+1) == "`" && 0 === std.count(token)){
+    }else if(ch == "`" && nx == "`" && source.charAt(pos+1) == "`" && 0 === token.length){
       tline = line;
       tcol = col;
       pos += 2;
@@ -183,7 +198,7 @@ function lexer(source, fname){
       if(ch == "\\")
         esc_Q= true
       token += ch
-    }else if(ch == "@" && nx == "@" && 0 === std.count(token)){
+    }else if(ch == "@" && nx == "@" && 0 === token.length){
       tline = line;
       tcol = col;
       token += "@@";
@@ -195,7 +210,7 @@ function lexer(source, fname){
       ++pos;
       toke(tline, tcol, "`{");
     }else if(ch == "'" || ch == "`" || ch == "$" || ch == "@" || ch == "^"){
-      if(0 === std.count(token) && !REGEX.wspace.test(nx)){
+      if(0 === token.length && !REGEX.wspace.test(nx)){
         tline = line;
         tcol = col;
         toke(tline, tcol, ch);
@@ -203,14 +218,14 @@ function lexer(source, fname){
         token += ch
       }
     }else if(ch == "&" && nx == "&"){
-      if(0 === std.count(token)){
+      if(0 === token.length){
         tline = line;
         tcol = col;
       }
       token += "&&";
       ++pos;
     }else if(ch == "~"){
-      if(0 === std.count(token) && !REGEX.wspace.test(nx)){
+      if(0 === token.length && !REGEX.wspace.test(nx)){
         tline = line;
         tcol = col;
         if(nx == "@"){
@@ -222,7 +237,7 @@ function lexer(source, fname){
       }else{
         token += ch
       }
-    }else if(ch == "#" && nx == "/" && 0 === std.count(token)){
+    }else if(ch == "#" && nx == "/" && 0 === token.length){
       regex_Q= true;
       tline = line;
       tcol = col;
@@ -247,7 +262,7 @@ function lexer(source, fname){
     }else if(ch == "," || REGEX.wspace.test(ch)){
       token = toke(ch == "\n" ? tline-1 : tline, tcol, token)
     }else{
-      if(0 === std.count(token)){
+      if(0 === token.length){
         tline = line;
         tcol = col;
       }
@@ -256,24 +271,25 @@ function lexer(source, fname){
   }
   ////
   const tmp={source: fname, line: tline, column:col};
-  if(fform_Q)
-    throwE(tmp, "unterminated free-form");
-  if(esc_Q)
-    throwE(tmp, "incomplete escape");
-  if(str_Q)
-    throwE(tmp, "unterminated string");
-  if(regex_Q)
-    throwE(tmp, "unterminated regex definition");
+  if(fform_Q) throwE(tmp, "unterminated free-form");
+  if(esc_Q) throwE(tmp, "incomplete escape");
+  if(str_Q) throwE(tmp, "unterminated string");
+  if(regex_Q) throwE(tmp, "unterminated regex definition");
+
+  if(token.length>0){
+    token = toke(tline, tcol, token);
+  }
+
   return tree;
 }
 //////////////////////////////////////////////////////////////////////////////
 //Raise an error
 function throwE(token,...msgs){
   let s = msgs.join("");
-  if(token)
-    throw new Error([s, "\nnear line: ", token.line, "\nin file: ", token.source].join(""));
+  if(!token)
+    throw new Error(`${s}\nnear EOF`);
   else
-    throw new Error([s, "\nnear EOF"].join(""));
+    throw new Error(`${s}\nnear line: ${token.line}\nin file: ${token.source}`);
 }
 //////////////////////////////////////////////////////////////////////////////
 //Returns the next token,
@@ -295,13 +311,9 @@ function prevToken(tokens){
   return tokens[tokens.pos-1]
 }
 //////////////////////////////////////////////////////////////////////////////
-//Attach source level information
-//to the node
+//Attach source level information to the node
 function copyTokenData(token, node){
-  if(std.object_QMRK(node) ||
-     Array.isArray(node) ||
-     Object.prototype.toString.call(node) == "[object Map]" ||
-     Object.prototype.toString.call(node) == "[object Set]"){
+  if(typeof(node)=="object" &&node){
     node["source"] = token.source;
     node["line"] = token.line;
     node["column"] = token.column;
@@ -314,7 +326,7 @@ function readAtom(tokens){
   let token = popToken(tokens),
       ret = null,
       tn = token.value;
-  if(0 === std.count(tn)){
+  if(0 === tn.length){
     ret = undefined
   }else if(REGEX.float.test(tn)){
     ret = parseFloat(tn)
@@ -325,9 +337,9 @@ function readAtom(tokens){
   }else if(tn.startsWith(":")){
     ret = std.keyword(tn)
   }else if(tn.startsWith("%")){
-    ret = std.lambdaArg(tn)
+    ret = new LambdaArg(tn)
   }else if(tn.startsWith("#/") && (tn.endsWith("/") || tn.slice(0, -1).endsWith("/"))){
-    ret = std.regexObj(tn)
+    ret = new std.RegexObj(tn)
   }else if(tn == "nil" || tn == "null"){
     ret = null
   }else if(tn == "#t" || tn == "true"){
@@ -341,119 +353,134 @@ function readAtom(tokens){
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process a LISP form
-function readBlock(tokens, head, tail){
-  let token = popToken(tokens),
-      start = token,
-      cur, ast = [], ok= true;
-  if(token.value !== head)
-    throwE(token, "expected '", head, "'");
+function readBlock(tokens, limits="()"){
+  let token=popToken(tokens),
+      ast=new std.SList(),
+      ends=["(",")"],
+      expr=false,
+      cur,ok=true, start = token;
+  if(limits=="#{}"){
+    ends=["#{", "}"];
+  }else if(limits=="{}"){
+    ends=["{", "}"];
+  }else if(limits=="[]"){
+    ends=["[", "]"];
+    ast=new std.vector();
+  }else if(limits=="()"){
+    expr=true;
+  }
+  if(token.value !== ends[0])
+    throwE(token, "expected '", ends[0], "'");
   while(1){
     cur = peekToken(tokens);
-    if(std.nichts_QMRK(cur)){
-      throwE(start, "expected '", tail, "', got EOF")
-    }else if(tail == cur.value){
+    if(!cur){
+      throwE(start, "expected '", ends[1], "', got EOF")
+    }else if(ends[1] == cur.value){
       break;
     }else{
-      addAst(ast, read_STAR(tokens))
+      addAst(ast, readAst(tokens))
     }
   }
   popToken(tokens);
+  if(expr){
+    if(std.symbol_QMRK(ast[0])){
+      switch(`${ast[0]}`){
+        case "hash-map":
+          ast[0].value="hashmap*";
+          break;
+        case "hash-set":
+          ast[0].value="hashset*";
+          break;
+        case "vector":
+          ast[0].value="vector*";
+          break;
+        case "list":
+          ast[0].value="list*";
+          break;
+        case "object":
+          ast[0].value="object*";
+          break;
+      }
+    }
+  }else if(ends[0]=="#{"){
+    ast.unshift(std.symbol("hashset*"))
+  }else if(ends[0]=="{"){
+    ast.unshift(std.symbol("hashmap*"))
+  }
   return copyTokenData(start, ast);
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process an expression
 function readList(tokens){
-  return readBlock(tokens, "(", ")")
+  return readBlock(tokens, "()")
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process a Vector
 function readVector(tokens){
-  return std.into_BANG("vector", readBlock(tokens, "[", "]"))
+  return readBlock(tokens, "[]")
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process a ObjectMap
 function readObjectMap(tokens){
-  return std.into_BANG("map", readBlock(tokens, "{", "}"))
-}
-//////////////////////////////////////////////////////////////////////////////
-//Process a Object
-function readObject(tokens){
-  return std.into_BANG("obj", readBlock(tokens, "`{", "}"))
+  return readBlock(tokens, "{}")
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process a ObjectSet
 function readObjectSet(tokens){
-  return std.into_BANG("set", readBlock(tokens, "#{", "}"))
+  return readBlock(tokens, "#{}")
 }
 //////////////////////////////////////////////////////////////////////////////
 //Process a JS Literal
 function readJSLiteral(tokens){
-  let c2,t=popToken(tokens) && peekToken(tokens);
-  switch(t.value){
-    case "{":
-      c2 = std.into_BANG("obj", readBlock(tokens, "{", "}"));
-      break;
-    case "[":
-      c2 = std.into_BANG("vector", readBlock(tokens, "[", "]"));
-      break;
-    default:
-      throw new Error("bad use of #js");
-  }
-  return c2;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Advance the token index,
-//then continue to parse
+//Advance the token index, then continue to parse
 function skipParse(tokens, func){
   let t = popToken(tokens),
       ret = func(tokens),
       a1 = ret[0];
-  copyTokenData(t, a1);
-  return copyTokenData(t, ret);
+  return copyTokenData(t, a1) && copyTokenData(t, ret);
 }
 //////////////////////////////////////////////////////////////////////////////
 const SPEC_TOKENS=(function(m){
   let o=new Map();
   Object.keys(m).forEach(k=>o.set(k,m[k]));
   return o;
-})(
-  {
+})({
 
-  "'": function(a1){ return [std.symbol("quote"), read_STAR(a1)] },
-  "`": function(a1){ return [std.symbol("syntax-quote"), read_STAR(a1)] },
-  "~": function(a1){ return [std.symbol("unquote"), read_STAR(a1)] },
-  "~@": function(a1){ return [std.symbol("splice-unquote"), read_STAR(a1)] },
-  "@": function(a1){ return [std.symbol("deref"), read_STAR(a1)] },
-  "#": function(a1){ return [std.symbol("lambda"), read_STAR(a1)] },
-  "^": function(a1){ let t= read_STAR(a1); return [std.symbol("with-meta"), read_STAR(a1), t]},
+  "'": function(a1){ return [std.symbol("quote"), readAst(a1)] },
+  "`": function(a1){ return [std.symbol("syntax-quote"), readAst(a1)] },
+  "~": function(a1){ return [std.symbol("unquote"), readAst(a1)] },
+  "~@": function(a1){ return [std.symbol("splice-unquote"), readAst(a1)] },
+  "@": function(a1){ return [std.symbol("deref"), readAst(a1)] },
+  "#": function(a1){ return [std.symbol("lambda"), readAst(a1)] },
+  "^": function(a1){ let t= readAst(a1); return [std.symbol("with-meta"), readAst(a1), t]},
 
   "[": [function(a1){ return readVector(a1) }],
   "(": [function(a1){ return readList(a1) }],
-  "#js": [function(a1){ return readJSLiteral(a1) }],
+  //"#js": [function(a1){ return readJSLiteral(a1) }],
   "#{": [function(a1){ return readObjectSet(a1) }],
-  "`{": [function(a1){ return readObject(a1) }],
+  //"`{": [function(a1){ return readObject(a1) }],
   "{": [function(a1){ return readObjectMap(a1) }],
 
   "$": function(a1){
     let x = std.symbol("str");
-    let y = read_STAR(a1);
+    let y = readAst(a1);
     if(y.length > 1){ y= [x, y] }else{ y.unshift(x) } return y; }
 });
 //////////////////////////////////////////////////////////////////////////////
 //Inner parser routine
-function read_STAR(tokens){
-  let token = peekToken(tokens);
-  let rc,tval= "";
-  if(token)
-    tval=token.value;
+function readAst(tokens){
+  let rc,tval="",token = peekToken(tokens);
+  if(token) tval=token.value;
   let func = SPEC_TOKENS.get(tval);
   if(Array.isArray(func)){
     rc=func[0](tokens)
   }else if(typeof(func) == "function"){
     rc=skipParse(tokens, func)
-  }else if(std.nichts_QMRK(token)){
   }else if(tval == ";" || tval == ","){
     popToken(tokens)
+  }else if(!token){
   }else{
     rc=readAtom(tokens)
   }
@@ -467,8 +494,8 @@ function addAst(ast, f){
 //////////////////////////////////////////////////////////////////////////////
 //Main parser routine
 function parse(source,...args){
-  let tokens = lexer(source, std.opt_QMRK__QMRK(args[0],"*adhoc*"));
-  let tlen = std.count(tokens);
+  let tokens = lexer(source, args[0] || "*adhoc*");
+  let tlen = tokens.length;
   let ast = [];
 
   if(false)
@@ -476,8 +503,8 @@ function parse(source,...args){
 
   tokens.pos = 0;
   while(tokens.pos < tlen)
-    addAst(ast, read_STAR(tokens));
-  //console.log(dumpTree(ast));
+    addAst(ast, readAst(tokens));
+  //console.log(dumpAst(ast));
   return ast;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -487,34 +514,38 @@ function dumpInfo(tag, ast){
 }
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
-function dump_STAR(tree){
-  if(std.primitive_QMRK(tree)){ tree = tree.value }
+function dumpTree(tree){
+  //if(std.primitive_QMRK(tree)){ tree = tree.value }
   let s,rc;
-  if(std.vector_QMRK(tree)){
-    s=tree.map(a=>dump_STAR(a)).join("");
+  if(tree instanceof std.SVec){
+    //vector
+    s=tree.map(a=>dumpTree(a)).join("");
     rc=`${dumpInfo("vector", tree)}${s}</vector>`
-  }else if(std.set_QMRK(tree)){
-    s=tree.map(x=>dump_STAR(x)).join("");
+  }else if(tree instanceof std.SSet){
+    //set
+    s=tree.map(x=>dumpTree(x)).join("");
     rc=`${dumpInfo("set", tree)}${s}</set>`
-  }else if(std.map_QMRK(tree)){
-    s=tree.map(x=>dump_STAR(a)).join("");
+  }else if(tree instanceof std.SMap){
+    //map
+    s=tree.map(x=>dumpTree(a)).join("");
     rc=`${dumpInfo("map", tree)}${s}</map>`
-  }else if(std.list_QMRK(tree)){
-    s=tree.map(x=>dump_STAR(x)).join("");
+  }else if(tree instanceof std.SList){
+    //list
+    s=tree.map(x=>dumpTree(x)).join("");
     rc=`${dumpInfo("list", tree)}${s}</list>`
   }else if(Array.isArray(tree)){
-    s=tree.map(a=>dump_STAR(a)).join("");
-    rc=`${dumpInfo("sexpr", tree)}${s}</sexpr>`
-  }else if(std.lambdaArg_QMRK(tree)){
+    s=tree.map(a=>dumpTree(a)).join("");
+    rc=`${dumpInfo("array", tree)}${s}</array>`
+  }else if(tree instanceof LambdaArg){
     rc=`${dumpInfo("lambda-arg", tree)}${tree.value}</lambda-arg>`
   }else if(std.keyword_QMRK(tree)){
-    rc=`${dumpInfo("keyword", tree)}${std.escXml(tree.value)}</keyword>`
+    rc=`${dumpInfo("keyword", tree)}${std.esc_DASH_xml(tree.value)}</keyword>`
   }else if(std.symbol_QMRK(tree)){
-    rc=`${dumpInfo("symbol", tree)}${std.escXml(tree.value)}</symbol>`
-  }else if(std.regexObj_QMRK(tree)){
-    rc=`${dumpInfo("regex", tree)}${std.escXml(tree.value)}</regex>`
+    rc=`${dumpInfo("symbol", tree)}${std.esc_DASH_xml(tree.value)}</symbol>`
+  }else if(tree instanceof std.RegexObj){
+    rc=`${dumpInfo("regex", tree)}${std.esc_DASH_xml(tree.value)}</regex>`
   }else if(typeof(tree)== "string"){
-    rc=`<string>${std.escXml(std.quote_DASH_str(tree))}</string>`
+    rc=`<string>${std.esc_DASH_xml(std.quote_DASH_str(tree))}</string>`
   }else if(typeof(tree) == "number"){
     rc=`<number>${tree}</number>`
   }else if(tree === null){
@@ -533,21 +564,22 @@ function dump_STAR(tree){
 }
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
-function dumpTree(tree, fname){
-  return `<AbstractSyntaxTree file=\"${std.escXml(fname)}\">${dump_STAR(tree)}</AbstractSyntaxTree>`
+function dumpAst(tree, fname){
+  return `<AbstractSyntaxTree file=\"${std.esc_DASH_xml(fname)}\">${dumpTree(tree)}</AbstractSyntaxTree>`
 }
 module.exports = {
   da57bc0172fb42438a11e6e8778f36fb: {
     ns: "czlab.kirby.reader",
-    vars: ["Token", "REGEX", "testid?", "jsid", "parse", "dumpTree"],
+    vars: ["Token", "REGEX", "testid?", "jsid", "parse", "dumpAst"],
     macros: {}
   },
+  LambdaArg: LambdaArg,
   Token: Token,
   REGEX: REGEX,
   testid: testid,
   jsid: jsid,
   parse: parse,
-  dumpTree: dumpTree
+  dumpAst: dumpAst
 };
 //////////////////////////////////////////////////////////////////////////////
 //EOF

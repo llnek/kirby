@@ -96,7 +96,7 @@ function pcli(gopt){
     doWatch(process.cwd())
   }else if(repl){
     rt.runRepl()
-  }else if(help || 0 === std.count(argv)){
+  }else if(help || 0 === argv.length){
     gopt.showHelp()
   } else {
     compileSource(argv,options)
@@ -116,8 +116,9 @@ function main(){
   setHelp(["kirby [OPTIONS] [<infile>] [<outfile>]\n\n",
            "<outfile> defaults to <infile>.js\n\n", "[[OPTIONS]]\n\n"].join("")).
   bindHelp();
-  //return init() && compileSource(["/tmp/x.ky"]);//pcli(cli)
+  //return init() && compileSource(["/tmp/stdlib.ky"]);//pcli(cli)
   return init() && pcli(cli)
+  //return init() && rt.runRepl();
 }
 main();
 module.exports = {
