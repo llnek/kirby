@@ -203,12 +203,6 @@ function lexer(source, fname){
       tcol = col;
       token += "@@";
       ++pos;
-    }else if(ch == "`" && nx == "{"){
-      token = toke(tline, tcol, token);
-      tline = line;
-      tcol = col;
-      ++pos;
-      toke(tline, tcol, "`{");
     }else if(ch == "'" || ch == "`" || ch == "$" || ch == "@" || ch == "^"){
       if(0 === token.length && !REGEX.wspace.test(nx)){
         tline = line;
@@ -357,12 +351,19 @@ function readBlock(tokens, limits="()"){
   let token=popToken(tokens),
       ast=new std.SList(),
       ends=["(",")"],
+      jso=false,
       expr=false,
       cur,ok=true, start = token;
-  if(limits=="#{}"){
-    ends=["#{", "}"];
-  }else if(limits=="{}"){
+  if(limits=="`{}"){
     ends=["{", "}"];
+    jso=true;
+  }else if(limits=="`[]"){
+    ends=["[", "]"]
+    ast=new std.vector();
+  }else if(limits=="#{}"){
+    ends=["#{", "}"]
+  }else if(limits=="{}"){
+    ends=["{", "}"]
   }else if(limits=="[]"){
     ends=["[", "]"];
     ast=new std.vector();
@@ -382,7 +383,9 @@ function readBlock(tokens, limits="()"){
     }
   }
   popToken(tokens);
-  if(expr){
+  if(jso){
+    ast.unshift(std.symbol("object*"));
+  }else if(expr){
     if(std.symbol_QMRK(ast[0])){
       switch(`${ast[0]}`){
         case "hash-map":
@@ -432,6 +435,16 @@ function readObjectSet(tokens){
 //////////////////////////////////////////////////////////////////////////////
 //Process a JS Literal
 function readJSLiteral(tokens){
+  let rc,
+      t= popToken(tokens) && peekToken(tokens);
+  if(t.value=="{"){
+    rc=readBlock(tokens,"`{}")
+  }else if(t.value=="["){
+    rc=readBlock(tokens,"`[]")
+  }else{
+    throw Error("bad use of #js")
+  }
+  return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
 //Advance the token index, then continue to parse
@@ -458,7 +471,7 @@ const SPEC_TOKENS=(function(m){
 
   "[": [function(a1){ return readVector(a1) }],
   "(": [function(a1){ return readList(a1) }],
-  //"#js": [function(a1){ return readJSLiteral(a1) }],
+  "#js": [function(a1){ return readJSLiteral(a1) }],
   "#{": [function(a1){ return readObjectSet(a1) }],
   //"`{": [function(a1){ return readObject(a1) }],
   "{": [function(a1){ return readObjectMap(a1) }],
@@ -517,22 +530,26 @@ function dumpInfo(tag, ast){
 function dumpTree(tree){
   //if(std.primitive_QMRK(tree)){ tree = tree.value }
   let s,rc;
-  if(tree instanceof std.SVec){
+  if(std.vector_QMRK(tree)){
     //vector
     s=tree.map(a=>dumpTree(a)).join("");
     rc=`${dumpInfo("vector", tree)}${s}</vector>`
-  }else if(tree instanceof std.SSet){
-    //set
-    s=tree.map(x=>dumpTree(x)).join("");
+  }else if(tree instanceof Set){
+    s="";
+    tree.forEach(v=>{
+      if(s) s+=",";
+      s+=dumpTree(v);
+    });
     rc=`${dumpInfo("set", tree)}${s}</set>`
-  }else if(tree instanceof std.SMap){
-    //map
-    s=tree.map(x=>dumpTree(a)).join("");
+  }else if(tree instanceof Map){
+    s="";
+    tree.forEach((v,k)=>{
+      if(s) s += ",";
+      s += dumpTree(k);
+      s += ","
+      s += dumpTree(v);
+    });
     rc=`${dumpInfo("map", tree)}${s}</map>`
-  }else if(tree instanceof std.SList){
-    //list
-    s=tree.map(x=>dumpTree(x)).join("");
-    rc=`${dumpInfo("list", tree)}${s}</list>`
   }else if(Array.isArray(tree)){
     s=tree.map(a=>dumpTree(a)).join("");
     rc=`${dumpInfo("array", tree)}${s}</array>`

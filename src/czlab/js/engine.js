@@ -550,20 +550,6 @@ function eval_STAR(ast, env){
     rc=`${ast}`
   }else if(std.symbol_QMRK(ast)){
     rc=env.get(ast)
-  }else if(false && ast instanceof std.SList){
-    rc=std.into(std.list(), ast.map(a=> compute(a, env)))
-  }else if(ast instanceof std.SVec){
-    rc=std.into(std.vector(), ast.map(a=> compute(a, env)))
-  }else if(ast instanceof std.SMap){
-    rc = std.hash_DASH_map();
-    for(let i=0;i< ast.length; i += 2){
-      rc.set(compute(ast[i], env), compute(ast[i+1], env));
-    }
-  }else if(ast instanceof std.SSet){
-    rc = std.hash_DASH_set();
-    for(let i = 0;i<ast.length; ++i){
-      std.conj_BANG(rc, compute(ast[i], env));
-    }
   }else if(ast instanceof Map){
     rc = std.hash_DASH_map();
     ast.forEach((v,k)=>{

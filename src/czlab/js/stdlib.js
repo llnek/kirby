@@ -22,9 +22,6 @@ class DArray extends Array{
   }
 }
 //////////////////////////////////////////////////////////////////////////////
-class SMap extends Array{ constructor(...args){ super(...args) } }
-class SSet extends Array{ constructor(...args){ super(...args) } }
-class SVec extends Array{ constructor(...args){ super(...args) } }
 class SList extends Array{ constructor(...args){ super(...args) } }
 //////////////////////////////////////////////////////////////////////////////
 function isSimple(o){return isNichts(o) || isStr(o) || isNum(o) || isBool(o)}
@@ -306,8 +303,7 @@ function prn_STAR(obj, rQ, func){
       c3 = "nil";
       break;
     case "array":
-      c3= obj instanceof SVec ? parr("[","]") : obj instanceof SMap ? parr("{","}")
-        : obj instanceof SSet ? parr("#{","}") : parr("(",")");
+      c3=  parr("(",")");
       break;
     default:
       c3 = obj.toString();
@@ -674,10 +670,6 @@ function count(coll){
     rc=coll.size
   }else if(list_QMRK(coll)||vector_QMRK(coll)||isStr(coll)){
     rc=coll.length
-  }else if(coll instanceof SList || coll instanceof SVec || coll instanceof SSet){
-    rc=coll.length
-  }else if(coll instanceof SMap){
-    rc=coll.length/2
   }else if(Array.isArray(coll)){
     rc=coll.length
   }
@@ -1390,7 +1382,7 @@ module.exports = {
     ns: "czlab.kirby.stdlib",
     vars: ["MODULE_NAMESPACE", "MAX-INT", "MIN-INT",
            "monad-continuation","monad-state", "monad-list","monad-maybe","monad-identity",
-           "rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList","SVec","SMap","SSet", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "complex?", "simple?", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
+           "rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "complex?", "simple?", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
     macros: {
       "this-as": "(macro* this-as (that & body) (syntax-quote (let [(unquote that) this] (splice-unquote body))))",
       "trye!": "(macro* trye! (& xs) (syntax-quote (try (splice-unquote xs) (catch ewroewrwe null))))",
@@ -1556,9 +1548,6 @@ module.exports = {
   keyword: keyword,
   keyword_DASH__GT_symbol: keyword_DASH__GT_symbol,
   SList:SList,
-  SVec:SVec,
-  SMap:SMap,
-  SSet:SSet,
   Atom: Atom,
   atom_QMRK: atom_QMRK,
   atom: atom,
