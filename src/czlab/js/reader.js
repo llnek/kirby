@@ -26,13 +26,15 @@ class Token{
 }
 //////////////////////////////////////////////////////////////////////////////
 //Defining a lambda positional argument
-class LambdaArg{
+class LambdaArg extends std.SValue{
   constructor(arg){
-    let name= arg == "%" ? "1" : arg.slice(1);
-    let v = parseInt(name);
-    if(!(v>0))
-      throw new Error(`invalid lambda-arg ${arg}`);
-    this.value = `%${v}`;
+    super((function(){
+      let name= arg == "%" ? "1" : arg.slice(1);
+      let v = parseInt(name);
+      if(!(v>0))
+        throw new Error(`invalid lambda-arg ${arg}`);
+      return `%${v}`;
+    })());
   }
   toString(){
     return this.value
@@ -307,7 +309,7 @@ function prevToken(tokens){
 //////////////////////////////////////////////////////////////////////////////
 //Attach source level information to the node
 function copyTokenData(token, node){
-  if(typeof(node)=="object" &&node){
+  if(node && (std.rtti(node)=="[object Object]" || Array.isArray(node))){
     node["source"] = token.source;
     node["line"] = token.line;
     node["column"] = token.column;
@@ -433,20 +435,6 @@ function readObjectSet(tokens){
   return readBlock(tokens, "#{}")
 }
 //////////////////////////////////////////////////////////////////////////////
-//Process a JS Literal
-function readJSLiteral(tokens){
-  let rc,
-      t= popToken(tokens) && peekToken(tokens);
-  if(t.value=="{"){
-    rc=readBlock(tokens,"`{}")
-  }else if(t.value=="["){
-    rc=readBlock(tokens,"`[]")
-  }else{
-    throw Error("bad use of #js")
-  }
-  return rc;
-}
-//////////////////////////////////////////////////////////////////////////////
 //Advance the token index, then continue to parse
 function skipParse(tokens, func){
   let t = popToken(tokens),
@@ -471,9 +459,7 @@ const SPEC_TOKENS=(function(m){
 
   "[": [function(a1){ return readVector(a1) }],
   "(": [function(a1){ return readList(a1) }],
-  "#js": [function(a1){ return readJSLiteral(a1) }],
   "#{": [function(a1){ return readObjectSet(a1) }],
-  //"`{": [function(a1){ return readObject(a1) }],
   "{": [function(a1){ return readObjectMap(a1) }],
 
   "$": function(a1){

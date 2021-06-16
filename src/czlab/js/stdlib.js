@@ -15,6 +15,8 @@ const MODULE_NAMESPACE = "__module_namespace__";
 const MAX_DASH_INT = Number.MAX_SAFE_INTEGER;
 const MIN_DASH_INT = Number.MIN_SAFE_INTEGER;
 //////////////////////////////////////////////////////////////////////////////
+class SList extends Array{ constructor(...args){ super(...args) } }
+//////////////////////////////////////////////////////////////////////////////
 class DArray extends Array{
   constructor(...args){
     super(...args);
@@ -22,10 +24,8 @@ class DArray extends Array{
   }
 }
 //////////////////////////////////////////////////////////////////////////////
-class SList extends Array{ constructor(...args){ super(...args) } }
-//////////////////////////////////////////////////////////////////////////////
 function isSimple(o){return isNichts(o) || isStr(o) || isNum(o) || isBool(o)}
-function rtti(v){ return Object.prototype.toString.call(v) }
+function rtti(v){return Object.prototype.toString.call(v)}
 function rttiQ(v,t){return rtti(v)==t}
 function isNichts(o){return o===null || o===undefined}
 function isEven(n){return n%2===0}
@@ -37,25 +37,29 @@ function isJSSet(x){return rttiQ(x,"[object Set]")}
 function isJSMap(x){return rttiQ(x,"[object Map]")}
 function isJSObj(x){return rttiQ(x,"[object Object]")}
 //////////////////////////////////////////////////////////////////////////////
+/** @private */
 function copyVec(src){
   let r=new DArray();
   src.forEach(z=>r.push(z));
   return r;
 }
 //////////////////////////////////////////////////////////////////////////////
+/** @private */
 function toVec(...xs){
   let r=new DArray();
-  r.push(...xs);
+  xs.forEach(z=>r.push(z));
   return r;
 }
 //////////////////////////////////////////////////////////////////////////////
+/** @private */
 function toList(...xs){
   let r=new DArray();
   r.____list=1;
-  r.push(...xs);
+  xs.forEach(z=>r.push(z));
   return r;
 }
 //////////////////////////////////////////////////////////////////////////////
+/** @private */
 function copyList(src){
   let r=new DArray();
   r.____list=1;
@@ -89,7 +93,7 @@ function noCRef(){
   return (function(cache){
     return function(k,v){
       if(typeof(v) == "function"){
-        v= `native-fn@${v.name||"no-name"}`
+        v= `${v.name||"native-fn"}`
       }else if(!isSimple(v)){
         if(cache.indexOf(v)<0)
           cache.push(v);
@@ -106,6 +110,7 @@ function stringify(obj){
   return obj ? JSON.stringify(obj, noCRef()) : null
 }
 //////////////////////////////////////////////////////////////////////////////
+/** str all */
 function str_STAR(...xs){
   return xs.join("")
 }
@@ -117,8 +122,10 @@ function opt_QMRK__QMRK(cur, other){
 //////////////////////////////////////////////////////////////////////////////
 /**Adds one element to the beginning of a collection. */
 function cons_BANG(x, coll){
-  if(coll instanceof DArray){
+  if(Array.isArray(coll)){
     coll.unshift(x)
+  }else{
+    throw Error(`Cannot cons! with: ${rtti(coll)}`)
   }
   return coll;
 }
@@ -129,18 +136,18 @@ function cons_BANG(x, coll){
 function conj_BANG(coll,...xs){
   if(list_QMRK(coll)){
     xs.forEach(a=>coll.unshift(a))
-  }else if(vector_QMRK(coll)){
+  }else if(Array.isArray(coll)){
     xs.forEach(a=>coll.push(...xs))
   }else if(coll instanceof Map){
     xs.forEach(a=>{
-      ensure(vector_QMRK(a)&&
+      ensure(Array.isArray(a)&&
              a.length===2,"bad arg: conj!");
       coll.set(a[0],a[1]);
     })
   }else if(coll instanceof Set){
     xs.forEach(a=>coll.add(a))
   }else{
-    throw new Error(`Cannot conj! with: ${rtti(coll)}`)
+    throw Error(`Cannot conj! with: ${rtti(coll)}`)
   }
   return coll;
 }
@@ -158,6 +165,8 @@ function conj(coll,...xs){
     r=new Map(coll.entries());
   }else if(isJSSet(coll)){
     r=new Set(coll.values());
+  }else if(Array.isArray(coll)){
+    r=coll.slice();
   }else{
     throw Error(`Cannot conj with: ${typeof(coll)}`)
   }
@@ -167,7 +176,7 @@ function conj(coll,...xs){
 /**disj[oin]. Returns a set without these keys. */
 function disj_BANG(coll,...xs){
   if(!isJSSet(coll))
-    throw Error(`Cannot disj! with: ${typeof(coll)}`)
+    throw Error(`Cannot disj! with: ${rtti(coll)}`)
   xs.forEach(a=>coll.delete(a));
   return coll;
 }
@@ -175,7 +184,7 @@ function disj_BANG(coll,...xs){
 /**disj[oin]. Returns a new set without these keys. */
 function disj(coll,...xs){
   if(!isJSSet(coll))
-    throw Error(`Cannot disj with: ${typeof(coll)}`)
+    throw Error(`Cannot disj with: ${rtti(coll)}`)
   return disj_BANG(new Set(coll.values()),...xs)
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -185,7 +194,7 @@ function disj(coll,...xs){
 function pop_BANG(coll){
   let k;
   if(list_QMRK(coll)) k="shift";
-  else if(vector_QMRK(coll)) k="pop";
+  else if(Array.isArray(coll)) k="pop";
   else throw Error(`Cannot pop! with: ${rtti(coll)}`);
   return k ? toVec(coll[k](),coll) : null;
 }
@@ -197,15 +206,17 @@ function pop(coll){
     r=copyList(coll)
   }else if(vector_QMRK(coll)){
     r=copyVec(coll)
+  }else if(Array.isArray(coll)){
+    r=coll.slice();
   }else{
-    throw Error(`Cannot pop with: ${typeof(coll)}`)
+    throw Error(`Cannot pop with: ${rtti(coll)}`)
   }
   return pop_BANG(r);
 }
 //////////////////////////////////////////////////////////////////////////////
 function getIndex(obj, pos){
-  if(!list_QMRK(obj) && !vector_QMRK(obj))
-    throw Error(`Cannot getIndex with: ${typeof(obj)}`);
+  if(!Array.isArray(obj))
+    throw Error(`Cannot getIndex with: ${rtti(obj)}`);
   if(pos<0 || pos >= obj.length)
     throw Error(`Index ${pos} out of range: ${obj.length}`);
   return obj[pos];
@@ -218,12 +229,11 @@ function getProp(obj, prop, isown){
   let rc=null;
   if(isJSMap(obj)){
     rc=obj.get(prop)
-  }else if(!isSimple(obj)){
-    if(typeof(prop) == "string" ||
-       typeof(prop) == "number")
-      if(isown===true &&
-         typeof(prop) == "string" &&
-         !obj.hasOwnProperty(prop)){}else{ rc=obj[prop] }
+  }else if(Array.isArray(obj)){
+    rc=obj[prop]
+  }else if(!isSimple(obj) && isStr(prop)){
+    if(isown===true &&
+       !obj.hasOwnProperty(prop)){}else{ rc=obj[prop] }
   }
   return rc;
 }
@@ -235,87 +245,86 @@ function wrap_DASH_str(obj, start, end){
 //////////////////////////////////////////////////////////////////////////////
 /**Print data as string - use to dump an AST node. */
 function prn(obj,rQ){
+  //check for no cyclic reference
   let f=noCRef();
-  if(isComplex(obj)){
-    obj=f(null, obj)
-  }
-  return obj === undefined ? "" : prn_STAR(obj, rQ, f);
+  f(undefined,obj);
+  return prn_STAR(obj, rQ, f);
 }
 //////////////////////////////////////////////////////////////////////////////
-/**Print an array. */
+/** @private */
 function prnArr_STAR(obj, rQ, f){
-  return (obj || []).map((v,i)=> prn_STAR(opt_QMRK__QMRK(f(i,v), null), rQ, f)).join(" ")
+  return obj.map((v,i)=> prn_STAR(f(i,v), rQ)).join(" ")
 }
 //////////////////////////////////////////////////////////////////////////////
+/** @private */
 function prn_STAR(obj, rQ, func){
-  let c3,parr,pfx = (a)=> prn_STAR(a, rQ, func);
-  if(Array.isArray(obj))
-    parr=(a,b)=> wrap_DASH_str(prnArr_STAR(obj, rQ, func), a,b);
-  switch(typeid(obj)){
-    case "atom":
-      c3 = wrap_DASH_str(pfx(obj.value), "(atom ", ")");
-      break;
-    case "lambda-arg":
-    case "regex-obj":
-    case "keyword":
-    case "symbol":
-      c3 = obj.value;
-      break;
-    case "object":
-      c3 = wrap_DASH_str(seq(obj).reduce((acc, [k,v])=>{
-        let x= func(k, v);
-        if(typeof(x) != "undefined")
-          acc.push(`${pfx(k)}:${pfx(x)}`);
-        return acc;
-      }, []).join(","), "{", "}");
-      break;
-    case "map":
-    case "objectMap":
-      c3 = wrap_DASH_str(seq(obj).reduce((acc, [k,v])=>{
-        let x = func(k, v);
-        if(typeof(x) != "undefined")
-          acc.push(`${pfx(k)} ${pfx(x)}`);
-        return acc;
-      }, []).join(" "), "{", "}");
-      break;
-    case "set":
-    case "objectSet":
-      c3 = wrap_DASH_str(seq(obj).reduce((acc, v)=>{
-        let x = func(v, v);
-        if(typeof(x) != "undefined") acc.push(pfx(v));
-        return acc;
-      }, []).join(" "), "#{", "}");
-      break;
-    case "vector":
-      c3 = parr("[", "]");
-      break;
-    case "obj":
-      c3 = parr("{", "}");
-      break;
-    case "list":
-      c3 = parr("(", ")");
-      break;
-    case "string":
-      c3 = rQ ? quote_DASH_str(obj) : obj;
-      break;
-    case "null":
-    case "nil":
-      c3 = "nil";
-      break;
-    case "array":
-      c3=  parr("(",")");
-      break;
-    default:
-      c3 = obj.toString();
-      break;
+  let c3,
+      pfx = (a)=> prn_STAR(a, rQ, func),
+      parr= (a,b)=> wrap_DASH_str(prnArr_STAR(obj, rQ, func), a,b);
+  if(obj instanceof Atom){
+    c3 = wrap_DASH_str(pfx(obj.value), "(atom ", ")");
+  }else if(obj instanceof SValue){
+    c3=obj.value;
+  }else if(isJSMap(obj)){
+    let x,acc=[];
+    obj.forEach((v,k)=>{
+      if(!isNichts(v)){
+        x = func(k, v);
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
+      }
+      acc.push(`${pfx(k)} ${pfx(v)}`);
+    });
+    c3 = wrap_DASH_str(acc.join(" "), "{", "}");
+  }else if(isJSSet(obj)){
+    let x,acc=[];
+    obj.forEach(v=>{
+      if(!isNichts(v)){
+        x = func(undefined, v);
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
+      }
+      acc.push(`${pfx(v)}`);
+    });
+    c3 = wrap_DASH_str(acc.join(" "), "#{", "}");
+  }else if(list_QMRK(obj)){
+    c3 = parr("(", ")")
+  }else if(vector_QMRK(obj)){
+    c3= parr("[", "]")
+  }else if(isJSObj(obj)){
+    let x,v,acc= Object.keys(obj).reduce((acc, k)=>{
+      v=obj[k];
+      if(!isNichts(v)){
+        x = func(k, v);
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
+      }
+      acc.push(`${pfx(k)} ${pfx(v)}`);
+      return acc;
+    },[]);
+    c3 = wrap_DASH_str(acc.join(" "), "(object ", ")");
+  }else if(isStr(obj)){
+    c3 = rQ ? quote_DASH_str(obj) : obj;
+  }else if(obj===null){
+    c3="nil"
+  }else if(obj===undefined){
+    c3="undefined"
+  }else if(obj){
+    c3=obj.toString()
   }
   return c3;
 }
 //////////////////////////////////////////////////////////////////////////////
+class SValue /* abstract */{
+  constructor(a){
+    this.value=a
+  }
+  toString(){
+    return this.value
+  }
+}
+//////////////////////////////////////////////////////////////////////////////
 //Defining a keyword
-class Keyword{
+class Keyword extends SValue{
   constructor(name){
-    this.value = name
+    super(name)
   }
   toString(){
     return this.value.startsWith("::") ?
@@ -325,14 +334,7 @@ class Keyword{
 }
 //////////////////////////////////////////////////////////////////////////////
 //Defining a symbol
-class Symbol{
-  constructor(name){
-    this.value = name
-  }
-  toString(){
-    return this.value
-  }
-}
+class Symbol extends SValue{ constructor(name){ super(name) } }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns true if a symbol. */
 function symbol_QMRK(obj){
@@ -364,11 +366,7 @@ function keyword_DASH__GT_symbol(k){
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Defining a clojure-like Atom. */
-class Atom{
-  constructor(val){
-    this.value = val
-  }
-}
+class Atom extends SValue{ constructor(val){ super(val) } }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns true if an Atom. */
 function atom_QMRK(a){
@@ -409,14 +407,7 @@ function swap_BANG(a, f,...xs){
 }
 //////////////////////////////////////////////////////////////////////////////
 //Defining a Regex pattern
-class RegexObj{
-  constructor(v){
-    this.value = v
-  }
-  toString(){
-    return this.value
-  }
-}
+class RegexObj extends SValue{ constructor(v){ super(v) } }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns the type-id of this object. */
 function typeid(obj){
@@ -450,9 +441,9 @@ function typeid(obj){
   }else if(!isSimple(obj)&&isJSObj(obj)){
     s="object"
   }else if(Array.isArray(obj)){
-    s="array"
+    s="js-vec"
   }else{
-    throw new Error(`Unknown type [${typeof(obj)}]`);
+    throw new Error(`Unknown type [${rtti(obj)}]`);
   }
   return s;
 }
@@ -469,16 +460,16 @@ function isValue(obj){
          list_QMRK(obj) ||
          isJSMap(obj) ||
          isJSSet(obj) ||
-         object_QMRK(obj) ||
          typeof(obj) == "boolean" ||
          typeof(obj) == "string" ||
-         typeof(obj) == "number" || Array.isArray(obj)
+         typeof(obj) == "number" ||
+         // js data
+         object_QMRK(obj) || Array.isArray(obj)
 }
 //////////////////////////////////////////////////////////////////////////////
 /**True if coll implements Sequential. */
 function sequential_QMRK(arr){
-  return vector_QMRK(arr) || list_QMRK(arr) ||
-         typeof(arr)=="string" || Array.isArray(arr)
+  return vector_QMRK(arr) || list_QMRK(arr) || typeof(arr)=="string" || Array.isArray(arr)
 }
 //////////////////////////////////////////////////////////////////////////////
 /**true if both are equal. */
@@ -531,7 +522,7 @@ function object_QMRK(obj){
 //////////////////////////////////////////////////////////////////////////////
 /**Returns the last element. */
 function last(coll){
-  return coll instanceof DArray && coll.length>0 ? coll[coll.length-1] : null
+  return sequential_QMRK(coll) && coll.length>0 ? coll[coll.length-1] : null
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a new coll consisting of to-coll with all of the items of from-coll conjoined. */
@@ -543,7 +534,7 @@ function into(to, coll){
     if(vector_QMRK(coll)||list_QMRK(coll) || Array.isArray(coll))
       coll.forEach(z=>to.push(z));
   }else{
-    throw Error(`Cannot into with: ${typeof(to)} to ${typeof(coll)}`)
+    throw Error(`Cannot into with: ${rtti(to)} to ${rtti(coll)}`)
   }
   return to;
 }
@@ -608,9 +599,7 @@ function seq(obj){
     obj.forEach((v,k)=>rc.push(toVec(k,v)));
   }else if(isJSSet(obj)){
     obj.forEach(v=>rc.push(v));
-  }else if(list_QMRK(obj)||vector_QMRK(obj)){
-    obj.forEach(a=>rc.push(a));
-  }else if(Array.isArray(obj)){
+  }else if(list_QMRK(obj)||vector_QMRK(obj)||Array.isArray(obj)){
     obj.forEach(a=>rc.push(a));
   }else if(isJSObj(obj)){
     Object.keys(obj).forEach(k=>{
@@ -632,10 +621,10 @@ function rseq(obj){
     obj.forEach((v,k)=>rc.unshift(toVec(k,v)));
   }else if(isJSSet(obj)){
     obj.values().forEach(v=>rc.unshift(v));
-  }else if(list_QMRK(obj)||vector_QMRK(obj)){
+  }else if(list_QMRK(obj)||vector_QMRK(obj)||Array.isArray(obj)){
     obj.forEach(a=>rc.unshift(a));
   }else{
-    throw Error(`Cannot rseq with: ${typeof(obj)}`)
+    throw Error(`Cannot rseq with: ${rtti(obj)}`)
   }
   return rc;
 }
@@ -645,10 +634,10 @@ function contains_QMRK(coll, x){
   let rc=null;
   if(isJSMap(coll)||isJSSet(coll)){
     rc=coll.has(x)
-  }else if(list_QMRK(coll)||vector_QMRK(coll)||isStr(coll)){
+  }else if(Array.isArray(coll)||isStr(coll)){
     rc=coll.includes(x)
   }else{
-    throw Error(`Cannot contains? with: ${typeof(coll)}`)
+    throw Error(`Cannot contains? with: ${rtti(coll)}`)
   }
   return rc;
 }
@@ -660,7 +649,7 @@ function nichts_QMRK(obj){
 ////////////////////////////////////////////////////////////////////////////////
 /**true if object is defined and not null. */
 function some_QMRK(obj){
-  return !nichts_QMRK(obj)
+   return !(typeof(obj) === "undefined" || obj === null)
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Count the number of elements inside. */
@@ -668,12 +657,9 @@ function count(coll){
   let rc;
   if(isJSMap(coll)||isJSSet(coll)){
     rc=coll.size
-  }else if(list_QMRK(coll)||vector_QMRK(coll)||isStr(coll)){
+  }else if(list_QMRK(coll)||vector_QMRK(coll)||Array.isArray(coll)||isStr(coll)){
     rc=coll.length
-  }else if(Array.isArray(coll)){
-    rc=coll.length
-  }
-  else if(coll){
+  }else if(coll){
     throw Error(`Cannot count with: ${rtti(coll)}`)
   }else{
     rc=0
@@ -698,13 +684,13 @@ function concat(coll,...xs){
 //////////////////////////////////////////////////////////////////////////////
 function repeat_DASH_every(coll, start, step){
   let rc;
-  if(list_QMRK(coll)||vector_QMRK(coll)){
+  if(Array.isArray(coll)){
     rc=toList();
     for(let i=start,end=coll.length; i<end; i += step){
       rc.push(coll[i])
     }
   }else{
-    throw Error(`Cannot repeat-every with: ${typeof(coll)}`)
+    throw Error(`Cannot repeat-every with: ${rtti(coll)}`)
   }
   return rc;
 }
@@ -742,7 +728,7 @@ function partition(n, coll){
       return _r_;
     }
   };
-  if(Array.isArray(coll)||list_QMRK(coll)||vector_QMRK(coll)){
+  if(Array.isArray(coll)){
     return recur(toList(), split_DASH_seq(coll, n))
   }else if (!coll){
     return toList()
@@ -755,7 +741,7 @@ function partition(n, coll){
  * the maximum number of splits. Returns vector of the splits. */
 function split(s, re,limit){
   if(!isStr(s))
-    throw Error(`Cannot split with: ${typeof(s)}`);
+    throw Error(`Cannot split with: ${rtti(s)}`);
   let out=toList(),
       rc= typeof(limit) != "undefined" ? s.split(re, limit) : s.split(re)
   rc.forEach(c=>out.push(c));
@@ -765,7 +751,7 @@ function split(s, re,limit){
 /**Returns a sequence of strings of n characters each. */
 function split_DASH_str(n, s){
   if(!isStr(s))
-    throw Error(`Cannot split-str with: ${typeof(s)}`);
+    throw Error(`Cannot split-str with: ${rtti(s)}`);
   let rc = toList();
   for(let i=0; i<s.length; i += n){
     rc.push(s.substr(i, n))
@@ -790,9 +776,9 @@ function interleave(c1, c2){
 /**Returns an object with the keys mapped to the corresponding vals. */
 function zipmap(keys, vals){
   if(!sequential_QMRK(keys))
-    throw Error(`Cannot interleave with: ${typeof(keys)}`);
+    throw Error(`Cannot interleave with: ${rtti(keys)}`);
   if(!sequential_QMRK(vals))
-    throw Error(`Cannot interleave with: ${typeof(vals)}`);
+    throw Error(`Cannot interleave with: ${rtti(vals)}`);
   let cz=keys.length < vals.length ? keys.length : vals.length;
   let rc = new Map();
   for(let i=0,end=cz; i<end; ++i){
@@ -804,9 +790,9 @@ function zipmap(keys, vals){
 /**Returns an object with the keys mapped to the corresponding vals. */
 function zipobj(keys, vals){
   if(!sequential_QMRK(keys))
-    throw Error(`Cannot interleave with: ${typeof(keys)}`);
+    throw Error(`Cannot interleave with: ${rtti(keys)}`);
   if(!sequential_QMRK(vals))
-    throw Error(`Cannot interleave with: ${typeof(vals)}`);
+    throw Error(`Cannot interleave with: ${rtti(vals)}`);
   let cz=keys.length<vals.length ? keys.length : vals.length;
   let rc = {};
   for(let i=0,end=cz; i<end; i+=1){
@@ -826,7 +812,7 @@ function extend_DASH_attr(obj, attr,flags){
 /**Returns a new seq where x is the first element and seq is the rest. */
 function cons(x, coll){
   if(!sequential_QMRK(coll))
-    throw Error(`Cannot cons with: ${typeof(coll)}`);
+    throw Error(`Cannot cons with: ${rtti(coll)}`);
   let rc=toList(x);
   coll.forEach(a=>rc.push(a));
   return rc;
@@ -841,7 +827,7 @@ function gensym(pfx){
 //////////////////////////////////////////////////////////////////////////////
 function carve(coll,start,end){
   if(!sequential_QMRK(coll))
-    throw Error(`Cannot carve with: ${typeof(coll)}`);
+    throw Error(`Cannot carve with: ${rtti(coll)}`);
   if(typeof(end) == "undefined"){
     end=coll.length
   }else if(typeof(start) == "undefined"){
@@ -854,7 +840,7 @@ function carve(coll,start,end){
 ////////////////////////////////////////////////////////////////////////////////
 function assoc_BANG(obj,...xs){
   if(!isJSMap(obj))
-    throw Error(`Cannot assoc! with: ${typeof(obj)}`);
+    throw Error(`Cannot assoc! with: ${rtti(obj)}`);
   if(isOdd(xs.length))
     ensure(false,"expected even n# of args");
   for(let k,v,i=0; i<xs.length; i += 2){
@@ -865,7 +851,7 @@ function assoc_BANG(obj,...xs){
 //////////////////////////////////////////////////////////////////////////////
 function dissoc_BANG(obj,...xs){
   if(!isJSMap(obj))
-    throw Error(`Cannot dissoc! with: ${typeof(obj)}`);
+    throw Error(`Cannot dissoc! with: ${rtti(obj)}`);
   xs.forEach(k=>obj.delete(k));
   return obj;
 }
@@ -1052,7 +1038,7 @@ function split_DASH_seq(coll, cnt){
       out=toList(copyList(coll),toList())
     }
   }else{
-    throw Error(`Cannot split-seq with: ${typeof(coll)}`)
+    throw Error(`Cannot split-seq with: ${rtti(coll)}`)
   }
   return out;
 }
@@ -1060,9 +1046,9 @@ function split_DASH_seq(coll, cnt){
 /**Get a subset of keys. */
 function select_DASH_keys(coll, keys){
   if(!isJSMap(coll))
-    throw Error(`Cannot select-keys with: ${typeof(coll)}`);
+    throw Error(`Cannot select-keys with: ${rtti(coll)}`);
   if(isStr(keys)||!sequential_QMRK(keys))
-    throw Error(`Cannot select-keys with: ${typeof(keys)}`);
+    throw Error(`Cannot select-keys with: ${rtti(keys)}`);
   return keys.reduce((acc, n)=>{
     if(coll.has(n))
       acc.set(n,coll.get(n));
@@ -1200,9 +1186,9 @@ function aclone(src){
 /**Return a set that is the first set without elements of the other set. */
 function difference(a, b){
   if(!isJSSet(a))
-    throw Error(`Cannot difference with: ${typeof(a)}`);
+    throw Error(`Cannot difference with: ${rtti(a)}`);
   if(!isJSSet(b) && b !== null)
-    throw Error(`Cannot difference with: ${typeof(b)}`);
+    throw Error(`Cannot difference with: ${rtti(b)}`);
   let ret = new Set();
   if(b===null){
     ret=new Set(a.values())
@@ -1238,7 +1224,7 @@ function mapcat(func, ...colls){
       out=toList();
   colls.forEach(c=>{
     if(isStr(c) || !sequential_QMRK(c))
-      throw Error(`Cannot mapcat with: ${typeof(c)}`);
+      throw Error(`Cannot mapcat with: ${rtti(c)}`);
     z=min(z,c.length);
   });
   for(let r,i=0;i<z;++i){
@@ -1382,7 +1368,7 @@ module.exports = {
     ns: "czlab.kirby.stdlib",
     vars: ["MODULE_NAMESPACE", "MAX-INT", "MIN-INT",
            "monad-continuation","monad-state", "monad-list","monad-maybe","monad-identity",
-           "rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "complex?", "simple?", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
+           "rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList", "SValue", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "complex?", "simple?", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
     macros: {
       "this-as": "(macro* this-as (that & body) (syntax-quote (let [(unquote that) this] (splice-unquote body))))",
       "trye!": "(macro* trye! (& xs) (syntax-quote (try (splice-unquote xs) (catch ewroewrwe null))))",
@@ -1548,6 +1534,7 @@ module.exports = {
   keyword: keyword,
   keyword_DASH__GT_symbol: keyword_DASH__GT_symbol,
   SList:SList,
+  SValue:SValue,
   Atom: Atom,
   atom_QMRK: atom_QMRK,
   atom: atom,

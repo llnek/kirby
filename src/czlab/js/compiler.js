@@ -237,10 +237,10 @@ function isStmt(ast){
 }
 //////////////////////////////////////////////////////////////////////////////
 function throwE(e,ast,msg){
-  throw new Error([ERRORS_DASH_MAP.get(e),
-                   (msg ? ` : ${msg}` : null),
-                   (ast && typeof(ast.line) == "number") ? `\nline: ${ast.line}` : null,
-                   (ast && typeof(ast.source) == "string") ? `\nfile: ${ast.source}` : null].join(""))
+  throw Error([ERRORS_DASH_MAP.get(e),
+               (msg ? ` : ${msg}` : null),
+               (ast && typeof(ast.line) == "number") ? `\nline: ${ast.line}` : null,
+               (ast && typeof(ast.source) == "string") ? `\nfile: ${ast.source}` : null].join(""))
 }
 //////////////////////////////////////////////////////////////////////////////
 function fn_QMRK__QMRK(cmd){
@@ -272,7 +272,7 @@ function txTree(root, env){
   }
   ms.concat(os).forEach(r=>{
     _STAR_last_DASH_line_STAR = r.line;
-    _STAR_last_DASH_col_STAR = r.col;
+    _STAR_last_DASH_col_STAR = r.column;
     let t = tx_STAR(r, env);
     typeof(t) == "undefined" || t === null ? null : ret.add([t, ";\n"]) });
   return ret;
@@ -1851,7 +1851,7 @@ function transpile(code, file,options){
 //////////////////////////////////////////////////////////////////////////////
 //Dump AST to xml
 function dbgAST(source, fname){
-  return rdr.dumpTree(rdr.parse(source, fname), fname)
+  return rdr.dumpAst(rdr.parse(source, fname), fname)
 }
 const version = MOD_DASH_VER;
 module.exports = {

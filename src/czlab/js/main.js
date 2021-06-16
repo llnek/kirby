@@ -116,9 +116,8 @@ function main(){
   setHelp(["kirby [OPTIONS] [<infile>] [<outfile>]\n\n",
            "<outfile> defaults to <infile>.js\n\n", "[[OPTIONS]]\n\n"].join("")).
   bindHelp();
-  //return init() && compileSource(["/tmp/stdlib.ky"]);//pcli(cli)
+
   return init() && pcli(cli)
-  //return init() && rt.runRepl();
 }
 main();
 module.exports = {
