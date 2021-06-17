@@ -21,9 +21,9 @@
     "node": ">=0.10.0"
   },
   "directories": {
-    "lib": "./dist"
+    "lib": "./lib"
   },
-  "main": "./dist/stdlib.js",
+  "main": "./lib/czlab/js/stdlib.js",
   "bin": {
     "kirby": "./bin/kirby.js"
   },

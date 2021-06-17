@@ -15,7 +15,7 @@
              :rename {atom _atom_}
              :refer [Atom atom swap! conj! disj!]]))
 
-(def a (array 1 2 3)
+(def a (vector 1 2 3)
   b (js-obj :a "121" :b 5))
 
 (defn poo [a b]
@@ -24,6 +24,6 @@
     (sss 444))
   )
 
-
+;(= :a (get (keys {:a 1}) 0))
 
 

@@ -20,7 +20,7 @@ class SList extends Array{ constructor(...args){ super(...args) } }
 class DArray extends Array{
   constructor(...args){
     super(...args);
-    this.____list=0;
+    this.____kind=0;
   }
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -40,6 +40,7 @@ function isJSObj(x){return rttiQ(x,"[object Object]")}
 /** @private */
 function copyVec(src){
   let r=new DArray();
+  r.____kind=117;
   src.forEach(z=>r.push(z));
   return r;
 }
@@ -47,6 +48,7 @@ function copyVec(src){
 /** @private */
 function toVec(...xs){
   let r=new DArray();
+  r.____kind=117;
   xs.forEach(z=>r.push(z));
   return r;
 }
@@ -54,7 +56,7 @@ function toVec(...xs){
 /** @private */
 function toList(...xs){
   let r=new DArray();
-  r.____list=1;
+  r.____kind=1;
   xs.forEach(z=>r.push(z));
   return r;
 }
@@ -62,7 +64,7 @@ function toList(...xs){
 /** @private */
 function copyList(src){
   let r=new DArray();
-  r.____list=1;
+  r.____kind=1;
   src.forEach(z=>r.push(z));
   return r;
 }
@@ -102,7 +104,7 @@ function noCRef(){
       }
       return v;
     }
-  })([])
+  })([]);
 }
 //////////////////////////////////////////////////////////////////////////////
 /**JSON stringify (no cyclical obj-ref) */
@@ -137,7 +139,7 @@ function conj_BANG(coll,...xs){
   if(list_QMRK(coll)){
     xs.forEach(a=>coll.unshift(a))
   }else if(Array.isArray(coll)){
-    xs.forEach(a=>coll.push(...xs))
+    xs.forEach(a=>coll.push(a))
   }else if(coll instanceof Map){
     xs.forEach(a=>{
       ensure(Array.isArray(a)&&
@@ -253,7 +255,7 @@ function prn(obj,rQ){
 //////////////////////////////////////////////////////////////////////////////
 /** @private */
 function prnArr_STAR(obj, rQ, f){
-  return obj.map((v,i)=> prn_STAR(f(i,v), rQ)).join(" ")
+  return obj.map((v,i)=> prn_STAR(f(i,v), rQ,f)).join(" ")
 }
 //////////////////////////////////////////////////////////////////////////////
 /** @private */
@@ -306,6 +308,8 @@ function prn_STAR(obj, rQ, func){
     c3="nil"
   }else if(obj===undefined){
     c3="undefined"
+  }else if(Array.isArray(obj)){
+    c3= parr("(", ")")
   }else if(obj){
     c3=obj.toString()
   }
@@ -416,11 +420,11 @@ function typeid(obj){
     s="keyword"
   }else if(obj instanceof Symbol){
     s="symbol"
-  }else if(obj instanceof DArray && obj.____list===0){
+  }else if(obj instanceof DArray && obj.____kind===117){
     s="vector"
   }else if(obj instanceof Atom){
     s="atom"
-  }else if(obj instanceof DArray && obj.____list===1){
+  }else if(obj instanceof DArray && obj.____kind===1){
     s="list"
   }else if(obj instanceof Map){
     s="map"
@@ -486,10 +490,12 @@ function eq_QMRK(a,b){
   }else if(isJSObj(a) && isJSObj(b)){
     let ksa=Object.keys(a),
         ksb=Object.keys(b);
-    if(eq_QMRK(ksa,ksb)){
+    if(eq_QMRK(new Set(ksa),new Set(ksb))){
       ok=true;
-      for(k in ksa)
-        if(!eq_QMRK(get(a,k),get(b,k))){ ok=false; break; } }
+      ksa.forEach(k=>{
+        if(!eq_QMRK(a[k],b[k])) { ok=false }
+      });
+    }
   }else if(Array.isArray(a) && Array.isArray(b)){
     if(a.length===b.length){
       ok=true;
@@ -541,7 +547,7 @@ function into(to, coll){
 ////////////////////////////////////////////////////////////////////////////////
 /**Returns true if a List. */
 function list_QMRK(obj){
-  return obj instanceof DArray && obj.____list===1
+  return obj instanceof DArray && obj.____kind===1
 }
 ////////////////////////////////////////////////////////////////////////////////
 /**Create a List. */
@@ -551,7 +557,7 @@ function list(...xs){
 //////////////////////////////////////////////////////////////////////////////
 /**Returns true if a Vector. */
 function vector_QMRK(obj){
-  return obj instanceof DArray && obj.____list===0
+  return obj instanceof DArray && obj.____kind===117
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Create a Vector. */
@@ -668,16 +674,18 @@ function count(coll){
 }
 ////////////////////////////////////////////////////////////////////////////////
 /**Add many to this collection. */
-function concat(coll,...xs){
+function concat_STAR(coll,...xs){
   let rc;
   if(Array.isArray(coll)){
     rc=copyList(coll)
     xs.forEach(a=>{
-      ensure(Array.isArray(a),"bad arg to concat");
-      a.forEach(z=>rc.push(z))
+      if(Array.isArray(a))
+        a.forEach(z=>rc.push(z));
+      else
+        rc.push(a);
     });
   }else{
-    throw Error(`Cannot concat with: ${rtti(coll)}`)
+    throw Error(`Cannot concat* with: ${rtti(coll)}`)
   }
   return rc;
 }
@@ -822,7 +830,7 @@ let GENSYM_COUNTER = 0;
 /**Generates next random symbol. */
 function gensym(pfx){
   let x= ++GENSYM_COUNTER;
-  return symbol(`${opt_QMRK__QMRK(pfx, "GS__")}x`);
+  return symbol(`${opt_QMRK__QMRK(pfx, "GS__")}${x}`);
 }
 //////////////////////////////////////////////////////////////////////////////
 function carve(coll,start,end){
@@ -832,6 +840,9 @@ function carve(coll,start,end){
     end=coll.length
   }else if(typeof(start) == "undefined"){
     start=0
+  }
+  if(end<0){
+    end=coll.length + end;
   }
   let rc=toList();
   for(let i=start;i<end;++i) rc.push(coll[i]);
@@ -916,7 +927,7 @@ const monad_DASH_state = {
       return mf(value)(newState);
     }
   },
-  unit: function(v) { return function(a) { vector(v, a) } }
+  unit: function(v) { return function(a) { return vector(v, a) } }
 };
 //////////////////////////////////////////////////////////////////////////////
 const monad_DASH_continuation = {
@@ -1083,7 +1094,7 @@ function update_DASH_in_BANG(coll, keys, func,...xs){
     throw new Error(`update-in! failed, bad nested keys: ${a}`) }
   let m,root = coll;
   let end= keys.length-1;
-  for(let n,i=0,end=keys.length; i<=end; i += 1){
+  for(let n,i=0; i<=end; i += 1){
     n = keys[i];
     if(i === end){
       doUpdateIn(root, n, func, xs, err)
@@ -1225,7 +1236,7 @@ function mapcat(func, ...colls){
   colls.forEach(c=>{
     if(isStr(c) || !sequential_QMRK(c))
       throw Error(`Cannot mapcat with: ${rtti(c)}`);
-    z=min(z,c.length);
+    z=Math.min(z,c.length);
   });
   for(let r,i=0;i<z;++i){
     args.length=0;
@@ -1257,7 +1268,7 @@ function run_DASH_test(test,title){
       results = test(),
       sum = results.length,
       ok = results.filter(a=> a.startsWith("p")).length,
-      ps = toFixed(percent(ok, sum));
+      ps = to_DASH_fixed(percent(ok, sum));
   title = title || "test";
   return ["+".repeat(78), title, now,
           "+".repeat(78), results.join("\n"),
@@ -1327,7 +1338,7 @@ function take_DASH_while(pred,coll){
     c = coll[i];
     if(pred(c)){ ret.push(c) }else{break}
   }
-  return ret;
+  return ret ? ret : [];
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a sequence of the items in coll starting from the
@@ -1341,12 +1352,31 @@ function drop_DASH_while(pred, coll){
       break;
     }
   }
+  return ret ? ret : [];
+};;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function copy_DASH_array(src,des){
+  let sz= Math.min(src.length,des.length);
+  for(let i=0;i<sz;++i)
+    des[i]=src[i];
+  return des;
+}
+//////////////////////////////////////////////////////////////////////////////
+function fill_DASH_array(len,v){
+  let ret=[];
+  for(let i=0;i<len;++i)
+    ret.push(typeof(v)=="function" ? v(i) : v);
   return ret;
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a list of [(take-while pred coll) (drop-while pred coll)] */
 function split_DASH_with(pred, coll){
   return toList(take_DASH_while(pred, coll), drop_DASH_while(pred, coll))
+}
+//////////////////////////////////////////////////////////////////////////////
+function value_QMRK(v){
+  return v===null || isNum(v) || isBool(v) || isStr(v) ||
+         vector_QMRK(v) || list_QMRK(v) ||
+         v instanceof Map || v instanceof Set || isJSObj(v) || typeof(v)=="function"
 }
 //////////////////////////////////////////////////////////////////////////////
 function primitive_QMRK(p){
@@ -1367,8 +1397,8 @@ module.exports = {
   da57bc0172fb42438a11e6e8778f36fb: {
     ns: "czlab.kirby.stdlib",
     vars: ["MODULE_NAMESPACE", "MAX-INT", "MIN-INT",
-           "monad-continuation","monad-state", "monad-list","monad-maybe","monad-identity",
-           "rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList", "SValue", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "complex?", "simple?", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
+           "monad-continuation","monad-state", "monad-list","monad-maybe","monad-identity","monad-run-cont",
+           "copy-array","fill-array","rtti","println", "not-empty", "stringify", "str*", "opt??", "cons!", "conj!", "conj", "disj!", "disj", "pop!", "pop", "wrap-str", "getIndex", "getProp", "prn", "RegexObj", "Keyword", "Symbol", "DArray","primitive?", "symbol?", "symbol", "keyword?", "keyword", "keyword->symbol", "SList", "SValue", "Atom", "atom?", "atom", "reset!", "sort!", "deref", "swap!", "typeid", "value?", "sequential?", "eq?", "hash-map","hash-set","object?", "last", "into!", "into", "pairs?", "list?", "list", "vector?", "vector", "set?", "map?", "object", "seq", "rseq", "contains?", "nichts?", "some?", "count", "concat*", "evens", "odds", "mod", "partition", "split", "split-str", "interleave", "zipmap", "zipobj", "extend-attr", "cons", "gensym", "carve", "assoc!", "dissoc!", "truthy?", "falsy?", "flatten", "identity", "quote-str", "unquote-str", "esc-xml", "split-seq", "select-keys", "update-in!", "get-in", "merge", "mixin", "aclone", "difference", "inc", "dec", "percent", "to-fixed", "mapcat", "ensure-test", "ensure_DASH_test_DASH_thrown", "run-test", "push_DASH_nsp", "pop_DASH_nsp", "peek_DASH_nsp", "*ns*", "min-by", "max-by", "take-while", "drop-while", "split-with"],
     macros: {
       "this-as": "(macro* this-as (that & body) (syntax-quote (let [(unquote that) this] (splice-unquote body))))",
       "trye!": "(macro* trye! (& xs) (syntax-quote (try (splice-unquote xs) (catch ewroewrwe null))))",
@@ -1562,7 +1592,7 @@ module.exports = {
   nichts_QMRK: nichts_QMRK,
   some_QMRK: some_QMRK,
   count: count,
-  concat: concat,
+  concat_STAR: concat_STAR,
   evens: evens,
   odds: odds,
   mod: mod,
@@ -1599,9 +1629,13 @@ module.exports = {
   dec: dec,
   percent: percent,
   rtti: rtti,
+  copy_DASH_array: copy_DASH_array,
+  fill_DASH_array: fill_DASH_array,
   str_STAR: str_STAR,
   to_DASH_fixed: to_DASH_fixed,
   mapcat: mapcat,
+  set_QMRK: set_QMRK,
+  map_QMRK: map_QMRK,
   ensure_DASH_test: ensure_DASH_test,
   ensure_DASH_test_DASH_thrown: ensure_DASH_test_DASH_thrown,
   run_DASH_test: run_DASH_test,
@@ -1611,6 +1645,7 @@ module.exports = {
   _STAR_ns_STAR: _STAR_ns_STAR,
   min_DASH_by: min_DASH_by,
   max_DASH_by: max_DASH_by,
+  value_QMRK: value_QMRK,
   take_DASH_while: take_DASH_while,
   drop_DASH_while: drop_DASH_while,
   split_DASH_with: split_DASH_with,
@@ -1618,6 +1653,6 @@ module.exports = {
   monad_DASH_list: monad_DASH_list,
   monad_DASH_maybe: monad_DASH_maybe,
   monad_DASH_identity: monad_DASH_identity,
-  monad_DASH_continuation: monad_DASH_continuation
-
+  monad_DASH_continuation: monad_DASH_continuation,
+  monad_DASH_run_DASH_cont: monad_DASH_run_DASH_cont
 };

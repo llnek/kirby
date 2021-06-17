@@ -405,7 +405,7 @@ const _STAR_intrinsics_STAR = new Map([
   }],
 
   ["is-sequential?", std.sequential_QMRK],
-  ["concat*", std.concat],
+  ["concat*", std.concat_STAR],
   ["count*", std.count],
   ["cons*", std.cons],
 

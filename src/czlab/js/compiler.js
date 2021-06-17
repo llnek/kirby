@@ -171,7 +171,7 @@ function dstru(coll, out, env){
     }
   }
   xfi(coll, rhs);
-  out.add(std.map_QMRK(coll) ?
+  out.add(isAstMap(coll) ?
           dstruMap(rhs,coll,env) : std.vector_QMRK(coll) ? dstruVec(rhs,coll,env) : "");
   return rhs;
 }
@@ -219,11 +219,11 @@ function dstruMap(src, coll, env){
   let arr,
       ret = sm_node(coll),
       as = txExpr(src, env);
-  for(let e,i=0; i<coll.length; i += 2){
+  for(let e,i=1; i<coll.length; i += 2){
     e=coll[i];
     if(std.keyword_QMRK(e)){
       if(e == "keys" || e == "strs"){
-        for(let a,j=0, c2=coll[j+1]; j<c2.length; ++j){
+        for(let a,j=0, c2=coll[i+1]; j<c2.length; ++j){
           a= c2[j];
           ret.add(["let ", txExpr(a, env), "=",
                    slib_BANG(GET_DASH_PROP), "(", as, ",", std.quote_DASH_str(`${a}`), ");\n"]);
@@ -398,7 +398,8 @@ function txExpr(x,env){
     if(std.vector_QMRK(x)){
       x.unshift(std.symbol("vector*"));
       xfi(x,x[0]);
-      x.____list=1;
+      //hack
+      x.____kind=1;
     }
     rc=txPairs(x, env)
   }else{
@@ -1186,8 +1187,8 @@ function sf_DASH_func(ast, env){
     rt.addVar(fname0, new Map([["ns", std._STAR_ns_STAR()]]));
   let pre,post,fargs = dstruFuncArgs(xfi(ast, args), env);
   attrs = attrs || new Map();
-  if(std.map_QMRK(b1)){
-    for(let e2,e,i = 0, end = b1.length; i<end; i+=2){
+  if(isAstMap(b1)){
+    for(let e2,e,i = 1, end = b1.length; i<end; i+=2){
       e = b1[i];
       e2 = b1[i+1];
       if(std.keyword_QMRK(e) && Array.isArray(e2)){
@@ -1430,7 +1431,7 @@ function requireEx(ret, fdir, ast, env){
   if(std.symbol_QMRK(rpath))
     rpath = std.quote_DASH_str(`${rpath}`);
 
-  for(let v1,v,j=1, end = ast.length; j<end; j += 2){
+  for(let v1,v,j=1; j< ast.length; j += 2){
     v = ast[j];
     v1=ast[j+1];
     if("as" == v){
@@ -1459,22 +1460,24 @@ function requireEx(ret, fdir, ast, env){
   if(std.keyword_QMRK(refers) && vvv && refers == "all"){
     refers = vvv[0]
   }
-  renames=renames||[];
-  for(let i=0, end = renames.length; i < end; i += 2){
-    let ro = renames[i],
-        rn = renames[i+1],
-        ev = `${ro}`,
-        rs = `${rn}`;
-    if(info){
-      if(std.getProp(mcs, ev) || std.contains_QMRK(vvv[1], ev)){}else{
-        throw new Error(`Unknown var: '${ev}'`)
+  if(renames){
+    if(!isAstMap(renames) || renames.length%2 ===0) throw Error("Bad ns:renames object");
+    for(let i=1; i< renames.length; i += 2){
+      let ro = renames[i],
+          rn = renames[i+1],
+          ev = `${ro}`,
+          rs = `${rn}`;
+      if(info){
+        if(std.getProp(mcs, ev) || std.contains_QMRK(vvv[1], ev)){}else{
+          throw new Error(`Unknown var: '${ev}'`)
+        }
+        if(std.getProp(mcs, rs) || std.contains_QMRK(vvv[1], rs))
+          throw new Error(`Cannot rename var: '${ev}' to existing var: '${rs}'`)
       }
-      if(std.getProp(mcs, rs) || std.contains_QMRK(vvv[1], rs))
-        throw new Error(`Cannot rename var: '${ev}' to existing var: '${rs}'`)
+      rt.addVar(rs, new Map([["ns", nsp]]));
+      used.add(ev);
+      ret.add(["const ", txExpr(rn, env), "=", as, "[\"", txExpr(ro, env), "\"];\n"])
     }
-    rt.addVar(rs, new Map([["ns", nsp]]));
-    used.push(ev);
-    ret.add(["const ", txExpr(rn, env), "=", as, "[\"", txExpr(ro, env), "\"];\n"])
   }
   refers=refers||[];
   for(let i=0, end=refers.length; i<end; ++i){
@@ -1502,7 +1505,7 @@ function sf_DASH_require(ast, env){
   assertArity(ast.length >= 2, ast);
   let ret = sm_node(ast),
       fdir = path.dirname(ast.source);
-  for(let a,i = 0, GS__59 = ast.slice(1), sz = GS__59.length; i<sz; ++i){
+  for(let a,i = 0, GS__59 = ast.slice(1); i< GS__59.length; ++i){
     a= GS__59[i];
     if(Array.isArray(a) && (std.symbol_QMRK(a[0]) || typeof(a[0]) == "string")){}else{
       throwE("invalid-require", ast)
@@ -1529,7 +1532,8 @@ function sf_DASH_ns(ast, env){
     attrs.set("doc", ast[pos]);
     ++pos;
   }
-  if(std.map_QMRK(ast[pos])){
+  //explicit meta
+  if(isAstMap(ast[pos])){
     mobj = evalMeta(ast[pos], env);
     attrs = std.merge(attrs, mobj);
     ++pos;
@@ -1537,7 +1541,7 @@ function sf_DASH_ns(ast, env){
   }
   std.push_DASH_nsp(`${nsp}`, attrs);
   ast = xfi(ast, ast.slice(pos));
-  for(let e,i = 0, sz =ast.length; i<sz; ++i){
+  for(let e,i = 0; i<ast.length; ++i){
     e = ast[i];
     if(std.pairs_QMRK(e) &&
        std.keyword_QMRK(e[0]) &&
@@ -1614,7 +1618,7 @@ function sf_DASH_foop(ret, cmd, args, body, env, stmtQ){
     coll = args[1];
     vars = [std.symbol("____coll"), coll, std.symbol("____index"), 0];
   }
-  for(let e1,e,i = begin, end = args.length; i<end; i += 2){
+  for(let e1,e,i = begin; i< args.length; i += 2){
     e = args[i];
     e1=args[i+1];
     if(e == "while"){

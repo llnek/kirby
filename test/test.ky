@@ -1,10 +1,13 @@
-;; Copyright © 2013-2018, Kenneth Leung. All rights reserved.
-;; The use and distribution terms for this software are covered by the
-;; Eclipse Public License 1.0 (http://opensource.org/licenses/eclipse-1.0.php)
-;; which can be found in the file epl-v10.html at the root of this distribution.
-;; By using this software in any fashion, you are agreeing to be bound by
-;; the terms of this license.
-;; You must not remove this notice, or any other, from this software.
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;     http://www.apache.org/licenses/LICENSE-2.0
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed under the License is distributed on an "AS IS" BASIS,
+;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;; See the License for the specific language governing permissions and
+;; limitations under the License.
+;; Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
@@ -13,7 +16,7 @@
 
   (:require ["kirby"
              :as std
-             :refer [conj! println inc dec rseq
+             :refer [set? map? conj! println inc dec rseq str*
                      split-with take-while drop-while]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -30,15 +33,14 @@
     (with-local-vars [v s.value
                       v' (expr v)
                       msg (str log "(" v ")")
-                      log' (std/concat s.log msg)])
-    [v' (object :value v' :log log')]))
-
+                      log' (std/conj s.log msg)])
+    [v' (js-obj :value v' :log log')]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (deftest test-stdlib
 
   (ensure (not (empty? [1])) "not empty?")
-  (ensure (empty? []) "empty?")
+  (ensure (empty? #{}) "empty?")
   (ensure (starts-with? "abc" "a") "string starts?")
   (ensure (ends-with? "abc" "c") "string ends?")
   (ensure (= 3 (n# [1 2 3])) "n#")
@@ -297,8 +299,15 @@
 
   (ensure (s/not-empty [2]) "not-empty")
   (ensure (= 2 (s/opt?? undefined 2)) "opt??")
+
+  (ensure (let [a [1] b (s/cons 2 a)]
+            (and (= 1 (n# a)) (= 2 (n# b)) (= 1 (s/last b)))) "cons")
+
   (ensure (let [a [1] b (s/conj a 2 3)]
-            (and (= 1 (n# a)) (= 3 (n# b)) (= 3 (s/last b)))) "conj")
+            (and (= 1 (n# a)) (= 3 (n# b)) (= 3 (s/last b)))) "conj -> vec")
+  (ensure (let [a (s/list 1) b (s/conj a 2 3)]
+            (and (= 1 (n# a)) (= 3 (n# b)) (= 1 (s/last b)))) "conj -> list")
+
   (ensure (let [c [9 8 7]
                 [a b] (s/pop! c)]
             (and (= 7 a) (= 2 (n# c)))) "pop!")
@@ -312,18 +321,9 @@
                  (object :a 1 :z 5)
                  :toString false)) "getProp,false")
   (ensure (= "(1 2 3)" (s/prn [1 2 3])) "prn")
-  (ensure (let [p (s/primitive 2)
-                v (.-value p)]
+  (ensure (let [p 2 v 3]
             (and (s/primitive? p)
-                 (= v 2))) "primitive,primitive?")
-  (ensure (let [a (s/lambdaArg "%9")
-                v (.-value a)]
-            (and (s/lambdaArg? a)
-                 (= v "%9"))) "lambda-arg,lambda-arg?")
-  (ensure (let [a (s/lambdaArg "%")
-                v (.-value a)]
-            (and (s/lambdaArg? a)
-                 (= v "%1"))) "lambda-arg,%,lambda-arg?")
+                 (= v 3))) "primitive?")
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
             (and (s/keyword? k)
@@ -351,16 +351,14 @@
                  (s/swap! a (fn [old more]
                               (+ old more)) 5) @a)) "swap!")
   (ensure (= :atom (s/typeid (s/atom 2))) "typeid")
-  (ensure (and (s/complex? [1])
-               (s/complex? {:a 1})) "complex?")
-  (ensure (and (false? (s/complex? 2))
-               (false? (s/complex? "a"))) "not complex?")
-  (ensure (and (s/simple? 1)
-               (s/simple? nil)) "simple?")
-  (ensure (and (false? (s/simple? []))
-               (false? (s/simple? {}))) "not simple?")
+  (ensure (and (not (s/primitive? [1]))
+               (not (s/primitive? {:a 1}))) "complex?")
+  (ensure (and (s/primitive? 1)
+               (s/primitive? nil)) "simple?")
+  (ensure (and (false? (s/primitive? []))
+               (false? (s/primitive? {}))) "not simple?")
   (ensure (and (s/value? 3)
-               (not (s/value? (fn [] nil)))) "value?")
+               (s/value? (fn [] nil))) "value?")
   (ensure (s/sequential? [1 2 3]) "sequential?")
   (ensure (s/eq? [1 2] [1 2]) "eq? -> array")
   (ensure (s/eq? (object :a 1 :b 2) (object :b 2 :a 1)) "eq? -> object")
@@ -368,16 +366,19 @@
   (ensure (not (s/object? 1)) "not object?")
   (ensure (s/object? (object :a 1)) "object?")
   (ensure (= 3 (s/last [1 2 3])) "last")
-  (ensure (s/list? (s/into! :list [1 2 3])) "into!")
+
+  (ensure (s/list? (s/into (s/list) [1 2 3])) "into")
+
   (ensure (let [x (s/list 1 2 3)
-                y (s/into :list x)]
+                y (s/into (s/list) x)]
             (s/conj! x 4)
             (and (= 4 (n# x))
                  (= 3 (n# y)) (s/list? y))) "into")
+
   (ensure (s/pairs? [1 2 3]))
   (ensure (s/list? (s/list 1 2 3)) "list,list?")
   (ensure (s/vector? (s/vector 1 2 3)) "vector,vector?")
-  (ensure (s/map? (s/arraymap :a 1 :b 2 :c 3)) "arraymap,map?")
+  (ensure (s/map? (s/hash-map :a 1 :b 2 :c 3)) "hash-map,map?")
   (ensure (s/object? (s/object :a 1 :b 2 :c 3)) "object,object?")
 
   (ensure (= 3 (n# (s/seq "abc"))) "seq")
@@ -389,8 +390,8 @@
   (ensure (= 4 (n# (s/concat* [1 2] 3 4))) "concat*")
   (ensure (= 3 (s/last (s/evens [1 2 3 4]))) "evens")
   (ensure (= 4 (s/last (s/odds [1 2 3 4]))) "odds")
-  (ensure (and (= 1 (s/modulo 10 3))
-               (= 2 (s/modulo -10 3))) "modulo")
+  (ensure (and (= 1 (s/mod 10 3))
+               (= 2 (s/mod -10 3))) "modulo")
   (ensure (s/eq? [1 5 2 6]
                  (s/interleave [1 2 3] [5 6])) "interleave")
   (ensure (s/eq? [5 1 6 2]
@@ -419,7 +420,7 @@
   (ensure (= "abc"
              (s/unquote-str "\"abc\"")) "unquote-str")
   (ensure (= "&lt;&gt;&amp;&quot;&apos;"
-             (s/escXml "<>&\"'")) "escXml")
+             (s/esc-xml "<>&\"'")) "escXml")
   (ensure (let [[x y]
                 (s/split-seq [1 2 3 4 5] 3)]
             (and (s/eq? [1 2 3] x)
@@ -436,29 +437,29 @@
                  {:a [2 4 {:c 4}]} [:a 2 :c])) "get-in")
 
   (ensure (s/eq? [7 7 7]
-                 (s/fillArray 3 7)) "fillArray,value")
+                 (s/fill-array 3 7)) "fill-array,value")
   (ensure (s/eq? [0 1 2]
-                 (s/fillArray 3 #(%))) "fillArray,function")
+                 (s/fill-array 3 #(%))) "fill-array,function")
 
   (ensure (s/eq? [3 4]
-                 (s/copyArray [3 4 5 7] [0 0])) "copyArray,value")
+                 (s/copy-array [3 4 5 7] [0 0])) "copy-array,value")
   (ensure (s/eq? [2 5 7 6]
-                 (s/copyArray [2 5 7] [3 4 9 6])) "copyArray,value")
+                 (s/copy-array [2 5 7] [3 4 9 6])) "copy-array,value")
   (ensure (s/eq? [2 5 7]
                  (s/aclone [2 5 7])) "aclone")
 
-  (ensure (s/eq? `{:a 1 :b 7 :c "gg" :d 7}
-                 (let [a `{:a 1 :b 2 :c "ss"}
-                       b `{ :b 7 :c "gg" :d 7}]
+  (ensure (s/eq? (object :a 1 :b 7 :c "gg" :d 7)
+                 (let [a (js-obj :a 1 :b 2 :c "ss")
+                       b (js-obj :b 7 :c "gg" :d 7)]
                    (s/mixin a b))) "mixin")
 
   (ensure (s/eq? {:a 1 :b 2}
                  (s/merge {:a 1} {:b 2})) "merge")
-  (ensure (s/eq? [1 2 4]
+  (ensure (s/eq? #{1 2 4}
                  (s/difference
-                   [1 2 3 4 5] [3 5])) "difference")
+                   #{1 2 3 4 5} #{3 5})) "difference")
   (ensure (= 50 (s/percent 20 40)) "percent")
-  (ensure (= "3.333" (s/toFixed (/ 10 3) 3)) "toFixed")
+  (ensure (= "3.333" (s/to-fixed (/ 10 3) 3)) "to-fixed")
 
   (ensure (s/eq? ["aa" "bb" "cc" "dd" "ee" "ff"]
                  (s/mapcat #(.split % #/\d/)
@@ -496,18 +497,17 @@
                  (s/split-str 3 "12345678")) "split-str")
 
   (ensure (let [obj #{1 2 3}]
-            (and (objectSet? obj)
+            (and (set? obj)
                  (= 3 (n# obj)))) "object,Set")
 
   (ensure (let [obj {:a 1 :b 2}]
-            (and (objectMap? obj)
+            (and (map? obj)
                  (= 2 (n# obj))
                  (= 1 (.get obj :a))
                  (= 2 (.get obj :b)))) "object,Map")
 
-  (ensure (= 698 (s/maxBy s/identity [78 7 698 4 5 2 -1])) "maxBy")
-  (ensure (= -1 (s/minBy s/identity [78 7 6 4 5 2 -1])) "minBy")
-
+  (ensure (= 698 (s/max-by s/identity [78 7 698 4 5 2 -1])) "max-by")
+  (ensure (= -1 (s/min-by s/identity [78 7 6 4 5 2 -1])) "min-by")
 
   (ensure (s/eq? [-2 -1]
                  (take-while #(< % 0) [-2 -1 0 1 2 3])) "take-while")
@@ -533,35 +533,35 @@
 
   (ensure (s/eq? [5 3 1] (rseq [1 3 5])) "rseq,reverse")
 
-  (ensure (= 3 (domonad s/m-identity
+  (ensure (= 3 (domonad s/monad-identity
                         [a 1 b (inc a)] (+ a b))) "identity monad")
-  (ensureThrown "any"
-                (domonad s/m-identity
+  (ensure-thrown "any"
+                (domonad s/monad-identity
                          [a nil
                           b a
                           c (.toString b)] (+ a b c)) "identity monad->boom")
 
-  (ensure (= 3 (domonad s/m-maybe
+  (ensure (= 3 (domonad s/monad-maybe
                         [a 1 b (inc a)] (+ a b))) "maybe monad")
-  (ensure (nil? (domonad s/m-maybe
+  (ensure (nil? (domonad s/monad-maybe
                          [a 1
                           b (inc a)
                           c nil] (+ a b c))) "maybe monad->nil")
 
   (ensure (s/eq? [5,(object :value 5 :log ["mult3(1)" "add2(3)"])]
-                 ((domonad s/m-state
+                 ((domonad s/monad-state
                            [c1 (exlog mult3 "mult3")
                             c2 (exlog add2 "add2")]
                            c2) (object :value 1 :log []))) "state monad")
 
-  (ensure (= 3 (std/run-cont
-                 (domonad std/m-continuation
+  (ensure (= 3 (std/monad-run-cont
+                 (domonad std/monad-continuation
                           [x ((fn [v] (fn [c] (c v))) 1)
                            y ((fn [v] (fn [c] (c v))) 2)]
                           (+ x y)))) "continuation monad")
 
   (ensure (let [f (fn [v] (fn [s] [v s]))
-                lhs (s/m-state.bind (s/m-state.unit 911) f)
+                lhs (s/monad-state.bind (s/monad-state.unit 911) f)
                 rhs (f 911)
                 lf (lhs "hello")
                 rt (rhs "hello")]
@@ -570,7 +570,7 @@
           "monad rule 1: bind(unit(x), f) ≡ f(x)")
 
   (ensure (let [mv (fn [s] [3 s])
-                lhs (s/m-state.bind mv s/m-state.unit)
+                lhs (s/monad-state.bind mv s/monad-state.unit)
                 lf (lhs "hello")
                 rt (mv "hello")]
             (and (= (1st lf)(1st rt))
@@ -579,7 +579,7 @@
 
   (ensure (let [f (fn [v] (fn [s] [3 s]))
                 g (fn [v] (fn [s] [5 s]))
-                bb s/m-state.bind
+                bb s/monad-state.bind
                 mv (fn [s] [7 s])
                 lhs (bb (bb mv f) g)
                 rhs (bb mv (fn [v] (bb (f v) g)))
@@ -592,12 +592,16 @@
                " ≡ bind(m, v ⇒ bind(f(v), g))"))
 
 
-  (ensureThrown "object" (raise! "hello" "world") "raise!")
-  (ensureThrown "string" (trap! "hello" "world") "trap!")
-  (ensure (= "hello" (.-message (merror "hello"))) "merror"))
+  (ensure-thrown "object" (raise! "hello" "world") "raise!")
+  (ensure-thrown "string" (trap! "hello" "world") "trap!")
+  (ensure (= "hello" (.-message (merror "hello"))) "merror")
+
+)
 
 
-(s/println (std/runtest test-stdlib
+
+
+(s/println (std/run-test test-stdlib
                         "Kirby stdlib test-suite"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
