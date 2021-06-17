@@ -64,6 +64,7 @@ const REGEX={
   quote: /'/g,
   hash: /#/g,
   at: /@/g,
+  dollar: /\$/g,
   less: /</g,
   greater: />/g,
   star: /\*/g,
@@ -71,6 +72,7 @@ const REGEX={
 };
 //////////////////////////////////////////////////////////////////////////////
 const REPLACERS=[
+  [REGEX.dollar, "_DOLA_"],
   [REGEX.query, "_QMRK_"],
   [REGEX.bang, "_BANG_"],
   [REGEX.dash, "_DASH_"],
