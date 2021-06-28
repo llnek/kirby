@@ -63,10 +63,10 @@
 
 ;(domonad kirbyref/monad-identity [a 1 b (inc a)] (+ a b))
 
-(doseq [x (range 10)
-        :let [y (inc x) z y]
-        :while (< x 7)]
-  (poo 3))
+(defmacro poo [a b]
+  `(let [x (vec ~@(concat* a b))] x))
+
+(poo [1 2 3] [4 5 6])
 
 
 

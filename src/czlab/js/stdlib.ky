@@ -11,7 +11,9 @@
 
 (ns ^{:author "Kenneth Leung"}
   czlab.kirby.stdlib
-  "Standard core library containing built-in functions/vars and macros.")
+  "Standard core library containing built-in functions/vars and macros."
+
+  (:require ["./core" :as core]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const MAX-INT Number/MAX_SAFE_INTEGER)
@@ -1259,34 +1261,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;END MACROS
 
-(deftype DArray [Array]
-  (constructor [...args] (super ...args)))
-
-(deftype SPair [Array]
-  (constructor [...args] (super ...args)))
-
-(deftype SValue []
-  (constructor [v] (oset! this :value v))
-  (toString [] @@value))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Atom [SValue]
-  "Defining a clojure-like Atom"
-  (constructor [v] (super v)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Keyword [SValue]
-  "Defining a keyword"
-  (constructor [name] (super name))
-  (toString []
-    (cond (starts-with? @@value "::")
-          (str (*ns*) "/" (.slice @@value 2))
-          (starts-with? @@value ":") (.slice @@value 1))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftype Symbol [SValue]
-  "Defining a symbol"
-  (constructor [name] (super name)))
+(def DArray core/DArray)
+(def SPair core/SPair)
+(def Atom core/Atom)
+(def Keyword core/Keyword)
+(def Symbol core/Symbol)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rtti
@@ -1545,7 +1524,7 @@
   (cond
     (atom? obj)
     (wrap-str (pfx obj.value) "(atom " ")")
-    (inst? SValue obj)
+    (inst? core/SValue obj)
     (.-value obj)
     (map? obj)
     (let [acc (vec)]

@@ -11,6 +11,7 @@
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
 const path = require("path");
+const core = require("./core");
 const std = require("./kernel");
 const rdr = require("./reader");
 const rt = require("./engine");
@@ -414,7 +415,7 @@ function sfNS(ast, env){
     attrs = std.mergeBANG(attrs, e);
   }
   //update the namespace stack
-  std.pushNS(`${nsp}`, attrs);
+  core.pushNS(`${nsp}`, attrs);
   ast = xfi(ast, ast.slice(pos));
   for(let e,i = 0; i<ast.length; ++i){
     e = ast[i];
@@ -422,7 +423,7 @@ function sfNS(ast, env){
        std.isKeyword(e[0],":require"))
       ret.add(sfRequire(xfi(ast, e), env))
   }
-  nsp = std.starNSstar();
+  nsp = core.starNSstar();
   if(nsp != rt.KBSTDLIB){
     e=std.pair(std.keyword(":require"), "kirby",
                std.keyword(":as"), std.symbol(KBSTDLR));
@@ -547,7 +548,7 @@ function sfDefType(ast, env){
       czname = txExpr(czn, env),
       pubQ = `${ast[0]}` == "deftype",
       [doc,mtds] = std.isStr(ast[3]) ? [ast[3], ast.slice(4)] : [null, ast.slice(3)];
-  rt.addVar(czn, std.hashmap("ns", std.starNSstar()));
+  rt.addVar(czn, std.hashmap("ns", core.starNSstar()));
   ret.add([`class ${czname}`, (par ? ` extends ${txExpr(par, env)}` : ""), "{\n"]);
   for(let m1,mtd,m,i=0; i<mtds.length; ++i){
     //we use this hack to reuse code for handling "defn"
@@ -556,7 +557,7 @@ function sfDefType(ast, env){
     m1 = m[0];
     xfi(m1, mtd);
     m.unshift(mtd);
-    rt.addVar(`${czn}.${m1}`, std.hashmap("ns", std.starNSstar()));
+    rt.addVar(`${czn}.${m1}`, std.hashmap("ns", core.starNSstar()));
     ret.add([sfFunc(m, env, false), "\n"]);
   }
   ret.prepend(writeDoc(doc));
@@ -583,7 +584,7 @@ function sfFunc(ast, env){
       [attrs,args] = isTaggedMeta(ast[pargs], env);
   if(!std.isVec(args)) throwE("invalid-fargs", ast);
   if(!mtdQ)
-    rt.addVar(fname0, std.hashmap("ns", std.starNSstar()));
+    rt.addVar(fname0, std.hashmap("ns", core.starNSstar()));
   let pre,post,fargs = dstruFArgs(xfi(ast, args), env);
   attrs = attrs || new Map();
   if(cc.isAstMap(body[0]))
@@ -757,7 +758,7 @@ function sfVar(ast, env){
       x = lhs;
       lhs = txExpr(lhs, env);
       if("let" != cmd)
-        rt.addVar(`${x}`, std.hashmap("ns", std.starNSstar()));
+        rt.addVar(`${x}`, std.hashmap("ns", core.starNSstar()));
       keys.set(lhs, lhs);
       vs.push(`${x}`);
       ret.add([cmd," ",lhs,"=",rval,";\n"]);
@@ -1250,7 +1251,7 @@ function sfMacro(ast, env){
   }
   mname = ast[1];
   ast = std.pair(std.symbol("macro*"), mname, pms, body[0]);
-  rt.addVar(mname, std.hashmap("ns", std.starNSstar()));
+  rt.addVar(mname, std.hashmap("ns", core.starNSstar()));
   if(mobj && mobj.get("private") === true){}else{
     cc._STAR_macros_STAR.set(mname, std.prn(ast, true))
   }

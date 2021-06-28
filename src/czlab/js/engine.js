@@ -13,6 +13,7 @@
 const readline = require("readline");
 const fs = require("fs");
 const rdr = require("./reader");
+const core = require("./core");
 const std = require("./kernel");
 //////////////////////////////////////////////////////////////////////////////
 const EXPKEY = "da57bc0172fb42438a11e6e8778f36fb";
@@ -314,7 +315,7 @@ function setMacro(cmd, func){
   if(cmd && typeof(func) == "function"){
     cmd = `${cmd}`;
     if(!cmd.includes("/")){
-      let c = std.peekNS();
+      let c = core.peekNS();
       if(!c)
         throw new Error("setMacro: macro ${cmd} has no namespace");
       cmd = `${c.get("id")}/${cmd}`;
@@ -428,7 +429,7 @@ function doLET(ast, env){
 /** (macro* name (args) body) */
 function doMACRO(ast, env){
   let name= `${ast[1]}`,
-      nsp = std.peekNS();
+      nsp = core.peekNS();
   nsp = nsp ? nsp.get("id") : KBSTDLIB;
   if(!name.includes("/")){
     name= `${nsp}/${name}`;
@@ -626,7 +627,7 @@ function init(ver){
     };
     _STAR_version_STAR = ver;
     g_env = newEnv();
-    addLib(std.peekNS().get("id"),lib);
+    addLib(core.peekNS().get("id"),lib);
     inited= true;
   }
   return inited;

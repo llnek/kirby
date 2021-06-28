@@ -10,34 +10,17 @@
  * Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
+const core=require("./core");
+//////////////////////////////////////////////////////////////////////////////
 const MODULE_NAMESPACE = "__module_namespace__";
 //////////////////////////////////////////////////////////////////////////////
-class DArray extends Array{ constructor(...args){ super(...args) }}
-//////////////////////////////////////////////////////////////////////////////
-class SPair extends Array{ constructor(...args){ super(...args) }}
-//////////////////////////////////////////////////////////////////////////////
-/** @abstract */
-class SValue{
-  constructor(a){ this.value=a }
-  toString(){ return this.value }
-}
-//////////////////////////////////////////////////////////////////////////////
-class RegexObj extends SValue{ constructor(v){ super(v) } }
-//////////////////////////////////////////////////////////////////////////////
-class Keyword extends SValue{
-  constructor(name){
-    super(name)
-  }
-  toString(){
-    return this.value.startsWith("::") ?
-      [starNSstar(), "/", this.value.slice(2)].join("") :
-      this.value.startsWith(":") ? this.value.slice(1) : null;
-  }
-}
-//////////////////////////////////////////////////////////////////////////////
-class Symbol extends SValue{ constructor(name){ super(name) } }
-//////////////////////////////////////////////////////////////////////////////
-class Atom extends SValue{ constructor(val){ super(val) } }
+class RegexObj extends core.SValue{ constructor(v){ super(v) } }
+const SValue=core.SValue;
+const DArray=core.DArray;
+const SPair=core.SPair;
+const Keyword=core.Keyword;
+const Symbol=core.Symbol;
+const Atom=core.Atom;
 //////////////////////////////////////////////////////////////////////////////
 function println(...msgs){
   if(console) console.log(msgs.join("")); return null; }
@@ -301,11 +284,6 @@ function unquoteStr(s){
   return s;
 }
 //////////////////////////////////////////////////////////////////////////////
-const _STAR_ns_DASH_cache_STAR =[new Map([["id", "user"], ["meta", null]])];
-function peekNS(){
-  return _STAR_ns_DASH_cache_STAR[0]
-}
-//////////////////////////////////////////////////////////////////////////////
 /**If prop is a string, returns the value of this object property,
  * obeying the own? flag, unless if object is a Map, returns value of the key.
  * Otherwise, return the value at the index of the array. */
@@ -375,11 +353,6 @@ function count(coll){
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
-function starNSstar(){
-  let n = peekNS();
-  return typeof(n) == "undefined" || n === null ? null : n.get("id")
-}
-//////////////////////////////////////////////////////////////////////////////
 /**Adds one element to the beginning of a collection. */
 function consBANG(x, coll){
   if(Array.isArray(coll)){
@@ -434,12 +407,6 @@ function mergeBANG(base, m){
  * the latter (left-to-right) will be the mapping in the result. */
 function merge(...xs){
   return xs.reduce((acc, o)=> mergeBANG(acc, o) , new Map())
-}
-//////////////////////////////////////////////////////////////////////////////
-function pushNS(nsp,info){
-  let o=new Map([["id", nsp], ["meta", info]]);
-  _STAR_ns_DASH_cache_STAR.unshift(o);
-  return _STAR_ns_DASH_cache_STAR;
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a new seq where x is the first element and seq is the rest. */
@@ -781,20 +748,17 @@ module.exports={
   keyword,
   quoteStr,
   unquoteStr,
-  peekNS,
   getProp,
   isPair,
   isObject,
   split,
   notEmpty,
   count,
-  starNSstar,
   consBANG,
   last,
   contains,
   mergeBANG,
   merge,
-  pushNS,
   cons,
   prn,
   takeWhile,
