@@ -10,7 +10,7 @@
  * Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
-const std = require("./stdlib");
+const std = require("./kernel");
 const println=std["println"];
 //////////////////////////////////////////////////////////////////////////////
 class Token{
@@ -20,9 +20,7 @@ class Token{
     this["line"] = line;
     this["column"] = column;
   }
-  toString(){
-    return this.value
-  }
+  toString(){ return this.value }
 }
 //////////////////////////////////////////////////////////////////////////////
 //Defining a lambda positional argument
@@ -32,19 +30,13 @@ class LambdaArg extends std.SValue{
       let name= arg == "%" ? "1" : arg.slice(1);
       let v = parseInt(name);
       if(!(v>0))
-        throw new Error(`invalid lambda-arg ${arg}`);
+        throw Error(`invalid lambda-arg ${arg}`);
       return `%${v}`;
     })());
   }
-  toString(){
-    return this.value
-  }
 }
 //////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-function mkToken(source, line, col, chunk){
-  return new Token(source, line, col, chunk)
-}
+function mkToken(src, ln, col, txt){ return new Token(src, ln, col, txt) }
 //////////////////////////////////////////////////////////////////////////////
 const REGEX={
   id: /^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>%#@$\+]*$/,
@@ -86,8 +78,7 @@ const REPLACERS=[
   [REGEX.star, "_STAR_"]];
 //////////////////////////////////////////////////////////////////////////////
 function testid(name){
-  return REGEX.id.test(name) || REGEX.id2.test(name)
-}
+  return REGEX.id.test(name) || REGEX.id2.test(name) }
 //////////////////////////////////////////////////////////////////////////////
 //Escape to compliant js identifier
 function jsid(input){
@@ -99,9 +90,10 @@ function jsid(input){
   }
   return !testid(name) ? `${pfx}${name}`
                        : REPLACERS.reduce((acc, x)=>{
-                              acc=acc.replace(x[0], x[1]);
-                              return acc.endsWith(x[1]) ? acc.slice(0, -1) : acc;
-                         }, `${pfx}${name}`.replace(REGEX.slash, "."))
+                           acc=acc.replace(x[0], x[1]);
+                           return acc.endsWith(x[1]) ? acc.slice(0, -1) : acc;
+                         },
+                         `${pfx}${name}`.replace(REGEX.slash, "."))
 }
 //////////////////////////////////////////////////////////////////////////////
 //Lexical analyzer
@@ -165,11 +157,19 @@ function lexer(source, fname){
         token = toke(tline, tcol, token);
       }
     }else if(fform_Q){
-      if(ch == "`" && nx == "`" && source.charAt(pos+1) == "`"){
+      if((ch == "`" && nx == "`" && source.charAt(pos+1) == "`") ||
+         (ch == '"' && nx == '"' && source.charAt(pos+1) == '"')){
         fform_Q= false;
         pos += 2;
         token += "\"";
-        token = toke(tline, tcol, token, true);
+        if(ch=="`"){
+          toke(tline,tcol,"(");
+          toke(tline,tcol,"raw#");
+          token = toke(tline, tcol, token, true);
+          toke(tline,tcol,")");
+        }else{
+          token = toke(tline, tcol, token, true);
+        }
       }else if(ch == "\""){
         token += "\\\""
       }else if(ch == "\n"){
@@ -179,7 +179,8 @@ function lexer(source, fname){
       }else{
         token += ch
       }
-    }else if(ch == "`" && nx == "`" && source.charAt(pos+1) == "`" && 0 === token.length){
+    }else if(0===token.length && ((ch == "`" && nx == "`" && source.charAt(pos+1) == "`") ||
+                                  (ch == '"' && nx == '"' && source.charAt(pos+1) == '"'))){
       tline = line;
       tcol = col;
       pos += 2;
@@ -274,9 +275,9 @@ function lexer(source, fname){
   if(str_Q) throwE(tmp, "unterminated string");
   if(regex_Q) throwE(tmp, "unterminated regex definition");
 
-  if(token.length>0){
+  //maybe deal with the very last token?
+  if(token.length>0)
     token = toke(tline, tcol, token);
-  }
 
   return tree;
 }
@@ -285,21 +286,19 @@ function lexer(source, fname){
 function throwE(token,...msgs){
   let s = msgs.join("");
   if(!token)
-    throw new Error(`${s}\nnear EOF`);
+    throw Error(`${s}\nnear EOF`);
   else
-    throw new Error(`${s}\nnear line: ${token.line}\nin file: ${token.source}`);
+    throw Error(`${s}\nnear line: ${token.line}\nin file: ${token.source}`);
 }
 //////////////////////////////////////////////////////////////////////////////
-//Returns the next token,
-//updates the token index
+//Returns the next token, updates the token index
 function popToken(tokens){
   const t = peekToken(tokens);
   ++tokens.pos;
   return t;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Returns the next token,
-//without moving the token index
+//Returns the next token, without moving the token index
 function peekToken(tokens){
   return tokens[tokens.pos]
 }
@@ -311,7 +310,8 @@ function prevToken(tokens){
 //////////////////////////////////////////////////////////////////////////////
 //Attach source level information to the node
 function copyTokenData(token, node){
-  if(node && (std.rtti(node)=="[object Object]" || Array.isArray(node))){
+  if(node && (Array.isArray(node)||
+              std.rtti(node)=="[object Object]")){
     node["source"] = token.source;
     node["line"] = token.line;
     node["column"] = token.column;
@@ -331,7 +331,7 @@ function readAtom(tokens){
   }else if(REGEX.hex.test(tn) || REGEX.int.test(tn)){
     ret = parseInt(tn)
   }else if(tn.startsWith("\"") && tn.endsWith("\"")){
-    ret = std.unquote_DASH_str(tn)
+    ret = std.unquoteStr(tn)
   }else if(tn.startsWith(":")){
     ret = std.keyword(tn)
   }else if(tn.startsWith("%")){
@@ -353,7 +353,7 @@ function readAtom(tokens){
 //Process a LISP form
 function readBlock(tokens, limits="()"){
   let token=popToken(tokens),
-      ast=new std.SList(),
+      ast=std.pair(),
       ends=["(",")"],
       jso=false,
       expr=false,
@@ -363,14 +363,14 @@ function readBlock(tokens, limits="()"){
     jso=true;
   }else if(limits=="`[]"){
     ends=["[", "]"]
-    ast=new std.vector();
+    ast=std.vector();
   }else if(limits=="#{}"){
     ends=["#{", "}"]
   }else if(limits=="{}"){
     ends=["{", "}"]
   }else if(limits=="[]"){
     ends=["[", "]"];
-    ast=new std.vector();
+    ast=std.vector();
   }else if(limits=="()"){
     expr=true;
   }
@@ -386,11 +386,12 @@ function readBlock(tokens, limits="()"){
       addAst(ast, readAst(tokens))
     }
   }
+  //get rid of the last token
   popToken(tokens);
   if(jso){
     ast.unshift(std.symbol("object*"));
   }else if(expr){
-    if(std.symbol_QMRK(ast[0])){
+    if(std.isSymbol(ast[0])){
       switch(`${ast[0]}`){
         case "hash-map":
           ast[0].value="hashmap*";
@@ -398,12 +399,18 @@ function readBlock(tokens, limits="()"){
         case "hash-set":
           ast[0].value="hashset*";
           break;
+        case "vec":
         case "vector":
           ast[0].value="vector*";
+          //cur=std.vector();
+          //ast.shift();
+          //ast.forEach(z=>cur.push(z));
+          //ast=cur;
           break;
         case "list":
           ast[0].value="list*";
           break;
+        case "js-obj":
         case "object":
           ast[0].value="object*";
           break;
@@ -442,8 +449,7 @@ function skipParse(tokens, func){
   let t = popToken(tokens),
       ret = func(tokens),
       a1 = ret[0];
-  return copyTokenData(t, a1) && copyTokenData(t, ret);
-}
+  return copyTokenData(t, a1) && copyTokenData(t, ret) }
 //////////////////////////////////////////////////////////////////////////////
 const SPEC_TOKENS=(function(m){
   let o=new Map();
@@ -451,13 +457,13 @@ const SPEC_TOKENS=(function(m){
   return o;
 })({
 
-  "'": function(a1){ return [std.symbol("quote"), readAst(a1)] },
-  "`": function(a1){ return [std.symbol("syntax-quote"), readAst(a1)] },
-  "~": function(a1){ return [std.symbol("unquote"), readAst(a1)] },
-  "~@": function(a1){ return [std.symbol("splice-unquote"), readAst(a1)] },
-  "@": function(a1){ return [std.symbol("deref"), readAst(a1)] },
-  "#": function(a1){ return [std.symbol("lambda"), readAst(a1)] },
-  "^": function(a1){ let t= readAst(a1); return [std.symbol("with-meta"), readAst(a1), t]},
+  "'": function(a1){ return std.pair(std.symbol("quote"), readAst(a1)) },
+  "`": function(a1){ return std.pair(std.symbol("syntax-quote"), readAst(a1)) },
+  "~": function(a1){ return std.pair(std.symbol("unquote"), readAst(a1)) },
+  "~@": function(a1){ return std.pair(std.symbol("splice-unquote"), readAst(a1)) },
+  "@": function(a1){ return std.pair(std.symbol("deref"), readAst(a1)) },
+  "#": function(a1){ return std.pair(std.symbol("lambda"), readAst(a1)) },
+  "^": function(a1){ let t= readAst(a1); return std.pair(std.symbol("with-meta"), readAst(a1), t)},
 
   "[": [function(a1){ return readVector(a1) }],
   "(": [function(a1){ return readList(a1) }],
@@ -465,9 +471,11 @@ const SPEC_TOKENS=(function(m){
   "{": [function(a1){ return readObjectMap(a1) }],
 
   "$": function(a1){
-    let x = std.symbol("str");
-    let y = readAst(a1);
-    if(y.length > 1){ y= [x, y] }else{ y.unshift(x) } return y; }
+    let y = readAst(a1),
+        x = std.symbol("str");
+    if(y.length > 1){ y= std.pair(x, y) }else{ y.unshift(x) }
+    return y;
+  }
 });
 //////////////////////////////////////////////////////////////////////////////
 //Inner parser routine
@@ -511,17 +519,16 @@ function parse(source,...args){
 //////////////////////////////////////////////////////////////////////////////
 function dumpInfo(tag, ast){
   return ast && typeof(ast.line)== "number" ?
-    `<${tag} line=\"${ast.line}\" column=\"${ast.column}\">` : `<${tag}>`;
-}
+    `<${tag} line=\"${ast.line}\" col=\"${ast.column}\">` : `<${tag}>` }
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
 function dumpTree(tree){
   //if(std.primitive_QMRK(tree)){ tree = tree.value }
   let s,rc;
-  if(std.vector_QMRK(tree)){
+  if(std.isVec(tree)){
     //vector
     s=tree.map(a=>dumpTree(a)).join("");
-    rc=`${dumpInfo("vector", tree)}${s}</vector>`
+    rc=`${dumpInfo("vec", tree)}${s}</vec>`
   }else if(tree instanceof Set){
     s="";
     tree.forEach(v=>{
@@ -538,19 +545,22 @@ function dumpTree(tree){
       s += dumpTree(v);
     });
     rc=`${dumpInfo("map", tree)}${s}</map>`
+  }else if(std.isPair(tree)){
+    s=tree.map(a=>dumpTree(a)).join("");
+    rc=`${dumpInfo("list", tree)}${s}</array>`
   }else if(Array.isArray(tree)){
     s=tree.map(a=>dumpTree(a)).join("");
     rc=`${dumpInfo("array", tree)}${s}</array>`
   }else if(tree instanceof LambdaArg){
     rc=`${dumpInfo("lambda-arg", tree)}${tree.value}</lambda-arg>`
-  }else if(std.keyword_QMRK(tree)){
-    rc=`${dumpInfo("keyword", tree)}${std.esc_DASH_xml(tree.value)}</keyword>`
-  }else if(std.symbol_QMRK(tree)){
-    rc=`${dumpInfo("symbol", tree)}${std.esc_DASH_xml(tree.value)}</symbol>`
+  }else if(std.isKeyword(tree)){
+    rc=`${dumpInfo("keyword", tree)}${std.escXml(tree.value)}</keyword>`
+  }else if(std.isSymbol(tree)){
+    rc=`${dumpInfo("symbol", tree)}${std.escXml(tree.value)}</symbol>`
   }else if(tree instanceof std.RegexObj){
-    rc=`${dumpInfo("regex", tree)}${std.esc_DASH_xml(tree.value)}</regex>`
+    rc=`${dumpInfo("regex", tree)}${std.escXml(tree.value)}</regex>`
   }else if(typeof(tree)== "string"){
-    rc=`<string>${std.esc_DASH_xml(std.quote_DASH_str(tree))}</string>`
+    rc=`<string>${std.escXml(std.quoteStr(tree))}</string>`
   }else if(typeof(tree) == "number"){
     rc=`<number>${tree}</number>`
   }else if(tree === null){
@@ -570,21 +580,25 @@ function dumpTree(tree){
 //////////////////////////////////////////////////////////////////////////////
 //Debug and dump the AST
 function dumpAst(tree, fname){
-  return `<AbstractSyntaxTree file=\"${std.esc_DASH_xml(fname)}\">${dumpTree(tree)}</AbstractSyntaxTree>`
-}
+  return `<AST file=\"${std.escXml(fname)}\">${dumpTree(tree)}</AST>` }
+//////////////////////////////////////////////////////////////////////////////
+//Dump AST to xml
+function dbgAST(source, fname){
+  return dumpAst(rdr.parse(source, fname), fname) }
+//////////////////////////////////////////////////////////////////////////////
 module.exports = {
   da57bc0172fb42438a11e6e8778f36fb: {
     ns: "czlab.kirby.reader",
-    vars: ["Token", "REGEX", "testid?", "jsid", "parse", "dumpAst"],
+    vars: ["Token", "REGEX", "testid?", "jsid", "parse", "dbgAST"],
     macros: {}
   },
-  LambdaArg: LambdaArg,
-  Token: Token,
-  REGEX: REGEX,
-  testid: testid,
-  jsid: jsid,
-  parse: parse,
-  dumpAst: dumpAst
+  LambdaArg,
+  Token,
+  REGEX,
+  testid,
+  jsid,
+  parse,
+  dbgAST
 };
 //////////////////////////////////////////////////////////////////////////////
 //EOF

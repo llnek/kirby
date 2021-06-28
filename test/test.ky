@@ -16,7 +16,7 @@
 
   (:require ["kirby"
              :as std
-             :refer [set? map? conj! println inc dec rseq str*
+             :refer [set? map? conj! println inc dec rseq
                      split-with take-while drop-while]]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -44,19 +44,17 @@
   (ensure (starts-with? "abc" "a") "string starts?")
   (ensure (ends-with? "abc" "c") "string ends?")
   (ensure (= 3 (n# [1 2 3])) "n#")
-  (ensure (= 1 (1st [1 2])) "1st")
-  (ensure (= 2 (2nd [1 2])) "2nd")
-  (ensure (= 3 (3rd [1 2 3])) "3rd")
+  (ensure (= 1 (first [1 2])) "first")
+  (ensure (= 2 (_2 [1 2])) "_2")
+  (ensure (= 3 (_3 [1 2 3])) "_3")
   (ensure (= 1 (get (slice [1 2] 0 -1) 0)) "slice,a,b")
   (ensure (= 2 (get (slice [1 2] 1) 0)) "slice,a")
   (ensure (= (float "1.2") 1.2) "float")
   (ensure (= (int "12") 12) "int")
-
   (ensure (not (std/eq? (s/keyword ":aaa") :aaa)) "!eq? keywords")
   (ensure (== (s/keyword ":aaa") :aaa) "match keywords")
   (ensure (== :aaa :aaa) "match both keywords")
   (ensure (std/eq? :aaa :aaa) "eq? both keywords")
-
   (ensure (not= 1 2) "not=")
   (ensure (!= 3 4) "!=")
   (ensure (== 7 7) "==")
@@ -65,7 +63,6 @@
   (ensure (>= 5 5) ">=")
   (ensure (< 4 7) "<")
   (ensure (<= 9 9) "<=")
-
   (ensure (= 3200 (bit-shift-left 100 2 3)) "<<")
   (ensure (= 40 (bit-shift-left 10 2)) "<<")
   (ensure (= 2 (bit-shift-right 10 2)) ">>")
@@ -88,12 +85,10 @@
   (ensure (= 11 (bit-or 10 3)) "|")
   (ensure (= -11 (bit-not 10)) "~")
   (ensure (= 9 (bit-xor 10 3)) "^")
-
   (ensure (s/eq? [4 3] (let [x 3 y (++$ x)] [x y])) "++")
   (ensure (s/eq? [4 4] (let [x 3 y (++ x)] [x y])) "++")
   (ensure (s/eq? [2 3] (let [x 3 y (--$ x)] [x y])) "--")
   (ensure (s/eq? [2 2] (let [x 3 y (-- x)] [x y])) "--")
-
   (ensure (= 6 (let [x 3] (+= x 3))) "+=")
   (ensure (= 3 (let [x 6] (-= x 3))) "-=")
   (ensure (= 18 (let [x 6] (*= x 3))) "*=")
@@ -107,7 +102,6 @@
   (ensure (= 872 (let [x 109] (bit-shift-left= x 3))) "<<=")
   (ensure (= 13 (let [x 109] (bit-shift-right= x 3))) ">>=")
   (ensure (= 18 (let [x 148] (unsigned-bit-shift-right= x 3))) ">>>=")
-
   (ensure (do (undef! TMPVAR)(= undefined TMPVAR)) "undef!")
   (ensure (do (nil! TMPVAR)(= null TMPVAR)) "nil!")
   (ensure (= 2 (last-index [1 2 3])) "last-index")
@@ -129,11 +123,11 @@
   (ensure (= 3 (alen [1 2 3])) "alen")
   (ensure (nzlen? [1 2]) "nzlen?")
   (ensure (zlen? []) "zlen?")
+
   (ensure (= "string" (type "hello")) "type")
   (ensure (= "[object Array]" (whatis? [3])) "whatis?")
   (ensure (regex? #/^hello/) "regex?")
   (ensure (array? [] [1] ["2"]) "array?")
-  (ensure (arr? [] [1] ["2"]) "arr?")
   (ensure (date? (new Date)) "date?")
   (ensure (boolean? true false) "boolean?")
   (ensure (bool? true false) "bool?")
@@ -154,11 +148,11 @@
 
   (ensure (let [[a b] [3 4]] (and (= 3 a) (= 4 b))) "destruct vec")
   (ensure (let [[a b [c d]] [3 4 [5 6]]] (and (= 5 c) (= 6 d))) "destruct vec,2")
-  (ensure (let [{:keys [a b]} (js-obj a 3 b 4)] (and (= 3 a) (= 4 b))) "destruct obj")
+  (ensure (let [{:keys [a b]} (js-obj :a 3 :b 4)] (and (= 3 a) (= 4 b))) "destruct obj")
   (ensure (let [{:keys [a b]} {:a 3 :b 4}] (and (= 3 a) (= 4 b))) "destruct map")
 
   (ensure (s/eq? [1 2 3 4 5]
-                 ((fn [a [b c] {:keys [d e]}] [a b c d e]) 1 [2 3] (object d 4 e 5)))
+                 ((fn [a [b c] {:keys [d e]}] [a b c d e]) 1 [2 3] (object :d 4 :e 5)))
           "destruct fn args")
 
   (ensure (assert (= 1 1)) "assert")
@@ -186,12 +180,14 @@
   (ensure (= 8 (->> (+ 1 2) (/ 12) (+ 4))) "->>")
   (ensure (= 3 (let [a 1 b 2] (+ a b))) "let")
   (ensure (single? [1]) "single?")
-  (ensure (dual? [1 2]) "dual?")
+  (ensure (double? [1 2]) "double?")
   (ensure (triple? [1 2 3]) "triple?")
+
   (ensure (= 911
              (loop [a 0 b 10]
                (if (= a b)
                  911 (recur (+1 a) (-1 b))))) "loop")
+
   (ensure (= 4 (.-length (concat [1 2] [3 4]))) "concat")
   (ensure (= "a,b" (join "," ["a" "b"])) "join")
   (ensure (= 3 (do-with [a (+ 1 2)]
@@ -210,12 +206,12 @@
   (ensure (do (set! TMPVAR
                     (let [f (fn [a b] [b a])]
                       (apply f this [1 2])))
-              (and (= 2 (1st TMPVAR))
+              (and (= 2 (first TMPVAR))
                    (= 1 (std/last TMPVAR)))) "apply")
   (ensure (do (set! TMPVAR
                     (let [f (fn [a b] [b a])]
                       (apply+ f this 1 2)))
-              (and (= 2 (1st TMPVAR))
+              (and (= 2 (first TMPVAR))
                    (= 1 (std/last TMPVAR)))) "apply+")
   (ensure (= "z" (ch@ "hellz" 4)) "ch@")
   (ensure (= false (do (false! TMPVAR) TMPVAR)) "false!")
@@ -275,7 +271,7 @@
                  (doto #{1 2 3}
                    (std/disj! 2 3))) "disj!,set")
 
-  (ensure (= 2 (1st (map #(inc %) [1 2]))) "map")
+  (ensure (= 2 (first (map #(inc %) [1 2]))) "map")
   (ensure (= 2 (n# (filter #(even? %) [1 2 8]))) "filter")
   (ensure (= true (some #(odd? %) [1 2 8])) "some")
   (ensure (let [x (take 3 [1 2 3 4 5])]
@@ -320,10 +316,11 @@
   (ensure (fn? (s/getProp
                  (object :a 1 :z 5)
                  :toString false)) "getProp,false")
-  (ensure (= "(1 2 3)" (s/prn [1 2 3])) "prn")
+  (ensure (== "(vec 1 2 3)" (s/prn [1 2 3])) "prn")
+
   (ensure (let [p 2 v 3]
-            (and (s/primitive? p)
-                 (= v 3))) "primitive?")
+            (and (s/simple? p)
+                 (= v 3))) "simple?")
   (ensure (let [k (s/keyword ":hello")
                 v (.-value k)]
             (and (s/keyword? k)
@@ -350,15 +347,13 @@
   (ensure (= 8 (let [a (s/atom 3)]
                  (s/swap! a (fn [old more]
                               (+ old more)) 5) @a)) "swap!")
-  (ensure (= :atom (s/typeid (s/atom 2))) "typeid")
-  (ensure (and (not (s/primitive? [1]))
-               (not (s/primitive? {:a 1}))) "complex?")
-  (ensure (and (s/primitive? 1)
-               (s/primitive? nil)) "simple?")
-  (ensure (and (false? (s/primitive? []))
-               (false? (s/primitive? {}))) "not simple?")
-  (ensure (and (s/value? 3)
-               (s/value? (fn [] nil))) "value?")
+  (ensure (s/rtti? (s/atom 2) "[object Object]") "rtti")
+  (ensure (and (not (s/simple? [1]))
+               (not (s/simple? {:a 1}))) "complex?")
+  (ensure (and (s/simple? 1)
+               (s/simple? nil)) "simple?")
+  (ensure (and (false? (s/simple? []))
+               (false? (s/simple? {}))) "not simple?")
   (ensure (s/sequential? [1 2 3]) "sequential?")
   (ensure (s/eq? [1 2] [1 2]) "eq? -> array")
   (ensure (s/eq? (object :a 1 :b 2) (object :b 2 :a 1)) "eq? -> object")
@@ -375,7 +370,6 @@
             (and (= 4 (n# x))
                  (= 3 (n# y)) (s/list? y))) "into")
 
-  (ensure (s/pairs? [1 2 3]))
   (ensure (s/list? (s/list 1 2 3)) "list,list?")
   (ensure (s/vector? (s/vector 1 2 3)) "vector,vector?")
   (ensure (s/map? (s/hash-map :a 1 :b 2 :c 3)) "hash-map,map?")
@@ -403,8 +397,8 @@
   (ensure (let [g (s/gensym "X")]
             (and (s/symbol? g)
                  (starts-with? (.-value g) "X"))) "gensym")
-  (ensure (= 1 (get (s/carve [1 2] 0 -1) 0)) "carve,a,b")
-  (ensure (= 2 (get (s/carve [1 2] 1) 0)) "carve,a")
+  (ensure (= 1 (get (slice [1 2] 0 -1) 0)) "slice,a,b")
+  (ensure (= 2 (get (slice [1 2] 1) 0)) "slice,a")
   (ensure (s/eq? {:a 1 :b 2}
                  (s/assoc! {} :a 1 :b 2)) "assoc!")
   (ensure (s/eq? {:c 3}
@@ -502,9 +496,9 @@
 
   (ensure (let [obj {:a 1 :b 2}]
             (and (map? obj)
-                 (= 2 (n# obj))
-                 (= 1 (.get obj :a))
-                 (= 2 (.get obj :b)))) "object,Map")
+                 (== 2 (n# obj))
+                 (== 1 (.get obj :a))
+                 (== 2 (.get obj :b)))) "object,Map")
 
   (ensure (= 698 (s/max-by s/identity [78 7 698 4 5 2 -1])) "max-by")
   (ensure (= -1 (s/min-by s/identity [78 7 6 4 5 2 -1])) "min-by")
@@ -554,7 +548,7 @@
                             c2 (exlog add2 "add2")]
                            c2) (object :value 1 :log []))) "state monad")
 
-  (ensure (= 3 (std/monad-run-cont
+  (ensure (= 3 (std/run-monad-continuation
                  (domonad std/monad-continuation
                           [x ((fn [v] (fn [c] (c v))) 1)
                            y ((fn [v] (fn [c] (c v))) 2)]
@@ -565,7 +559,7 @@
                 rhs (f 911)
                 lf (lhs "hello")
                 rt (rhs "hello")]
-            (and (= (1st lf)(1st rt))
+            (and (= (first lf)(first rt))
                  (= (s/last lf)(s/last rt))))
           "monad rule 1: bind(unit(x), f) ≡ f(x)")
 
@@ -573,7 +567,7 @@
                 lhs (s/monad-state.bind mv s/monad-state.unit)
                 lf (lhs "hello")
                 rt (mv "hello")]
-            (and (= (1st lf)(1st rt))
+            (and (= (first lf)(first rt))
                  (= (s/last lf)(s/last rt))))
           "monad rule 2: bind(m, unit) ≡ m")
 
@@ -585,7 +579,7 @@
                 rhs (bb mv (fn [v] (bb (f v) g)))
                 lf (lhs "hello")
                 rt (rhs "hello")]
-            (and (= (1st lf)(1st rt))
+            (and (= (first lf)(first rt))
                  (= (s/last lf)(s/last rt))))
           (str "monad rule 3:"
                " bind(bind(m, f), g)"
@@ -594,9 +588,10 @@
 
   (ensure-thrown "object" (raise! "hello" "world") "raise!")
   (ensure-thrown "string" (trap! "hello" "world") "trap!")
-  (ensure (= "hello" (.-message (merror "hello"))) "merror")
+
 
 )
+
 
 
 

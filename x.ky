@@ -10,20 +10,66 @@
       :author "Kenneth Leung"}
   czlab.elmo.ecs.core
   (:require [kirby :as kkkk]
-            ["kirby"
-             :as ky
-             :rename {atom _atom_}
-             :refer [Atom atom swap! conj! disj!]]))
+            ["kirby" :as ky :rename {atom _atom_} :refer '(Atom atom swap! conj! disj!) ]))
 
-(def a (vector 1 2 3)
-  b (js-obj :a "121" :b 5))
+;((juxt foo woo) 3)
+;(deref poo)
+;((comp foo woo) 3)
+;'#{1}
+;'{:a 1 b 2}
+;'(1 2 3)
+;'(vector 9 0 8)
+;'''[4 5 6]
+;'(js-obj :f 4 :d 3)
+;(defn poo [s [a b c & more :as V] {:keys [p j] :as M}  & w] (+ 1 2))
+;(deftype Poo [Face] (woo [&xs] undefined) (loo [& xs] "888") (foo ^:static [a b] (+ a b)))
+;(do (+ 1 2) (/ 3 4) (str "loo" "poo"))
+;(case poo 1 2 (3 4 5) 6 7 8 "poo")
+;(const- x 2 y 4)
+;(inst? Loo.Poo s)
+;(delete! poo )
+;(dissoc! poo a b)
+;(new Wee)
+;(throw (Error 444 555))
+;(++$ b)
+;(--$ b)
+;(+= x 5)
+;(assoc! poo 3 4 7 8)
+;(aset poo 3 4 5 6)
+;(var-set poo 3 yyy 6)
+;(def x (fn [[a b :as poo] y] (+ x y)))
+;(try (poo 4 5) (loo 2 3) (catch e (+ 6 7) "yoo") (finally (/ 2 3) (+ 1 2)))
+;(if (+ 2 3) (if 4 (* 5 7)) (/ 3 4))
+;(get obj "age")
+;(aget obj 4)
+;(nth obj 3)
+;(list 1 2 3)
+;(list* 4 5 6)
+;#{:a 2 :b 7}
+;(hash-set 4 5)
+;{:a 2 :b 7}
+;(comment (hash-map 4 5)(+ 2 3))
+;(while (+ 3 4) (/ 6 7) "sss" (foo 4 5))
+;(floop [  a poop :start 10 :xend 0 :index j :step 2] "wee wee")
+;(raw# "console.log('dfdsfds')")
+;(defmacro poo [x] `(+ x 1))
+;(doseq [x [1 2 3] :when (< x 1) :let [y (* x x)] ] (println [x y]) )
+;(defn poo "xxx" ^{:tag String, :doc "bbb fff" } [a] {:pre [(+ 2 3)(/ 3 4)]} (do (+ 3 4) "ooo"))
+;'(1 2 undefined null "")
+;(div 3 4 5 )
+;(def a 1 c 3)
+;(def xx (fn [i] "fff"))
+;(defn poo [coll & xs] (cond 1 (+ 12 3) 2 (+ 4 5) 3 "555" :else 444))
 
-(defn poo [a b]
-  (this-as weewee
-           (.-xxx weewee)
-    (sss 444))
-  )
+;(domonad kirbyref/monad-identity [a 1 b (inc a)] (+ a b))
 
-;(= :a (get (keys {:a 1}) 0))
+(doseq [x (range 10)
+        :let [y (inc x) z y]
+        :while (< x 7)]
+  (poo 3))
+
+
+
+
 
 

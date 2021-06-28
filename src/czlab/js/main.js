@@ -15,97 +15,84 @@ const cp = require("child_process");
 const watch = require("watch");
 const path = require("path");
 const fs = require("fs");
-const tx = require("./compiler");
+const std = require("./kernel");
 const rt = require("./engine");
-const std = require("./stdlib");
-const println = std["println"];
+const cc = require("./compiler");
+const spfs = require("./spfs");
+const println=std["println"];
 //////////////////////////////////////////////////////////////////////////////
 /** error and exit */
-function errorExit(msg){
+function errOut(msg){
   println(msg);
-  return process.exit(1);
-}
+  return process.exit(1) }
 ////////////////////////////////////////////////////////////////////////////////
 /** compile code */
-function compileSource(argv,options){
-  let [fin,fout] = argv || [];
-  if(!fin){
-    errorExit("No source file")
-  }else{
-    fin=path.resolve(fin)
-  }
-  if(!fin.endsWith(".ky")){
-    errorExit("Source file extension != '.ky'")
-  }
-  if(!fout){
-    fout=fin.replace(/\.ky$/g, ".js")
-  }
-  options=options || {}
+function compile([fin,fout],options){
+  if(!fin)
+    errOut("No source file");
+  fin=path.resolve(fin)
+  if(!fin.endsWith(".ky"))
+    errOut("Source file extension != '.ky'");
+  if(!fout)
+    fout=fin.replace(/\.ky$/g, ".js");
   try{
-    let showAst = options["show-ast"];
     let source = rt.slurp(fin);
-    if(showAst){
-      println(tx.dbgAST(source, fin))
+    if(options["show-ast"]){
+      println(rdr.dbgAST(source, fin))
     }else{
-      println(["kirby v", tx.version].join(""), ": compiling: ", fin, " -> ", fout);
-      let [ret,err]= tx.transpile(source, fin, options);
+      println(`"kirby v${cc.version}: compiling: ${fin} -> ${fout}`);
+      let [ret,err]= cc.transpile(source, fin, options);
       console.log(ret);
       rt.spit(fout, ret);
       if(err)
         throw err;
     }
   }catch(e){
-    errorExit(e)
+    errOut(e)
   }
 }
 //////////////////////////////////////////////////////////////////////////////
 function init(){
-  return rt.init(tx.version)
-}
+  return rt.init(cc.version) }
 //////////////////////////////////////////////////////////////////////////////
 function doWatch(cwd){
   println("Watching", cwd, "for file changes...");
   watch.watchTree(cwd,{
     "ignoreDirectoryPattern": /node_modules/,
     "ignoreDotFiles": true,
-    "filter": function(f, stat){
-      return f.endsWith(".ky") || stat.isDirectory()
-    }
+    "filter": (f,stat)=> f.endsWith(".ky") || stat.isDirectory()
   }, function(f, curr, prev){
-    if(is_object(f) && prev === null && curr === null){
+    if(std.isObject(f) && prev === null && curr === null){
       //finished walking the tree
       return null
-    }else if(curr && curr.nlink === 0){
+    }
+    if(curr && curr.nlink === 0){
       //f was removed
       return null
-    }else{
-      return cp.spawn("bin/kirby.js", [f.slice(cwd.length+1)], {
-        "stdio": "inherit"
-      })
     }
-  });
-}
+    return cp.spawn("bin/kirby.js",
+                    [f.slice(cwd.length+1)],{ "stdio": "inherit" }) }) }
 //////////////////////////////////////////////////////////////////////////////
 function pcli(gopt){
-  //let opt = gopt.parseSystem();
   let {argv,options}= gopt.parseSystem();
   let {version,repl,watch,help} = options;
   if(version){
-    console.info(tx.version)
+    console.info(cc.version)
   }else if(watch){
     doWatch(process.cwd())
   }else if(repl){
     rt.runRepl()
   }else if(help || 0 === argv.length){
     gopt.showHelp()
-  } else {
-    compileSource(argv,options)
+  }else{
+    compile(argv||[],options||{})
   }
   return true
 }
 //////////////////////////////////////////////////////////////////////////////
 function main(){
-  let cli=getopt.create([["v", "verbose", "show details of the source"],
+  let cli=getopt.create([
+    ["v", "verbose", "show details of the source"],
     ["w", "watch", "auto-compile changed files"],
     ["m", "source-map", "generate source maps"],
     ["f", "no-format", "no-format source code"],
@@ -116,7 +103,6 @@ function main(){
   setHelp(["kirby [OPTIONS] [<infile>] [<outfile>]\n\n",
            "<outfile> defaults to <infile>.js\n\n", "[[OPTIONS]]\n\n"].join("")).
   bindHelp();
-
   return init() && pcli(cli)
 }
 main();
