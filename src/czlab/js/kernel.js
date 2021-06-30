@@ -25,8 +25,11 @@ const Atom=core.Atom;
 function println(...msgs){
   if(console) console.log(msgs.join("")); return null; }
 //////////////////////////////////////////////////////////////////////////////
+function throwE(msg,line){
+  throw Error(typeof(line)=="number" ? [msg,` near line: ${line}`].join("") : msg) }
+//////////////////////////////////////////////////////////////////////////////
 function isSequential(o){
-  return isStr(o) || isVec(o) || isPair(o) || Array.isArray(o) }
+  return isVec(o) || isPair(o) || Array.isArray(o) }
 //////////////////////////////////////////////////////////////////////////////
 function isPair(a,checkEmpty){
   return a instanceof SPair ? (checkEmpty?a.length>0:true) : false }
@@ -365,7 +368,7 @@ function consBANG(x, coll){
 //////////////////////////////////////////////////////////////////////////////
 /**Returns the last element. */
 function last(coll){
-  return isSequential(coll) && coll.length>0 ? coll[coll.length-1] : null }
+  return (isStr(coll)||isSequential(coll)) && coll.length>0 ? coll[coll.length-1] : null }
 //////////////////////////////////////////////////////////////////////////////
 /**true if item is inside. */
 function contains(coll, x){
@@ -664,18 +667,9 @@ function object(...xs){
 ////////////////////////////////////////////////////////////////////////////////
 /**Add many to this collection. */
 function concat(coll,...xs){
-  let rc;
-  if(Array.isArray(coll)){
-    rc=copyPair(coll)
-    xs.forEach(a=>{
-      if(Array.isArray(a))
-        a.forEach(z=>rc.push(z));
-      else
-        rc.push(a);
-    });
-  }else{
-    throw Error(`Cannot concat* with: ${rtti(coll)}`)
-  }
+  let rc=new SPair();
+  seq(coll).forEach(z=> rc.push(z));
+  xs.forEach(c=> seq(c).forEach(z=> rc.push(z)));
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -717,6 +711,7 @@ module.exports={
   SValue,SPair,DArray,Atom,RegexObj,Keyword,Symbol,
   requireJS,
   println,
+  throwE,
   isSequential,
   rtti,
   isNichts,

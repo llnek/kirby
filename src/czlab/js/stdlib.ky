@@ -273,7 +273,8 @@
   """True if all args are even"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== 0 (kirbyref/mod ~x 2))) xs)))
+  (let* [arr (map* (lambda* [x] `(== 0 (kirbyref/mod ~x 2))) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro odd?
@@ -281,7 +282,8 @@
   """True if all args are odd"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(!= 0 (kirbyref/mod ~x 2))) xs)))
+  (let* [arr (map* (lambda* [x] `(!= 0 (kirbyref/mod ~x 2))) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro alen
@@ -329,7 +331,8 @@
   """True if all args are RegExps"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(kirbyref/rtti? ~x "[object RegExp]")) xs)))
+  (let* [arr (map* (lambda* [x] `(kirbyref/rtti? ~x "[object RegExp]")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro array?
@@ -337,7 +340,8 @@
   """True if all args are arrays"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(Array.isArray ~x)) xs)))
+  (let* [arr (map* (lambda* [x] `(Array.isArray ~x)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro date?
@@ -345,23 +349,8 @@
   """True if all args are Dates"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(kirbyref/rtti? ~x "[object Date]")) xs)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro XXmap?
-
-  """True if all args are Maps"""
-  [&xs]
-
-  `(_andp_* ~@(map* (lambda* [x] `(kirbyref/rtti? ~x "[object Map]")) xs)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro XXset?
-
-  """True if all args are Sets"""
-  [&xs]
-
-  `(_andp_* ~@(map* (lambda* [x] `(kirbyref/rtti? ~x "[object Set]")) xs)))
+  (let* [arr (map* (lambda* [x] `(kirbyref/rtti? ~x "[object Date]")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro bool?
@@ -377,7 +366,8 @@
   """True if all args are booleans"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== (typeof ~x) "boolean")) xs)))
+  (let* [arr (map* (lambda* [x] `(== (typeof ~x) "boolean")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro num?
@@ -393,7 +383,8 @@
   """True if all args are numbers"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== (typeof ~x) "number")) xs)))
+  (let* [arr (map* (lambda* [x] `(== (typeof ~x) "number")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro str?
@@ -409,7 +400,8 @@
   """True if all args are strings"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== (typeof ~x) "string")) xs)))
+  (let* [arr (map* (lambda* [x] `(== (typeof ~x) "string")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro fn?
@@ -417,7 +409,8 @@
   """True if all args are functions"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== (typeof ~x) "function")) xs)))
+  (let* [arr (map* (lambda* [x] `(== (typeof ~x) "function")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro undef?
@@ -425,7 +418,8 @@
   """True if all args are undefineds"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== (typeof ~x) "undefined")) xs)))
+  (let* [arr (map* (lambda* [x] `(== (typeof ~x) "undefined")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro def?
@@ -433,7 +427,8 @@
   """True if all args are defined"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(!= (typeof ~x) "undefined")) xs)))
+  (let* [arr (map* (lambda* [x] `(!= (typeof ~x) "undefined")) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro nil?
@@ -441,7 +436,8 @@
   """True if all args are nulls"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(= ~x null)) xs)))
+  (let* [arr (map* (lambda* [x] `(= ~x null)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro zero?
@@ -449,7 +445,8 @@
   """True if all args are zeros"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== ~x 0)) xs)))
+  (let* [arr (map* (lambda* [x] `(== ~x 0)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro one?
@@ -457,7 +454,8 @@
   """True if all args are 1s"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(== ~x 1)) xs)))
+  (let* [arr (map* (lambda* [x] `(== ~x 1)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro neg?
@@ -465,7 +463,8 @@
   """True if all args are negative"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(< ~x 0)) xs)))
+  (let* [arr (map* (lambda* [x] `(< ~x 0)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro pos?
@@ -473,7 +472,8 @@
   """True if all args are positive"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(> ~x 0)) xs)))
+  (let* [arr (map* (lambda* [x] `(> ~x 0)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro vals
@@ -522,7 +522,8 @@
   """True if all args are false"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(= ~x false)) xs)))
+  (let* [arr (map* (lambda* [x] `(= ~x false)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro true?
@@ -530,7 +531,8 @@
   """True if all args are true"""
   [&xs]
 
-  `(_andp_* ~@(map* (lambda* [x] `(= ~x true)) xs)))
+  (let* [arr (map* (lambda* [x] `(= ~x true)) xs)]
+    (if* (= 1 (count* arr)) `~(first* arr) `(and ~@arr))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro when-not
@@ -712,7 +714,7 @@
         (recur ~@os)) this)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro concat
+(defmacro Xconcat
 
   """Returns the concatenation of the elements in the supplied colls"""
   [coll & xs] `(.concat ~coll ~@xs))
@@ -1170,8 +1172,8 @@
   (let* [ds (if* (is-str? docs) docs "")
          ps (if* (is-str? docs)
                  operations
-                 (if* (is-array? docs) docs))
-         _ (assert* (is-array? ps)
+                 (if* (is-sequential? docs) docs))
+         _ (assert* (is-sequential? ps)
                     "no macro operations")]
     `(const ~name (monad ~ds ~ps))))
 
@@ -1237,13 +1239,8 @@
           (cons* 'cond* (rest* (rest* xs))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro _andp_*
-  "" [&xs]
-  (if* (= 1 ~(count* xs)) `~(first* xs) `(and ~@xs)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro with-local-vars "" [bindings & more]
-  (let* [_ (assert* (is-array? bindings)
+  (let* [_ (assert* (is-sequential? bindings)
                     "expecting array as bindings")
          e (count* more)
          b (count* bindings)]
@@ -1914,6 +1911,15 @@ from-coll conjoined."
     (.forEach xs (fn [z] (.push o z))) o))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defn vec
+
+  "Create a Vector"
+  ^DArray [&xs]
+
+  (let [o (new DArray)]
+    (.forEach xs (fn [z] (.push o z))) o))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn vector?
 
   "Check if a Vector"
@@ -2015,12 +2021,17 @@ from-coll conjoined."
   (floop [:index i :end (count xs)]
          (.add ret (.@i xs))) ret)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defn concat*
+(defn concat
 
   "Add many to this collection"
-  ^Array [coll & xs]
+  [coll & xs]
 
-  (if coll (coll.concat.apply coll xs)))
+  (let [out '()]
+    (.forEach (seq coll) (fn [x] (.push out x)))
+    (.forEach xs (fn [c]
+                   (.forEach (seq c) (fn [x] (.push out x)))))
+    out))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn- repeat-every
 
@@ -2287,7 +2298,7 @@ the maximum number of splits. Returns vector of the splits."
     (do-with [out ""]
       (set! s (s.slice 1 -1))
       (floop [:index i :end (count s)]
-        (with-local-vars [nx ?
+        (with-local-vars [nx undefined
                           ch (ch@ s i)])
         (if (= ch "\\")
           (do (++ i)

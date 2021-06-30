@@ -188,7 +188,7 @@
                (if (= a b)
                  911 (recur (+1 a) (-1 b))))) "loop")
 
-  (ensure (= 4 (.-length (concat [1 2] [3 4]))) "concat")
+  (ensure (= 4 (.-length (s/concat [1 2] [3 4]))) "concat")
   (ensure (= "a,b" (join "," ["a" "b"])) "join")
   (ensure (= 3 (do-with [a (+ 1 2)]
                         (/ a 3))) "do-with")
@@ -326,7 +326,7 @@
             (and (s/keyword? k)
                  (= v ":hello"))) "keyword,keyword?")
   (ensure (let [k (s/keyword "::hello")
-                v $(k)]
+                v (str k)]
             (and (s/keyword? k)
                  (ends-with? v "/hello"))) "scoped,keyword,keyword?")
 
@@ -362,6 +362,9 @@
   (ensure (s/object? (object :a 1)) "object?")
   (ensure (= 3 (s/last [1 2 3])) "last")
 
+  (ensure (= 3 ({:a 1 :b 3} :b)) "(map,key)")
+  (ensure (= 3 (:b {:a 1 :b 3})) "(key,map)")
+
   (ensure (s/list? (s/into (s/list) [1 2 3])) "into")
 
   (ensure (let [x (s/list 1 2 3)
@@ -381,7 +384,7 @@
                (s/nichts? undefined)) "nichts?")
   (ensure (s/some? false) "some?")
   (ensure (= 3 (s/count [1 2 3])) "count")
-  (ensure (= 4 (n# (s/concat* [1 2] 3 4))) "concat*")
+  (ensure (= 4 (n# (s/concat [1 2] [3 4]))) "concat")
   (ensure (= 3 (s/last (s/evens [1 2 3 4]))) "evens")
   (ensure (= 4 (s/last (s/odds [1 2 3 4]))) "odds")
   (ensure (and (= 1 (s/mod 10 3))

@@ -12,9 +12,9 @@
 //////////////////////////////////////////////////////////////////////////////
 const readline = require("readline");
 const fs = require("fs");
-const rdr = require("./reader");
 const core = require("./core");
 const std = require("./kernel");
+const rdr = require("./reader");
 //////////////////////////////////////////////////////////////////////////////
 const EXPKEY = "da57bc0172fb42438a11e6e8778f36fb";
 const KBSTDLR = "kirbyref";
@@ -24,12 +24,13 @@ const macro_assert = "\n (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) "
 const GLOBAL = typeof(window) == "undefined" ? undefined : window;
 const prefix = "kirby> ";
 const println= std["println"];
+const throwE=std["throwE"];
 //////////////////////////////////////////////////////////////////////////////
-function _expect(k){ if(!std.isSymbol(k)) throw Error("expected symbol") }
+function _expect(k){ if(!std.isSymbol(k)) throwE("expected symbol") }
 //////////////////////////////////////////////////////////////////////////////
-//Lexical Environment
+/**Lexical Environment */
 class LEXEnv{
-  //Create and initialize a new env with these symbols, optionally a parent env
+  /**Create and initialize a new env with these symbols, optionally a parent env */
   constructor(parent, vars=[], vals=[]){
     this.data = new Map();
     this.par = null;
@@ -38,13 +39,14 @@ class LEXEnv{
     for(let ev,e,i=0; i<vars.length; ++i){
       e= vars[i], ev= e.value;
       if(ev.startsWith("&")){
+        //deal with [&xs] arg
         this.data.set(ev=="&" ? `${vars[i+1]}` : ev.slice(1), vals.slice(i));
         break;
       }
       this.data.set(ev, vals[i])
     }
   }
-  //Find the env containing this symbol
+  /**Find the env containing this symbol */
   find(k){
     _expect(k);
     if(this.data.has(k.value))
@@ -52,25 +54,28 @@ class LEXEnv{
     else if(this.par)
       return this.par.find(k);
   }
-  //Bind this symbol, value to this env
+  /**Bind this symbol, value to this env */
   set(k, v){
     _expect(k);
     this.data.set(k.value, v);
     return v;
   }
-  //Get value of this symbol
+  /**Get value of this symbol */
   get(k){
     _expect(k);
     let env = this.find(k);
-    return env ? env.data.get(k.value) : k.value;
+    if(!env) throwE(`Unknown var: ${k}`);
+    return env.data.get(k.value);
+    //return env ? env.data.get(k.value) : k.value;
   }
-  //Print set of vars
+  /**Print set of vars */
   prn(){
     return std.prn(this.data,true)
   }
   select(what){
-    return std.seq(this.data).reduce(function(acc, [k,v]){
-      let c6=true;
+    let c6,acc=new Map();
+    this.data.forEach(function(v,k){
+      c6=true;
       switch(what){
         case "fn":
           c6 = typeof(v) == "function";
@@ -81,8 +86,8 @@ class LEXEnv{
       }
       if(c6)
         acc.set(`${k}`,v);
-      return acc;
-    }, new Map())
+    });
+    return acc;
   }
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -99,7 +104,7 @@ function addVar(sym, info){
   let s = `${sym}`,
       m = _STAR_vars_STAR.get(s);
   if(m)
-    throw Error(`var: "${s}" already added`);
+    throwE(`var: "${s}" already added`);
   _STAR_vars_STAR.set(s, info);
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -115,15 +120,15 @@ function hasVar(sym){
 function addLib(alias, lib){
   //console.log(`adding lib ${alias}`);
   if(_STAR_libs_STAR.has(alias))
-    throw Error(`Library alias already added: ${alias}`);
+    throwE(`Library alias already added: ${alias}`);
   _STAR_libs_STAR.set(alias, lib);
 }
 //////////////////////////////////////////////////////////////////////////////
-function prnStr(...xs){
-  return xs.map(a=> std.prn(a)).join(" ") }
-//////////////////////////////////////////////////////////////////////////////
 function prnLn(...xs){
   return xs.map(a=> std.prn(a)).forEach(a=> println(a)) }
+//////////////////////////////////////////////////////////////////////////////
+function prnStr(...xs){
+  return xs.map(a=> std.prn(a)).join(" ") }
 //////////////////////////////////////////////////////////////////////////////
 function slurp(f){
   return fs.readFileSync(f, "utf-8") }
@@ -159,14 +164,16 @@ function cloneJS(obj){
     rc={};
     Object.keys(obj).forEach(k=>{ rc[k]=obj[k] });
   }else{
-    throw new Error(`clone of non-collection: ${obj}`)
+    throwE(`clone of non-collection: ${obj}`)
   }
   return rc
 }
 //////////////////////////////////////////////////////////////////////////////
+/**Get rid of possible cyclic refs */
 function filterJS(obj){
   let s = std.stringify(obj); if(s) return JSON.parse(s); }
 //////////////////////////////////////////////////////////////////////////////
+/**Sort out *this* */
 function resolveJS(s){
   return [s.includes(".") ? eval(/^(.*)\.[^\.]*$/g.exec(s)[1]) : GLOBAL, eval(s)] }
 //////////////////////////////////////////////////////////////////////////////
@@ -175,13 +182,15 @@ function withMeta(obj, m){
 ////////////////////////////////////////////////////////////////////////////////
 function meta(obj){
   if(std.isSimple(obj))
-    throw new Error(`can't get meta from: ${std.rtti(obj)}`);
+    throwE(`can't get meta from: ${std.rtti(obj)}`);
   return obj["____meta"];
 }
 //////////////////////////////////////////////////////////////////////////////
+/**Eval some js code */
 function evalJS(s){
   if(s) return filterJS(eval(s.toString())) }
 //////////////////////////////////////////////////////////////////////////////
+/**Invoke some method on some *this* object */
 function invokeJS(method,...xs){
   let [obj,f] = resolveJS(method); return filterJS(f.apply(obj, xs)); }
 //////////////////////////////////////////////////////////////////////////////
@@ -196,7 +205,7 @@ const _intrinsics_ = new Map([
                               return fout ? spit(fout, s) : println(s); }],
 
   ["slice*", function(arr,...xs){ return arr.slice(...xs) }],
-  ["throw*", function(...xs){ throw Error(xs.join("")) }],
+  ["throw*", function(...xs){ throwE(xs.join("")) }],
   ["str*", function(...xs){ return xs.join("") }],
 
   ["obj-type*", std.rtti],
@@ -310,33 +319,40 @@ const _intrinsics_ = new Map([
 ]);
 const CACHE = new Map();
 //////////////////////////////////////////////////////////////////////////////
-//Register a new macro
+/**Register a new macro */
 function setMacro(cmd, func){
   if(cmd && typeof(func) == "function"){
     cmd = `${cmd}`;
+    //only add namespace'd macro
     if(!cmd.includes("/")){
       let c = core.peekNS();
       if(!c)
-        throw new Error("setMacro: macro ${cmd} has no namespace");
+        throwE("setMacro: macro ${cmd} has no namespace");
       cmd = `${c.get("id")}/${cmd}`;
     }
     //console.log(`added macro: ${cmd}`);
     CACHE.set(cmd, func);
+  }else{
+    func=null;
   }
+  return func;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Get macro
+/**Get macro */
 function getMacro(cmd){
-  let nsp,skip,mname;
+  let mc, nsp,skip,mname;
   cmd = `${cmd}`;
+  mc=null;
   if(cmd.includes("/")){
     let [p,c] = cmd.split("/");
     let tmp, libObj = getLib(p);
     mname = c;
     if(p == KBSTDLR){
+      //from kirby
       nsp = KBSTDLIB
     }else if(std.isNichts(libObj) ||
              !std.getProp(libObj, EXPKEY)){
+      //non standard!
       skip = true
     }else{
       nsp = std.getProp(std.getProp(libObj, EXPKEY), "ns")
@@ -353,8 +369,9 @@ function getMacro(cmd){
       nsp = KBSTDLIB
     }
     if(typeof(nsp) == "string")
-      return CACHE.get(`${nsp}/${mname}`);
+      mc=CACHE.get(`${nsp}/${mname}`);
   }
+  return mc;
 }
 //////////////////////////////////////////////////////////////////////////////
 function readAST(s){
@@ -366,13 +383,13 @@ function readAST(s){
 }
 //////////////////////////////////////////////////////////////////////////////
 function backtick(ast){
-  let rc, lstQ=(a)=>!std.isStr(a) && std.isSequential(a) && std.notEmpty(a);
+  let rc, lstQ=(a)=> std.isSequential(a) && std.notEmpty(a);
   if(!lstQ(ast)){
     rc=std.pair(std.symbol("quote"), ast)
   }else if(std.isSymbol(ast[0],"unquote")){
       rc=ast[1]
   }else if(lstQ(ast[0]) &&
-             std.isSymbol(ast[0][0],"splice-unquote")){
+           std.isSymbol(ast[0][0],"splice-unquote")){
     rc=std.pair(std.symbol("concat*"), ast[0][1], backtick(ast.slice(1)))
   }else{
     rc=std.pair(std.symbol("cons*"), backtick(ast[0]), backtick(ast.slice(1)))
@@ -383,94 +400,81 @@ function backtick(ast){
 function isMacroCall(ast, env){
   return std.isPair(ast,1) && std.isSymbol(ast[0]) && getMacro(`${ast[0]}`) }
 //////////////////////////////////////////////////////////////////////////////
+/**Continue to expand if the expr is a macro */
 function expandMacro(ast,env,mcObj){
   let mac,cmd;
+  env=env || genv();
   for(; mcObj || isMacroCall(ast, env);){
-    cmd = `${ast[0]}`;
-    mac = mcObj || getMacro(cmd);
-    mcObj = null;
-    //if(mac) console.log("found macro!!!!!");
-    //else console.log("missing macro!!!!");
+    if(mcObj){
+      mac=mcObj
+      mcObj = null;
+    }else{
+      cmd = `${ast[0]}`;
+      mac = getMacro(cmd);
+    }
+    //console.log(mac?"found macro!!!":"missing macro!!!");
     ast = mac.apply(this, ast.slice(1));
   }
   return ast;
 }
 //////////////////////////////////////////////////////////////////////////////
-/** (and* a b c) */
+/** internal (and* a b c) */
 function doAND(ast, env){
   let ret = true;
   for(let i=1;i<ast.length; ++i){
-    ret = compute(ast[i], env);
-    if(!ret){break}
-  }
-  return ret;
-}
+    if(std.isFalsy(ret=compute(ast[i], env))) break; } return ret; }
 //////////////////////////////////////////////////////////////////////////////
-/** (or* a b c) */
+/** internal (or* a b c) */
 function doOR(ast, env){
   let ret = null;
   for(let i=1;i<ast.length; ++i){
-    ret = compute(ast[i], env);
-    if(ret){break}
-  }
-  return ret;
-}
+    if(!std.isFalsy(ret=compute(ast[i], env))) break; } return ret; }
 //////////////////////////////////////////////////////////////////////////////
-/** (let* [x 1 y 2] ...) */
+/** internal (let* [x 1 y 2] ...) */
 function doLET(ast, env){
   let binds = ast[1],
       e = new LEXEnv(env);
-  for(let i=0;i<binds.length; i += 2){
-    e.set(binds[i], compute(binds[i+1], e));
-  }
-  return std.pair(ast[2], e);
-}
+  for(let i=0;i<binds.length; i+=2){
+    e.set(binds[i], compute(binds[i+1], e)) } return std.pair(ast[2], e); }
 //////////////////////////////////////////////////////////////////////////////
-/** (macro* name (args) body) */
+/** internal (macro* name (args) body) */
 function doMACRO(ast, env){
-  let name= `${ast[1]}`,
-      nsp = core.peekNS();
+  let cmd= `${ast[1]}`,
+      mc, name, nsp = core.peekNS();
   nsp = nsp ? nsp.get("id") : KBSTDLIB;
-  if(!name.includes("/")){
-    name= `${nsp}/${name}`;
-  }
+  name=cmd;
   //ast[2]===args, ast[3]===body
-  setMacro(name, fnToNative(ast[2], ast[3], env));
+  mc= fnToNative(ast[2], ast[3], env);
+  if(!cmd.includes("/")){
+    name= `${nsp}/${cmd}`;
+    env.set(std.symbol(cmd),mc);
+  }
+  setMacro(name, mc);
 }
 //////////////////////////////////////////////////////////////////////////////
-/** (try blah ) */
+/** internal (try blah ) */
 function doTRY(ast, env){
   let a3 = ast[2];
   try{
     return compute(ast[1], env)
   }catch(e){
-    if(a3 && "catch*" == a3[0]){
+    if(a3 && "catch*" == `${a3[0]}`){
       if(e instanceof Error){ e = e.message }
       return compute(a3[2], new LEXEnv(env, [a3[1]], [e])) }
     throw e;
   }
 }
 //////////////////////////////////////////////////////////////////////////////
-/**(if test ok elze), only test is eval'ed, ok and elze are not. */
+/** internal (if test ok elze), only test is eval'ed, ok and elze are not. */
 function doIF(ast, env){
   let a3 = ast[3],
       test = compute(ast[1], env);
   return !std.isFalsy(test) ? ast[2] : typeof(a3) != "undefined"? a3 : null }
-////////////////////////////////////////////////////////////////////////////////
-function doForm(ast, env){
-  let rc,el = evalEx(ast, env);
-  if(std.isPair(el,1) && typeof(el[0]) == "function"){
-    rc=std.atom(el[0].apply(this, el.slice(1)));
-  }
-  return rc ? rc : std.atom(el);
-}
 //////////////////////////////////////////////////////////////////////////////
-//Wrap the function body and args inside a native js function
+/**Wrap the function body and args inside a native js function */
 function fnToNative(fargs, fbody, env){
-  return function(...args){
-    return compute(fbody, new LEXEnv(env, fargs, args))
-  }
-}
+  //wrap around a macro
+  return function(...args){ return compute(fbody, new LEXEnv(env, fargs, args)) } }
 //////////////////////////////////////////////////////////////////////////////
 const _spec_forms_ = new Map([
 
@@ -503,51 +507,40 @@ function evalEx(ast, env){
     rc=`${ast}`
   }else if(std.isSymbol(ast)){
     //var data
-    rc=env.get(ast)
+    rc=env.get(ast);
   }else if(std.isVec(ast)){
     //vector data
     //rc=ast;
-  }else if(ast instanceof Map || ast instanceof Set){
+  }else if(ast instanceof Map ||
+           ast instanceof Set){
     //console.log(std.prn(ast,true))
     //cool
   }else if(std.isPair(ast)){
     rc=std.pair();
     for(let i=0;i<ast.length;++i)
       rc.push(compute(ast[i],env));
-  }else {
-    throw Error("eval* failed: " + std.prn(ast,true));
+  }else{
+    throwE("eval* failed: " + std.prn(ast,true))
   }
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Interpret a expression
+/**Interpret a expression */
 function compute(expr, cenv){
   let _r_, _x_, recur,
       ret, env = cenv || g_env;
   function _f_(ast){
-    let res;
+    let cmd,res=null;
     if(std.isPair(ast,1)){
-      let cmd = _spec_forms_.get(`${ast[0]}`);
+      cmd = `${ast[0]}`;
+      cmd = _spec_forms_.get(cmd);
       if(typeof(cmd)=="function"){
         res=cmd(ast,env)
-      }else{
-        /*
-        for(let i=0;i<ast.length;++i)
-          ast[i]=compute(ast[i],env);
-        if(typeof(ast[0])=="function"){
-          res=std.atom(ast[0].apply(this, ast.slice(1)));
-        }else{
-          res=std.atom(ast);
-        }
-        */
+      }else/*a general form*/{
         res=ast.map(a=>compute(a,env));
-        if(typeof(res[0])=="function"){
-          res=std.atom(res[0].apply(this, res.slice(1)));
-        }else{
-          res=std.atom(res);
-        }
-      }
-      //res= typeof(cmd)=="function" ? cmd(ast,env) : doForm(ast, env)
+        cmd=res[0];
+        res=std.atom(typeof(cmd)!="function"?res
+                                            :cmd.apply(this, res.slice(1))) }
     }else if(std.isPair(ast)){
       res=std.atom(std.pair())
     }else{
@@ -555,17 +548,14 @@ function compute(expr, cenv){
     }
     if(std.isPair(res)){
       env = res[1];
-      res= recur(expandMacro(res[0], env));
-    }
+      res= recur(expandMacro(res[0], env)) }
     return res;
   }
   _r_ = _f_;
   recur=function(){
     _x_ = arguments;
     if(_r_){
-      for(_r_ = undefined; _r_ === undefined;){
-        _r_ = _f_.apply(this, _x_)
-      }
+      for(_r_ = undefined; _r_ === undefined;) _r_ = _f_.apply(this, _x_);
       return _r_;
     }
   };
@@ -573,14 +563,14 @@ function compute(expr, cenv){
   return typeof(ret.value) == "undefined" ? null : ret.value;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Create a new interpreter environment
+/**Create a new interpreter environment */
 function newEnv(){
   let ret = new LEXEnv();
   _intrinsics_.forEach((v,k)=> ret.set(std.symbol(k), v));
   return ret;
 }
 ////////////////////////////////////////////////////////////////////////////////
-//Start a interactive session
+/**Start a interactive session */
 function runRepl(){
   let ss = readline.createInterface(process.stdin, process.stdout);
   let z = prefix.length;
@@ -591,7 +581,7 @@ function runRepl(){
   function rl(line){
     try{
       if(line)
-        println(reval(line))
+        println(std.prn(compute(expandMacro(readAST(line))),true));
     }catch(e){
       println(e)
     }
@@ -607,24 +597,17 @@ function runRepl(){
   println(prefix, "Kirby REPL v", _STAR_version_STAR);
   return pt();
 }
-//////////////////////////////////////////////////////////////////////////////
-//Eval one or more expressions
-function reval(expr,...xs){
-  let f= (a)=>std.prn(compute(readAST(a)), true), ret = f(expr);
-  xs.forEach(a=>{ ret = f(a) });
-  return ret;
-}
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 var _STAR_version_STAR = "";
 var inited= false;
 var g_env = null;
 //////////////////////////////////////////////////////////////////////////////
-//Set up the runtime environment
+/**Set up the runtime environment */
 function init(ver){
   if(!inited){
     let lib={};
     lib[EXPKEY]={
-      ns: "user", vars: [], macros: {}
-    };
+      ns: "user", vars: [], macros: {} };
     _STAR_version_STAR = ver;
     g_env = newEnv();
     addLib(core.peekNS().get("id"),lib);
@@ -633,7 +616,7 @@ function init(ver){
   return inited;
 }
 //////////////////////////////////////////////////////////////////////////////
-//Returns the runtime environment
+/**Returns the runtime environment */
 function genv(){ return g_env }
 //////////////////////////////////////////////////////////////////////////////
 module.exports = {
