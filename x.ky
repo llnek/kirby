@@ -66,6 +66,11 @@
 ;(defmacro poo [a b] (let* [x ~@a] ~b))
 ;(poo [1 2 3] [4 5 6])
 
+(loop [x 1]
+  (if (= x 100)
+    "poo"
+    (recur (+1 x))))
+
 
 
 

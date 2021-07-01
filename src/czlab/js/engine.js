@@ -282,6 +282,7 @@ const _intrinsics_ = new Map([
   ["not-empty*", std.notEmpty],
 
   ["apply*", function(f,...xs){ return f.apply(this, xs) }],
+  ["partition*", std.partition],
 
   ["map*", function(f, arr){
     let out=std.pair();
@@ -509,8 +510,8 @@ function evalEx(ast, env){
     //var data
     rc=env.get(ast);
   }else if(std.isVec(ast)){
-    //vector data
-    //rc=ast;
+    for(let i=0;i<ast.length;++i)
+      ast[i]=compute(ast[i],env);
   }else if(ast instanceof Map ||
            ast instanceof Set){
     //console.log(std.prn(ast,true))
@@ -527,6 +528,7 @@ function evalEx(ast, env){
 //////////////////////////////////////////////////////////////////////////////
 /**Interpret a expression */
 function compute(expr, cenv){
+  const SENTINEL=Symbol("!");
   let _r_, _x_, recur,
       ret, env = cenv || g_env;
   function _f_(ast){
@@ -554,10 +556,13 @@ function compute(expr, cenv){
   _r_ = _f_;
   recur=function(){
     _x_ = arguments;
-    if(_r_){
-      for(_r_ = undefined; _r_ === undefined;) _r_ = _f_.apply(this, _x_);
+    if(_r_ !== SENTINEL){
+      _r_ = SENTINEL;
+      while(_r_ === SENTINEL)
+        _r_ = _f_.apply(this, _x_);
       return _r_;
     }
+    return SENTINEL;
   };
   ret= recur(expandMacro(expr, env));
   return typeof(ret.value) == "undefined" ? null : ret.value;

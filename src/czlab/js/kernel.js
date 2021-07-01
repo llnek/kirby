@@ -19,7 +19,7 @@ const SValue=core.SValue;
 const DArray=core.DArray;
 const SPair=core.SPair;
 const Keyword=core.Keyword;
-const Symbol=core.Symbol;
+const SSymbol=core.SSymbol;
 const Atom=core.Atom;
 //////////////////////////////////////////////////////////////////////////////
 function println(...msgs){
@@ -55,7 +55,7 @@ function isKeyword(o,what){
   return o instanceof Keyword ? (what ? what==o.value : true) : false }
 //////////////////////////////////////////////////////////////////////////////
 function isSymbol(o,what){
-  return o instanceof Symbol ? (what ? what==`${o}` : true) : false }
+  return o instanceof SSymbol ? (what ? what==`${o}` : true) : false }
 //////////////////////////////////////////////////////////////////////////////
 function isMap(o){ return o instanceof Map }
 //////////////////////////////////////////////////////////////////////////////
@@ -212,11 +212,11 @@ function optQQ(a,b){
 let GENSYM_COUNTER = 0;
 function gensym(pfx){
   let x= ++GENSYM_COUNTER;
-  return new Symbol(`${optQQ(pfx, "GS__")}${x}`);
+  return new SSymbol(`${optQQ(pfx, "GS__")}${x}`);
 }
 //////////////////////////////////////////////////////////////////////////////
 function symbol(v){
-  return new Symbol(v)
+  return new SSymbol(v)
 }
 //////////////////////////////////////////////////////////////////////////////
 function keyword(v){
@@ -542,7 +542,15 @@ function splitWith(pred, coll){
 //////////////////////////////////////////////////////////////////////////////
 //Split a collection into 2 parts
 function splitSeq(coll,cnt){
-  return cnt<coll.length ? [coll.slice(0,cnt), coll.slice(cnt)] : [coll.slice(0),[]]
+  let x=new SPair(),y=new SPair();
+  if(cnt<coll.length){
+    for(let i=0;i<cnt;++i) x.push(coll[i]);
+    for(let i=cnt;i<coll.length;++i) y.push(coll[i]);
+  }else{
+    x=into(x, coll);
+    //y=new SPair();
+  }
+  return [x,y];
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a seq of the items in coll in reverse order.
@@ -565,6 +573,7 @@ function rseq(obj){
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a sequence of lists of n items each. */
 function partition(n, coll){
+  let _zz_=core.JSSymbol("!");
   let recur = null;
   let _x_ = null;
   function _f_(ret, [x,y]){
@@ -574,12 +583,13 @@ function partition(n, coll){
   let _r_ = _f_;
   recur=function(){
     _x_=arguments;
-    if(_r_){
-      for(_r_ = undefined; _r_ === undefined;){
+    if(_r_ !== _zz_){
+      for(_r_ = _zz_; _r_ === _zz_;){
         _r_= _f_.apply(this,_x_)
       }
       return _r_;
     }
+    return _zz_;
   };
   if(Array.isArray(coll)){
     return recur(toPair(), splitSeq(coll, n))
@@ -708,7 +718,7 @@ function requireJS(path,panic){
 }
 //////////////////////////////////////////////////////////////////////////////
 module.exports={
-  SValue,SPair,DArray,Atom,RegexObj,Keyword,Symbol,
+  SValue,SPair,DArray,Atom,RegexObj,Keyword,SSymbol,
   requireJS,
   println,
   throwE,

@@ -18,7 +18,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (const MAX-INT Number/MAX_SAFE_INTEGER)
 (const MIN-INT Number/MIN_SAFE_INTEGER)
-
+(const JSSymbol core/JSSymbol)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro this-as
 
@@ -693,6 +693,7 @@
   `(== 3 (kirbyref/count ~coll)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;uses the trampoline technique
 (defmacro loop
 
   """Evaluates the exprs in a lexical context in which the symbols in
@@ -704,20 +705,15 @@
          os (odds* bindings)]
     `((fn []
         (with-local-vars
-          [_x_ undefined  recur undefined
+          [_x_ nil  recur nil
+           _zz_ (kirbyref/JSSymbol "!")
            _f_ (fn [~@es] ~@more) _r_ _f_])
         (set! recur
               (fn []
                 (set! _x_ arguments)
-                (raw# "if (_r_) {for(_r_=undefined;_r_===undefined;){_r_=_f_.apply(this,_x_);} return _r_;}")
-                undefined))
+                (raw# "if (_r_ !== _zz_){for(_r_=_zz_;_r_===_zz_;){_r_=_f_.apply(this,_x_)} return _r_}")
+                _zz_))
         (recur ~@os)) this)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro Xconcat
-
-  """Returns the concatenation of the elements in the supplied colls"""
-  [coll & xs] `(.concat ~coll ~@xs))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro join
@@ -1258,11 +1254,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;END MACROS
 
+(def Keyword core/Keyword)
 (def DArray core/DArray)
 (def SPair core/SPair)
 (def Atom core/Atom)
-(def Keyword core/Keyword)
-(def Symbol core/Symbol)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn rtti
@@ -1566,15 +1561,15 @@
   "Check if a symbol"
   [obj]
 
-  (inst? Symbol obj))
+  (inst? core/SSymbol obj))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn symbol
 
   "Create a new Symbol"
-  ^Symbol [name]
+  ^SSymbol [name]
 
-  (new Symbol name))
+  (new core/SSymbol name))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defn keyword?
@@ -1596,10 +1591,10 @@
 (defn keyword->symbol
 
   "Convert a Keyword to Symbol"
-  ^Symbol [k]
+  ^SSymbol [k]
 
   (with-local-vars
-    [s (new Symbol (str k))])
+    [s (new core/SSymbol (str k))])
   (oset! s
          :source k.source
          :line  k.line
@@ -2151,7 +2146,7 @@ the maximum number of splits. Returns vector of the splits."
 (defn gensym
 
   "Generates next random symbol"
-  ^Symbol [& [pfx]]
+  ^SSymbol [& [pfx]]
 
   (let [v gensym-counter]
     (inc gensym-counter)
