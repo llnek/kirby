@@ -710,8 +710,8 @@
            _f_ (fn [~@es] ~@more) _r_ _f_])
         (set! recur
               (fn []
-                (set! _x_ arguments)
-                (raw# "if (_r_ !== _zz_){for(_r_=_zz_;_r_===_zz_;){_r_=_f_.apply(this,_x_)} return _r_}")
+                (set! _x_ (Array.prototype.slice.call arguments 0))
+                (raw# "if(_r_ !== _zz_){_r_=_zz_;while(_r_===_zz_){_r_=_f_.apply(this,_x_)} return _r_}")
                 _zz_))
         (recur ~@os)) this)))
 

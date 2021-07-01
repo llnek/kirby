@@ -16,15 +16,15 @@ const core = require("./core");
 const std = require("./kernel");
 const rdr = require("./reader");
 //////////////////////////////////////////////////////////////////////////////
+const macro_assert = "\n (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ";
+const GLOBAL = typeof(window) == "undefined" ? undefined : window;
 const EXPKEY = "da57bc0172fb42438a11e6e8778f36fb";
 const KBSTDLR = "kirbyref";
 const KBPFX = "czlab.kirby.";
 const KBSTDLIB = `${KBPFX}stdlib`;
-const macro_assert = "\n (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ";
-const GLOBAL = typeof(window) == "undefined" ? undefined : window;
 const prefix = "kirby> ";
-const println= std["println"];
 const throwE=std["throwE"];
+const println= std["println"];
 //////////////////////////////////////////////////////////////////////////////
 function _expect(k){ if(!std.isSymbol(k)) throwE("expected symbol") }
 //////////////////////////////////////////////////////////////////////////////
@@ -51,7 +51,7 @@ class LEXEnv{
     _expect(k);
     if(this.data.has(k.value))
       return this;
-    else if(this.par)
+    if(this.par)
       return this.par.find(k);
   }
   /**Bind this symbol, value to this env */
@@ -66,7 +66,6 @@ class LEXEnv{
     let env = this.find(k);
     if(!env) throwE(`Unknown var: ${k}`);
     return env.data.get(k.value);
-    //return env ? env.data.get(k.value) : k.value;
   }
   /**Print set of vars */
   prn(){
@@ -384,7 +383,7 @@ function readAST(s){
 }
 //////////////////////////////////////////////////////////////////////////////
 function backtick(ast){
-  let rc, lstQ=(a)=> std.isSequential(a) && std.notEmpty(a);
+  let rc, lstQ= a=> std.isSequential(a) && std.notEmpty(a);
   if(!lstQ(ast)){
     rc=std.pair(std.symbol("quote"), ast)
   }else if(std.isSymbol(ast[0],"unquote")){
@@ -497,7 +496,7 @@ const _spec_forms_ = new Map([
   ["do*", (a,e)=>{ evalEx(a.slice(1, -1), e); return std.pair(a[a.length-1], e) }]
 ]);
 //////////////////////////////////////////////////////////////////////////////
-/**process the ast */
+/**Process the ast */
 function evalEx(ast, env){
   let rc=ast;
   if(std.isSimple(ast)){
@@ -521,19 +520,22 @@ function evalEx(ast, env){
     for(let i=0;i<ast.length;++i)
       rc.push(compute(ast[i],env));
   }else{
-    throwE("eval* failed: " + std.prn(ast,true))
+    throwE("eval* failed: " + std.prn(ast,1))
   }
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Interpret a expression */
 function compute(expr, cenv){
-  const SENTINEL=Symbol("!");
-  let _r_, _x_, recur,
-      ret, env = cenv || g_env;
+  let _r_, _x_, _zz_=Symbol("!");
+  let recur, ret, env = cenv || g_env;
   function _f_(ast){
-    let cmd,res=null;
-    if(std.isPair(ast,1)){
+    let cmd,res;
+    if(!std.isPair(ast)){
+      res=std.atom(evalEx(ast, env))
+    }else if(ast.length==0){
+      res=std.atom(std.pair())
+    }else{
       cmd = `${ast[0]}`;
       cmd = _spec_forms_.get(cmd);
       if(typeof(cmd)=="function"){
@@ -543,26 +545,20 @@ function compute(expr, cenv){
         cmd=res[0];
         res=std.atom(typeof(cmd)!="function"?res
                                             :cmd.apply(this, res.slice(1))) }
-    }else if(std.isPair(ast)){
-      res=std.atom(std.pair())
-    }else{
-      res=std.atom(evalEx(ast, env))
     }
     if(std.isPair(res)){
-      env = res[1];
+      env= res[1];
       res= recur(expandMacro(res[0], env)) }
     return res;
   }
   _r_ = _f_;
   recur=function(){
-    _x_ = arguments;
-    if(_r_ !== SENTINEL){
-      _r_ = SENTINEL;
-      while(_r_ === SENTINEL)
-        _r_ = _f_.apply(this, _x_);
-      return _r_;
-    }
-    return SENTINEL;
+    _x_ = Array.prototype.slice.call(arguments,0);
+    if(_r_ !== _zz_){
+      _r_ = _zz_;
+      while(_r_ === _zz_)
+        _r_ = _f_.apply(this, _x_); return _r_; }
+    return _zz_;
   };
   ret= recur(expandMacro(expr, env));
   return typeof(ret.value) == "undefined" ? null : ret.value;
@@ -580,29 +576,24 @@ function runRepl(){
   let ss = readline.createInterface(process.stdin, process.stdout);
   let z = prefix.length;
   function pt(){
-    ss.setPrompt(prefix, z);
-    return ss.prompt();
-  }
+    ss.setPrompt(prefix, z); return ss.prompt() }
   function rl(line){
     try{
       if(line)
-        println(std.prn(compute(expandMacro(readAST(line))),true));
+        println(std.prn(compute(expandMacro(readAST(line))),1))
     }catch(e){
-      println(e)
-    }
+      println(e) }
     return pt();
   }
   function cl(){
-    println("Bye!");
-    return process.exit(0);
-  }
+    println("Bye!"); return process.exit(0) }
   ss.on("close", cl);
   ss.on("line", rl);
   init();
   println(prefix, "Kirby REPL v", _STAR_version_STAR);
   return pt();
 }
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+//////////////////////////////////////////////////////////////////////////////
 var _STAR_version_STAR = "";
 var inited= false;
 var g_env = null;
@@ -610,14 +601,12 @@ var g_env = null;
 /**Set up the runtime environment */
 function init(ver){
   if(!inited){
-    let lib={};
-    lib[EXPKEY]={
-      ns: "user", vars: [], macros: {} };
-    _STAR_version_STAR = ver;
+    const lib={};
+    inited= true;
     g_env = newEnv();
     addLib(core.peekNS().get("id"),lib);
-    inited= true;
-  }
+    _STAR_version_STAR = ver;
+    lib[EXPKEY]={ ns: "user", vars: [], macros: {} }; }
   return inited;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -625,6 +614,8 @@ function init(ver){
 function genv(){ return g_env }
 //////////////////////////////////////////////////////////////////////////////
 module.exports = {
+  //the engine module is designed for handling a repl session, and for
+  //assisting code generation by expanding designated macros.
   da57bc0172fb42438a11e6e8778f36fb: {
     ns: "czlab.kirby.engine",
     vars: ["EXPKEY", "KBSTDLR", "KBPFX", "KBSTDLIB", "LEXEnv", "getLib", "getLibKeys", "addVar", "getVar", "getVarKeys",  "hasVar","addLib", "slurp", "spit", "setMacro", "getMacro", "readAST", "expand??", "compute", "newEnv", "runRepl", "init", "genv"],

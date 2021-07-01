@@ -63,15 +63,10 @@
 
 ;(domonad kirbyref/monad-identity [a 1 b (inc a)] (+ a b))
 
-;(defmacro poo [a b] (let* [x ~@a] ~b))
-;(poo [1 2 3] [4 5 6])
+;(loop [x 1] (if (= x 100) "poo" (recur (+1 x))))
 
-(loop [x 1]
-  (if (= x 100)
-    "poo"
-    (recur (+1 x))))
-
-
+;(defmacro poo [a b] `(~@a))
+;(poo '(1 2 3) [4 5 6])
 
 
 

@@ -386,25 +386,19 @@ const SPEC_TOKENS=(function(m){
   return o;
 })({
 
+  "^": function(a1){ let t= readAst(a1); return std.pair(std.symbol("with-meta"), readAst(a1), t)},
   "'": function(a1){ return std.pair(std.symbol("quote"), readAst(a1)) },
   "`": function(a1){ return std.pair(std.symbol("syntax-quote"), readAst(a1)) },
   "~": function(a1){ return std.pair(std.symbol("unquote"), readAst(a1)) },
   "~@": function(a1){ return std.pair(std.symbol("splice-unquote"), readAst(a1)) },
   "@": function(a1){ return std.pair(std.symbol("deref"), readAst(a1)) },
   "#": function(a1){ return std.pair(std.symbol("lambda"), readAst(a1)) },
-  "^": function(a1){ let t= readAst(a1); return std.pair(std.symbol("with-meta"), readAst(a1), t)},
 
   "[": [function(a1){ return readVector(a1) }],
   "(": [function(a1){ return readList(a1) }],
   "#{": [function(a1){ return readObjectSet(a1) }],
-  "{": [function(a1){ return readObjectMap(a1) }],
-/*
-  "$": function(a1){
-    let y = readAst(a1),
-        x = std.symbol("str");
-    if(y.length > 1){ y= std.pair(x, y) }else{ y.unshift(x) }
-    return y;
-  }*/
+  "{": [function(a1){ return readObjectMap(a1) }]
+
 });
 //////////////////////////////////////////////////////////////////////////////
 /**Inner parser routine */
