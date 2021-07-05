@@ -8,6 +8,8 @@
 /checkouts
 /public
 
+./**/__pycache__
+
 pom.xml.asc
 pom.xml
 
