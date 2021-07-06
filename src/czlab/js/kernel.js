@@ -15,15 +15,9 @@ const core=require("./core");
 const MODULE_NAMESPACE = "__module_namespace__";
 //////////////////////////////////////////////////////////////////////////////
 class RegexObj extends core.SValue{ constructor(v){ super(v) } }
-const SValue=core.SValue;
-const DArray=core.DArray;
-const SPair=core.SPair;
-const Keyword=core.Keyword;
-const SSymbol=core.SSymbol;
-const Atom=core.Atom;
+const {SValue,DArray,SPair,Keyword,SSymbol,Atom,JSObj}=core;
 //////////////////////////////////////////////////////////////////////////////
-function println(...msgs){
-  if(console) console.log(msgs.join("")); return null; }
+function println(...msgs){ if(console) console.log(msgs.join("")) }
 //////////////////////////////////////////////////////////////////////////////
 function throwE(msg,line){
   throw Error(typeof(line)=="number" ? [msg,` near line: ${line}`].join("") : msg) }
@@ -38,16 +32,16 @@ function isVec(a,checkEmpty){
   return a instanceof DArray ? (checkEmpty?a.length>0:true) : false }
 //////////////////////////////////////////////////////////////////////////////
 function rtti(v){ return Object.prototype.toString.call(v) }
-function rttiQ(v,t){return rtti(v)==t}
 function isNichts(o){return o===null || o===undefined}
+function rttiQ(v,t){return rtti(v)==t}
 function isEven(n){return n%2===0}
 function isOdd(n){return n%2!==0}
 function isStr(o){return typeof(o)=="string"}
 function isNum(o){return typeof(o)=="number"}
 function isBool(o){return typeof(o)=="boolean"}
+function isJSObj(x){return x instanceof JSObj}
 function isJSSet(x){return rttiQ(x,"[object Set]")}
 function isJSMap(x){return rttiQ(x,"[object Map]")}
-function isJSObj(x){return rttiQ(x,"[object Object]")}
 //////////////////////////////////////////////////////////////////////////////
 function isSimple(o){return isNichts(o) || isStr(o) || isNum(o) || isBool(o)}
 //////////////////////////////////////////////////////////////////////////////
@@ -63,17 +57,13 @@ function isSet(o){ return o instanceof Set }
 //////////////////////////////////////////////////////////////////////////////
 function isAtom(o){ return o instanceof Atom }
 //////////////////////////////////////////////////////////////////////////////
-function copyVec(src){
-  let r=new DArray(); src.forEach(z=>r.push(z)); return r }
+function copyPair(v){ let r=new SPair(); v.forEach(z=>r.push(z)); return r }
 //////////////////////////////////////////////////////////////////////////////
-function toVec(...xs){
-  let r=new DArray(); xs.forEach(z=>r.push(z)); return r }
+function copyVec(v){ let r=new DArray(); v.forEach(z=>r.push(z)); return r }
 //////////////////////////////////////////////////////////////////////////////
-function toPair(...xs){
-  let r=new SPair(); xs.forEach(z=>r.push(z)); return r }
+function toVec(...xs){ let r=new DArray(); xs.forEach(z=>r.push(z)); return r }
 //////////////////////////////////////////////////////////////////////////////
-function copyPair(src){
-  let r=new SPair(); src.forEach(z=>r.push(z)); return r }
+function toPair(...xs){ let r=new SPair(); xs.forEach(z=>r.push(z)); return r }
 //////////////////////////////////////////////////////////////////////////////
 function pair(...xs){ return toPair(...xs) }
 //////////////////////////////////////////////////////////////////////////////
@@ -81,11 +71,11 @@ function pair(...xs){ return toPair(...xs) }
 function isEQ(a,b){
   let ok=false;
   if(isJSMap(a) && isJSMap(b)){
-    if(a.size===b.size){
+    if(a.size==b.size){
       ok=true;
       a.forEach((v, k)=>{ if(!isEQ(b.get(k), v)) ok=false }) }
   }else if(isJSSet(a) && isJSSet(b)){
-    if(a.size===b.size){
+    if(a.size==b.size){
       ok=true;
       a.forEach((v, k)=>{ if(!b.has(v)) ok=false }) }
   }else if(isJSObj(a) && isJSObj(b)){
@@ -94,11 +84,9 @@ function isEQ(a,b){
     if(isEQ(new Set(ksa),new Set(ksb))){
       ok=true;
       ksa.forEach(k=>{
-        if(!isEQ(a[k],b[k])) { ok=false }
-      });
-    }
+        if(!isEQ(a[k],b[k])) { ok=false } }); }
   }else if((isPair(a)&&isPair(b)) ||
-           (isVec(a)&&isVec(b))||
+           (isVec(a)&&isVec(b)) ||
            (Array.isArray(a) && Array.isArray(b))){
     if(a.length===b.length){
       ok=true;
@@ -126,21 +114,21 @@ function isEQ(a,b){
 function escXml(s){
   let out = "";
   if(s)
-  for(let c,i=0; i<s.length; ++i){
-    c=s[i];
-    if(c === "&"){
-      c = "&amp;"
-    }else if(c === ">"){
-      c = "&gt;"
-    }else if(c === "<"){
-      c = "&lt;"
-    }else if(c === "\""){
-      c = "&quot;"
-    }else if(c === "'"){
-      c = "&apos;"
+    for(let c,i=0; i<s.length; ++i){
+      c=s[i];
+      if(c === "&"){
+        c = "&amp;"
+      }else if(c === ">"){
+        c = "&gt;"
+      }else if(c === "<"){
+        c = "&lt;"
+      }else if(c === "\""){
+        c = "&quot;"
+      }else if(c === "'"){
+        c = "&apos;"
+      }
+      out += c
     }
-    out += c
-  }
   return out;
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -156,7 +144,8 @@ function conjBANG(coll,...xs){
   }else if(coll instanceof Map){
     xs.forEach(a=>{
       if(!Array.isArray(a) ||
-         a.length!==2)throw Error("bad arg: conj!");
+         a.length!==2)
+        throw Error("bad arg: conj!");
       coll.set(a[0],a[1]);
     })
   }else if(coll instanceof Set){
@@ -171,7 +160,7 @@ function conjBANG(coll,...xs){
 function assocBANG(coll,...xs){
   if(!(coll instanceof Map))
     throw Error(`Cannot assoc! with: ${rtti(coll)}`);
-  if(xs.length%2 !== 0)
+  if(xs.length%2 != 0)
     throw Error("assoc! expecting even n# of args");
   for(let i=0; i<xs.length; i += 2){
     coll.set(xs[i], xs[i+1])
@@ -201,8 +190,7 @@ function conj(coll,...xs){
 }
 //////////////////////////////////////////////////////////////////////////////
 function mod(x,N){
-  return x<0 ? (x - (-1 * (N + (Math.floor(((-1 * x) / N)) * N)))) : (x % N)
-}
+  return x<0 ? (x - (-1 * (N + (Math.floor(((-1 * x) / N)) * N)))) : (x % N) }
 //////////////////////////////////////////////////////////////////////////////
 function optQQ(a,b){
   return a===undefined?b:a
@@ -212,41 +200,36 @@ function optQQ(a,b){
 let GENSYM_COUNTER = 0;
 function gensym(pfx){
   let x= ++GENSYM_COUNTER;
-  return new SSymbol(`${optQQ(pfx, "GS__")}${x}`);
-}
+  return new SSymbol(`${optQQ(pfx, "GS__")}${x}`); }
 //////////////////////////////////////////////////////////////////////////////
-function symbol(v){
-  return new SSymbol(v)
-}
+function symbol(v){ return new SSymbol(v) }
 //////////////////////////////////////////////////////////////////////////////
-function keyword(v){
-  return new Keyword(v)
-}
+function keyword(v){ return new Keyword(v) }
 //////////////////////////////////////////////////////////////////////////////
 /**Add quotes around a string. */
 function quoteStr(s){
   let ch,out = "\"";
   if(s)
-  for(let i=0; i<s.length; ++i){
-    ch= s.charAt(i);
-    if(ch === "\""){
-      out += "\\\""
-    }else if(ch === "\n"){
-      out += "\\n"
-    }else if(ch == "\t"){
-      out += "\\t"
-    }else if(ch == "\f"){
-      out += "\\f"
-    }else if(ch == "\r"){
-      out += "\\r"
-    }else if(ch == "\v"){
-      out += "\\v"
-    }else if(ch == "\\"){
-      out += "u" === s.charAt(i+1) ? ch : "\\\\"
-    }else{
-      out += ch
+    for(let i=0; i<s.length; ++i){
+      ch= s.charAt(i);
+      if(ch === "\""){
+        out += "\\\""
+      }else if(ch === "\n"){
+        out += "\\n"
+      }else if(ch == "\t"){
+        out += "\\t"
+      }else if(ch == "\f"){
+        out += "\\f"
+      }else if(ch == "\r"){
+        out += "\\r"
+      }else if(ch == "\v"){
+        out += "\\v"
+      }else if(ch == "\\"){
+        out += "u" === s.charAt(i+1) ? ch : "\\\\"
+      }else{
+        out += ch
+      }
     }
-  }
   return out += "\"";
 }
 //////////////////////////////////////////////////////////////////////////////
@@ -306,15 +289,11 @@ function getProp(obj, prop, isown){
   return rc;
 }
 //////////////////////////////////////////////////////////////////////////////
-function isObject(o){
-  return !isSimple(o) &&
-         !Array.isArray(o) &&
-         !(o instanceof Map) && !(o instanceof Set) && rtti(o)=="[object Object]"
-}
+function isObject(o){ return isJSObj(o) }
 //////////////////////////////////////////////////////////////////////////////
 /**Splits string on a sep or regular expression.  Optional argument limit is
  * the maximum number of splits. Returns vector of the splits. */
-function split(s, re,limit){
+function split(s, re, limit){
   if(typeof(s)!="string")
     throw Error(`Cannot split with: ${rtti(s)}`);
   let out=toPair(),
@@ -324,20 +303,13 @@ function split(s, re,limit){
 }
 //////////////////////////////////////////////////////////////////////////////
 /**If coll is empty, returns nil, else coll. */
-function XXnotEmpty(coll){
-  let k;
-  if(coll){
-    if(typeof(coll.size)!="undefined") k="size";
-    if(typeof(coll.length)!="undefined") k="length"; }
-  return k && coll[k]>0 ? coll : null;
-}
 function notEmpty(coll){
   let n=0;
   if(coll instanceof Map || coll instanceof Set){
     n=coll.size
   }else if(Array.isArray(coll) || isStr(coll)){
     n=coll.length
-  }else if(coll && isJSObj(coll)){
+  }else if(isJSObj(coll)){
     n=Object.keys(coll)
   }
   return n>0?coll:null;
@@ -388,10 +360,8 @@ function mergeBANG(base, m){
   let ret= base || new Map();
   let src= m || new Map();
 
-  if(!(ret instanceof Map) &&
-     rtti(ret)!="[object Object]") throw Error("bad arg to merge!");
-  if(!(src instanceof Map) &&
-     rtti(src)!="[object Object]") throw Error("bad arg to merge!");
+  if(!(isJSMap(ret)||isJSObj(ret))) throw Error("bad arg to merge!");
+  if(!(isJSMap(src)||isJSObj(src))) throw Error("bad arg to merge!");
 
   function loop(v, k){
     return ret instanceof Map ? ret.set(k, v) : (ret[k]=v) }
@@ -409,8 +379,7 @@ function mergeBANG(base, m){
  * the first.  If a key occurs in more than one map, the mapping from
  * the latter (left-to-right) will be the mapping in the result. */
 function merge(...xs){
-  return xs.reduce((acc, o)=> mergeBANG(acc, o) , new Map())
-}
+  return xs.reduce((acc, o)=> mergeBANG(acc, o) , new Map()) }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a new seq where x is the first element and seq is the rest. */
 function cons(x, coll){
@@ -448,8 +417,7 @@ function prn(obj,rQ){
 //////////////////////////////////////////////////////////////////////////////
 /** @private */
 function prnArr(obj, rQ, f){
-  return obj.map((v,i)=> prnEx(f(i,v), rQ,f)).join(" ")
-}
+  return obj.map((v,i)=> prnEx(f(i,v), rQ,f)).join(" ") }
 //////////////////////////////////////////////////////////////////////////////
 /** @private */
 function prnEx(obj, rQ, func){
@@ -465,8 +433,7 @@ function prnEx(obj, rQ, func){
     obj.forEach((v,k)=>{
       if(!isNichts(v)){
         x = func(k, v);
-        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
-      }
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x; }
       acc.push(`${pfx(k)} ${pfx(v)}`);
     });
     c3 = wrapStr(acc.join(" "), "{", "}");
@@ -475,8 +442,7 @@ function prnEx(obj, rQ, func){
     obj.forEach(v=>{
       if(!isNichts(v)){
         x = func(undefined, v);
-        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
-      }
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x; }
       acc.push(`${pfx(v)}`);
     });
     c3 = wrapStr(acc.join(" "), "#{", "}");
@@ -484,13 +450,12 @@ function prnEx(obj, rQ, func){
     c3 = parr("(", ")")
   }else if(isVec(obj)){
     c3= parr("[", "]")
-  }else if(rtti(obj)=="[object Object]"){
+  }else if(isJSObj(obj)){
     let x,v,acc= Object.keys(obj).reduce((acc, k)=>{
       v=obj[k];
       if(!isNichts(v)){
         x = func(k, v);
-        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x;
-      }
+        v= typeof(x)=="undefined"? "!!!!cyclic reference!!!!": x; }
       acc.push(`${pfx(k)} ${pfx(v)}`);
       return acc;
     },[]);
@@ -528,17 +493,14 @@ function dropWhile(pred,coll){
   for(let c,i=0;i<coll.length;++i){
     c=coll[i];
     if(!pred(c)){
-      ret=coll.slice(i);
-      break;
-    }
+      ret=coll.slice(i); break; }
   }
   return ret;
 }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a list of [(take-while pred coll) (drop-while pred coll)] */
 function splitWith(pred, coll){
-  return toPair(takeWhile(pred, coll), dropWhile(pred, coll))
-}
+  return toPair(takeWhile(pred, coll), dropWhile(pred, coll)) }
 //////////////////////////////////////////////////////////////////////////////
 //Split a collection into 2 parts
 function splitSeq(coll,cnt){
@@ -573,20 +535,19 @@ function rseq(obj){
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a sequence of lists of n items each. */
 function partition(n, coll){
-  let _zz_=core.JSSymbol("!");
+  let _zz_=new Object();
   let recur = null;
   let _x_ = null;
   function _f_(ret, [x,y]){
     if(notEmpty(x)){ ret.push(x) }
-    return 0 === count(y) ? ret : recur(ret, splitSeq(y, n))
-  }
+    return 0 === count(y) ? ret : recur(ret, splitSeq(y, n)) }
   let _r_ = _f_;
   recur=function(){
     _x_=arguments;
     if(_r_ !== _zz_){
-      for(_r_ = _zz_; _r_ === _zz_;){
-        _r_= _f_.apply(this,_x_)
-      }
+      _r_=_zz_;
+      while(_r_ === _zz_)
+        _r_= _f_.apply(this,_x_);
       return _r_;
     }
     return _zz_;
@@ -616,7 +577,7 @@ function seq(obj){
     obj.forEach(v=>rc.push(v));
   }else if(Array.isArray(obj)){
     obj.forEach(a=>rc.push(a));
-  }else if(rtti(obj)=="[object Object]"){
+  }else if(isJSObj(obj)){
     Object.keys(obj).forEach(k=>{
       rc.push(toVec(k,obj[k]))
     });
@@ -629,7 +590,7 @@ function seq(obj){
 function vector(...xs){ return toVec(...xs) }
 //////////////////////////////////////////////////////////////////////////////
 function hashmap(...xs){
-  if(xs.length%2!==0)
+  if(xs.length%2!=0)
     throw Error("Arity Error: even n# expected.");
   let out=new Map();
   for(let i=0;i<xs.length;i+=2){
@@ -645,13 +606,9 @@ function isFalsy(a){ return a === null || a === false }
 //////////////////////////////////////////////////////////////////////////////
 function hashset(...xs){ return new Set(xs) }
 //////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////
-/**True if coll implements Sequential. */
-//////////////////////////////////////////////////////////////////////////////
 /**JSON stringify (no cyclical obj-ref) */
 function stringify(obj){
-  return obj ? JSON.stringify(obj, noCRef()) : null
-}
+  return obj ? JSON.stringify(obj, noCRef()) : null }
 //////////////////////////////////////////////////////////////////////////////
 /**Returns a new coll consisting of to-coll with all of the items of from-coll conjoined. */
 function into(to, coll){
@@ -666,9 +623,9 @@ function into(to, coll){
 }
 //////////////////////////////////////////////////////////////////////////////
 function object(...xs){
-  if(xs.length%2 !== 0)
+  if(xs.length%2 != 0)
     throw new Error("Invalid arity for: object");
-  let rc={};
+  let rc=new JSObj();
   for(let i=0;i<xs.length; i+=2){
     rc[xs[i]]=xs[i+1]
   }
@@ -697,14 +654,10 @@ function repeatEvery(coll, start, step){
 }
 ////////////////////////////////////////////////////////////////////////////////
 /**Collect every 2nd item starting at 0. */
-function evens(coll){
-  return repeatEvery(coll, 0, 2)
-}
+function evens(coll){ return repeatEvery(coll, 0, 2) }
 //////////////////////////////////////////////////////////////////////////////
 /**Collect every 2nd item starting at 1. */
-function odds(coll){
-  return repeatEvery(coll, 1, 2)
-}
+function odds(coll){ return repeatEvery(coll, 1, 2) }
 //////////////////////////////////////////////////////////////////////////////
 function requireJS(path,panic){
   try{
@@ -712,7 +665,7 @@ function requireJS(path,panic){
   }catch(e){
     if(panic)
       throw e;
-    console.log(e);
+    //console.log(e);
     println("warning: failed to load lib: ", path)
   }
 }

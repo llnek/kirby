@@ -16,15 +16,13 @@ const core = require("./core");
 const std = require("./kernel");
 const rdr = require("./reader");
 //////////////////////////////////////////////////////////////////////////////
-const macro_assert = "\n (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) ";
+const macro_assert = "(macro* assert* [c msg] `(if* ~c true (throw* ~msg)))";
 const GLOBAL = typeof(window) == "undefined" ? undefined : window;
 const EXPKEY = "da57bc0172fb42438a11e6e8778f36fb";
 const KBSTDLR = "kirbyref";
 const KBPFX = "czlab.kirby.";
 const KBSTDLIB = `${KBPFX}stdlib`;
-const prefix = "kirby> ";
-const throwE=std["throwE"];
-const println= std["println"];
+const {throwE,println}=std;
 //////////////////////////////////////////////////////////////////////////////
 function _expect(k){ if(!std.isSymbol(k)) throwE("expected symbol") }
 //////////////////////////////////////////////////////////////////////////////
@@ -57,6 +55,15 @@ class LEXEnv{
   /**Bind this symbol, value to this env */
   set(k, v){
     _expect(k);
+    if(this.data.has(k.value))
+      throwE(`var: ${k} already exists`);
+    this.data.set(k.value, v);
+    return v;
+  }
+  mod(k, v){
+    _expect(k);
+    if(!this.data.has(k.value))
+      throwE(`Unbound var: ${k} to set`);
     this.data.set(k.value, v);
     return v;
   }
@@ -64,7 +71,7 @@ class LEXEnv{
   get(k){
     _expect(k);
     let env = this.find(k);
-    if(!env) throwE(`Unknown var: ${k}`);
+    if(!env) throwE(`Unbound var: ${k}`);
     return env.data.get(k.value);
   }
   /**Print set of vars */
@@ -121,6 +128,7 @@ function addLib(alias, lib){
   if(_STAR_libs_STAR.has(alias))
     throwE(`Library alias already added: ${alias}`);
   _STAR_libs_STAR.set(alias, lib);
+  return lib;
 }
 //////////////////////////////////////////////////////////////////////////////
 function prnLn(...xs){
@@ -343,7 +351,7 @@ function getMacro(cmd){
   let mc, nsp,skip,mname;
   cmd = `${cmd}`;
   mc=null;
-  if(cmd.includes("/")){
+  if(cmd != "/" && cmd.includes("/")){
     let [p,c] = cmd.split("/");
     let tmp, libObj = getLib(p);
     mname = c;
@@ -447,7 +455,6 @@ function doMACRO(ast, env){
   mc= fnToNative(ast[2], ast[3], env);
   if(!cmd.includes("/")){
     name= `${nsp}/${cmd}`;
-    env.set(std.symbol(cmd),mc);
   }
   setMacro(name, mc);
 }
@@ -481,7 +488,7 @@ const _spec_forms_ = new Map([
   ["lambda*", (a,env)=> std.atom(fnToNative(a[1], a[2], env)) ],
   //a[1] == args a[2] == body
   ["def*", (a,e)=> std.atom(e.set(a[1], compute(a[2], e))) ],
-
+  ["set*", (a,e)=> std.atom(e.mod(a[1], compute(a[2], e))) ],
   ["and*", (a,b)=> std.atom(doAND(a,b)) ],
   ["or*", (a,b)=> std.atom(doOR(a,b)) ],
 
@@ -493,8 +500,20 @@ const _spec_forms_ = new Map([
   ["try*", (a,b)=> std.atom(doTRY(a,b)) ],
   ["if*", (a,b)=> std.pair(doIF(a,b), b) ],
 
-  ["do*", (a,e)=>{ evalEx(a.slice(1, -1), e); return std.pair(a[a.length-1], e) }]
+  ["do*", (a,e)=>{ a.slice(1,-1).forEach(x=>compute(x,e)); return std.pair(a[a.length-1], e) }]
 ]);
+//////////////////////////////////////////////////////////////////////////////
+function resolveSym(ast,env){
+  let r,s= `${ast}`
+  if(s=="*ns*"){
+    r=core.peekNS().get("id")
+  }else if(s=="*version*"){
+    r=_STAR_version_STAR
+  }else{
+    r=env.get(ast)
+  }
+  return r;
+}
 //////////////////////////////////////////////////////////////////////////////
 /**Process the ast */
 function evalEx(ast, env){
@@ -507,7 +526,7 @@ function evalEx(ast, env){
     rc=`${ast}`
   }else if(std.isSymbol(ast)){
     //var data
-    rc=env.get(ast);
+    rc=resolveSym(ast,env);
   }else if(std.isVec(ast)){
     for(let i=0;i<ast.length;++i)
       ast[i]=compute(ast[i],env);
@@ -527,7 +546,7 @@ function evalEx(ast, env){
 //////////////////////////////////////////////////////////////////////////////
 /**Interpret a expression */
 function compute(expr, cenv){
-  let _r_, _x_, _zz_=Symbol("!");
+  let _r_, _x_, _zz_=new Object();
   let recur, ret, env = cenv || g_env;
   function _f_(ast){
     let cmd,res;
@@ -567,26 +586,25 @@ function compute(expr, cenv){
 /**Create a new interpreter environment */
 function newEnv(){
   let ret = new LEXEnv();
-  _intrinsics_.forEach((v,k)=> ret.set(std.symbol(k), v));
-  return ret;
-}
+  _intrinsics_.forEach((v,k)=> ret.set(std.symbol(k), v)); return ret; }
 ////////////////////////////////////////////////////////////////////////////////
 /**Start a interactive session */
+const prefix = "kirby> ";
 function runRepl(){
   let ss = readline.createInterface(process.stdin, process.stdout);
   let z = prefix.length;
-  function pt(){
-    ss.setPrompt(prefix, z); return ss.prompt() }
+  function pt(){ ss.setPrompt(prefix, z); return ss.prompt() }
+  function cl(){ println("Bye!"); return process.exit(0) }
   function rl(line){
     try{
+      if(line=="qqq") cl();
       if(line)
         println(std.prn(compute(expandMacro(readAST(line))),1))
     }catch(e){
-      println(e) }
+      println(e)
+    }
     return pt();
   }
-  function cl(){
-    println("Bye!"); return process.exit(0) }
   ss.on("close", cl);
   ss.on("line", rl);
   init();
@@ -598,20 +616,24 @@ var _STAR_version_STAR = "";
 var inited= false;
 var g_env = null;
 //////////////////////////////////////////////////////////////////////////////
+/**Returns the runtime environment */
+function genv(){ return g_env }
+//////////////////////////////////////////////////////////////////////////////
+function _loadMacros(){
+  compute(expandMacro(readAST(macro_assert))) }
+//////////////////////////////////////////////////////////////////////////////
 /**Set up the runtime environment */
 function init(ver){
   if(!inited){
+    const o={ ns:"user", vars:[], macros:{} };
     const lib={};
     inited= true;
+    lib[EXPKEY]=o;
     g_env = newEnv();
-    addLib(core.peekNS().get("id"),lib);
     _STAR_version_STAR = ver;
-    lib[EXPKEY]={ ns: "user", vars: [], macros: {} }; }
+    addLib(core.peekNS().get("id"),lib) && _loadMacros(); }
   return inited;
 }
-//////////////////////////////////////////////////////////////////////////////
-/**Returns the runtime environment */
-function genv(){ return g_env }
 //////////////////////////////////////////////////////////////////////////////
 module.exports = {
   //the engine module is designed for handling a repl session, and for

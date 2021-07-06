@@ -364,21 +364,15 @@ function readBlock(tree, ends){
   return copyTokenData(start, ast);
 }
 //////////////////////////////////////////////////////////////////////////////
-/**Process an expression */
-function readList(tree){ return readBlock(tree, ["(",")"]) }
-//////////////////////////////////////////////////////////////////////////////
-/**Process a Vector */
-function readVector(tree){ return readBlock(tree, ["[","]"]) }
-//////////////////////////////////////////////////////////////////////////////
-/**Process a ObjectMap */
-function readObjectMap(tree){ return readBlock(tree, ["{","}"]) }
-//////////////////////////////////////////////////////////////////////////////
-/**Process a ObjectSet */
-function readObjectSet(tree){ return readBlock(tree, ["#{","}"]) }
-//////////////////////////////////////////////////////////////////////////////
 /**Advance the token index, then continue to parse */
 function skipParse(tree, func){
   return copyTokenData(popToken(tree), func(tree)) }
+//////////////////////////////////////////////////////////////////////////////
+function rspec(s){
+  return function(a){ return std.pair(std.symbol(s), readAst(a)) } }
+//////////////////////////////////////////////////////////////////////////////
+function group(x,y){
+  return [function(a){ return readBlock(a, [x,y]) } ] }
 //////////////////////////////////////////////////////////////////////////////
 const SPEC_TOKENS=(function(m){
   let o=new Map();
@@ -386,18 +380,21 @@ const SPEC_TOKENS=(function(m){
   return o;
 })({
 
-  "^": function(a1){ let t= readAst(a1); return std.pair(std.symbol("with-meta"), readAst(a1), t)},
-  "'": function(a1){ return std.pair(std.symbol("quote"), readAst(a1)) },
-  "`": function(a1){ return std.pair(std.symbol("syntax-quote"), readAst(a1)) },
-  "~": function(a1){ return std.pair(std.symbol("unquote"), readAst(a1)) },
-  "~@": function(a1){ return std.pair(std.symbol("splice-unquote"), readAst(a1)) },
-  "@": function(a1){ return std.pair(std.symbol("deref"), readAst(a1)) },
-  "#": function(a1){ return std.pair(std.symbol("lambda"), readAst(a1)) },
+  "^": function(a1){
+         let t= readAst(a1);
+         return std.pair(std.symbol("with-meta"), readAst(a1), t)},
 
-  "[": [function(a1){ return readVector(a1) }],
-  "(": [function(a1){ return readList(a1) }],
-  "#{": [function(a1){ return readObjectSet(a1) }],
-  "{": [function(a1){ return readObjectMap(a1) }]
+  "~@": rspec("splice-unquote"),
+  "'": rspec("quote"),
+  "`": rspec("syntax-quote"),
+  "~": rspec("unquote"),
+  "@": rspec("deref"),
+  "#": rspec("lambda"),
+
+  "[": group("[","]"),
+  "(": group("(",")"),
+  "#{": group("#{","}"),
+  "{": group("{","}")
 
 });
 //////////////////////////////////////////////////////////////////////////////

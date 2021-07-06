@@ -58,11 +58,15 @@ class LEXEnv:
     _expect(k)
     self.data[k.value]=v
     return v
+  def mod(self,k, v):
+    _expect(k)
+    self.data[k.value]=v
+    return v
   #Get value of this symbol
   def get(self,k):
     _expect(k)
     env = self.find(k)
-    if not env: throwE(f"Unknown var: {k}")
+    if not env: throwE(f"Unbound var: {k}")
     return env.data[k.value]
   #Print set of vars
   def prn(self):
@@ -433,7 +437,7 @@ def fnToNative(fargs, fbody, env):
   return lambda *args: compute(fbody, LEXEnv(env, fargs, args))
 ##############################################################################
 def _do(a,e):
-  for x in a[1:-1]: evalEx(x,e)
+  for x in a[1:-1]: compute(x,e)
   return std.pair(a[-1], e)
 ##############################################################################
 _spec_forms_ = {
@@ -441,7 +445,7 @@ _spec_forms_ = {
   "lambda*": lambda a,env: std.atom(fnToNative(a[1], a[2], env)),
   #a[1] == args a[2] == body
   "def*": lambda a,e: std.atom(e.set(a[1], compute(a[2], e))),
-
+  "set*": lambda a,e: std.atom(e.mod(a[1], compute(a[2], e))),
   "and*": lambda a,b: std.atom(doAND(a,b)),
   "or*": lambda a,b: std.atom(doOR(a,b)),
 
