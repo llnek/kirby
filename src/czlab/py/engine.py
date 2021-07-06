@@ -16,16 +16,14 @@ import copy,sys,types
 import core
 import kernel as std
 import reader as rdr
+from kernel import throwE,println
 ##############################################################################
 macro_assert = "\n (macro* assert* [c msg] `(if* ~c true (throw* ~msg))) "
-GLOBAL = None
 EXPKEY = "da57bc0172fb42438a11e6e8778f36fb"
 KBSTDLR = "kirbyref"
 KBPFX = "czlab.kirby."
 KBSTDLIB = f"{KBPFX}stdlib"
 prefix = "kirby> "
-throwE=std.throwE
-println= std.println
 ##############################################################################
 _STAR_version_STAR = ""
 inited= False
@@ -38,8 +36,7 @@ def _expect(k):
 class LEXEnv:
   #Create and initialize a new env with these symbols, optionally a parent env
   def __init__(self, parent=None, syms=None, vals=None):
-    self.data = dict()
-    self.par = None
+    self.par,self.data = None,dict()
     syms= syms or []
     vals= vals or []
     if parent:
@@ -54,10 +51,8 @@ class LEXEnv:
   #Find the env containing this symbol
   def find(self,k):
     _expect(k)
-    if k.value in self.data:
-      return self
-    if self.par:
-      return self.par.find(k)
+    if k.value in self.data: return self
+    if self.par: return self.par.find(k)
   #Bind this symbol, value to this env
   def set(self,k, v):
     _expect(k)
@@ -118,8 +113,7 @@ def prnStr(*xs):
 ##############################################################################
 def slurp(path):
   data=""
-  with open(path, "r") as file:
-    data = file.read()
+  with open(path, "r") as file: data = file.read()
   return data
 ##############################################################################
 def spit(path,data):
@@ -242,6 +236,7 @@ _intrinsics_ = {
   "is-pair?": std.isPair,
   "is-map?": std.isMap,
   "is-set?": std.isSet,
+  "is-macro?": lambda a: getMacro(str(a)) != None,
 
   "object*": std.jsobj,
   "vector*": std.vector,
@@ -282,6 +277,7 @@ _intrinsics_ = {
   "odds*": std.odds,
   "conj*": std.conj,
   "seq*": std.seq,
+  "reverse*": std.rseq,
   "is-atom?": std.isAtom,
   "atom*": std.atom,
 
@@ -315,14 +311,11 @@ def setMacro(cmd, func):
 ##############################################################################
 #Get macro
 def getMacro(cmd):
-  cmd = str(cmd)
-  mc=None
-  nsp=None
-  skip=False
+  mc,nsp,skip,cmd = None,None,False,str(cmd)
+  ###
   if "/" in cmd and len(cmd)>1:
-    c = cmd.split("/")
-    libObj = getLib(p)
-    mname = c
+    p,c = cmd.split("/")
+    mname,libObj = c,getLib(p)
     if p == KBSTDLR:
       #from kirby
       nsp = KBSTDLIB
@@ -346,8 +339,7 @@ def getMacro(cmd):
 ##############################################################################
 def readAST(s):
   ret = rdr.parse(s)
-  if type(ret)==list and len(ret)==1:
-    ret = ret[0]
+  if type(ret)==list and len(ret)==1: ret = ret[0]
   return ret
 ##############################################################################
 def backtick(ast):
@@ -363,7 +355,7 @@ def backtick(ast):
   return rc
 ##############################################################################
 def isMacroCall(ast,env):
-  return std.isPair(ast,1) and std.isSymbol(ast[0]) and getMacro(f"{ast[0]}")
+  return std.isPair(ast,1) and std.isSymbol(ast[0]) and getMacro(str(ast[0]))
 ##############################################################################
 #Continue to expand if the expr is a macro
 def expandMacro(ast,env=None,mcObj=None):
@@ -382,20 +374,16 @@ def expandMacro(ast,env=None,mcObj=None):
 ##############################################################################
 #internal (and* a b c)
 def doAND(ast, env):
-  ret = True
-  i=1
+  i,ret = 1,True
   while i<len(ast):
     ret=compute(ast[i], env)
-    print("POO+++" + str(ret))
-    if std.isFalsy(ret):
-      break
+    if std.isFalsy(ret): break
     i+=1
   return ret
 ##############################################################################
 #internal (or* a b c)
 def doOR(ast, env):
-  ret = None
-  i=1
+  i,ret = 1,None
   while i<len(ast):
     ret=compute(ast[i], env)
     if not std.isFalsy(ret): break
@@ -404,9 +392,7 @@ def doOR(ast, env):
 ##############################################################################
 #internal (let* [x 1 y 2] ...)
 def doLET(ast, env):
-  binds = ast[1]
-  e = LEXEnv(env)
-  i=0
+  i,binds,e = 0,ast[1], LEXEnv(env)
   while i<len(binds):
     e.set(binds[i], compute(binds[i+1], e))
     i+=2
@@ -414,8 +400,7 @@ def doLET(ast, env):
 ##############################################################################
 #internal (macro* name (args) body)
 def doMACRO(ast, env):
-  cmd= str(ast[1])
-  name=cmd
+  name=cmd= str(ast[1])
   nsp = core.peekNS()
   nsp = nsp.id if nsp else KBSTDLIB
   #ast[2]===args, ast[3]===body
@@ -462,14 +447,24 @@ _spec_forms_ = {
 
   "quote": lambda a,b: std.atom(a[1]),
   "let*": lambda a,b: doLET(a,b),
+  "do*": _do,
 
-  "syntax-quote": lambda a,b: std.pair(backtick(a[1]), b),
   "macro*": lambda a,b: std.atom(doMACRO(a,b)),
   "try*": lambda a,b: std.atom(doTRY(a,b)),
   "if*": lambda a,b: std.pair(doIF(a,b), b),
+  "syntax-quote": lambda a,b: std.pair(backtick(a[1]), b)
 
-  "do*": _do
 }
+##############################################################################
+def _resolveSymbol(sym,env):
+  rc,s=None,str(sym)
+  if s== "*version*":
+    rc=_STAR_version_STAR
+  elif s == "*ns*":
+    rc=core.peekNS().id
+  else:
+    rc=env.get(sym)
+  return rc
 ##############################################################################
 #Process the ast
 def evalEx(ast, env):
@@ -485,8 +480,7 @@ def evalEx(ast, env):
     #keyword data
     rc=str(ast)
   elif std.isSymbol(ast):
-    #var data
-    rc=env.get(ast)
+    rc=_resolveSymbol(ast,env)
   elif std.isVec(ast):
     for i,v in enumerate(ast):
       ast[i]=compute(v,env)
@@ -502,11 +496,9 @@ def evalEx(ast, env):
 ##############################################################################
 #Interpret a expression
 def compute(expr, cenv=None):
-  _r_=None
-  _x_=None
-  _zz_=std.Atom("!")
-  recur=None
+  _r_,_x_,recur,_zz_=None,None,None,std.Atom("!")
   env = cenv or genv()
+  ###
   def _f_(ast):
     nonlocal env
     if not std.isPair(ast):
@@ -530,9 +522,7 @@ def compute(expr, cenv=None):
   ####
   _r_ = _f_
   def _loop(*xs):
-    nonlocal _zz_
-    nonlocal _x_
-    nonlocal _r_
+    nonlocal _zz_,_x_,_r_
     _x_ = xs
     if not (_r_ is _zz_):
       _r_ = _zz_
@@ -560,7 +550,7 @@ class Repl(Cmd):
   def default(self, line):
     if line == "x" or line == "q": return self.do_exit(line)
     try:
-      println(std.prn(compute(expandMacro(readAST(line)))))
+      println(std.prn(compute(expandMacro(readAST(line))),1))
     except Exception as e:
       println(f"Error: {e}")
   do_EOF = do_exit
@@ -571,6 +561,9 @@ def runRepl(ver):
   init(ver)
   Repl.intro= f"Kirby REPL v{_STAR_version_STAR}"
   Repl().cmdloop()
+##############################################################################
+def _loadMacros():
+  compute(expandMacro(readAST(macro_assert)))
 ##############################################################################
 #Set up the runtime environment
 def init(ver):
@@ -584,11 +577,14 @@ def init(ver):
     addLib(core.peekNS().id,lib)
     _STAR_version_STAR = ver
     lib[EXPKEY]=dict(ns= "user", vars= [], macros= dict())
+    _loadMacros()
   return inited
 ##############################################################################
 #Returns the runtime environment
 def genv(): return g_env
 ##############################################################################
+if __name__ == "__main__": runRepl("1.0")
+##############################################################################
 #EOF
-if __name__ == "__main__":
-  runRepl("1.0")
+
+

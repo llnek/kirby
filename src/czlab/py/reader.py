@@ -10,17 +10,12 @@
 # limitations under the License.
 # Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 ##############################################################################
-import types
-import re
-import core
-import kernel as std
+import re,types
+import core, kernel as std
 ##############################################################################
 class Token:
   def __init__(self,source, line, column, value):
-    self.source = source
-    self.column = column
-    self.value = value
-    self.line = line
+    self.source,self.line,self.column,self.value = source,line,column,value
   def __str__(self): return self.value
   def __repr__(self): return self.__str__()
 ##############################################################################
@@ -43,7 +38,7 @@ REGEX = types.SimpleNamespace(id= re.compile(r"^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>
            hex= re.compile(r"^[-+]?0x"),
            dquoteHat= re.compile(r"^\""),
            dquoteEnd= re.compile(r"\"$"),
-           func= re.compile(r"^function\b"),
+           func= re.compile(r"^lambda\*\b"),
            slash= re.compile(r"\/"),
            query= re.compile(r"\?"),
            perc= re.compile(r"%"),
@@ -51,7 +46,7 @@ REGEX = types.SimpleNamespace(id= re.compile(r"^[a-zA-Z_$][\/.?\-*!0-9a-zA-Z_'<>
            plus= re.compile(r"\+"),
            dash= re.compile(r"-"),
            quote= re.compile(r"'"),
-           hash= re.compile(r"#"),
+           hashn= re.compile(r"#"),
            at= re.compile(r"@"),
            dollar= re.compile(r"\$"),
            less= re.compile(r"<"),
@@ -64,7 +59,7 @@ REPLACERS=[(REGEX.dollar, "_DOLA_"),
            (REGEX.bang, "_BANG_"),
            (REGEX.dash, "_DASH_"),
            (REGEX.quote, "_QUOT_"),
-           (REGEX.hash, "_HASH_"),
+           (REGEX.hashn, "_HASH_"),
            (REGEX.plus, "_PLUS_"),
            (REGEX.perc, "_PERC_"),
            (REGEX.at, "_AT_"),
@@ -96,25 +91,16 @@ def jsid(inp):
 ##############################################################################
 #Lexical analyzer
 def lexer(source, fname):
-  commentQ= False
-  fformQ= False
-  escQ= False
-  strQ= False
-  regexQ= False
-  token = ""
-  ch = None
-  nx = None
-  line=1
-  col = 0
-  pos = 0
-  tree = []
-  tcol = col
-  tline = line
+  commentQ, fformQ, escQ, strQ, regexQ= False,False,False,False,False
   slen = len(source) if source else 0
-  _getc= lambda n: source[n] if n < slen else None
-  consec3= lambda t: ch == t and nx == t and _getc(pos+1) == t
-  consec2= lambda t: ch == t and nx == t
-  multi=lambda l,c,*ts: [toke(l,c,t,True) for t in ts]
+  token,line,col,pos = "",1,0,0
+  tree,tcol,tline = [],col,line
+  ch,nx = None,None
+  ###
+  def _getc(n): return source[n] if n < slen else None
+  def consec2(t): return ch == t and nx == t
+  def multi(l,c,*ts): return [toke(l,c,t,True) for t in ts]
+  def consec3(t): return ch == t and nx == t and _getc(pos+1) == t
   def toke(ln, co, s, sQ=False):
     if sQ or s:
       if s.startswith("&") and s != "&&" and len(s)>1:
@@ -248,8 +234,8 @@ def lexer(source, fname):
         tline = line
         tcol = col
       token += ch
-  #####
-  tmp=dict(source= fname, line= tline, column=col)
+  ###
+  tmp=types.SimpleNamespace(source= fname, line= tline, column=col)
   if fformQ: throwE(tmp, "unterminated free-form")
   if escQ: throwE(tmp, "incomplete escape")
   if strQ: throwE(tmp, "unterminated string")
@@ -259,7 +245,7 @@ def lexer(source, fname):
   if len(token)>0:
     toke(tline, tcol, token)
 
-  return dict(tokens=tree, pos=0)
+  return types.SimpleNamespace(tokens=tree,pos=0)
 ##############################################################################
 #Raise an error
 def throwE(token,*msgs):
@@ -269,16 +255,16 @@ def throwE(token,*msgs):
 #Returns the next token, updates the token index
 def popToken(tree):
   t = peekToken(tree)
-  tree["pos"] = tree["pos"]+1
+  tree.pos += 1
   return t
 ##############################################################################
 #Returns the next token, without moving the token index
 def peekToken(tree):
-  return tree["tokens"][tree["pos"]]
+  return tree.tokens[tree.pos]
 ##############################################################################
 #Returns the previous token
 def prevToken(tree):
-  return tree["tokens"][tree["pos"]-1]
+  return tree.tokens[tree.pos-1]
 ##############################################################################
 #Attach source level information to the node
 def copyTokenData(token, node):
@@ -291,8 +277,8 @@ def copyTokenData(token, node):
 #Process an atom
 def readAtom(tree):
   token = popToken(tree)
-  tn = token.value
-  ret = None
+  ret,tn = None,token.value
+  ###
   if not tn:
     pass
     #//ret = undefined
@@ -320,15 +306,10 @@ def readAtom(tree):
 ##############################################################################
 #Process a LISP form
 def readBlock(tree, ends):
-  ast=std.pair()
-  token=popToken(tree)
-  cur=None
-  jso=None
-  expr=None
-  ok=True
-  start = token
-
-  if ends[0]=="[":  ast=std.vector()
+  ast,token= std.pair(), popToken(tree)
+  cur,jso,expr,ok,start=None,None,None,True,token
+  ###
+  if ends[0]=="[": ast=std.vector()
   if ends[0]=="(": expr=True
 
   if token.value != ends[0]:
@@ -357,55 +338,44 @@ def readBlock(tree, ends):
     ast.insert(0,std.symbol("hashmap*"))
   return copyTokenData(start, ast)
 ##############################################################################
-#Process an expression
-def readList(tree):
-  return readBlock(tree, ["(",")"])
-##############################################################################
-#Process a Vector
-def readVector(tree):
-  return readBlock(tree, ["[","]"])
-##############################################################################
-##Process a ObjectMap
-def readObjectMap(tree):
-  return readBlock(tree, ["{","}"])
-##############################################################################
-#Process a ObjectSet
-def readObjectSet(tree):
-  return readBlock(tree, ["#{","}"])
-##############################################################################
 #Advance the token index, then continue to parse
-def skipParse(tree, func):
+def _skipParse(tree, func):
   return copyTokenData(popToken(tree), func(tree))
 ##############################################################################
 def _metaFunc(a1):
   t= readAst(a1)
   return std.pair(std.symbol("with-meta"), readAst(a1), t)
 ##############################################################################
-SPEC_TOKENS={
-  "'": lambda a1: std.pair(std.symbol("quote"), readAst(a1)),
-  "`": lambda a1: std.pair(std.symbol("syntax-quote"), readAst(a1)),
-  "~": lambda a1: std.pair(std.symbol("unquote"), readAst(a1)),
-  "~@": lambda a1: std.pair(std.symbol("splice-unquote"), readAst(a1)),
-  "@": lambda a1: std.pair(std.symbol("deref"), readAst(a1)),
-  "#": lambda a1: std.pair(std.symbol("lambda"), readAst(a1)),
+def _rspec(s):
+  return lambda a: std.pair(std.symbol(s), readAst(a))
+##############################################################################
+def _group(x,y):
+  return [lambda a: readBlock(a, (x,y))]
+##############################################################################
+LSPECS={
+  "'": _rspec("quote"),
+  "`": _rspec("syntax-quote"),
+  "~": _rspec("unquote"),
+  "~@": _rspec("splice-unquote"),
+  "@": _rspec("deref"),
+  "#": _rspec("lambda"),
   "^": _metaFunc,
-  "{": [ lambda a1: readObjectMap(a1)],
-  "[": [lambda a1: readVector(a1)],
-  "(": [lambda a1: readList(a1)],
-  "#{": [lambda a1: readObjectSet(a1)]
+  "{": _group("{","}"),
+  "[": _group("[","]"),
+  "(": _group("(",")"),
+  "#{": _group("#{","}")
 }
 ##############################################################################
 #Inner parser routine
 def readAst(tree):
-  tval=""
-  rc=None
-  token = peekToken(tree)
-  if token: tval=token.value
-  func = SPEC_TOKENS.get(tval)
+  rc,tval,token= None,"",peekToken(tree)
+  if token:
+    tval=token.value
+  func = LSPECS.get(tval)
   if type(func)==list:
     rc=func[0](tree)
   elif std.isFunction(func):
-    rc=skipParse(tree, func)
+    rc=_skipParse(tree, func)
   elif tval == ";" or tval == ",":
     popToken(tree)
   elif not token:
@@ -414,88 +384,17 @@ def readAst(tree):
     rc=readAtom(tree)
   return rc
 ##############################################################################
-def addAst(ast, f):
-  if f is None:
-    pass
-  else:
-    ast.append(f)
-  return ast
+def addAst(ast, f): ast.append(f) if f else None
 ##############################################################################
 #Main parser routine
 def parse(source,*args):
-  tree = lexer(source, (args and args[0]) or "*adhoc*")
-  tlen = len(tree["tokens"])
+  tree = lexer(source, (args and args[0]) or "*repl*")
+  tlen = len(tree.tokens)
   ast = []
-
-  #for t in tree["tokens"]: std.println("token=", str(t))
-
-  while tree["pos"] < tlen:
-    addAst(ast, readAst(tree))
-
+  #for t in tree.tokens: std.println("token=", str(t))
+  while tree.pos < tlen: addAst(ast, readAst(tree))
   #std.println(std.prn(ast,1))
-  #std.println(dumpAst(ast,"Q"))
   return ast
-##############################################################################
-def xdump(tag, ast):
-  return f'<{tag} line="{ast.line}" col="{ast.column}">' if core.hasSCI(ast) else f"<{tag}>"
-##############################################################################
-#Debug and dump the AST
-def dumpTree(tree):
-  rc=None
-  if std.isVec(tree):
-    s="".join([dumpTree(a) for a in tree])
-    rc=f'{xdump("vec", tree)}{s}</vec>'
-  elif std.isSet(tree):
-    s=""
-    for v in tree:
-      if s: s+=","
-      s += dumpTree(v)
-    rc=f'{xdump("set", tree)}{s}</set>'
-  elif std.isMap(tree):
-    s=""
-    for k,v in tree.items():
-      if s: s += ","
-      s += dumpTree(k)
-      s += ","
-      s += dumpTree(v)
-    rc=f'{xdump("map", tree)}{s}</map>'
-  elif std.isPair(tree):
-    s="".join([dumpTree(a) for a in tree])
-    rc=f'{xdump("list", tree)}{s}</list>'
-  elif type(tree)==list:
-    s="".join([dumpTree(a) for a in tree])
-    rc=f'{xdump("array", tree)}{s}</array>'
-  elif isinstance(tree, LambdaArg):
-    rc=f'{xdump("lambda-arg", tree)}{tree.value}</lambda-arg>'
-  elif std.isKeyword(tree):
-    rc=f'{xdump("keyword", tree)}{std.escXml(tree.value)}</keyword>'
-  elif std.isSymbol(tree):
-    rc=f'{xdump("symbol", tree)}{std.escXml(tree.value)}</symbol>'
-  elif isinstance(tree, std.RegexObj):
-    rc=f'{xdump("regex", tree)}{std.escXml(tree.value)}</regex>'
-  elif type(tree)== str:
-    rc=f"<string>{std.escXml(std.quoteStr(tree))}</string>"
-  elif type(tree) == int or type(tree)==float:
-    rc=f"<number>{tree}</number>"
-  elif isinstance(tree,std.Null):
-    rc=f"<reserved>null</reserved>"
-  elif tree is True:
-    rc=f"<boolean>true</boolean>"
-  elif tree is False:
-    rc=f"<boolean>false</boolean>"
-  elif type(tree) == "undefined":
-    rc=f"<reserved>undefined</reserved>"
-  else:
-    throwE(tree, "Bad AST")
-  return rc
-##############################################################################
-#Debug and dump the AST
-def dumpAst(tree, fname):
-  return f"<AST file=\"{std.escXml(fname)}\">{dumpTree(tree)}</AST>"
-##############################################################################
-#Dump AST to xml
-def dbgAST(source, fname):
-  return dumpAst(rdr.parse(source, fname), fname)
 ##############################################################################
 #EOF
 

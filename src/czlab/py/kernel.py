@@ -181,8 +181,7 @@ def assocBANG(coll,*xs):
     throwE(f"Cannot assoc! with: {type(coll)}")
   if len(xs)%2 != 0:
     throwE(f"assoc! expecting even n# of args")
-  z=len(xs)
-  i=0
+  i,z=0,len(xs)
   while i<z:
     coll[str(xs[i])]= xs[i+1]
     i += 2
@@ -250,10 +249,8 @@ def quoteStr(s):
 #Removes quotes around a string
 def unquoteStr(s):
   if isStr(s) and s.startswith("\"") and s.endswith("\""):
-    s= s[1:-1]
-    out=""
+    i,out,s= 0,"", s[1:-1]
     z=len(s)
-    i=0
     while i<z:
       ch=s[i]
       if ch== "\\":
@@ -488,8 +485,7 @@ def splitWith(pred, coll):
 ##############################################################################
 #Split a collection into 2 parts
 def splitSeq(coll,cnt):
-  x=SPair()
-  y=SPair()
+  x,y=SPair(),SPair()
   if cnt<len(coll):
     i=0
     while i<cnt:
@@ -522,18 +518,14 @@ def rseq(obj):
 ##############################################################################
 #Returns a sequence of lists of n items each.
 def partition(n, coll):
-  _zz_=std.Atom("!")
-  recur = None
-  _x_ = None
-  _r_=None
+  _x_,_r_,recur,_zz_=None,None,None,std.Atom("!")
+  ###
   def _f_(ret, arg):
     if notEmpty(arg[0]): ret.append(arg[0])
     return ret if 0 == count(arg[1]) else recur(ret, splitSeq(arg[1], n))
   _r_ = _f_
   def _loop(*xs):
-    nonlocal _zz_
-    nonlocal _x_
-    nonlocal _r_
+    nonlocal _x_, _r_,_zz_
     _x_=xs
     if not (_r_ is _zz_):
       _r_=_zz_
@@ -570,8 +562,7 @@ def vector(*xs): return toVec(*xs)
 def hashmap(*xs):
   if len(xs)%2 != 0:
     throwE("Arity Error: even n# expected.")
-  out=dict()
-  i=0
+  i,out=0,dict()
   while i<len(xs):
     out[str(xs[i])]= xs[i+1]
     i+=2
@@ -599,8 +590,7 @@ def into(to, coll):
 def jsobj(*xs):
   if len(xs)%2 != 0:
     throwE("Invalid arity for: jsobj")
-  rc=JSObj()
-  i=0
+  i,rc=0,JSObj()
   while i<len(xs):
     setattr(rc,str(xs[i]),xs[i+1])
     i+=2
@@ -611,7 +601,7 @@ def concat(coll,*xs):
   rc=SPair()
   for v in seq(coll): rc.append(v)
   for v in xs:
-      for w in seq(v): rc.append(w)
+    for w in seq(v): rc.append(w)
   return rc
 ##############################################################################
 def repeatEvery(coll, start, step):
@@ -631,15 +621,6 @@ def evens(coll): return repeatEvery(coll, 0, 2)
 ##############################################################################
 #Collect every 2nd item starting at 1.
 def odds(coll): return repeatEvery(coll, 1, 2)
-##############################################################################
-def requireJS(path,panic):
-  try:
-    pass
-    #return require(path)
-  except Exception as e:
-    if panic: raise e
-    println(e)
-    println("warning: failed to load lib: ", path)
 ##############################################################################
 #EOF
 
