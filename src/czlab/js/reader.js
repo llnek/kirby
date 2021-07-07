@@ -369,8 +369,7 @@ function skipParse(tree, func){
   return copyTokenData(popToken(tree), func(tree)) }
 //////////////////////////////////////////////////////////////////////////////
 function lspec(tree){
-  let m=new Map(),
-      c=0,
+  let c=0,
       base=gensym().value + "__";
   tree=readAst(tree);
   function scan(ast){
@@ -386,7 +385,7 @@ function lspec(tree){
     }
   }
   if(!std.isPair(tree))
-    throwE(token, "expected pair");
+    throwE(tree, "expected pair");
   scan(tree);
   let args= std.vector();
   for(let i=1;i<=c;++i)

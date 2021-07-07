@@ -28,7 +28,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;not used, done via reader
-(defmacro lambda
+(defmacro XXXlambda
 
   """Defines a function, with anonymous args"""
   [code]

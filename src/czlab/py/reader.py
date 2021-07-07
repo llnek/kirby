@@ -352,14 +352,40 @@ def _rspec(s):
 def _group(x,y):
   return [lambda a: readBlock(a, (x,y))]
 ##############################################################################
+def lspec(tree):
+  z,c,base=0,0,std.gensym().value + "__"
+  tree=readAst(tree)
+  def scan(ast):
+    nonlocal z,c
+    for i,a in enumerate(ast):
+      if isinstance(a,list):
+        scan(a)
+      elif isinstance(a, LambdaArg):
+        z=int(a.value[1:])
+        if z>c: c=z
+        #replace it with symbol
+        ast[i]=std.symbol(f"{base}{z}")
+  ###
+  if not std.isPair(tree):
+    throwE(tree, "expected pair")
+  scan(tree)
+  args= std.vector()
+  i=1
+  while i<=c:
+    args.append(std.symbol(f"{base}{i}"))
+    i+=1
+  return std.pair(std.symbol("lambda*"), args, tree)
+##############################################################################
 LSPECS={
+  "~@": _rspec("splice-unquote"),
   "'": _rspec("quote"),
   "`": _rspec("syntax-quote"),
   "~": _rspec("unquote"),
-  "~@": _rspec("splice-unquote"),
   "@": _rspec("deref"),
-  "#": _rspec("lambda"),
+
+  "#": lambda a: lspec(a),
   "^": _metaFunc,
+
   "{": _group("{","}"),
   "[": _group("[","]"),
   "(": _group("(",")"),
