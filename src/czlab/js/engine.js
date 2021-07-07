@@ -222,6 +222,7 @@ const _intrinsics_ = new Map([
   ["is-some?", o=> o!==undefined && o!==null ],
   ["is-str?", a=> typeof(a) == "string" ],
 
+  ["identity*", function(x){ return x }],
   ["false?", a=> a === false ],
   ["true?", a=> a === true ],
   ["is-nil?", a=> a===null ],

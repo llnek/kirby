@@ -10,25 +10,21 @@
  * Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
-const _STAR_ns_DASH_cache_STAR =[new Map([["id", "user"], ["meta", null]])];
+const NS_CACHE =[new Map([["id", "user"], ["meta", null]])];
 //////////////////////////////////////////////////////////////////////////////
-function peekNS(){ return _STAR_ns_DASH_cache_STAR[0] }
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+function peekNS(){ return NS_CACHE[0] }
+//////////////////////////////////////////////////////////////////////////////
 function popNS(){
-  if(_STAR_ns_DASH_cache_STAR.length>1)
-    return _STAR_ns_DASH_cache_STAR.shift();
-}
+  if(NS_CACHE.length>1) return NS_CACHE.shift() }
 //////////////////////////////////////////////////////////////////////////////
 function pushNS(nsp,info){
-  let o=new Map([["id", nsp], ["meta", info]]);
-  _STAR_ns_DASH_cache_STAR.unshift(o);
-  return o;
+  NS_CACHE.unshift(new Map([["id", nsp], ["meta", info]]));
+  return peekNS()
 }
 //////////////////////////////////////////////////////////////////////////////
 function starNSstar(){
   let n = peekNS();
-  return typeof(n) == "undefined" || n === null ? null : n.get("id")
-}
+  return typeof(n) == "undefined" || n === null ? null : n.get("id") }
 //////////////////////////////////////////////////////////////////////////////
 class DArray extends Array{ constructor(...args){ super(...args) }}
 //////////////////////////////////////////////////////////////////////////////
@@ -37,8 +33,7 @@ class SPair extends Array{ constructor(...args){ super(...args) }}
 /** @abstract */
 class SValue{
   constructor(a){ this.value=a }
-  toString(){ return this.value }
-}
+  toString(){ return this.value } }
 //////////////////////////////////////////////////////////////////////////////
 class Keyword extends SValue{
   constructor(name){
@@ -47,20 +42,17 @@ class Keyword extends SValue{
   toString(){
     return this.value.startsWith("::") ?
       [starNSstar(), "/", this.value.slice(2)].join("") :
-      this.value.startsWith(":") ? this.value.slice(1) : null;
-  }
-}
-//////////////////////////////////////////////////////////////////////////////
-const JSSymbol=Symbol;
+      this.value.startsWith(":") ? this.value.slice(1) : null } }
 //////////////////////////////////////////////////////////////////////////////
 class SSymbol extends SValue{ constructor(name){ super(name) } }
 //////////////////////////////////////////////////////////////////////////////
 class Atom extends SValue{ constructor(val){ super(val) } }
 //////////////////////////////////////////////////////////////////////////////
+class JSObj{}
+//////////////////////////////////////////////////////////////////////////////
 module.exports={
   peekNS, popNS, pushNS,starNSstar,
-  SValue,SPair,DArray,Atom,Keyword,SSymbol,JSSymbol
-};
+  SValue,SPair,DArray,Atom,Keyword,SSymbol,JSObj };
 //////////////////////////////////////////////////////////////////////////////
 //EOF
 

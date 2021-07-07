@@ -819,6 +819,16 @@ function sfNew(ast, env){
 }
 cc.regSpecF("new", sfNew);
 //////////////////////////////////////////////////////////////////////////////
+//The basic identity function
+//e.g.
+//(identity 3) => 3
+function sfIdent(ast, env){
+  assertArity(ast.length == 2, ast);
+  let ret=smNode(ast);
+  return ret.add([kbStdRef("identity"), "(", txExpr(ast[1], env), ")"]);
+}
+cc.regSpecF("identity", sfIdent);
+//////////////////////////////////////////////////////////////////////////////
 //Throw an exception
 function sfThrow(ast, env){
   assertArity(ast.length === 2, ast);
@@ -918,6 +928,21 @@ function sfFN(ast, env){
                fargs[1], txDo(body, env, true), "}"]);
 }
 cc.regSpecF("fn", sfFN);
+//////////////////////////////////////////////////////////////////////////////
+//Defines an anonymous function. See defn.
+//(lambda* [] ...)
+function sfLambda(ast, env){
+  assertArity(ast.length >= 2, ast);
+  let args=ast[1],
+      body = xfi(ast, ast.slice(2));
+  if(!std.isVec(args) && !std.isPair(args)) throwE("invalid-fargs", ast);
+  let fargs = dstruFArgs(xfi(ast, args), env);
+  return wrap(smNode(ast),
+              null,
+              ["function(", fargs[0], "){\n",
+               fargs[1], txDo(body, env, true), "}"]);
+}
+cc.regSpecF("lambda*", sfLambda);
 //////////////////////////////////////////////////////////////////////////////
 //The exprs are evaluated and, if no exceptions occur, the value of the last
 //is returned. If an exception occurs and catch clauses are provided, each is

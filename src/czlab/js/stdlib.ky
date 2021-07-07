@@ -27,6 +27,19 @@
   `(let [~that this] ~@body))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;not used, done via reader
+(defmacro lambda
+
+  """Defines a function, with anonymous args"""
+  [code]
+
+  (let* [sz (count* code)
+         body (if* (> sz 1)
+                   code
+                   (if* (> sz 0) (nth* code 0)))]
+    `(fn [] (with-local-vars [____args (slice arguments)]) ~body)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro trye!
 
   """Wrap try block around code and eat exception"""
@@ -1080,18 +1093,6 @@
   [&xs]
 
   `(.join (vec ~@xs) ""))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro lambda
-
-  """Defines a function, with anonymous args"""
-  [code]
-
-  (let* [sz (count* code)
-         body (if* (> sz 1)
-                   code
-                   (if* (> sz 0) (nth* code 0)))]
-    `(fn [] (with-local-vars [____args (slice arguments)]) ~body)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmacro each
@@ -2211,7 +2212,7 @@ the maximum number of splits. Returns vector of the splits."
   at all. It is useful for testing, for combination with monad
   transformers, and for code that is parameterized with a monad."
 
-  [ bind (fn [mv mf] (mf mv)) unit #(%1)] )
+  [ bind (fn [mv mf] (mf mv)) unit #(identity %1)] )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmonad monad-maybe
 
@@ -2220,7 +2221,7 @@ the maximum number of splits. Returns vector of the splits."
   a step returns nil, the whole computation will yield nil as well."
 
   [bind (fn [mv mf]
-          (if-not (nil? mv) (mf mv))) unit #(%1) zero nil] )
+          (if-not (nil? mv) (mf mv))) unit #(identity %1) zero nil] )
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmonad monad-list
 
@@ -2242,7 +2243,7 @@ the maximum number of splits. Returns vector of the splits."
           (fn [state]
             (let [[value newState] (mv state)]
               ((mf value) newState))))
-   unit (fn [v] #([v %1])) ])
+   unit (fn [v] #(vec v %1)) ])
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 (defmonad monad-continuation
 

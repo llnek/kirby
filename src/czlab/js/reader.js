@@ -11,7 +11,7 @@
 "use strict";
 //////////////////////////////////////////////////////////////////////////////
 const std = require("./kernel");
-const println=std["println"];
+const {println,gensym}=std;
 //////////////////////////////////////////////////////////////////////////////
 class Token{
   constructor(source, line, column, value){
@@ -368,6 +368,32 @@ function readBlock(tree, ends){
 function skipParse(tree, func){
   return copyTokenData(popToken(tree), func(tree)) }
 //////////////////////////////////////////////////////////////////////////////
+function lspec(tree){
+  let m=new Map(),
+      c=0,
+      base=gensym().value + "__";
+  tree=readAst(tree);
+  function scan(ast){
+    for(let z,a,i=0;i<ast.length;++i){
+      a=ast[i];
+      if(Array.isArray(a)){ scan(a) }
+      else if(a instanceof LambdaArg){
+        z=parseInt(a.value.slice(1));
+        if(z>c){c = z}
+        //replace it with symbol
+        ast[i]=std.symbol(`${base}${z}`);
+      }
+    }
+  }
+  if(!std.isPair(tree))
+    throwE(token, "expected pair");
+  scan(tree);
+  let args= std.vector();
+  for(let i=1;i<=c;++i)
+    args.push(std.symbol(`${base}${i}`));
+  return std.pair(std.symbol("lambda*"), args, tree);
+}
+//////////////////////////////////////////////////////////////////////////////
 function rspec(s){
   return function(a){ return std.pair(std.symbol(s), readAst(a)) } }
 //////////////////////////////////////////////////////////////////////////////
@@ -383,13 +409,16 @@ const SPEC_TOKENS=(function(m){
   "^": function(a1){
          let t= readAst(a1);
          return std.pair(std.symbol("with-meta"), readAst(a1), t)},
+  "#": function(a){ return lspec(a) },
+
+  //used in conjunction with macro lambda
+  //"#": rspec("lambda"),
 
   "~@": rspec("splice-unquote"),
   "'": rspec("quote"),
   "`": rspec("syntax-quote"),
   "~": rspec("unquote"),
   "@": rspec("deref"),
-  "#": rspec("lambda"),
 
   "[": group("[","]"),
   "(": group("(",")"),
