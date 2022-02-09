@@ -39,7 +39,7 @@
   "scripts": {},
   "dependencies": {
     "esformatter": "^0.11.3",
-    "mout": "^1.1.0",
+    "mout": "^1.2.3",
     "node-getopt": "^0.3.2",
     "source-map": "^0.6.1",
     "watch": "^0.13.0"
