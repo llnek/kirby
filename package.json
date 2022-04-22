@@ -11,12 +11,7 @@
   "name": "kirby",
   "author": "Kenneth Leung",
   "version": "1.0.0",
-  "licenses": [
-    {
-      "type": "MIT",
-      "url": "http://www.opensource.org/licenses/MIT"
-    }
-  ],
+  "license": "Apache-2.0",
   "engines": {
     "node": ">=0.10.0"
   },
