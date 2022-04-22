@@ -7,9 +7,10 @@
 ;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
-;; Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
+;; Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
 
-(ns ^{:author "Kenneth Leung"}
+(ns
+  ^{:author "Kenneth Leung"}
   czlab.kirby.stdlib
   "Standard core library containing built-in functions/vars and macros."
 

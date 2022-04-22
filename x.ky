@@ -9,10 +9,13 @@
 (ns ^{:doc ""
       :author "Kenneth Leung"}
   czlab.elmo.ecs.core
-  (:require [kirby :as kkkk]
-            ["kirby" :as ky :rename {atom _atom_} :refer '(Atom atom swap! conj! disj!) ]))
+  (:require [kirby :as kkkk] ["kirby" :as ky :rename {atom _atom_} :refer '(Atom atom swap! conj! disj!) ])
 
-;((juxt foo woo) 3)
+  )
+
+(defn foo[])
+(defn woo[])
+((juxt foo woo) 3)
 ;(deref poo)
 ;((comp foo woo) 3)
 ;'#{1}
@@ -68,7 +71,7 @@
 ;(defmacro poo [a b] `(~@a))
 ;(poo '(1 2 3) [4 5 6])
 
-(def x #(+ 1 (+ 3 % (+ %3 %4))))
+;(def x #(+ 1 (+ 3 % (+ %3 %4))))
 
 
 
