@@ -7,7 +7,7 @@
 ;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;; See the License for the specific language governing permissions and
 ;; limitations under the License.
-;; Copyright © 2013-2021, Kenneth Leung. All rights reserved. */
+;; Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
 
 (ns ^{:doc ""
       :author "Kenneth Leung"}
@@ -284,7 +284,7 @@
   (ensure (= 31
              (reduce (fn [acc x] (+ acc x)) 10 [5 7 9])) "reduce")
   (ensure (= "ab" (str "a" "b")) "str")
-  (ensure (= 20 (let [f (lambda (+ % 7))] (f 13))) "lambda")
+  (ensure (= 20 (let [f (lambda* [x] (+ x 7))] (f 13))) "lambda")
 
   (ensure (= 6 (do (set! TMPVAR 0)
                    (each #(+= TMPVAR %) [1 2 3]) TMPVAR)) "each")
