@@ -1,6 +1,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-(defproject io.czlab/kirby "1.0.0"
+(defproject io.czlab/kirby "1.5.0"
 
   :license {:url "https://www.apache.org/licenses/LICENSE-2.0.txt"
             :name "Apache License"}
@@ -11,7 +11,7 @@
   :dependencies []
 
   :profiles {:provided {:dependencies [[org.clojure/clojure
-                                        "1.11.1" :scope "provided"]]}
+                                        "1.12.0" :scope "provided"]]}
              :uberjar {:aot :all}}
 
   :global-vars {*warn-on-reflection* true}

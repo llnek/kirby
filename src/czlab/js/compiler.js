@@ -7,12 +7,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict";
 
+  //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  /**
+   * @module
+   */
   function _module(){
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -52,7 +56,7 @@
       ["empty-form", "Invalid form (empty)"]]);
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    const MOD_DASH_VER = "1.0.0";
+    const MOD_DASH_VER = "1.5.0";
     const LARGS = "____args";
     var _STAR_externs_STAR = new Map();
     var _STAR_macros_STAR = new Map();
@@ -63,7 +67,9 @@
     var MATH_DASH_OP_DASH_REGEX = /^[-+][0-9]+$/;
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    /**Defining a primitive data type, wraps around a simple value. */
+    /**Defining a primitive data type, wraps around a simple value.
+     * @class
+     */
     class Primitive{
       constructor(v){ this.value = v }
       toString(){ return this.value }
@@ -111,9 +117,9 @@
     function smNode(ast,obj){
       const rc = obj || tnode();
       try{
-        rc["source"] = ast.source;
-        rc["column"] = ast.column;
-        rc["line"] = ast.line;
+        rc["source"] = ast.source||null;
+        rc["column"] = ast.column||null;
+        rc["line"] = ast.line||null;
       }catch(e){
         console.warn("smNode() near line: " + ast.line) }
       return rc;
@@ -154,9 +160,8 @@
      * Also, always check first for (ns ...)
      */
     function transUnit(root, env){
-      let
-        ms=[], os=[],
-        n1=root[0], ret=smNode(root);
+      let ms=[], os=[],
+          n1=root[0], ret=smNode(root);
       if(std.isPair(n1,1) && std.isSymbol(n1[0],"ns")){}else{
         throwE("(ns ...) must be first form in file")
       }
@@ -358,9 +363,8 @@
      * @private
      */
     function slibBANG(cmd){
-      let
-        lib = `${KBSTDLR}.`,
-        nsp = core.peekNS();
+      let lib = `${KBSTDLR}.`,
+          nsp = core.peekNS();
       cmd = `${cmd}`;
       return cmd.startsWith(lib) &&
              nsp.get("id") == KBSTDLIB ? cmd.slice(lib.length) : cmd }
@@ -437,13 +441,16 @@
       let
         sourcemap = options["source-map"],
         noformat = options["no-format"],
-        verbose = options["verbose"],
         cstr,err,ret = transUnit(rdr.parse(source, fname), rt.genv()),
         [fmap,smap]= [".js", ".map"].map(a=> `${path.basename(fname, ".ky")}${a}`);
-      if(sourcemap){
+      if(sourcemap) try{
+        //ret.walk(function (code, loc) { console.log("WALK:", code, loc); });
         let sout = ret.toStringWithSourceMap({ skipValidation: true, file: fmap });
         ret = sout.code;
-        fs.writeFileSync(smap, sout.map);
+        fs.writeFileSync(smap, sout.map.toString());
+      }catch(e){
+        console.log(e.toString());
+        console.log(new Error().stack);
       }
       cstr = ret + spitExterns();
       if(sourcemap)
@@ -531,6 +538,7 @@
   if(typeof module == "object" && module.exports){
     module.exports=_module()
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);

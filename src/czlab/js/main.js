@@ -7,19 +7,23 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict"
 
+  //////////////////////////////////////////////////////////////////////////////
+  /**
+   * @module
+   */
   function _module(){
-    //////////////////////////////////////////////////////////////////////////////
     const getopt = require("node-getopt");
     const cp = require("child_process");
     const watch = require("watch");
     const path = require("path");
     const fs = require("fs");
+    const rdr= require("./reader");
     const std = require("./kernel");
     const rt = require("./engine");
     const cc = require("./compiler");
@@ -30,13 +34,14 @@
     /** error and exit */
     function errOut(msg){
       println(msg);
-      return process.exit(1) }
+      return process.exit(1)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** compile code */
     function compile([fin,fout],options){
       if(!fin)
-        errOut("No source file");
+        errOut("Source file not provided.");
       fin=path.resolve(fin)
       if(!fin.endsWith(".ky"))
         errOut("Source file extension != '.ky'");
@@ -45,11 +50,16 @@
       try{
         let source = rt.slurp(fin);
         if(options["show-ast"]){
-          println(rdr.dbgAST(source, fin))
+          try{
+            println(rdr.dbgAST(source, fin))
+          }catch(e){
+            console.log(e);
+            console.log(new Error().stack);
+          }
         }else{
           println(`"kirby v${cc.version}: compiling: ${fin} -> ${fout}`);
           let [ret,err]= cc.transpile(source, fin, options);
-          console.log(ret);
+          if(options["show-code"]) console.log(ret);
           rt.spit(fout, ret);
           if(err)
             throw err;
@@ -61,15 +71,17 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function init(){
-      return rt.init(cc.version) }
+      return rt.init(cc.version)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function doWatch(cwd){
-      println("Watching", cwd, "for file changes...");
+      println("Watching", cwd, " for file changes...");
       watch.watchTree(cwd,{
         "ignoreDirectoryPattern": /node_modules/,
         "ignoreDotFiles": true,
-        "filter": (f,stat)=> f.endsWith(".ky") || stat.isDirectory()
+        "interval":30,
+        "filter": (f,stat)=> !stat.isDirectory() && f.endsWith(".ky")
       }, function(f, curr, prev){
         if(std.isObject(f) && prev === null && curr === null){
           //finished walking the tree
@@ -80,7 +92,8 @@
           return null
         }
         return cp.spawn("bin/kirby.js",
-                        [f.slice(cwd.length+1)],{ "stdio": "inherit" }) }) }
+                        [f.toString().slice(cwd.length+1)],{ "stdio": "inherit" }) })
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function pcli(gopt){
@@ -105,11 +118,11 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function main(){
       let cli=getopt.create([
-        ["v", "verbose", "show details of the source"],
-        ["w", "watch", "auto-compile changed files"],
-        ["m", "source-map", "generate source maps"],
+        //["w", "watch", "auto-compile changed files"],
         ["f", "no-format", "no-format source code"],
-        ["V", "version", "show version"],
+        ["c", "show-code", "print code to stdout"],
+        ["m", "source-map", "generate source map"],
+        ["v", "version", "show version"],
         ["r", "repl", "start a repl"],
         ["h", "help", "show help"],
         ["t", "show-ast", "show AST"]]).
@@ -137,6 +150,7 @@
   if(typeof module == "object" && module.exports){
     module.exports=_module()
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);

@@ -7,13 +7,17 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict";
 
+  //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  /**
+   * @module
+   */
   function _module(){
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -36,7 +40,9 @@
     function _expect(k){ if(!std.isSymbol(k)) throwE("expected symbol") }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    /**Lexical Environment */
+    /**Lexical Environment
+     * @class
+     */
     class LEXEnv{
       /**Create and initialize a new env with these symbols, optionally a parent env */
       constructor(parent, vars=[], vals=[]){
@@ -120,9 +126,8 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function addVar(sym, info){
-      let
-        s = `${sym}`,
-        m = _STAR_vars_STAR.get(s);
+      let s = `${sym}`,
+          m = _STAR_vars_STAR.get(s);
       if(m)
         throwE(`var: "${s}" already added`);
       _STAR_vars_STAR.set(s, info);
@@ -202,16 +207,22 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Get rid of possible cyclic refs */
     function filterJS(obj){
-      let s = std.stringify(obj); if(s) return JSON.parse(s); }
+      let s = std.stringify(obj);
+      if(s) return JSON.parse(s);
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Sort out *this* */
     function resolveJS(s){
-      return [s.includes(".") ? eval(/^(.*)\.[^\.]*$/g.exec(s)[1]) : GLOBAL, eval(s)] }
+      return [s.includes(".") ? eval(/^(.*)\.[^\.]*$/g.exec(s)[1]) : GLOBAL, eval(s)]
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function withMeta(obj, m){
-      obj= cloneJS(obj); obj["____meta"] = m; return obj; }
+      obj= cloneJS(obj);
+      obj["____meta"] = m;
+      return obj;
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function meta(obj){
@@ -223,7 +234,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Eval some js code */
     function evalJS(s){
-      if(s) return filterJS(eval(s.toString())) }
+      if(s) return filterJS(eval(s.toString()))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Invoke some method on some *this* object */
@@ -444,7 +456,8 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isMacroCall(ast, env){
-      return std.isPair(ast,1) && std.isSymbol(ast[0]) && getMacro(`${ast[0]}`) }
+      return std.isPair(ast,1) && std.isSymbol(ast[0]) && getMacro(`${ast[0]}`)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Continue to expand if the expr is a macro */
@@ -470,21 +483,22 @@
     function doAND(ast, env){
       let ret = true;
       for(let i=1;i<ast.length; ++i){
-        if(std.isFalsy(ret=compute(ast[i], env))) break; } return ret; }
+        if(std.isFalsy(ret=compute(ast[i], env))) break; } return ret;
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** internal (or* a b c) */
     function doOR(ast, env){
       let ret = null;
       for(let i=1;i<ast.length; ++i){
-        if(!std.isFalsy(ret=compute(ast[i], env))) break; } return ret; }
+        if(!std.isFalsy(ret=compute(ast[i], env))) break; } return ret;
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** internal (let* [x 1 y 2] ...) */
     function doLET(ast, env){
-      let
-        binds = ast[1],
-        e = new LEXEnv(env);
+      let binds = ast[1],
+          e = new LEXEnv(env);
       for(let i=0;i<binds.length; i+=2){
         e.set(binds[i], compute(binds[i+1], e))
       }
@@ -494,9 +508,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** internal (macro* name (args) body) */
     function doMACRO(ast, env){
-      let
-        cmd= `${ast[1]}`,
-        mc, name, nsp = core.peekNS();
+      let cmd= `${ast[1]}`,
+          mc, name, nsp = core.peekNS();
       nsp = nsp ? nsp.get("id") : KBSTDLIB;
       name=cmd;
       //ast[2]===args, ast[3]===body
@@ -516,7 +529,8 @@
       }catch(e){
         if(a3 && "catch*" == `${a3[0]}`){
           if(e instanceof Error){ e = e.message }
-          return compute(a3[2], new LEXEnv(env, [a3[1]], [e])) }
+          return compute(a3[2], new LEXEnv(env, [a3[1]], [e]))
+        }
         throw e;
       }
     }
@@ -524,16 +538,17 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** internal (if test ok elze), only test is eval'ed, ok and elze are not. */
     function doIF(ast, env){
-      let
-        a3 = ast[3],
-        test = compute(ast[1], env);
-      return !std.isFalsy(test) ? ast[2] : typeof(a3) != "undefined"? a3 : null }
+      let a3 = ast[3],
+          test = compute(ast[1], env);
+      return !std.isFalsy(test) ? ast[2] : typeof(a3) != "undefined"? a3 : null
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Wrap the function body and args inside a native js function */
     function fnToNative(fargs, fbody, env){
       //wrap around a macro
-      return function(...args){ return compute(fbody, new LEXEnv(env, fargs, args)) } }
+      return function(...args){ return compute(fbody, new LEXEnv(env, fargs, args)) }
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     const _spec_forms_ = new Map([
@@ -643,7 +658,9 @@
     /**Create a new interpreter environment */
     function newEnv(){
       let ret = new LEXEnv();
-      _intrinsics_.forEach((v,k)=> ret.set(std.symbol(k), v)); return ret; }
+      _intrinsics_.forEach((v,k)=> ret.set(std.symbol(k), v));
+      return ret;
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Start a interactive session */
@@ -681,7 +698,8 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function _loadMacros(){
-      compute(expandMacro(readAST(macro_assert))) }
+      compute(expandMacro(readAST(macro_assert)))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Set up the runtime environment */
@@ -738,6 +756,7 @@
   if(typeof module == "object" && module.exports){
     module.exports=_module()
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);

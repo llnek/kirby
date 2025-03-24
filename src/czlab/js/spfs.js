@@ -7,12 +7,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict";
 
+  //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  /**
+   * @module
+   */
   function _module(){
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -160,9 +164,15 @@
       }
 
       //load the remote lib and introspect exported symbols
-
       libpath = txExpr(rpath.includes("./") ? path.resolve(fdir, rpath) : rpath, env);
-      ret.add(["const ", rdr.jsid(as), "=require(", txExpr(rpath, env), ");\n"]);
+      if(1){
+        let _as=rdr.jsid(as), _m=txExpr(rpath,env), _ms= _m.toString();
+        //beware of quoted string!!!
+        if(_ms.length==7 && _ms.slice(1,6)=="kirby"){
+          _m="\"@czlab/kirby\"";
+        }
+        ret.add(["const ", _as, "=require(", _m, ");\n"]);
+      }
       rlib = std.requireJS(std.unquoteStr(libpath));
       if(rlib)
         info = rlib[EXPKEY];
@@ -447,6 +457,14 @@
       }
       //update the namespace stack
       core.pushNS(`${nsp}`, attrs);
+      nsp = core.starNSstar();
+      ret.add(["const ", std.MODULE_NAMESPACE, "=", std.quoteStr(nsp), ";\n"]);
+      if(nsp != rt.KBSTDLIB){
+        //preemptive addition of kirby in all modules
+        e=std.pair(std.keyword(":require"), "kirby",
+                   std.keyword(":as"), std.symbol(KBSTDLR));
+        ret.add(sfRequire(xfi(ast, e), env));
+      }
       ast = xfi(ast, ast.slice(pos));
       for(let e,i = 0; i<ast.length; ++i){
         e = ast[i];
@@ -454,14 +472,6 @@
            std.isKeyword(e[0],":require"))
           ret.add(sfRequire(xfi(ast, e), env))
       }
-      nsp = core.starNSstar();
-      if(nsp != rt.KBSTDLIB){
-        //preemptive addition of kirby in all modules
-        e=std.pair(std.keyword(":require"), "kirby",
-                   std.keyword(":as"), std.symbol(KBSTDLR));
-        ret.add(sfRequire(xfi(ast, e), env));
-      }
-      ret.add(["const ", std.MODULE_NAMESPACE, "=", std.quoteStr(nsp), ";\n"]);
       return ret;
     }
     cc.regSpecF("ns",sfNS);
@@ -1435,6 +1445,7 @@
   if(typeof module == "object" && module.exports){
     module.exports=_module()
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);

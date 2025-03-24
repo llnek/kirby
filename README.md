@@ -7,12 +7,13 @@ Clojure-like language which compiles to javascript.
 
 ## Installation
 
+Requires nodejs.
 
 ## Documentation
 
 
 ## Usage
-
+bin/kirby.js
 
 
 ## Contacting me / contributions
@@ -21,7 +22,7 @@ Please use the project's [GitHub issues page] for all questions, ideas, etc. **P
 
 ## License
 
-Copyright © 2013-2022 Kenneth Leung
+Copyright © 2025 Kenneth Leung
 
 Distributed under the Apache License either version 2.0 or (at
 your option) any later version.

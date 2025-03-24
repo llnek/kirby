@@ -7,12 +7,16 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict";
 
+  //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  /**
+   * @module
+   */
   function _module(){
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -20,6 +24,14 @@
     const {println,gensym}=std;
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    function _trap(e){
+      throw (e ? e : "error!")
+    }
+
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    /**
+     * @class
+     */
     class Token{
       constructor(source, line, column, value){
         this["source"] = source;
@@ -31,14 +43,16 @@
     }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    //Defining a lambda positional argument
+    /**Defining a lambda positional argument
+     * @class
+     */
     class LambdaArg extends std.SValue{
       constructor(token){
         super((function(){
           let name= token.value == "%" ? "1" : token.value.slice(1);
           let v = parseInt(name);
           if(!(v>0))
-            throw Error(`invalid lambda-arg ${token.value}`);
+            _trap(`invalid lambda-arg ${token.value}`);
           return `%${v}`;
         })());
       }
@@ -90,7 +104,8 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function testid(name){
-      return REGEX.id.test(name) || REGEX.id2.test(name) }
+      return REGEX.id.test(name) || REGEX.id2.test(name)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Escape to compliant js identifier */
@@ -103,7 +118,8 @@
       }
       return !testid(name) ? `${pfx}${name}`
                            : REPLACERS.reduce((acc, x)=> acc.replace(x[0], x[1]),
-                                              `${pfx}${name}`.replace(REGEX.slash, ".")) }
+                                              `${pfx}${name}`.replace(REGEX.slash, "."))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Lexical analyzer */
@@ -283,7 +299,8 @@
     /**Raise an error */
     function throwE(token,...msgs){
       let s = msgs.join("");
-      throw Error(!token ? `${s} near EOF` : `${s} near line: ${token.line}`) }
+      _trap(!token ? `${s} near EOF` : `${s} near line: ${token.line}`)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns the next token, updates the token index */
@@ -316,9 +333,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Process an atom */
     function readAtom(tree){
-      let
-        token = popToken(tree),
-        ret = null, tn = token.value;
+      let token = popToken(tree),
+          ret = null, tn = token.value;
       if(0 == tn.length){
         //ret = undefined
       }else if(REGEX.float.test(tn)){
@@ -348,10 +364,9 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Process a LISP form */
     function readBlock(tree, ends){
-      let
-        ast=std.pair(),
-        token=popToken(tree),
-        cur, jso=0, expr=0, ok=1, start = token;
+      let ast=std.pair(),
+          token=popToken(tree),
+          cur, jso=0, expr=0, ok=1, start = token;
 
       if(ends[0]=="["){ ast=std.vector() }
       if(ends[0]=="("){ expr=true }
@@ -393,13 +408,13 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Advance the token index, then continue to parse */
     function skipParse(tree, func){
-      return copyTokenData(popToken(tree), func(tree)) }
+      return copyTokenData(popToken(tree), func(tree))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function lspec(tree){
-      let
-        c=0,
-        base=gensym().value + "__";
+      let c=0,
+          base=gensym().value + "__";
       tree=readAst(tree);
       function scan(ast){
         for(let z,a,i=0;i<ast.length;++i){
@@ -424,11 +439,13 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function rspec(s){
-      return function(a){ return std.pair(std.symbol(s), readAst(a)) } }
+      return function(a){ return std.pair(std.symbol(s), readAst(a)) }
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function group(x,y){
-      return [function(a){ return readBlock(a, [x,y]) } ] }
+      return [function(a){ return readBlock(a, [x,y]) } ]
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     const SPEC_TOKENS=(function(m){
@@ -461,9 +478,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Inner parser routine */
     function readAst(tree){
-      let
-        tval="",
-        rc,func,token = peekToken(tree);
+      let tval="",
+          rc,func,token = peekToken(tree);
 
       if(token) tval=token.value;
       func = SPEC_TOKENS.get(tval);
@@ -489,9 +505,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Main parser routine */
     function parse(source,...args){
-      let
-        tree = lexer(source, args[0] || "*adhoc*"),
-        ast=[], tlen = tree.tokens.length;
+      let tree = lexer(source, args[0] || "*adhoc*"),
+          ast=[], tlen = tree.tokens.length;
 
       if(false)
         tree.tokens.forEach(a=> println("token=", a));
@@ -506,7 +521,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function xdump(tag, ast){
       return ast && typeof(ast.line)== "number" ?
-        `<${tag} line=\"${ast.line}\" col=\"${ast.column}\">` : `<${tag}>` }
+        `<${tag} line=\"${ast.line}\" col=\"${ast.column}\">` : `<${tag}>`
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Debug and dump the AST */
@@ -533,7 +549,7 @@
         rc=`${xdump("map", tree)}${s}</map>`
       }else if(std.isPair(tree)){
         s=tree.map(a=>dumpTree(a)).join("");
-        rc=`${xdump("list", tree)}${s}</array>`
+        rc=`${xdump("list", tree)}${s}</list>`
       }else if(Array.isArray(tree)){
         s=tree.map(a=>dumpTree(a)).join("");
         rc=`${xdump("array", tree)}${s}</array>`
@@ -572,7 +588,7 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Dump AST to xml */
     function dbgAST(source, fname){
-      return dumpAst(rdr.parse(source, fname), fname) }
+      return dumpAst(parse(source, fname), fname) }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     const _$={
@@ -597,6 +613,7 @@
   if(typeof module == "object" && module.exports){
     module.exports=_module()
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);

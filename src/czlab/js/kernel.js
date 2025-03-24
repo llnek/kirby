@@ -7,24 +7,31 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * Copyright © 2013-2022, Kenneth Leung. All rights reserved. */
+ * Copyright © 2025, Kenneth Leung. All rights reserved. */
 
-;(function(gscope){
+;(function(gscope,UNDEF){
 
   "use strict";
 
+  //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  /**
+   * @module
+   */
   function _module(fs,process){
-
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     const core=require("./core");
 
-    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    const MODULE_NAMESPACE = "__module_namespace__";
+    /**
+     * @class
+     */
+    class RegexObj extends core.SValue{
+      constructor(v){ super(v) }
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    class RegexObj extends core.SValue{ constructor(v){ super(v) } }
     const {SValue,DArray,SPair,Keyword,SSymbol,Atom,JSObj}=core;
+    const MODULE_NAMESPACE = "__module_namespace__";
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     //original source https://github.com/douglascrockford/JSON-js/blob/master/cycle.js
@@ -109,23 +116,29 @@
     }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function println(...msgs){ if(console) console.log(msgs.join("")) }
+    function println(...msgs){
+      if(console) console.log(msgs.join(""))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function throwE(msg,line){
-      throw Error(typeof(line)=="number" ? [msg,` near line: ${line}`].join("") : msg) }
+      throw Error(typeof(line)=="number" ? [msg,` near line: ${line}`].join("") : msg)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isSequential(o){
-      return isVec(o) || isPair(o) || Array.isArray(o) }
+      return isVec(o) || isPair(o) || Array.isArray(o)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isPair(a,checkEmpty){
-      return a instanceof SPair ? (checkEmpty?a.length>0:true) : false }
+      return a instanceof SPair ? (checkEmpty?a.length>0:true) : false
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isVec(a,checkEmpty){
-      return a instanceof DArray ? (checkEmpty?a.length>0:true) : false }
+      return a instanceof DArray ? (checkEmpty?a.length>0:true) : false
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function rtti(v){ return Object.prototype.toString.call(v) }
@@ -141,66 +154,99 @@
     function isJSMap(x){return rttiQ(x,"[object Map]")}
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function isSimple(o){return isNichts(o) || isStr(o) || isNum(o) || isBool(o)}
+    function isSimple(o){
+      return isNichts(o) || isStr(o) || isNum(o) || isBool(o)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isKeyword(o,what){
-      return o instanceof Keyword ? (what ? what==o.value : true) : false }
+      return o instanceof Keyword ? (what ? what==o.value : true) : false
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function isSymbol(o,what){
-      return o instanceof SSymbol ? (what ? what==`${o}` : true) : false }
+      return o instanceof SSymbol ? (what ? what==`${o}` : true) : false
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function isMap(o){ return o instanceof Map }
+    function isMap(o){
+      return o instanceof Map
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function isSet(o){ return o instanceof Set }
+    function isSet(o){
+      return o instanceof Set
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function isAtom(o){ return o instanceof Atom }
+    function isAtom(o){
+      return o instanceof Atom
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function copyPair(v){ let r=new SPair(); v.forEach(z=>r.push(z)); return r }
+    function copyPair(v){
+      let r=new SPair();
+      v.forEach(z=>r.push(z));
+      return r
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function copyVec(v){ let r=new DArray(); v.forEach(z=>r.push(z)); return r }
+    function copyVec(v){
+      let r=new DArray();
+      v.forEach(z=>r.push(z));
+      return r
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function toVec(...xs){ let r=new DArray(); xs.forEach(z=>r.push(z)); return r }
+    function toVec(...xs){
+      let r=new DArray();
+      xs.forEach(z=>r.push(z));
+      return r
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function toPair(...xs){ let r=new SPair(); xs.forEach(z=>r.push(z)); return r }
+    function toPair(...xs){
+      let r=new SPair();
+      xs.forEach(z=>r.push(z));
+      return r
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function pair(...xs){ return toPair(...xs) }
+    function pair(...xs){
+      return toPair(...xs)
+    }
+
+    //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+    function _trap(e){ throw (e || "error") }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**true if both are equal. */
     function isEQ(a,b){
       let ok=false;
       if(isJSMap(a) && isJSMap(b)){
-        if(a.size==b.size){
+        if(a.size==b.size) try{
+          a.forEach((v, k)=> isEQ(b.get(k), v) ? 0 : _trap());
           ok=true;
-          a.forEach((v, k)=>{ if(!isEQ(b.get(k), v)) ok=false }) }
+        }catch(e){}
       }else if(isJSSet(a) && isJSSet(b)){
-        if(a.size==b.size){
+        if(a.size==b.size) try{
+          a.forEach((v, k)=> b.has(v) ? 0 : _trap());
           ok=true;
-          a.forEach((v, k)=>{ if(!b.has(v)) ok=false }) }
+        }catch(e){}
       }else if(isJSObj(a) && isJSObj(b)){
         let ksa=Object.keys(a),
             ksb=Object.keys(b);
-        if(isEQ(new Set(ksa),new Set(ksb))){
+        if(isEQ(new Set(ksa),new Set(ksb))) try{
+          ksa.forEach(k=> isEQ(a[k],b[k]) ? 0 : _trap());
           ok=true;
-          ksa.forEach(k=>{
-            if(!isEQ(a[k],b[k])) { ok=false } }); }
+        }catch(e){}
       }else if((isPair(a)&&isPair(b)) ||
                (isVec(a)&&isVec(b)) ||
                (Array.isArray(a) && Array.isArray(b))){
-        if(a.length==b.length){
+        if(a.length==b.length) try{
+          a.forEach((v,i)=> isEQ(v,b[i]) ? 0 : _trap());
           ok=true;
-          for(let i=0;i<a.length; ++i){
-            if(!isEQ(a[i],b[i])){ ok=false; break; } } }
+        }catch(e){}
       }else if(isSymbol(a) && isSymbol(b)){
         ok= a.value == b.value
       }else if(isKeyword(a) && isKeyword(b)){
@@ -256,13 +302,13 @@
         xs.forEach(a=>{
           if(!Array.isArray(a) ||
              a.length!==2)
-            throw Error("bad arg: conj!");
+            _trap("bad arg: conj!");
           coll.set(a[0],a[1]);
         })
       }else if(coll instanceof Set){
         xs.forEach(a=>coll.add(a))
       }else{
-        throw Error(`Cannot conj! with: ${rtti(coll)}`)
+        _trap(`Cannot conj! with: ${rtti(coll)}`)
       }
       return coll;
     }
@@ -271,9 +317,9 @@
     /**Add entry to map */
     function assocBANG(coll,...xs){
       if(!(coll instanceof Map))
-        throw Error(`Cannot assoc! with: ${rtti(coll)}`);
-      if(xs.length%2 != 0)
-        throw Error("assoc! expecting even n# of args");
+        _trap(`Cannot assoc! with: ${rtti(coll)}`);
+      if(xs.length%2 !== 0)
+        _trap("assoc! expecting even n# of args");
       for(let i=0; i<xs.length; i += 2){
         coll.set(xs[i], xs[i+1])
       }
@@ -297,7 +343,7 @@
       }else if(coll===null){
         r= toPair();
       }else{
-        throw Error(`Cannot conj with: ${typeof(coll)}`)
+        _trap(`Cannot conj with: ${typeof(coll)}`)
       }
       return r ? conjBANG(r,...xs) : null;
     }
@@ -316,13 +362,18 @@
     let GENSYM_COUNTER = 0;
     function gensym(pfx){
       let x= ++GENSYM_COUNTER;
-      return new SSymbol(`${optQQ(pfx, "GS__")}${x}`); }
+      return new SSymbol(`${optQQ(pfx, "GS__")}${x}`);
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function symbol(v){ return new SSymbol(v) }
+    function symbol(v){
+      return new SSymbol(v)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    function keyword(v){ return new Keyword(v) }
+    function keyword(v){
+      return new Keyword(v)
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Add quotes around a string. */
@@ -398,10 +449,9 @@
       let rc=null;
       if(obj instanceof Map){
         rc=obj.get(prop)
-      }else if(obj instanceof Set){
-        if(isNum(prop))
-          rc=Array.from(obj.values())[prop]
-      }else if(Array.isArray(obj)){
+      }else if(obj instanceof Set && isNum(prop)){
+        rc=Array.from(obj.values())[prop]
+      }else if(Array.isArray(obj) && isNum(prop)){
         rc=obj[prop]
       }else if(!isSimple(obj) && isStr(prop)){
         if(isown===true &&
@@ -418,10 +468,9 @@
      * the maximum number of splits. Returns vector of the splits. */
     function split(s, re, limit){
       if(!isStr(s))
-        throw Error(`Cannot split with: ${rtti(s)}`);
-      let
-        out=toPair(),
-        rc= typeof(limit) != "undefined" ? s.split(re, limit) : s.split(re)
+        _trap(`Cannot split with: ${rtti(s)}`);
+      let out=toPair(),
+          rc= typeof(limit) != "undefined" ? s.split(re, limit) : s.split(re)
       rc.forEach(c=>out.push(c));
       return out;
     }
@@ -435,7 +484,7 @@
       }else if(Array.isArray(coll) || isStr(coll)){
         n=coll.length
       }else if(isJSObj(coll)){
-        n=Object.keys(coll)
+        n=Object.keys(coll).length
       }
       return n>0?coll:null;
     }
@@ -449,7 +498,7 @@
       }else if(coll instanceof Map||coll instanceof Set){
         rc=coll.size
       }else if(coll){
-        throw Error(`Cannot count with: ${rtti(coll)}`)
+        _trap(`Cannot count with: ${rtti(coll)}`)
       }
       return rc;
     }
@@ -460,7 +509,7 @@
       if(Array.isArray(coll)){
         coll.unshift(x)
       }else{
-        throw Error(`Cannot cons! with: ${rtti(coll)}`)
+        _trap(`Cannot cons! with: ${rtti(coll)}`)
       }
       return coll;
     }
@@ -468,7 +517,8 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns the last element. */
     function last(coll){
-      return (isStr(coll)||isSequential(coll)) && coll.length>0 ? coll[coll.length-1] : null }
+      return (isStr(coll)||isSequential(coll)) && coll.length>0 ? coll[coll.length-1] : null
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**true if item is inside. */
@@ -479,7 +529,7 @@
       }else if(Array.isArray(coll)||isStr(coll)){
         rc=coll.includes(x)
       }else{
-        throw Error(`Cannot contains? with: ${rtti(coll)}`)
+        _trap(`Cannot contains? with: ${rtti(coll)}`)
       }
       return rc;
     }
@@ -487,12 +537,11 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     //Merge maps
     function mergeBANG(base, m){
-      let
-        src= m || new Map(),
-        ret= base || new Map();
+      let src= m || new Map(),
+          ret= base || new Map();
 
-      if(!(isJSMap(ret)||isJSObj(ret))) throw Error("bad arg to merge!");
-      if(!(isJSMap(src)||isJSObj(src))) throw Error("bad arg to merge!");
+      if(!(isJSMap(ret)||isJSObj(ret))) _trap("bad arg to merge!");
+      if(!(isJSMap(src)||isJSObj(src))) _trap("bad arg to merge!");
 
       function loop(v, k){
         return ret instanceof Map ? ret.set(k, v) : (ret[k]=v) }
@@ -511,13 +560,14 @@
      * the first.  If a key occurs in more than one map, the mapping from
      * the latter (left-to-right) will be the mapping in the result. */
     function merge(...xs){
-      return xs.reduce((acc, o)=> mergeBANG(acc, o) , new Map()) }
+      return xs.reduce((acc, o)=> mergeBANG(acc, o) , new Map())
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns a new seq where x is the first element and seq is the rest. */
     function cons(x, coll){
       if(!isSequential(coll))
-        throw Error(`Cannot cons with: ${rtti(coll)}`);
+        _trap(`Cannot cons with: ${rtti(coll)}`);
       let rc=copyPair(coll);
       rc.unshift(x);
       return rc;
@@ -553,14 +603,14 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** @private */
     function prnArr(obj, rQ, f){
-      return obj.map((v,i)=> prnEx(f(i,v), rQ,f)).join(" ") }
+      return obj.map((v,i)=> prnEx(f(i,v), rQ,f)).join(" ")
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /** @private */
     function prnEx(obj, rQ, func){
-      let
-        pfx = a=>prnEx(a, rQ, func),
-        c3, parr= (a,b)=> wrapStr(prnArr(obj, rQ, func), a,b);
+      let pfx = a=>prnEx(a, rQ, func),
+          c3, parr= (a,b)=> wrapStr(prnArr(obj, rQ, func), a,b);
       if(obj instanceof Atom){
         c3 = wrapStr(pfx(obj.value), "(atom ", ")");
       }else if(obj instanceof SValue){
@@ -640,14 +690,14 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns a list of [(take-while pred coll) (drop-while pred coll)] */
     function splitWith(pred, coll){
-      return toPair(takeWhile(pred, coll), dropWhile(pred, coll)) }
+      return toPair(takeWhile(pred, coll), dropWhile(pred, coll))
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     //Split a collection into 2 parts
     function splitSeq(coll,cnt){
-      let
-        x=new SPair(),
-        y=new SPair();
+      let x=new SPair(),
+          y=new SPair();
       if(cnt<coll.length){
         for(let i=0;i<cnt;++i) x.push(coll[i]);
         for(let i=cnt;i<coll.length;++i) y.push(coll[i]);
@@ -671,7 +721,7 @@
       }else if(Array.isArray(obj)){
         obj.forEach(a=>rc.unshift(a));
       }else{
-        throw Error(`Cannot rseq with: ${rtti(obj)}`)
+        _trap(`Cannot rseq with: ${rtti(obj)}`)
       }
       return rc;
     }
@@ -679,10 +729,9 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns a sequence of lists of n items each. */
     function partition(n, coll){
-      let
-        recur = null,
-        _x_ = null,
-        _r_, _zz_=new Object();
+      let recur = null,
+          _x_ = null,
+          _r_, _zz_=new Object();
       function _f_(ret, [x,y]){
         if(notEmpty(x)){ ret.push(x) }
         return 0 == count(y) ? ret : recur(ret, splitSeq(y, n)) }
@@ -702,7 +751,7 @@
       if(!coll){
         return toPair()
       }else{
-        throw Error(`Cannot partition with: ${rtti(coll)}`)
+        _trap(`Cannot partition with: ${rtti(coll)}`)
       }
     }
 
@@ -729,7 +778,7 @@
           rc.push(toVec(k,obj[k]))
         });
       }else{
-        throw Error(`Cannot seq with: ${rtti(obj)}`)
+        _trap(`Cannot seq with: ${rtti(obj)}`)
       }
       return rc;
     }
@@ -739,8 +788,8 @@
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function hashmap(...xs){
-      if(xs.length%2 != 0)
-        throw Error("Arity Error: even n# expected.");
+      if(xs.length%2 !== 0)
+        _trap("Arity Error: even n# expected.");
       let out=new Map();
       for(let i=0;i<xs.length;i+=2){
         out.set(`${xs[i]}`,xs[i+1])
@@ -761,25 +810,24 @@
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**JSON stringify (no cyclical obj-ref) */
     function stringify(obj){
-      return obj? JSON.stringify(JSON.decycle(obj)): null }
+      return obj? JSON.stringify(JSON.decycle(obj)) : null
+    }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     /**Returns a new coll consisting of to-coll with all of the items of from-coll conjoined. */
     function into(to, coll){
-      if(isPair(to)){
-        if(Array.isArray(coll)) coll.forEach(z=>to.push(z));
-      }else if(isVec(to)){
+      if(isPair(to) || isVec(to)){
         if(Array.isArray(coll)) coll.forEach(z=>to.push(z));
       }else{
-        throw Error(`Cannot into with: ${rtti(to)} to ${rtti(coll)}`)
+        _trap(`Cannot into with: ${rtti(to)} to ${rtti(coll)}`)
       }
       return to;
     }
 
     //;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     function object(...xs){
-      if(xs.length%2 != 0)
-        throw new Error("Invalid arity for: object");
+      if(xs.length%2 !== 0)
+        _trap("Invalid arity for: object");
       let rc=new JSObj();
       for(let i=0;i<xs.length; i+=2){
         rc[xs[i]]=xs[i+1]
@@ -805,7 +853,7 @@
           rc.push(coll[i])
         }
       }else{
-        throw Error(`Cannot repeat-every with: ${rtti(coll)}`)
+        _trap(`Cannot repeat-every with: ${rtti(coll)}`)
       }
       return rc;
     }
@@ -829,7 +877,8 @@
         if(panic)
           throw e;
         //console.log(e);
-        println("warning: failed to load lib: ", path)
+        println("warning: failed to load lib: ", path);
+        //console.log(new Error().stack);
       }
     }
 
@@ -912,9 +961,9 @@
 
   //export--------------------------------------------------------------------
   if(typeof module == "object" && module.exports){
-    module.exports=_module(require("fs"),
-                           require("process"))
+    module.exports=_module(require("fs"), require("process"))
   }else{
+    throw "Cannot run outside of NodeJS!"
   }
 
 })(this);
